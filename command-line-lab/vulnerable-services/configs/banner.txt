@@ -1,0 +1,14 @@
+====================================================
+   COMMAND LINE LAB
+   Linux Fundamentals Track — Cyber Range
+====================================================
+ You are logged into a disposable Ubuntu workstation.
+ Everything here resets when you stop the lab.
+
+ Quick commands:
+   progress    - show your objective checklist
+   hint        - request a hint (costs points)
+   submitflag  - submit a flag from the terminal
+
+ Good luck.
+====================================================

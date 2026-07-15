@@ -1,0 +1,10 @@
+{
+  "student_id": "student",
+  "flags": {
+    "module1": "FLAG{cll_module1_student_8e06105f}",
+    "module2": "FLAG{cll_module2_student_66796faf}",
+    "module3": "FLAG{cll_module3_student_9cc49203}",
+    "module4": "FLAG{cll_module4_student_4297bae3}",
+    "module5": "FLAG{cll_module5_student_109dd437}"
+  }
+}

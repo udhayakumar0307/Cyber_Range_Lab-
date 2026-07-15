@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Command Line Lab | Cyber Range</title>
+<link rel="stylesheet" href="/static/vendor/xterm/xterm.css" />
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --panel-border: #1f2937;
+    --text: #d7e0ea;
+    --text-muted: #7c8a9c;
+    --accent: #39d68a;
+    --accent-dim: #1f7a4d;
+    --danger: #e05555;
+    --warn: #e0b155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+
+  .navbar {
+    display: flex; align-items: center; gap: 20px;
+    padding: 14px 28px; border-bottom: 1px solid var(--panel-border);
+    background: #0e131a;
+  }
+  .brand { font-weight: 700; letter-spacing: 1px; }
+  .brand span { color: var(--accent); }
+  .navbar .points { margin-left: auto; color: var(--text-muted); font-size: 0.9rem; }
+  .navbar .points b { color: var(--accent); }
+
+  .page-container { max-width: 1200px; margin: 0 auto; padding: 32px 24px 60px; }
+
+  .hero h1 { font-size: 1.9rem; margin-bottom: 6px; }
+  .hero p { color: var(--text-muted); max-width: 640px; }
+
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px; margin-top: 28px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 10px; padding: 18px; cursor: pointer;
+    transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
+  .card.solved { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent-dim);
+    border-radius: 999px; padding: 2px 10px; margin-bottom: 10px;
+  }
+  .card h3 { margin: 0 0 6px; }
+  .card p { color: var(--text-muted); font-size: 0.88rem; min-height: 40px; }
+  .card .meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+  .solved-tag { color: var(--accent); font-size: 0.8rem; }
+
+  .btn {
+    border: none; border-radius: 6px; padding: 9px 16px; font-size: 0.9rem;
+    cursor: pointer; font-weight: 600;
+  }
+  .btn-primary { background: var(--accent); color: #06120b; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-danger { background: var(--danger); color: #200; }
+  .btn-secondary { background: #1c2734; color: var(--text-muted); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #module-detail { display: none; margin-top: 30px; }
+  .back-link { display: inline-block; margin-bottom: 16px; color: var(--text-muted); cursor: pointer; }
+  .back-link:hover { color: var(--accent); }
+
+  .module-layout { display: grid; grid-template-columns: 1fr 1.3fr; gap: 22px; }
+  @media (max-width: 900px) { .module-layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 20px; }
+  .panel h2 { margin-top: 0; }
+  .story { color: var(--text-muted); line-height: 1.55; font-size: 0.94rem; }
+  .mission { margin-top: 14px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #0e1720; font-size: 0.9rem; }
+
+  .objectives { margin-top: 18px; list-style: none; padding: 0; }
+  .objectives li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 0.9rem; color: var(--text-muted); border-bottom: 1px solid #1a222c; }
+  .objectives li.done { color: var(--accent); }
+  .objectives .dot { width: 9px; height: 9px; border-radius: 50%; background: #2b3846; flex-shrink: 0; }
+  .objectives li.done .dot { background: var(--accent); }
+
+  .docs-link { display: inline-block; margin-top: 16px; font-size: 0.86rem; }
+
+  .terminal-panel { display: flex; flex-direction: column; }
+  .terminal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .terminal-status { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #45505e; }
+  .status-dot.online { background: var(--accent); }
+  .status-dot.offline { background: #45505e; }
+  .actions-row { display: flex; gap: 8px; }
+
+  #terminal-container {
+    background: #000; border-radius: 8px; border: 1px solid var(--panel-border);
+    height: 380px; padding: 6px; overflow: hidden;
+  }
+  .terminal-placeholder {
+    color: var(--text-muted); font-size: 0.85rem; padding: 20px; text-align: center;
+  }
+
+  .verify-box { margin-top: 16px; }
+  .verify-box label { font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 8px; }
+  .verify-row { display: flex; gap: 8px; }
+  .verify-row input {
+    flex: 1; background: #0e1720; border: 1px solid var(--panel-border); border-radius: 6px;
+    padding: 9px 12px; color: var(--text); font-family: monospace;
+  }
+  .verify-feedback { margin-top: 10px; font-size: 0.88rem; min-height: 20px; }
+  .verify-feedback.ok { color: var(--accent); }
+  .verify-feedback.err { color: var(--danger); }
+
+  .hint-row { margin-top: 10px; display: flex; justify-content: flex-end; }
+  .hint-row button { background: none; border: 1px solid var(--panel-border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
+  .hint-row button:hover { color: var(--warn); border-color: var(--warn); }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .popup { background: var(--panel); border: 1px solid var(--accent); border-radius: 12px; padding: 32px; text-align: center; max-width: 380px; }
+  .popup .checkmark { font-size: 2.4rem; color: var(--accent); }
+  .flag-display { font-family: monospace; background: #0e1720; padding: 10px; border-radius: 6px; margin: 14px 0; word-break: break-all; }
+
+  footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 30px 0; }
+</style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="brand">CYBER<span>_RANGE</span> / Command Line Lab</div>
+    <div class="points">Student <b>{{ student_id }}</b> &middot; <b id="total-points">{{ total_points }}</b> pts</div>
+  </nav>
+
+  <div class="page-container">
+
+    <section class="hero" id="hero-view">
+      <h1>Command Line Lab</h1>
+      <p>A beginner-friendly Linux track. Work through five modules directly inside a real terminal, running in an isolated Docker container.</p>
+
+      <div class="card-grid" id="card-grid"></div>
+    </section>
+
+    <section id="module-detail">
+      <span class="back-link" id="back-link">&larr; Back to modules</span>
+      <div class="module-layout">
+
+        <div class="panel">
+          <span class="badge" id="detail-badge">Module</span>
+          <h2 id="detail-title"></h2>
+          <p class="story" id="detail-story"></p>
+          <div class="mission"><strong>Mission:</strong> <span id="detail-mission"></span></div>
+          <ul class="objectives" id="detail-objectives"></ul>
+          <a class="docs-link" id="detail-docs-link" href="#" target="_blank">Read the full module brief &rarr;</a>
+        </div>
+
+        <div class="panel terminal-panel">
+          <div class="terminal-header">
+            <div class="terminal-status">
+              <span class="status-dot offline" id="status-dot"></span>
+              <span id="status-text">Terminal not connected</span>
+            </div>
+            <div class="actions-row">
+              <button class="btn btn-primary" id="start-lab-btn">Start Terminal</button>
+              <button class="btn btn-danger" id="stop-lab-btn" disabled>Disconnect</button>
+            </div>
+          </div>
+
+          <div id="terminal-container">
+            <div class="terminal-placeholder" id="terminal-placeholder">
+              Click "Start Terminal" to connect to your workstation.
+            </div>
+          </div>
+
+          <div class="hint-row"><button id="hint-btn">Request a hint</button></div>
+
+          <div class="verify-box">
+            <label for="key-input">Found the key? Enter it below to complete this module.</label>
+            <div class="verify-row">
+              <input type="text" id="key-input" placeholder="e.g. FLAG-XXXXX" autocomplete="off" />
+              <button class="btn btn-primary" id="verify-btn">Verify</button>
+            </div>
+            <div class="verify-feedback" id="verify-feedback"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <footer>Command Line Lab &mdash; Local Cyber Range Project</footer>
+
+  <div class="overlay" id="success-overlay">
+    <div class="popup">
+      <div class="checkmark">&#10003;</div>
+      <h2>Module Complete!</h2>
+      <p id="success-message"></p>
+      <div class="flag-display" id="flag-display"></div>
+      <button class="btn btn-primary" id="popup-close-btn">Back to Modules</button>
+    </div>
+  </div>
+
+  <script src="/static/vendor/xterm/xterm.js"></script>
+  <script src="/static/vendor/xterm/xterm-addon-fit.js"></script>
+  <script>
+    const MODULES = {{ modules | tojson }};
+    const TERMINAL_WS_URL = "ws://{{ terminal_ws_host }}:{{ terminal_ws_port }}";
+
+    const cardGrid = document.getElementById("card-grid");
+    const heroView = document.getElementById("hero-view");
+    const moduleDetail = document.getElementById("module-detail");
+    let currentModule = null;
+    let term, fitAddon, socket, pollTimer;
+
+    function renderCards() {
+      cardGrid.innerHTML = "";
+      MODULES.forEach((m) => {
+        const card = document.createElement("div");
+        card.className = "card" + (m.solved ? " solved" : "");
+        card.innerHTML = `
+          <span class="badge">Module ${m.id.replace('module','')}</span>
+          <h3>${m.title}</h3>
+          <p>${m.mission}</p>
+          <div class="meta">
+            <span>${'★'.repeat(m.difficulty)}</span>
+            <span>${m.points} pts</span>
+          </div>
+          ${m.solved ? '<div class="solved-tag">&#10003; Solved</div>' : ''}
+        `;
+        card.addEventListener("click", () => openModule(m.id));
+        cardGrid.appendChild(card);
+      });
+    }
+
+    function openModule(id) {
+      currentModule = MODULES.find((m) => m.id === id);
+      if (!currentModule) return;
+      document.getElementById("detail-badge").textContent = "Module " + id.replace("module", "");
+      document.getElementById("detail-title").textContent = currentModule.title;
+      document.getElementById("detail-story").textContent = currentModule.story;
+      document.getElementById("detail-mission").textContent = currentModule.mission;
+      document.getElementById("detail-docs-link").href = "/docs/" + id;
+
+      renderObjectives(currentModule.objectives.map(o => ({...o, complete: false})));
+      document.getElementById("verify-feedback").textContent = "";
+      document.getElementById("key-input").value = "";
+
+      heroView.style.display = "none";
+      moduleDetail.style.display = "block";
+
+      pollProgress();
+      pollTimer = setInterval(pollProgress, 4000);
+    }
+
+    function closeModule() {
+      heroView.style.display = "block";
+      moduleDetail.style.display = "none";
+      clearInterval(pollTimer);
+      disconnectTerminal();
+    }
+
+    function renderObjectives(objectives) {
+      const list = document.getElementById("detail-objectives");
+      list.innerHTML = "";
+      objectives.forEach((o) => {
+        const li = document.createElement("li");
+        li.className = o.complete ? "done" : "";
+        li.innerHTML = `<span class="dot"></span> ${o.label}`;
+        list.appendChild(li);
+      });
+    }
+
+    async function pollProgress() {
+      if (!currentModule) return;
+      try {
+        const res = await fetch(`/api/progress/${currentModule.id}`);
+        const data = await res.json();
+        if (data.objectives) renderObjectives(data.objectives);
+      } catch (e) { /* ignore transient errors */ }
+    }
+
+    document.getElementById("back-link").addEventListener("click", closeModule);
+
+    // ── Terminal ──────────────────────────────────────────
+    function connectTerminal() {
+      const container = document.getElementById("terminal-container");
+      container.innerHTML = "";
+      term = new Terminal({
+        theme: { background: "#000000", foreground: "#d7e0ea", cursor: "#39d68a" },
+        fontSize: 14, cursorBlink: true,
+      });
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(container);
+      fitAddon.fit();
+
+      socket = new WebSocket(TERMINAL_WS_URL);
+      socket.binaryType = "arraybuffer";
+
+      socket.onopen = () => {
+        setStatus(true);
+        term.onData((data) => {
+          socket.send(JSON.stringify({ type: "input", data }));
+        });
+        term.onResize(({ cols, rows }) => {
+          socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        });
+        fitAddon.fit();
+        socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      };
+      socket.onmessage = (event) => {
+        const data = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
+        term.write(data);
+      };
+      socket.onclose = () => setStatus(false);
+      socket.onerror = () => setStatus(false);
+
+      window.addEventListener("resize", () => fitAddon && fitAddon.fit());
+    }
+
+    function disconnectTerminal() {
+      if (socket) { socket.close(); socket = null; }
+      setStatus(false);
+      const container = document.getElementById("terminal-container");
+      container.innerHTML = '<div class="terminal-placeholder" id="terminal-placeholder">Click "Start Terminal" to connect to your workstation.</div>';
+    }
+
+    function setStatus(online) {
+      document.getElementById("status-dot").className = "status-dot " + (online ? "online" : "offline");
+      document.getElementById("status-text").textContent = online ? "Connected" : "Terminal not connected";
+      document.getElementById("start-lab-btn").disabled = online;
+      document.getElementById("stop-lab-btn").disabled = !online;
+    }
+
+    document.getElementById("start-lab-btn").addEventListener("click", connectTerminal);
+    document.getElementById("stop-lab-btn").addEventListener("click", disconnectTerminal);
+
+    // ── Hints ─────────────────────────────────────────────
+    document.getElementById("hint-btn").addEventListener("click", async () => {
+      if (!currentModule) return;
+      const res = await fetch(`/api/progress/${currentModule.id}`); // ensure module valid
+      alert("Use the `hint` command inside your terminal for a contextual hint (costs points).");
+    });
+
+    // ── Verify / submit flag ─────────────────────────────
+    document.getElementById("verify-btn").addEventListener("click", async () => {
+      if (!currentModule) return;
+      const flag = document.getElementById("key-input").value.trim();
+      const feedback = document.getElementById("verify-feedback");
+      if (!flag) { feedback.textContent = "Enter a key first."; feedback.className = "verify-feedback err"; return; }
+
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module: currentModule.id, flag }),
+      });
+      const data = await res.json();
+
+      if (data.correct) {
+        feedback.textContent = data.message;
+        feedback.className = "verify-feedback ok";
+        document.getElementById("total-points").textContent = data.total_points;
+        currentModule.solved = true;
+        document.getElementById("success-message").textContent =
+          `You earned ${data.points} points for ${currentModule.title}.`;
+        document.getElementById("flag-display").textContent = flag;
+        document.getElementById("success-overlay").classList.add("show");
+      } else {
+        feedback.textContent = data.message || "Incorrect key.";
+        feedback.className = "verify-feedback err";
+      }
+    });
+
+    document.getElementById("popup-close-btn").addEventListener("click", () => {
+      document.getElementById("success-overlay").classList.remove("show");
+      closeModule();
+      renderCards();
+    });
+
+    renderCards();
+  </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+{
+  "modules": {
+    "module1": {
+      "title": "Linux Navigation",
+      "difficulty": 1,
+      "points": 100,
+      "story": "Orientation day. IT dropped you into a workstation with a maze of folders and no map. Before they'll grant you real access, you need to prove you can find your own way around.",
+      "mission": "Locate the onboarding key hidden somewhere inside your home directory.",
+      "key_path": "/home/student/module1/records/logs/archive/.keyfile",
+      "objectives": [
+        {
+          "id": "pwd",
+          "label": "Print your current directory with pwd",
+          "type": "log_regex",
+          "pattern": "^pwd\\b"
+        },
+        {
+          "id": "ls",
+          "label": "List directory contents with ls",
+          "type": "log_regex",
+          "pattern": "^ls\\b"
+        },
+        {
+          "id": "cd",
+          "label": "Navigate into records/logs/archive with cd",
+          "type": "log_regex",
+          "pattern": "\\|/home/student/module1/records/logs/archive\\|"
+        },
+        {
+          "id": "cat",
+          "label": "Read the hidden key file with cat",
+          "type": "log_regex",
+          "pattern": "^cat\\s+.*\\.keyfile"
+        }
+      ],
+      "hints": [
+        "pwd tells you where you are right now \u2014 start there.",
+        "ls -la will reveal hidden files too, not just the obvious ones.",
+        "The key lives at records/logs/archive/.keyfile \u2014 cd there and cat it."
+      ]
+    },
+    "module2": {
+      "title": "File Operations",
+      "difficulty": 1,
+      "points": 150,
+      "story": "The workstation from Module 1 is now yours, but it's a mess. Your supervisor wants the inbox cleaned up: organize what matters, discard what doesn't.",
+      "mission": "Create a backup folder, copy the manifest into it, move the draft into its final form, and delete the junk file.",
+      "key_path": "/home/student/module2/.vault/.key",
+      "objectives": [
+        {
+          "id": "mkdir",
+          "label": "Create workspace/backup with mkdir",
+          "type": "fs_test",
+          "test_cmd": "test -d /home/student/module2/workspace/backup"
+        },
+        {
+          "id": "cp",
+          "label": "Copy inbox/manifest.txt into workspace/backup",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/workspace/backup/manifest.txt"
+        },
+        {
+          "id": "mv",
+          "label": "Move inbox/draft.txt to workspace/final.txt",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/workspace/final.txt && test ! -f /home/student/module2/inbox/draft.txt"
+        },
+        {
+          "id": "rm",
+          "label": "Remove workspace/junk.tmp with rm",
+          "type": "fs_test",
+          "test_cmd": "test ! -f /home/student/module2/workspace/junk.tmp"
+        }
+      ],
+      "hints": [
+        "mkdir -p can create the whole workspace/backup path in one shot.",
+        "cp inbox/manifest.txt workspace/backup/ keeps the original in place.",
+        "mv both renames and relocates \u2014 use it to turn draft.txt into workspace/final.txt.",
+        "The key is hidden in a dotfile: ls -a in module2/.vault"
+      ]
+    },
+    "module3": {
+      "title": "Searching & Filtering",
+      "difficulty": 2,
+      "points": 200,
+      "story": "Someone on the team logged an access key deep inside a pile of rotated log files and now nobody remembers which one. Your job: find it without opening every file by hand.",
+      "mission": "Use find, grep, and head/tail to locate the log line containing the access key.",
+      "key_path": null,
+      "key_search": {
+        "root": "/home/student/module3/data",
+        "pattern": "ACCESS_KEY:\\s*(\\S+)"
+      },
+      "objectives": [
+        {
+          "id": "find",
+          "label": "Use find to search the data directory",
+          "type": "log_regex",
+          "pattern": "^find\\b"
+        },
+        {
+          "id": "grep",
+          "label": "Use grep to filter file contents",
+          "type": "log_regex",
+          "pattern": "^grep\\b"
+        },
+        {
+          "id": "headtail",
+          "label": "Use head or tail to inspect a file",
+          "type": "log_regex",
+          "pattern": "^(head|tail)\\b"
+        },
+        {
+          "id": "found_key",
+          "label": "Locate the line containing ACCESS_KEY",
+          "type": "log_regex",
+          "pattern": "ACCESS_KEY"
+        }
+      ],
+      "hints": [
+        "find /home/student/module3/data -type f lists every log file, however deep.",
+        "grep -r 'ACCESS_KEY' /home/student/module3/data searches recursively in one command.",
+        "Once you've narrowed it down, tail the specific file to read the last lines."
+      ]
+    },
+    "module4": {
+      "title": "Permissions & Shell Scripting",
+      "difficulty": 3,
+      "points": 250,
+      "story": "A deployment script has been sitting broken for weeks because nobody fixed its permissions or ran it as the right user. Fix it and let it do its job.",
+      "mission": "Make run.sh executable, fix report.txt's ownership, and run the script to unlock the key.",
+      "key_path": "/home/student/module4/.done",
+      "objectives": [
+        {
+          "id": "chmod",
+          "label": "Make scripts/run.sh executable with chmod",
+          "type": "fs_test",
+          "test_cmd": "test -x /home/student/module4/scripts/run.sh"
+        },
+        {
+          "id": "sudo",
+          "label": "Use sudo at least once",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|sudo\\b"
+        },
+        {
+          "id": "chown",
+          "label": "Change the owner of data/report.txt with chown",
+          "type": "fs_test",
+          "test_cmd": "[ \"$(stat -c %U /home/student/module4/data/report.txt)\" = \"student\" ]"
+        },
+        {
+          "id": "run_script",
+          "label": "Execute run.sh so it unlocks the key",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module4/.done"
+        }
+      ],
+      "hints": [
+        "chmod +x scripts/run.sh grants execute permission.",
+        "sudo chown student data/report.txt changes the owner (you'll need sudo).",
+        "Run the script with ./run.sh once it's executable \u2014 check what file it creates."
+      ]
+    },
+    "module5": {
+      "title": "Advanced Linux",
+      "difficulty": 3,
+      "points": 300,
+      "story": "Capstone day. A misbehaving background process is eating resources, and the only way to identify and stop it \u2014 then extract what it left behind \u2014 is by combining everything you've learned so far.",
+      "mission": "Find the runaway process, kill it, then pipe and redirect your way to the final key.",
+      "key_path": "/home/student/module5/.final/key.txt",
+      "objectives": [
+        {
+          "id": "ps",
+          "label": "Use ps or top to inspect running processes",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|(ps|top)\\b"
+        },
+        {
+          "id": "kill",
+          "label": "Use kill to stop the runaway process",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|kill\\b"
+        },
+        {
+          "id": "pipe",
+          "label": "Chain commands together with a pipe (|)",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|[^\\n]*\\|"
+        },
+        {
+          "id": "redirect_awk_sed",
+          "label": "Use awk or sed with output redirection",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|.*\\b(awk|sed)\\b.*>"
+        }
+      ],
+      "hints": [
+        "ps aux will show you the runaway sleep process and its PID.",
+        "kill <pid> stops it \u2014 the PID is also saved in module5/.runaway_pid.",
+        "Try: cat .final/key.txt | awk '{print $1}' \u2014 combine pipes and redirection to explore."
+      ]
+    }
+  }
+}

@@ -1,0 +1,83 @@
+# ============================================================
+# COMMAND LINE LAB
+# Cyber Range — Linux Fundamentals Track
+# ============================================================
+# Usage:
+#   STUDENT_ID=alice LAB_SEED=yourseed docker-compose up --build -d
+#   Then open: http://localhost:5000
+# ============================================================
+
+networks:
+  cll-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.0.0/24
+
+services:
+
+  # ── Student Workspace (the box the browser terminal drops you into) ──
+  student-env:
+    build:
+      context: ./student-env
+    container_name: cll-student
+    hostname: cll-workstation
+    networks:
+      cll-net:
+        ipv4_address: 10.20.0.50
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # ── Orchestration Layer: terminal bridge, progress checks, hints ──
+  vulnerable-services:
+    build:
+      context: ./vulnerable-services
+    container_name: cll-services
+    hostname: cll-services
+    networks:
+      cll-net:
+        ipv4_address: 10.20.0.10
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - STUDENT_CONTAINER=cll-student
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./vulnerable-services/flags:/flags
+    ports:
+      - "8022:8022"   # terminal_service.py — browser xterm.js WebSocket
+    depends_on:
+      - student-env
+    restart: unless-stopped
+
+  # ── Scoring / Frontend Server ─────────────────────────────
+  scoring-server:
+    build:
+      context: ./scoring-server
+    container_name: cll-scoring
+    hostname: scoring
+    networks:
+      cll-net:
+        ipv4_address: 10.20.0.99
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - SERVICES_URL=http://10.20.0.10:9500
+      - HINT_SERVICE_URL=http://10.20.0.10:9600
+      - TERMINAL_WS_HOST=localhost
+      - TERMINAL_WS_PORT=8022
+    ports:
+      - "5000:5000"
+    volumes:
+      - scoring-data:/data
+      - ./modules:/app/static/modules:ro
+    depends_on:
+      - vulnerable-services
+    restart: unless-stopped
+
+volumes:
+  scoring-data:

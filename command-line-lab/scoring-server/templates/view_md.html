@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ title }} | Command Line Lab</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121821; --panel-border: #1f2937;
+    --text: #d7e0ea; --text-muted: #7c8a9c; --accent: #39d68a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+  .navbar { padding: 14px 28px; border-bottom: 1px solid var(--panel-border); background: #0e131a; }
+  .navbar a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }
+  .navbar a:hover { color: var(--accent); }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 32px; max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } .toc { display: none; } }
+
+  .toc { position: sticky; top: 24px; align-self: start; font-size: 0.85rem; }
+  .toc ul { list-style: none; padding-left: 0; }
+  .toc ul ul { padding-left: 14px; }
+  .toc a { color: var(--text-muted); display: block; padding: 4px 0; }
+  .toc a:hover { color: var(--accent); }
+
+  .content h1, .content h2, .content h3 { color: var(--text); }
+  .content h1 { border-bottom: 1px solid var(--panel-border); padding-bottom: 10px; }
+  .content p, .content li { color: #c3ccd6; line-height: 1.65; }
+  .content code { background: #17202b; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+
+  .content pre {
+    position: relative; background: #0e1720; border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 16px; overflow-x: auto;
+  }
+  .content pre code { background: none; padding: 0; }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px; background: #1c2734; color: var(--text-muted);
+    border: 1px solid var(--panel-border); border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  blockquote { margin: 16px 0; padding: 12px 16px; border-left: 3px solid var(--panel-border); background: #101720; border-radius: 0 6px 6px 0; }
+  blockquote.callout-note { border-left-color: #4a90e2; }
+  blockquote.callout-tip { border-left-color: var(--accent); }
+  blockquote.callout-warning { border-left-color: #e0b155; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid var(--panel-border); padding: 8px 12px; text-align: left; font-size: 0.9rem; }
+  th { background: #101720; }
+
+  .progress-rail { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 10; }
+</style>
+</head>
+<body>
+
+<div class="progress-rail" id="progress-rail"></div>
+
+<nav class="navbar"><a href="/">&larr; Back to Command Line Lab</a></nav>
+
+<div class="layout">
+  <aside class="toc" id="toc"></aside>
+  <article class="content" id="content">
+    {{ content | safe }}
+  </article>
+</div>
+
+<script>
+  // Build sticky TOC from headings
+  const content = document.getElementById("content");
+  const toc = document.getElementById("toc");
+  const headings = content.querySelectorAll("h2, h3");
+  if (headings.length) {
+    const list = document.createElement("ul");
+    headings.forEach((h, i) => {
+      if (!h.id) h.id = "section-" + i;
+      const li = document.createElement("li");
+      if (h.tagName === "H3") li.style.paddingLeft = "12px";
+      const a = document.createElement("a");
+      a.href = "#" + h.id;
+      a.textContent = h.textContent;
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+    toc.appendChild(list);
+  }
+
+  // Copy-command buttons on code blocks
+  document.querySelectorAll("pre").forEach((pre) => {
+    const btn = document.createElement("button");
+    btn.className = "copy-btn";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(pre.innerText.replace(/Copy$/, "").trim());
+      btn.textContent = "Copied!";
+      setTimeout(() => (btn.textContent = "Copy"), 1500);
+    });
+    pre.appendChild(btn);
+  });
+
+  // Reading progress rail
+  window.addEventListener("scroll", () => {
+    const h = document.documentElement;
+    const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    document.getElementById("progress-rail").style.width = scrolled + "%";
+  });
+</script>
+
+</body>
+</html>
