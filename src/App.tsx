@@ -10,7 +10,13 @@ import { LabControlPanel } from './pages/admin/LabControlPanel';
 import { MonitoringAnalytics } from './pages/admin/MonitoringAnalytics';
 import { AdminSettings } from './pages/admin/AdminSettings';
 
-// Shared Pages (4.1 to 4.5)
+// Auth Section Pages (1.1 - 1.4)
+import { LoginPage } from './pages/auth/LoginPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { RegisterPage } from './pages/auth/RegisterPage';
+
+// Shared Section Pages (4.1 - 4.5)
 import { RootRedirect } from './pages/shared/RootRedirect';
 import { NotFoundPage } from './pages/shared/NotFoundPage';
 import { ServerErrorPage } from './pages/shared/ServerErrorPage';
@@ -24,16 +30,18 @@ export function App() {
         {/* 4.1 Root Auto-Redirect Gateway */}
         <Route path="/" element={<RootRedirect />} />
 
-        {/* 4.3 500 Error Page */}
+        {/* Auth Flow Routes (1.1 - 1.4) */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        {/* Shared Utility Routes (4.3 - 4.5) */}
         <Route path="/error" element={<ServerErrorPage />} />
-
-        {/* 4.4 Maintenance Mode Page */}
         <Route path="/maintenance" element={<MaintenancePage />} />
-
-        {/* 4.5 403 Access Denied Page */}
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-        {/* Full Admin Section Routes (Pages 2.1 to 2.9) */}
+        {/* Admin Management Suite Routes (2.1 - 2.9) */}
         <Route
           path="/admin/dashboard"
           element={
@@ -107,7 +115,7 @@ export function App() {
           }
         />
 
-        {/* 4.2 404 Catch-All Page Not Found */}
+        {/* 4.2 Catch-All 404 Page Not Found */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

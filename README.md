@@ -12,6 +12,20 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
 
 ## 🚀 Key Features
 
+### 🔑 Authentication Suite (Complete Routes 1.1 – 1.4)
+
+* **🔐 Login Page (`/login`)**:
+  * Dual-mode tab switcher (**Standard Credentials** vs **Enterprise SAML 2.0 / Okta SSO**).
+  * Work email format verification, password visibility toggle, and instant feedback.
+* **🔑 Forgot Password Page (`/forgot-password`)**:
+  * Recovery email dispatch simulator with email validation and timed reset link expiration alerts.
+* **🛡️ Reset Password Page (`/reset-password`)**:
+  * Dynamic complexity meter (Weak / Medium / Strong), live requirements checklist, matching password check, and `?token=expired` link expiration handler.
+* **📝 Register & Onboarding Page (`/register`)**:
+  * Multi-step onboarding details form transitioning to a 6-digit OTP verification pin grid with auto-advancing focus and a 45-second resend timer.
+
+---
+
 ### 👑 Admin Management Suite (Complete Routes 2.1 – 2.9)
 
 * **📊 Security Admin Dashboard (`/admin/dashboard`)**:
@@ -83,19 +97,6 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
   * Scheduled infrastructure maintenance banner featuring estimated downtime clock and email notification signup.
 * **🔒 Unauthorized Access 403 (`/unauthorized`)**:
   * Role restriction screen explaining permission requirements, request role elevation trigger, and safe return links.
-
----
-
-### 🔑 Interactive Authentication Mockups (Pages 1.1 – 1.4)
-
-High-fidelity interactive mockup templates are available in the **[auth-mockups](auth-mockups)** directory, serving as styling and interaction blueprints for the portal onboarding flow.
-
-* **🔑 Login Page ([index.html](auth-mockups/index.html))**: Standard credentials form and Enterprise SSO domain redirect selectors, featuring responsive viewport slide transitions and SVG shackle lock animations.
-* **✉️ Forgot Password Page ([forgot-password.html](auth-mockups/forgot-password.html))**: Email address recovery token dispatcher showcasing vector checkmark drawing transitions.
-* **🔄 Reset Password Page ([reset-password.html](auth-mockups/reset-password.html))**: Password parameter strength indicators with requirements checklist flags and matching checkers.
-* **📝 Register Page ([register.html](auth-mockups/register.html))**: Signup registration forms with integrated 6-digit email confirmation code grid boxes (supporting auto-focus forwarding).
-
-For setup and hosting guidelines, see the [auth-mockups/README.md](auth-mockups/README.md) file.
 
 ---
 
@@ -184,6 +185,11 @@ CyberRange/
 │   │   │   ├── LabPurchaseConfirmation.tsx # 2.3 Checkout flow (₹ INR)
 │   │   │   ├── MonitoringAnalytics.tsx  # 2.8 Telemetry & leaderboards
 │   │   │   └── UserManagement.tsx       # 2.4 User roster administration
+│   │   ├── auth/
+│   │   │   ├── ForgotPasswordPage.tsx   # 1.2 Password recovery page
+│   │   │   ├── LoginPage.tsx            # 1.1 Login & SAML SSO page
+│   │   │   ├── RegisterPage.tsx         # 1.4 Onboarding & 6-digit OTP page
+│   │   │   └── ResetPasswordPage.tsx    # 1.3 Password complexity reset page
 │   │   └── shared/
 │   │       ├── MaintenancePage.tsx      # 4.4 Maintenance mode page
 │   │       ├── NotFoundPage.tsx         # 4.2 404 Catch-all page
@@ -195,12 +201,7 @@ CyberRange/
 │   ├── App.tsx                          # React Router definitions
 │   ├── index.css                        # Tailwind v4 configuration & base styles
 │   └── main.tsx                         # DOM mounting root
-├── auth-mockups/                        # Interactive static mockup pages (1.1 - 1.4)
-│   ├── README.md                        # Mockup guide & server options
-│   ├── index.html                       # 1.1 Login Page
-│   ├── forgot-password.html             # 1.2 Forgot Password Page
-│   ├── reset-password.html              # 1.3 Reset Password Page
-│   └── register.html                    # 1.4 Register Page
+├── auth-mockups/                        # Interactive static HTML mockups (1.1 - 1.4)
 ├── tasks/                               # Task tracking documents
 ├── index.html                           # Application entry HTML
 ├── package.json                         # Dependencies & scripts
