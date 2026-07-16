@@ -2090,106 +2090,106 @@ export default function StandaloneAdminCTFControl() {
           {activeTab === "overview" && (
             <div className="space-y-6">
               {/* Banner Section */}
-              <section className="relative overflow-hidden border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/20 py-6 px-6 backdrop-blur-xl rounded-2xl shadow-lg">
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+              <section className="relative overflow-hidden border border-border bg-gradient-to-br from-card via-card to-primary/5 py-6 px-6 rounded-2xl shadow-xs">
+                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
                 <div className="max-w-6xl flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Button asChild variant="ghost" size="sm" className="h-8 px-2 hover:bg-white/5 text-slate-400 hover:text-white rounded-lg">
+                      <Button asChild variant="ghost" size="sm" className="h-8 px-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg">
                         <Link href="/ctf"><ArrowLeft className="w-4 h-4 mr-1.5" /> Back CTF Arena</Link>
                       </Button>
                     </div>
-                    <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-white">
+                    <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-foreground">
                       Administrative Control Deck
                     </h2>
-                    <p className="text-slate-400 text-xs font-light">Monitor, orchestrate, and schedule isolated user lab sandbox environments.</p>
+                    <p className="text-muted-foreground text-xs font-light">Monitor, orchestrate, and schedule isolated user lab sandbox environments.</p>
                   </div>
                 </div>
               </section>
 
               {/* KPI Grid */}
               <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl shadow-lg">
+                <Card className="border border-border bg-card rounded-xl shadow-xs">
                   <CardHeader className="pb-2">
-                    <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Scenarios</CardDescription>
+                    <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Scenarios</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-extrabold text-white font-mono">{totalScenarios}</div>
-                    <p className="text-[10px] text-slate-400 mt-1">Active categories</p>
+                    <div className="text-3xl font-extrabold text-foreground font-mono">{totalScenarios}</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Active categories</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl shadow-lg">
+                <Card className="border border-border bg-card rounded-xl shadow-xs">
                   <CardHeader className="pb-2">
-                    <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Flags</CardDescription>
+                    <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Flags</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-extrabold text-white font-mono">{totalChals}</div>
-                    <p className="text-[10px] text-slate-400 mt-1">Configured challenges</p>
+                    <div className="text-3xl font-extrabold text-foreground font-mono">{totalChals}</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Configured challenges</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl shadow-lg">
+                <Card className="border border-border bg-card rounded-xl shadow-xs">
                   <CardHeader className="pb-2">
-                    <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Max Points Pool</CardDescription>
+                    <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Max Points Pool</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-extrabold text-emerald-400 font-mono">{totalPoints} <span className="text-xs text-slate-500">PTS</span></div>
-                    <p className="text-[10px] text-slate-400 mt-1">Total score value</p>
+                    <div className="text-3xl font-extrabold text-primary font-mono">{totalPoints} <span className="text-xs text-muted-foreground">PTS</span></div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Total score value</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl shadow-lg">
+                <Card className="border border-border bg-card rounded-xl shadow-xs">
                   <CardHeader className="pb-2">
-                    <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Solves Telemetry</CardDescription>
+                    <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Solves Telemetry</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-extrabold text-white font-mono">{correctAttempts} <span className="text-xs text-emerald-400">Correct</span></div>
-                    <p className="text-[10px] text-slate-400 mt-1">Active flags verified</p>
+                    <div className="text-3xl font-extrabold text-foreground font-mono">{correctAttempts} <span className="text-xs text-emerald-600 dark:text-emerald-400">Correct</span></div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Active flags verified</p>
                   </CardContent>
                 </Card>
               </section>
 
               {/* Deployment Console */}
               {activeLab && (
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-5 flex flex-col gap-4 shadow-lg relative overflow-hidden">
-                  <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none" />
+                <Card className="border border-border bg-card rounded-xl p-5 flex flex-col gap-4 shadow-xs relative overflow-hidden">
+                  <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/5 blur-[50px] pointer-events-none" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1 relative z-10">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Sync & Deployment Console:</span>
+                        <span className="text-[10px] text-primary font-bold uppercase tracking-wider">Sync & Deployment Console:</span>
                         <select
                           value={selectedLabId}
                           onChange={(e) => setSelectedLabId(e.target.value)}
-                          className="bg-slate-900/80 border border-white/10 hover:border-white/20 transition text-indigo-300 rounded px-2.5 py-1 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                          className="bg-background border border-border text-foreground rounded px-2.5 py-1 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                         >
                           {labs.map((lab) => (
-                            <option key={lab.id} value={lab.id} className="bg-slate-950 text-slate-300">
+                            <option key={lab.id} value={lab.id}>
                               {lab.title}
                             </option>
                           ))}
                         </select>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-white/5 text-slate-300 border border-white/5">
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                           DB ID: {getUuidForId(activeLab.id)}
                         </span>
                         <div className="flex items-center gap-3 text-[10px]">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-slate-500">Live Infrastructure:</span>
+                            <span className="text-muted-foreground">Live Infrastructure:</span>
                             <span className={cn(
                               "font-bold uppercase tracking-wide px-2 py-0.5 rounded text-[9px]",
-                              deploymentStatus === "running" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                              deploymentStatus === "provisioning" || deploymentStatus === "queued" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse" :
-                              deploymentStatus === "terminating" ? "bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse" :
-                              "bg-white/5 text-slate-400 border border-white/5"
+                              deploymentStatus === "running" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" :
+                              deploymentStatus === "provisioning" || deploymentStatus === "queued" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse" :
+                              deploymentStatus === "terminating" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 animate-pulse" :
+                              "bg-muted text-muted-foreground border border-border"
                             )}>
                               {deploymentStatus || "Not Deployed"}
                             </span>
                           </div>
                           {deploymentStatus === "running" && activeDeploymentCountdown && (
-                            <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-lg font-mono font-bold text-[9px]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1" />
+                            <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-lg font-mono font-bold text-[9px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1" />
                               <span>Time Left: {activeDeploymentCountdown}</span>
                             </div>
                           )}
@@ -2203,7 +2203,7 @@ export default function StandaloneAdminCTFControl() {
                         size="sm"
                         onClick={handlePushScenario}
                         disabled={isPushing}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg px-3 h-8 shadow-md"
+                        className="bg-primary text-primary-foreground text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs"
                       >
                         {isPushing ? "Pushing..." : "Push to Server"}
                       </Button>
@@ -2216,7 +2216,7 @@ export default function StandaloneAdminCTFControl() {
                             size="sm"
                             onClick={handleToggleUserCtfVisibility}
                             className={cn(
-                              "text-[10px] font-bold rounded-lg px-3 h-8 shadow-md transition-colors duration-200",
+                              "text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs transition-colors duration-200",
                               isCurrentlyVisible
                                 ? "bg-rose-600 hover:bg-rose-700 text-white"
                                 : "bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -2229,16 +2229,16 @@ export default function StandaloneAdminCTFControl() {
                       
                       {(!deploymentStatus || deploymentStatus === "terminated" || deploymentStatus === "expired" || deploymentStatus === "cleanup_failed") ? (
                         <>
-                          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 h-8">
-                            <span className="text-[9px] text-slate-400 font-semibold uppercase">Assign Group:</span>
+                          <div className="flex items-center gap-1.5 bg-background border border-border rounded-lg px-2.5 py-1 h-8">
+                            <span className="text-[9px] text-muted-foreground font-semibold uppercase">Assign Group:</span>
                             <select
                               value={selectedGroupForDeployment}
                               onChange={(e) => setSelectedGroupForDeployment(e.target.value)}
-                              className="bg-transparent text-[10px] text-white focus:outline-none cursor-pointer w-28 md:w-32"
+                              className="bg-transparent text-[10px] text-foreground focus:outline-none cursor-pointer w-28 md:w-32"
                             >
-                              <option value="" className="bg-slate-950 text-slate-300">-- None (Solo) --</option>
+                              <option value="">-- None (Solo) --</option>
                               {groups.map(g => (
-                                <option key={g.id} value={g.id} className="bg-slate-950 text-white">{g.name}</option>
+                                <option key={g.id} value={g.id}>{g.name}</option>
                               ))}
                             </select>
                           </div>
@@ -2247,7 +2247,7 @@ export default function StandaloneAdminCTFControl() {
                             size="sm"
                             onClick={() => handleSpinChallenge()}
                             disabled={isSpinning || isPushing}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[10px] font-bold rounded-lg px-3 h-8 shadow-md"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs"
                           >
                             {isSpinning ? "Queuing..." : "Spin Challenge"}
                           </Button>
@@ -2259,7 +2259,7 @@ export default function StandaloneAdminCTFControl() {
                           onClick={handleStopChallenge}
                           disabled={isSpinning || deploymentStatus === "terminating"}
                           variant="destructive"
-                          className="text-[10px] font-bold rounded-lg px-3 h-8 shadow-md"
+                          className="text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs"
                         >
                           {deploymentStatus === "terminating" ? "Teardown..." : "Stop Lab"}
                         </Button>
@@ -2270,7 +2270,7 @@ export default function StandaloneAdminCTFControl() {
                           type="button"
                           size="sm"
                           onClick={handleJoinNetwork}
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-bold rounded-lg px-3 h-8 shadow-md"
+                          className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs"
                         >
                           Join VPN Network
                         </Button>
@@ -2281,7 +2281,7 @@ export default function StandaloneAdminCTFControl() {
                           asChild
                           type="button"
                           size="sm"
-                          className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[10px] font-bold rounded-lg px-3 h-8 shadow-md flex items-center gap-1.5"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs flex items-center gap-1.5"
                         >
                           <a href="https://click-web.cyberrange.kctf.cloud" target="_blank" rel="noopener noreferrer">
                             Challenge Link <ExternalLink className="w-3.5 h-3.5" />
@@ -2293,24 +2293,24 @@ export default function StandaloneAdminCTFControl() {
 
                   {/* Live Deployment Participants Manager */}
                   {deploymentStatus === "running" && (
-                    <div className="border-t border-white/5 pt-3 space-y-3 relative z-10">
+                    <div className="border-t border-border pt-3 space-y-3 relative z-10">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5 text-emerald-400" /> Active Lab Participants ({activeDeploymentMembers.length})
+                        <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-primary" /> Active Lab Participants ({activeDeploymentMembers.length})
                         </h4>
                       </div>
                       
                       {activeDeploymentMembers.length === 0 ? (
-                        <p className="text-[10px] text-slate-500 italic">No participants added to this running deployment. Add members below so they can connect.</p>
+                        <p className="text-[10px] text-muted-foreground italic">No participants added to this running deployment. Add members below so they can connect.</p>
                       ) : (
                         <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto pr-1">
                           {activeDeploymentMembers.map((member: any) => (
-                            <div key={member.user_id} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-mono">
+                            <div key={member.user_id} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-mono">
                               <span>{member.email}</span>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveMemberFromActiveDep(member.user_id)}
-                                className="text-slate-400 hover:text-rose-400 transition-colors ml-1"
+                                className="text-muted-foreground hover:text-rose-500 transition-colors ml-1"
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -2321,8 +2321,8 @@ export default function StandaloneAdminCTFControl() {
 
                       {/* Add Member Controls */}
                       <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 h-8">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Add Group:</span>
+                        <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-1 h-8">
+                          <span className="text-[9px] text-muted-foreground font-semibold uppercase">Add Group:</span>
                           <select
                             onChange={async (e) => {
                               const val = e.target.value
@@ -2330,28 +2330,28 @@ export default function StandaloneAdminCTFControl() {
                               await handleAddGroupToActiveDep(val)
                               e.target.value = "" // Reset
                             }}
-                            className="bg-transparent text-[10px] text-white focus:outline-none cursor-pointer w-28 md:w-32"
+                            className="bg-transparent text-[10px] text-foreground focus:outline-none cursor-pointer w-28 md:w-32"
                           >
-                            <option value="" className="bg-slate-950 text-slate-300">-- Select Group --</option>
+                            <option value="">-- Select Group --</option>
                             {groups.map(g => (
-                              <option key={g.id} value={g.id} className="bg-slate-950 text-white">{g.name}</option>
+                              <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                           </select>
                         </div>
 
-                        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 h-8">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Add Student:</span>
+                        <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-1 h-8">
+                          <span className="text-[9px] text-muted-foreground font-semibold uppercase">Add Student:</span>
                           <select
                             value={selectedEmailForActiveDep}
                             onChange={(e) => {
                               setSelectedEmailForActiveDep(e.target.value)
                               setCustomEmailForActiveDep("")
                             }}
-                            className="bg-transparent text-[10px] text-white focus:outline-none cursor-pointer max-w-[150px]"
+                            className="bg-transparent text-[10px] text-foreground focus:outline-none cursor-pointer max-w-[150px]"
                           >
-                            <option value="" className="bg-slate-950 text-slate-300">-- Select Student --</option>
+                            <option value="">-- Select Student --</option>
                             {fetchedEmails.map(email => (
-                              <option key={email} value={email} className="bg-slate-950 text-white">{email}</option>
+                              <option key={email} value={email}>{email}</option>
                             ))}
                           </select>
                         </div>
@@ -2364,14 +2364,14 @@ export default function StandaloneAdminCTFControl() {
                             setCustomEmailForActiveDep(e.target.value)
                             setSelectedEmailForActiveDep("")
                           }}
-                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 h-8 text-[10px] text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44"
+                          className="bg-background border border-border rounded-lg px-3 py-1 h-8 text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary w-44"
                         />
 
                         <Button
                           type="button"
                           size="sm"
                           onClick={handleAddIndividualToActiveDep}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[10px] font-bold rounded-lg px-3 h-8 shadow-md"
+                          className="bg-primary text-primary-foreground text-[10px] font-bold rounded-lg px-3 h-8 shadow-xs"
                         >
                           Add to Lab
                         </Button>
@@ -2383,31 +2383,31 @@ export default function StandaloneAdminCTFControl() {
 
               {/* Schedule Deployment Form */}
               {activeLab && (
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-5 flex flex-col gap-4 shadow-lg">
+                <Card className="border border-border bg-card rounded-xl p-5 flex flex-col gap-4 shadow-xs">
                   <div className="flex items-center gap-1.5 font-bold">
-                    <CalendarRange className="w-4 h-4 text-indigo-400" />
-                    <span className="text-[10px] uppercase font-bold text-slate-300">
+                    <CalendarRange className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">
                       Schedule Deployment for this Lab
                     </span>
                   </div>
                   <form onSubmit={handleScheduleLab} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                     <div className="space-y-1">
-                      <label className="text-[9px] text-slate-400 uppercase font-semibold">Start Time (Local)</label>
+                      <label className="text-[9px] text-muted-foreground uppercase font-semibold">Start Time (Local)</label>
                       <input
                         type="datetime-local"
                         value={scheduleStartTime}
                         onChange={(e) => setScheduleStartTime(e.target.value)}
-                        className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                         required
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] text-slate-400 uppercase font-semibold">Duration (Hours)</label>
+                      <label className="text-[9px] text-muted-foreground uppercase font-semibold">Duration (Hours)</label>
                       <select
                         value={scheduleDuration}
                         onChange={(e) => setScheduleDuration(e.target.value)}
-                        className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                       >
                         <option value="1">1 Hour</option>
                         <option value="2">2 Hours</option>
@@ -2419,11 +2419,11 @@ export default function StandaloneAdminCTFControl() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] text-slate-400 uppercase font-semibold">Assign Target (Group or Student)</label>
+                      <label className="text-[9px] text-muted-foreground uppercase font-semibold">Assign Target (Group or Student)</label>
                       <select
                         value={scheduleGroupId}
                         onChange={(e) => setScheduleGroupId(e.target.value)}
-                        className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                       >
                         <option value="">-- None (Solo) --</option>
                         {groups.length > 0 && (
@@ -2445,7 +2445,7 @@ export default function StandaloneAdminCTFControl() {
 
                     <Button
                       type="submit"
-                      className="w-full bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold rounded-lg h-8 shadow-md"
+                      className="w-full bg-primary text-primary-foreground text-[10px] font-bold rounded-lg h-8 shadow-xs"
                     >
                       Schedule Launch
                     </Button>
@@ -2453,8 +2453,8 @@ export default function StandaloneAdminCTFControl() {
 
                   {/* Scheduled list sub-panel */}
                   {scheduledLabs.length > 0 && (
-                    <div className="border-t border-white/5 pt-3 space-y-2">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="border-t border-border pt-3 space-y-2">
+                      <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                         Pending Scheduled Deployments
                       </h4>
                       <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
@@ -2486,25 +2486,25 @@ export default function StandaloneAdminCTFControl() {
                           }
 
                           return (
-                            <div key={item.id} className="flex items-center justify-between bg-white/[0.01] border border-white/5 rounded-lg px-3 py-2 text-xs">
+                            <div key={item.id} className="flex items-center justify-between bg-muted/40 border border-border rounded-lg px-3 py-2 text-xs">
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-white">{item.labTitle}</span>
+                                  <span className="font-semibold text-foreground">{item.labTitle}</span>
                                   <span className={cn(
                                     "text-[9px] px-1.5 py-0.5 rounded font-mono font-bold",
-                                    item.status === "started" ? "bg-emerald-500/10 text-emerald-400" :
-                                    item.status === "expired" ? "bg-rose-500/10 text-rose-400" :
-                                    "bg-indigo-500/10 text-indigo-400"
+                                    item.status === "started" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                                    item.status === "expired" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
+                                    "bg-primary/10 text-primary"
                                   )}>
                                     {item.status.toUpperCase()}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-slate-500">
-                                  Target Group: <span className="text-slate-300 font-medium">{item.groupName}</span> · Starts {new Date(item.startTime).toLocaleString()} ({item.durationHours}h duration)
+                                <div className="text-[10px] text-muted-foreground">
+                                  Target Group: <span className="text-foreground font-medium">{item.groupName}</span> · Starts {new Date(item.startTime).toLocaleString()} ({item.durationHours}h duration)
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-mono text-amber-400 font-semibold">{countdownText}</span>
+                                <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold">{countdownText}</span>
                                 <div className="flex items-center gap-2">
                                   {item.status === "scheduled" && (
                                     <>
@@ -2512,7 +2512,7 @@ export default function StandaloneAdminCTFControl() {
                                         type="button"
                                         size="sm"
                                         onClick={() => handleStartScheduleImmediately(item.id)}
-                                        className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[10px] font-bold rounded-lg px-2.5 h-7 shadow-sm transition-all duration-200"
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg px-2.5 h-7 shadow-xs transition-all duration-200"
                                       >
                                         Start Now
                                       </Button>
@@ -2521,7 +2521,7 @@ export default function StandaloneAdminCTFControl() {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => handleCancelSchedule(item.id)}
-                                        className="border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-rose-400 text-[10px] font-medium rounded-lg px-2.5 h-7 transition-all duration-200"
+                                        className="border-border text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 text-[10px] font-medium rounded-lg px-2.5 h-7 transition-all duration-200"
                                       >
                                         Cancel
                                       </Button>
@@ -2533,7 +2533,7 @@ export default function StandaloneAdminCTFControl() {
                                       size="sm"
                                       variant="destructive"
                                       onClick={() => handleStopScheduleImmediately(item.id)}
-                                      className="text-[10px] font-bold rounded-lg px-2.5 h-7 shadow-sm transition-all duration-200"
+                                      className="text-[10px] font-bold rounded-lg px-2.5 h-7 shadow-xs transition-all duration-200"
                                     >
                                       Stop
                                     </Button>
