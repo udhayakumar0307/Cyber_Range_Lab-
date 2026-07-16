@@ -71,6 +71,21 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
 
 ---
 
+### 🌐 Shared Platform Pages (Routes 4.1 – 4.5)
+
+* **🔄 Auth Gateway & Role Redirect (`/`)**:
+  * Auto-evaluates authentication tokens and redirects users to role-based destinations. Includes an interactive dev sandbox role switcher for testing.
+* **🔍 Page Not Found 404 (`*`)**:
+  * Catch-all route displaying a light-themed visual error card, quick search suggestions, and navigation return CTAs.
+* **⚠️ Internal Server Error 500 (`/error`)**:
+  * Dedicated exception page displaying system diagnostics, timestamp payload, and interactive retry controls.
+* **🛠️ System Maintenance Mode (`/maintenance`)**:
+  * Scheduled infrastructure maintenance banner featuring estimated downtime clock and email notification signup.
+* **🔒 Unauthorized Access 403 (`/unauthorized`)**:
+  * Role restriction screen explaining permission requirements, request role elevation trigger, and safe return links.
+
+---
+
 ## 🎨 Design System & Aesthetics
 
 Built in accordance with the PRD **Light Theme Palette**:
@@ -146,16 +161,22 @@ CyberRange/
 │   │       ├── MetricsCard.tsx          # Reusable KPI counter widget
 │   │       └── UserAddModal.tsx         # Single user add/edit modal
 │   ├── pages/
-│   │   └── admin/
-│   │       ├── AdminDashboard.tsx       # 2.1 Admin main hub
-│   │       ├── AdminSettings.tsx        # 2.9 Platform configurations
-│   │       ├── GroupManagement.tsx      # 2.5 Training group cohorts
-│   │       ├── LabAllocation.tsx        # 2.6 Lab-group visibility grid
-│   │       ├── LabControlPanel.tsx      # 2.7 Compute instance lifecycle
-│   │       ├── LabMarketplace.tsx       # 2.2 Lab catalog & inventory
-│   │       ├── LabPurchaseConfirmation.tsx # 2.3 Checkout flow (₹ INR)
-│   │       ├── MonitoringAnalytics.tsx  # 2.8 Telemetry & leaderboards
-│   │       └── UserManagement.tsx       # 2.4 User roster administration
+│   │   ├── admin/
+│   │   │   ├── AdminDashboard.tsx       # 2.1 Admin main hub
+│   │   │   ├── AdminSettings.tsx        # 2.9 Platform configurations
+│   │   │   ├── GroupManagement.tsx      # 2.5 Training group cohorts
+│   │   │   ├── LabAllocation.tsx        # 2.6 Lab-group visibility grid
+│   │   │   ├── LabControlPanel.tsx      # 2.7 Compute instance lifecycle
+│   │   │   ├── LabMarketplace.tsx       # 2.2 Lab catalog & inventory
+│   │   │   ├── LabPurchaseConfirmation.tsx # 2.3 Checkout flow (₹ INR)
+│   │   │   ├── MonitoringAnalytics.tsx  # 2.8 Telemetry & leaderboards
+│   │   │   └── UserManagement.tsx       # 2.4 User roster administration
+│   │   └── shared/
+│   │       ├── MaintenancePage.tsx      # 4.4 Maintenance mode page
+│   │       ├── NotFoundPage.tsx         # 4.2 404 Catch-all page
+│   │       ├── RootRedirect.tsx         # 4.1 Auth gateway & role redirect
+│   │       ├── ServerErrorPage.tsx      # 4.3 500 Server error page
+│   │       └── UnauthorizedPage.tsx     # 4.5 403 Access denied page
 │   ├── types/
 │   │   └── admin.ts                     # TypeScript models & data interfaces
 │   ├── App.tsx                          # React Router definitions
