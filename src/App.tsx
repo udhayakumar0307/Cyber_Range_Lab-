@@ -16,7 +16,11 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 
-// Shared Section Pages (4.1 - 4.5)
+// User Layout & Pages
+import { UserLayout } from './components/user/UserLayout';
+import { UserDashboard } from './pages/user/UserDashboard';
+
+// Shared Pages (4.1 to 4.5)
 import { RootRedirect } from './pages/shared/RootRedirect';
 import { NotFoundPage } from './pages/shared/NotFoundPage';
 import { ServerErrorPage } from './pages/shared/ServerErrorPage';
@@ -36,7 +40,15 @@ export function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Shared Utility Routes (4.3 - 4.5) */}
+        {/* User Portal Dashboard (Page 3.1) */}
+        <Route
+          path="/dashboard"
+          element={
+            <UserLayout>
+              <UserDashboard />
+            </UserLayout>
+          }
+        />
         <Route path="/error" element={<ServerErrorPage />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
