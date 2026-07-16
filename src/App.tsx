@@ -10,6 +10,10 @@ import { LabControlPanel } from './pages/admin/LabControlPanel';
 import { MonitoringAnalytics } from './pages/admin/MonitoringAnalytics';
 import { AdminSettings } from './pages/admin/AdminSettings';
 
+// New Admin Scheduler & CTF Hub Pages
+import { LabSchedulerPage } from './pages/admin/LabSchedulerPage';
+import { CtfAdminPage } from './pages/admin/CtfAdminPage';
+
 // Auth Section Pages (1.1 - 1.4)
 import { LoginPage } from './pages/auth/LoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -24,6 +28,11 @@ import { ChallengeSession } from './pages/user/ChallengeSession';
 import { ProgressTracking } from './pages/user/ProgressTracking';
 import { LeaderboardPortal } from './pages/user/LeaderboardPortal';
 import { UserProfile } from './pages/user/UserProfile';
+
+// New Student CTF Competition Engine Pages
+import { CtfPortalPage } from './pages/user/CtfPortalPage';
+import { CtfArenaPage } from './pages/user/CtfArenaPage';
+import { CtfScoreboardPage } from './pages/user/CtfScoreboardPage';
 
 // Shared Pages (4.1 to 4.5)
 import { RootRedirect } from './pages/shared/RootRedirect';
@@ -66,6 +75,12 @@ export function App() {
           path="/labs/:labId/session/:sessionId"
           element={<ChallengeSession />}
         />
+        
+        {/* Student CTF Competition Engine Routes (3.10 - 3.12) */}
+        <Route path="/ctf" element={<CtfPortalPage />} />
+        <Route path="/ctf/events/:eventId" element={<CtfArenaPage />} />
+        <Route path="/ctf/events/:eventId/scoreboard" element={<CtfScoreboardPage />} />
+
         <Route
           path="/progress"
           element={
@@ -94,7 +109,7 @@ export function App() {
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-        {/* Admin Management Suite Routes (2.1 - 2.9) */}
+        {/* Admin Management Suite Routes (2.1 - 2.11) */}
         <Route
           path="/admin/dashboard"
           element={
@@ -110,6 +125,14 @@ export function App() {
               <LabMarketplace />
             </AdminLayout>
           }
+        />
+        <Route
+          path="/admin/scheduler"
+          element={<LabSchedulerPage />}
+        />
+        <Route
+          path="/admin/ctf"
+          element={<CtfAdminPage />}
         />
         <Route
           path="/admin/labs/:labId/purchase"

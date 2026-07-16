@@ -11,7 +11,9 @@ import {
   Settings,
   Shield,
   ChevronRight,
-  LogOut
+  LogOut,
+  Calendar,
+  Trophy
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -23,6 +25,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Lab Marketplace', path: '/admin/labs', icon: Store, badge: 'New' },
+    { name: 'Lab Scheduler', path: '/admin/scheduler', icon: Calendar },
+    { name: 'CTF Event Hub', path: '/admin/ctf', icon: Trophy, badge: 'CTF' },
     { name: 'User Management', path: '/admin/users', icon: Users },
     { name: 'Group Management', path: '/admin/groups', icon: UsersRound },
     { name: 'Lab Allocations', path: '/admin/allocations', icon: Layers },
