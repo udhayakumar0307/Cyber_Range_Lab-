@@ -19,6 +19,11 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 // User Layout & Pages
 import { UserLayout } from './components/user/UserLayout';
 import { UserDashboard } from './pages/user/UserDashboard';
+import { AvailableLabs } from './pages/user/AvailableLabs';
+import { ChallengeSession } from './pages/user/ChallengeSession';
+import { ProgressTracking } from './pages/user/ProgressTracking';
+import { LeaderboardPortal } from './pages/user/LeaderboardPortal';
+import { UserProfile } from './pages/user/UserProfile';
 
 // Shared Pages (4.1 to 4.5)
 import { RootRedirect } from './pages/shared/RootRedirect';
@@ -46,6 +51,42 @@ export function App() {
           element={
             <UserLayout>
               <UserDashboard />
+            </UserLayout>
+          }
+        />
+        <Route
+          path="/labs"
+          element={
+            <UserLayout>
+              <AvailableLabs />
+            </UserLayout>
+          }
+        />
+        <Route
+          path="/labs/:labId/session/:sessionId"
+          element={<ChallengeSession />}
+        />
+        <Route
+          path="/progress"
+          element={
+            <UserLayout>
+              <ProgressTracking />
+            </UserLayout>
+          }
+        />
+        <Route
+          path="/leaderboards"
+          element={
+            <UserLayout>
+              <LeaderboardPortal />
+            </UserLayout>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <UserLayout>
+              <UserProfile />
             </UserLayout>
           }
         />

@@ -26,6 +26,46 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
 
 ---
 
+### 🎓 Student Portal Suite (Complete Routes 3.1 – 3.9)
+
+* **📊 Student Dashboard (`/dashboard`) [Page 3.1]**:
+  * Personalized greeting banner containing a Level/XP progress bar tracking overall experience points.
+  * Overview cards displaying total score points, cohort rank, and count of completed labs.
+  * Ticking active labs scheduler panel mapping allocated ranges and remaining container times.
+  * Chronological activity logs monitoring recently solved flags.
+
+* **🧪 Available Labs Catalog (`/labs`) [Page 3.2 & 3.3]**:
+  * Active labs catalog featuring search fields and filtering selectors (Domains, Difficulties, Completion Status).
+  * **Lab Details Modal overlay**: Objectives checklist, prerequisites, duration, and score points.
+  * **Ticking container provisioning console simulator** mapping deployment progress.
+  * Green **"Resume Lab"** quick-access routing directly linking to active sandbox workspaces.
+
+* **🎛️ Lab Challenge Interface (`/labs/:labId/session/:sessionId`) [Page 3.4]**:
+  * Immersive full-screen environment (no sidebar layouts to maximize width).
+  * **Split-pane instructions guide (Left)**: Active objectives, unlockable hints with points penalty configurations, and a correct flags submission checker.
+  * **Interactive Terminal Console Emulator (Right)**: Fully functional mock terminal accepting commands (`help`, `ls`, `cat`, `nmap` network mapping scanner, `sudo -l`, and `sys-helper` privilege escalation triggers to exploit SUID target hosts).
+
+* **📈 Progress Tracking (`/progress`) [Page 3.5]**:
+  * KPI metrics for study hours, average session duration, earned badges, and pacing stands.
+  * Segmented progress indicators tracking solve ratios across security domains.
+  * **Score Trajectory Line Graph**: Responsive SVG timeline chart showing score gains week-over-week.
+  * **Active Study Hours Bar Graph**: SVG bar chart displaying weekly training logs.
+  * Timelines feed of unlocked credentials badges and target milestone requirements.
+
+* **🏆 Leaderboard & Scoreboard Portal (`/leaderboards`) [Pages 3.6 – 3.8]**:
+  * **Personal Solves (3.6)**: Log table detailing completed labs, categories, time taken, points, and speed percentiles.
+  * **Group Standings (3.7)**: Rankings list tracking peers inside the student's cohort (`Cybersecurity Batch A`), highlighting the user's standing.
+  * **Global Leaderboard (3.8)**: Stands displaying top-3 gold, silver, and bronze champion podium cards.
+  * **Scoreboard Dashboard (New)**: Side-by-side display featuring a multi-line SVG solve progression graph over time, alongside a final standings table containing inline sparkline trends for top operators.
+
+* **⚙️ Profile & Settings (`/profile`) [Page 3.9]**:
+  * Avatar upload box showcasing initials initials card and verification tags.
+  * Account information updating inputs (Full Name, Email, Organization).
+  * Security settings for resetting password credentials.
+  * Notification selectors controlling email alerts (including the PRD requirement **"Notify me 10 minutes before a lab starts"**).
+
+---
+
 ### 👑 Admin Management Suite (Complete Routes 2.1 – 2.9)
 
 * **📊 Security Admin Dashboard (`/admin/dashboard`)**:
@@ -41,47 +81,35 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
   * All pricing rendered in **Indian Rupees (`₹ INR`)** with localized number formatting.
 
 * **💳 License Procurement & Checkout (`/admin/labs/:labId/purchase`)**:
-  * Itemized order summary with license model selector:
-    * **Single Event License** (Base rate)
-    * **1-Year Unlimited Annual Subscription**
-    * **Per-User Seat Allocation** (Interactive slider with dynamic pricing recalculations)
+  * Itemized order summary with license model selector (Single Event, Annual Subscription, Per-User Seats with dynamic sliders).
   * Payment method selector (Corporate Card, PO / Invoice Billing, Enterprise Prepaid Credits).
-  * Real-time subtotal, 8% tax/GST, and total price calculation in `₹ INR`.
+  * Real-time subtotal, GST, and total price calculation in `₹ INR`.
   * Purchase confirmation modal dialog with instant inventory addition receipt.
 
 * **👥 User Management & Provisioning (`/admin/users`)**:
   * Roster table displaying user metadata, role tags (`Admin`, `Instructor`, `User`), group assignments, status indicators (`Active`, `Inactive`), score, and activity timestamps.
   * Multi-field search & filtering (Group filter, Role filter, Status filter).
-  * `UserAddModal` & `UserEditModal` for managing single-user credentials.
   * `BulkImportModal` featuring drag-and-drop CSV upload, validation matrix parser, syntax error flags, and batch account provisioning.
-  * User deletion confirmation dialog.
 
 * **🏢 Group Cohort Management (`/admin/groups`)**:
   * Cohort management cards displaying description, member count, and creation date.
-  * `GroupCreateModal` for configuring new training cohorts.
-  * `GroupMembersModal` for inspecting cohort rosters and quick-assigning users.
+  * Modals for group creation and cohort roster inspection.
 
 * **🗺️ Lab Allocation & Visibility Controls (`/admin/allocations`)**:
   * Interactive Grid Matrix: User Groups (Rows) × Purchased Security Labs (Columns).
   * Cell-by-cell visibility toggles (**Visible to Group** vs **Hidden**).
   * Scheduled access window calendar ranges (`StartDate` → `EndDate`).
-  * Group-level batch visibility shortcuts (`All On` / `All Off`).
 
 * **🎛️ Lab Control Panel & Compute Telemetry (`/admin/labs/control`)**:
   * Real-time container instance status monitors (`Running`, `Paused`, `Idle`, `Stopped`).
   * Live compute telemetry: active user count per lab, CPU utilization percentage, and container uptime counters.
-  * Controls to start, pause, or terminate lab environments with confirmation dialogs.
   * Security-gated **Emergency Stop All Labs** killswitch.
 
 * **📈 Monitoring & Real-Time Telemetry (`/admin/monitoring`)**:
-  * Live user leaderboard standings with trophy/medal badges.
-  * Cohort average score comparison charts and peak activity heatmaps.
-  * Telemetry export functionality.
+  * Live user leaderboard standings, cohort average score charts, and peak activity heatmaps.
 
 * **⚙️ Platform Settings (`/admin/settings`)**:
-  * Organization identity profile settings.
-  * Security configuration (Inactivity session auto-logout timeout, Enterprise SSO / SAML toggle).
-  * Automated email notification preferences.
+  * Organization identity, inactivity session auto-logout timeout, Enterprise SSO, and notification preferences.
 
 ---
 
@@ -89,14 +117,20 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
 
 * **🔄 Auth Gateway & Role Redirect (`/`)**:
   * Auto-evaluates authentication tokens and redirects users to role-based destinations. Includes an interactive dev sandbox role switcher for testing.
-* **🔍 Page Not Found 404 (`*`)**:
-  * Catch-all route displaying a light-themed visual error card, quick search suggestions, and navigation return CTAs.
-* **⚠️ Internal Server Error 500 (`/error`)**:
-  * Dedicated exception page displaying system diagnostics, timestamp payload, and interactive retry controls.
-* **🛠️ System Maintenance Mode (`/maintenance`)**:
-  * Scheduled infrastructure maintenance banner featuring estimated downtime clock and email notification signup.
-* **🔒 Unauthorized Access 403 (`/unauthorized`)**:
-  * Role restriction screen explaining permission requirements, request role elevation trigger, and safe return links.
+* **🔍 Page Not Found 404 (`*`)**: Catch-all route displaying a light-themed visual error card, quick search suggestions, and return CTAs.
+* **⚠️ Internal Server Error 500 (`/error`)**: Dedicated exception page displaying system diagnostics, timestamp payload, and retry controls.
+* **🛠️ System Maintenance Mode (`/maintenance`)**: Scheduled infrastructure maintenance page.
+* **🔒 Unauthorized Access 403 (`/unauthorized`)**: Gated page explaining permission levels.
+
+---
+
+### 🔑 Interactive Onboarding Mockups (Pages 1.1 – 1.4)
+
+Static HTML mockup templates are located in the **[auth-mockups](auth-mockups)** directory.
+* **🔑 Login Page ([index.html](auth-mockups/index.html))**
+* **✉️ Forgot Password Page ([forgot-password.html](auth-mockups/forgot-password.html))**
+* **🔄 Reset Password Page ([reset-password.html](auth-mockups/reset-password.html))**
+* **📝 Register Page ([register.html](auth-mockups/register.html))**
 
 ---
 
@@ -128,11 +162,6 @@ Built in accordance with the PRD **Light Theme Palette**:
 
 ## 💻 Getting Started
 
-### Prerequisites
-
-* **Node.js**: `v18.0.0` or higher
-* **npm**: `v9.0.0` or higher
-
 ### Installation & Local Setup
 
 1. **Clone the repository**:
@@ -140,18 +169,15 @@ Built in accordance with the PRD **Light Theme Palette**:
    git clone https://github.com/umadhatri/cyberrange.git
    cd cyberrange
    ```
-
 2. **Install dependencies**:
    ```bash
    npm install
    ```
-
 3. **Start the local development server**:
    ```bash
    npm run dev
    ```
    Open [http://localhost:5173](http://localhost:5173) in your browser.
-
 4. **Build for production**:
    ```bash
    npm run build
@@ -165,56 +191,41 @@ Built in accordance with the PRD **Light Theme Palette**:
 CyberRange/
 ├── src/
 │   ├── components/
-│   │   └── admin/
-│   │       ├── AdminLayout.tsx          # Main layout frame with sidebar & header
-│   │       ├── AdminSidebar.tsx         # Navigation sidebar with route items
-│   │       ├── BulkImportModal.tsx      # CSV file dropzone & data preview
-│   │       ├── GroupCreateModal.tsx     # Cohort creation modal
-│   │       ├── GroupMembersModal.tsx    # Cohort roster management
-│   │       ├── LabDetailModal.tsx       # Lab specs & learning objectives
-│   │       ├── MetricsCard.tsx          # Reusable KPI counter widget
-│   │       └── UserAddModal.tsx         # Single user add/edit modal
+│   │   ├── admin/
+│   │   │   ├── AdminLayout.tsx          # Admin layout structure
+│   │   │   ├── AdminSidebar.tsx         # Admin navigation sidebar
+│   │   │   └── ...                      # Roster modals, create modals
+│   │   └── user/
+│   │       ├── UserLayout.tsx           # Student layout frame (header, main container)
+│   │       └── UserSidebar.tsx          # Student navigation sidebar
 │   ├── pages/
 │   │   ├── admin/
-│   │   │   ├── AdminDashboard.tsx       # 2.1 Admin main hub
-│   │   │   ├── AdminSettings.tsx        # 2.9 Platform configurations
-│   │   │   ├── GroupManagement.tsx      # 2.5 Training group cohorts
-│   │   │   ├── LabAllocation.tsx        # 2.6 Lab-group visibility grid
-│   │   │   ├── LabControlPanel.tsx      # 2.7 Compute instance lifecycle
-│   │   │   ├── LabMarketplace.tsx       # 2.2 Lab catalog & inventory
-│   │   │   ├── LabPurchaseConfirmation.tsx # 2.3 Checkout flow (₹ INR)
-│   │   │   ├── MonitoringAnalytics.tsx  # 2.8 Telemetry & leaderboards
-│   │   │   └── UserManagement.tsx       # 2.4 User roster administration
+│   │   │   └── ...                      # 2.1 - 2.9 Admin portal pages
 │   │   ├── auth/
 │   │   │   ├── ForgotPasswordPage.tsx   # 1.2 Password recovery page
 │   │   │   ├── LoginPage.tsx            # 1.1 Login & SAML SSO page
 │   │   │   ├── RegisterPage.tsx         # 1.4 Onboarding & 6-digit OTP page
 │   │   │   └── ResetPasswordPage.tsx    # 1.3 Password complexity reset page
+│   │   ├── user/
+│   │   │   ├── UserDashboard.tsx        # 3.1 Student main dashboard
+│   │   │   ├── AvailableLabs.tsx        # 3.2 & 3.3 Available labs catalog
+│   │   │   ├── ChallengeSession.tsx     # 3.4 Interactive terminal console
+│   │   │   ├── ProgressTracking.tsx     # 3.5 Learning achievements & graphs
+│   │   │   ├── LeaderboardPortal.tsx    # 3.6 - 3.8 Stands logs, cohort & scoreboard
+│   │   │   └── UserProfile.tsx          # 3.9 Student credentials & settings
 │   │   └── shared/
-│   │       ├── MaintenancePage.tsx      # 4.4 Maintenance mode page
-│   │       ├── NotFoundPage.tsx         # 4.2 404 Catch-all page
-│   │       ├── RootRedirect.tsx         # 4.1 Auth gateway & role redirect
-│   │       ├── ServerErrorPage.tsx      # 4.3 500 Server error page
-│   │       └── UnauthorizedPage.tsx     # 4.5 403 Access denied page
+│   │       └── ...                      # 4.1 - 4.5 System shared views
 │   ├── types/
 │   │   └── admin.ts                     # TypeScript models & data interfaces
-│   ├── App.tsx                          # React Router definitions
-│   ├── index.css                        # Tailwind v4 configuration & base styles
-│   └── main.tsx                         # DOM mounting root
-├── auth-mockups/                        # Interactive static HTML mockups (1.1 - 1.4)
+│   ├── App.tsx                          # Role routing & App mappings
+│   ├── index.css                        # Tailwind v4 configuration & styles
+│   └── main.tsx                         # DOM mounting point
+├── auth-mockups/                        # Interactive static mockups (1.1 - 1.4)
 ├── tasks/                               # Task tracking documents
 ├── index.html                           # Application entry HTML
 ├── package.json                         # Dependencies & scripts
-├── vite.config.ts                       # Vite & Tailwind plugin setup
-└── README.md                            # Project documentation
+└── README.md                            # Main project documentation
 ```
-
----
-
-## 🔮 Future Architecture Roadmap
-
-* **Python Backend Interfacing**: The frontend client architecture is designed to interface via REST APIs & WebSockets with a Python server (FastAPI / Django REST Framework).
-* **User Role Workflows**: Developing the Regular User workflow pages (User Dashboard, Lab Session Environment, Challenge Submission Flag validation, Personal & Global Leaderboards).
 
 ---
 

@@ -4,10 +4,8 @@ import {
   Bell, 
   Search, 
   Menu, 
-  ShieldAlert, 
   HelpCircle 
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 interface UserLayoutProps {
   children?: React.ReactNode;
@@ -59,14 +57,6 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Direct Switch to Admin View */}
-            <Link
-              to="/admin/dashboard"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-[#0052CC] bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Switch to Admin View</span>
-            </Link>
 
             {/* Documentation Quick Link */}
             <a

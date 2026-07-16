@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Trophy, 
   Flame, 
@@ -23,6 +24,7 @@ interface TrainingLab {
 }
 
 export const UserDashboard: React.FC = () => {
+  const navigate = useNavigate();
   // Live ticking state for student assigned labs
   const [labs, setLabs] = useState<TrainingLab[]>([
     {
@@ -124,7 +126,7 @@ export const UserDashboard: React.FC = () => {
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={() => {
-                alert('Spinning up container session... Connecting to AD Security Basics.');
+                navigate('/labs/lab-1/session/sess-123');
               }}
               className="bg-white text-[#0052CC] hover:bg-blue-50 font-bold px-4 py-2.5 rounded-lg text-sm transition-colors shadow-sm inline-flex items-center gap-2"
             >
@@ -238,7 +240,7 @@ export const UserDashboard: React.FC = () => {
                         <span>{formatCountdown(lab.timeRemaining)} left</span>
                       </div>
                       <button 
-                        onClick={() => alert(`Entering container console for ${lab.title}...`)}
+                        onClick={() => navigate(`/labs/${lab.id}/session/sess-123`)}
                         className="bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 shadow-sm"
                       >
                         Enter Lab
