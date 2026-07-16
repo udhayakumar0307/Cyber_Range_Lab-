@@ -254,10 +254,9 @@ body {
 }
 
 option, select {
-   -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  background-color: #0a0e27;
+  background-color: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
 }
 
 /* Cyber Sidebar */

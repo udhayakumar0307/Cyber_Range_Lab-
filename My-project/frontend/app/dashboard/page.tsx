@@ -343,10 +343,10 @@ export default function DashboardPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-          <div className="text-slate-400 text-sm animate-pulse">Initializing participant dashboard…</div>
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <div className="text-muted-foreground text-sm animate-pulse">Initializing participant dashboard…</div>
         </div>
       </div>
     )
@@ -358,27 +358,27 @@ export default function DashboardPage() {
     'there'
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-slate-100 flex flex-col selection:bg-emerald-500/30 pb-16">
+    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/20 pb-16 transition-colors duration-300">
       <Header active="dashboard" />
 
       {/* Top Glassmorphic Hero Banner */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-white/[0.05] via-white/[0.02] to-white/[0.05] p-8 backdrop-blur-xl shadow-2xl m-6 mb-0">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[100px] pointer-events-none animate-pulse" />
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 backdrop-blur-xl shadow-xs m-6 mb-0">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none animate-pulse" />
         
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 font-mono text-xs text-emerald-400 font-bold shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1 font-mono text-xs text-primary font-bold">
                 <ShieldCheck className="w-3.5 h-3.5" /> Cyber Range Console
               </span>
-              <Badge className="bg-white/5 border border-white/10 text-slate-400 text-xs px-2.5 py-0.5 capitalize">{user.role}</Badge>
+              <Badge variant="outline" className="text-xs px-2.5 py-0.5 capitalize">{user.role}</Badge>
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Welcome back, {welcomeName}.</h1>
-            <p className="text-slate-400 text-sm max-w-2xl leading-relaxed font-light font-sans">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Welcome back, {welcomeName}.</h1>
+            <p className="text-muted-foreground text-sm max-w-2xl leading-relaxed font-light font-sans">
               {user.email} {user.created_at ? ` · Member since ${formatDate(user.created_at)}` : ''}
             </p>
           </div>
-          <Button asChild className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-6 py-5 rounded-xl shadow-lg flex items-center gap-2 border border-emerald-400/20 hover:scale-[1.02] transition-all shrink-0">
+          <Button asChild className="bg-primary text-primary-foreground font-bold px-6 py-5 rounded-xl shadow-md flex items-center gap-2 transition-all shrink-0">
             <Link href="/ctf">
               <Trophy className="w-4 h-4" /> Enter CTF Arena <ArrowRight className="w-4 h-4 ml-1" />
             </Link>

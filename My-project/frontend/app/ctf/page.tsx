@@ -1017,39 +1017,38 @@ export default function StandaloneCTFPlayground() {
   const isChallengeCompleted = activeCompletedChallenges.includes(currentChallenge.id)
 
   return (
-    <div className="min-h-screen bg-[#070709] text-slate-100 flex flex-col selection:bg-emerald-500/30 font-sans">
+    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/20 font-sans transition-colors duration-300">
       <Header active="ctf" />
       
       {/* Top Status Header/Banner */}
-      <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/20 py-6 px-6 backdrop-blur-xl shadow-lg">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[100px] pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+      <section className="relative overflow-hidden border-b border-border bg-card py-6 px-6 backdrop-blur-xl shadow-xs">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
         
         <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm" className="h-8 px-2 hover:bg-white/5 text-slate-400 hover:text-white rounded-lg">
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground rounded-lg">
                 <Link href="/dashboard"><ArrowLeft className="w-4 h-4 mr-1.5" /> Back Dashboard</Link>
               </Button>
               {user?.role === "sys_admin" && (
-                <Button asChild variant="ghost" size="sm" className="h-8 px-2 hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 rounded-lg border border-emerald-500/30">
+                <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-primary hover:bg-primary/10 rounded-lg border border-primary/20">
                   <Link href="/admin-ctf">
-                    <Settings className="w-4 h-4 mr-1.5 text-emerald-400" /> Admin Control Deck
+                    <Settings className="w-4 h-4 mr-1.5 text-primary" /> Admin Control Deck
                   </Link>
                 </Button>
               )}
               {isLiveMode ? (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 font-mono text-[10px] text-emerald-400 font-bold shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)] animate-pulse">
-                  <Globe className="w-3.5 h-3.5 text-emerald-400" /> Live Synced Range
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-bold animate-pulse">
+                  <Globe className="w-3.5 h-3.5 text-emerald-500" /> Live Synced Range
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-1 font-mono text-[10px] text-amber-400 font-bold">
-                  <Shield className="w-3.5 h-3.5 text-amber-400" /> Offline Sandbox
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-1 font-mono text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> Offline Sandbox
                 </span>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">CTF Flag Capture Hub</h1>
-            <p className="text-slate-400 text-xs font-light">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">CTF Flag Capture Hub</h1>
+            <p className="text-muted-foreground text-xs font-light">
               {isLiveMode ? "Live synchronization mode active. Track points and verify flags directly on the remote server." : "Standalone client-side training grounds. Hack the challenges and verify keys locally."}
             </p>
           </div>

@@ -2609,19 +2609,19 @@ export default function StandaloneAdminCTFControl() {
                 </div>
 
                 {/* Telemetry Simulator widget */}
-                <Card className="border border-white/10 bg-slate-950/40 rounded-xl p-4 space-y-3 shadow-md">
+                <Card className="border border-border bg-card rounded-xl p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1.5">
-                      <Activity className="w-4 h-4 text-emerald-400 animate-pulse" /> Telemetry Simulator
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
+                      <Activity className="w-4 h-4 text-primary animate-pulse" /> Telemetry Simulator
                     </span>
-                    <Button size="sm" onClick={handleClearLogs} className="h-6 text-[9px] bg-white/5 border border-white/10 text-slate-400 hover:text-white rounded-md px-2">
+                    <Button size="sm" onClick={handleClearLogs} variant="outline" className="h-6 text-[9px] text-muted-foreground rounded-md px-2">
                       Clear Logs
                     </Button>
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-normal">
+                  <p className="text-[10px] text-muted-foreground leading-normal">
                     Simulate real-time student activity by spawning a random flag submission log in the audit pipeline feed.
                   </p>
-                  <Button onClick={handleSimulateEvent} className="w-full h-8 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-semibold">
+                  <Button onClick={handleSimulateEvent} className="w-full h-8 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl text-xs font-semibold">
                     <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Inject Flag Attempt
                   </Button>
                 </Card>
@@ -2630,11 +2630,11 @@ export default function StandaloneAdminCTFControl() {
               {/* Right Column: Pricing and Flags list */}
               <div className="lg:col-span-2 space-y-4">
                 {activeLab && (
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-4 flex flex-col gap-4 shadow-lg">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <Card className="border border-border bg-card rounded-xl p-4 flex flex-col gap-4 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
                       <div className="flex items-center gap-1.5 font-bold">
-                        <Trophy className="w-4 h-4 text-emerald-400" />
-                        <span className="text-[10px] uppercase font-bold text-slate-300">
+                        <Trophy className="w-4 h-4 text-primary" />
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground">
                           Pricing & Access Configuration ({activeLab.title})
                         </span>
                       </div>
@@ -2643,7 +2643,7 @@ export default function StandaloneAdminCTFControl() {
                           <Button
                             asChild
                             size="sm"
-                            className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[9px] font-bold rounded-lg h-6 px-2.5 flex items-center gap-1 shadow-md shadow-emerald-500/10"
+                            className="bg-primary text-primary-foreground text-[9px] font-bold rounded-lg h-6 px-2.5 flex items-center gap-1 shadow-xs"
                           >
                             <a href="https://click-web.cyberrange.kctf.cloud" target="_blank" rel="noopener noreferrer">
                               Access Challenge <ExternalLink className="w-3 h-3" />
@@ -2651,26 +2651,26 @@ export default function StandaloneAdminCTFControl() {
                           </Button>
                         )}
                         {isFetchingPrice && (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                         )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">Price Amount (Major)</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">Price Amount (Major)</label>
                         <input
                           type="text"
                           placeholder="e.g. 1000.00"
                           value={labPrice}
                           onChange={(e) => setLabPrice(e.target.value)}
                           disabled={isFetchingPrice || isSavingPrice}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                          className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">Currency Code</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">Currency Code</label>
                         <input
                           type="text"
                           placeholder="INR"
@@ -2678,17 +2678,17 @@ export default function StandaloneAdminCTFControl() {
                           maxLength={3}
                           onChange={(e) => setLabCurrency(e.target.value.toUpperCase())}
                           disabled={isFetchingPrice || isSavingPrice}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono uppercase"
+                          className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-mono uppercase"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">Checkout Status</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">Checkout Status</label>
                         <select
                           value={labPriceActive ? "active" : "inactive"}
                           onChange={(e) => setLabPriceActive(e.target.value === "active")}
                           disabled={isFetchingPrice || isSavingPrice}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-background border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                         >
                           <option value="active">Active (Purchasable)</option>
                           <option value="inactive">Inactive (Coming Soon)</option>
@@ -2696,12 +2696,12 @@ export default function StandaloneAdminCTFControl() {
                       </div>
                     </div>
 
-                    <div className="flex justify-end pt-2 border-t border-white/5">
+                    <div className="flex justify-end pt-2 border-t border-border">
                       <Button
                         type="button"
                         onClick={saveLabPrice}
                         disabled={isFetchingPrice || isSavingPrice}
-                        className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-[10px] font-bold rounded-lg h-8 px-5 shadow-md flex items-center gap-1.5"
+                        className="bg-primary text-primary-foreground text-[10px] font-bold rounded-lg h-8 px-5 shadow-xs flex items-center gap-1.5"
                       >
                         {isSavingPrice ? (
                           <>
@@ -2717,26 +2717,26 @@ export default function StandaloneAdminCTFControl() {
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 pt-2">
                   <div className="space-y-0.5">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                       {activeLab?.title || "Scenario Challenges"} Flags
                     </h3>
-                    <p className="text-[10px] text-slate-500">Manage flags, writeups and hints for this scenario</p>
+                    <p className="text-[10px] text-muted-foreground">Manage flags, writeups and hints for this scenario</p>
                   </div>
                   
                   <div className="flex gap-2">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                       <Input
                         placeholder="Filter flags..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 pl-8 text-xs w-40 rounded-lg border-white/10 bg-white/5 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        className="h-8 pl-8 text-xs w-40 rounded-lg border-border bg-background text-foreground"
                       />
                     </div>
                     <Button onClick={() => {
                       setCurrentChallenge({ labId: selectedLabId, difficulty: "Medium", category: "Recon", hints: [""] })
                       setIsEditing(true)
-                    }} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-lg h-8">
+                    }} className="bg-primary text-primary-foreground text-xs font-bold rounded-lg h-8">
                       <Plus className="w-3.5 h-3.5 mr-1" /> Add Flag
                     </Button>
                   </div>
@@ -2744,39 +2744,39 @@ export default function StandaloneAdminCTFControl() {
 
                 <div className="space-y-3">
                   {filteredChallenges.length === 0 ? (
-                    <Card className="border border-dashed border-white/10 bg-white/[0.01] p-8 text-center rounded-xl">
-                      <HelpCircle className="mx-auto h-8 w-8 text-slate-600 mb-2 animate-pulse" />
-                      <h3 className="text-xs font-bold text-white mb-1">No Flags Found</h3>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                    <Card className="border border-dashed border-border bg-card p-8 text-center rounded-xl">
+                      <HelpCircle className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2 animate-pulse" />
+                      <h3 className="text-xs font-bold text-foreground mb-1">No Flags Found</h3>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
                         No challenges mapped to this scenario query. Add a new flag or reset default database.
                       </p>
                     </Card>
                   ) : (
                     filteredChallenges.map((challenge) => (
-                      <Card key={challenge.id} className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl overflow-hidden shadow-md">
+                      <Card key={challenge.id} className="border border-border bg-card rounded-xl overflow-hidden shadow-xs">
                         <div className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                           <div className="space-y-1 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={cn(
                                 "text-[9px] font-bold px-1.5 py-0.5 rounded font-mono uppercase",
-                                challenge.difficulty === "Easy" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                                challenge.difficulty === "Medium" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                                "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                challenge.difficulty === "Easy" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" :
+                                challenge.difficulty === "Medium" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
+                                "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                               )}>
                                 {challenge.difficulty}
                               </span>
-                              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">{challenge.category}</span>
-                              <span className="text-[9px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">+{challenge.points} PTS</span>
+                              <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">{challenge.category}</span>
+                              <span className="text-[9px] text-primary font-mono font-bold bg-primary/10 px-2 py-0.5 rounded">+{challenge.points} PTS</span>
                             </div>
-                            <h3 className="text-sm font-bold text-white">{challenge.title}</h3>
-                            <div className="mt-2 pt-2 border-t border-white/5 space-y-1.5 text-[11px]">
+                            <h3 className="text-sm font-bold text-foreground">{challenge.title}</h3>
+                            <div className="mt-2 pt-2 border-t border-border space-y-1.5 text-[11px]">
                               <div className="flex gap-2">
-                                <span className="text-slate-500 font-mono font-semibold shrink-0">Flag Secret:</span>
-                                <code className="text-emerald-400 select-all font-mono break-all">{challenge.flag}</code>
+                                <span className="text-muted-foreground font-mono font-semibold shrink-0">Flag Secret:</span>
+                                <code className="text-primary select-all font-mono break-all font-bold">{challenge.flag}</code>
                               </div>
                               {challenge.hints && challenge.hints.length > 0 && (
-                                <div className="flex gap-2 text-slate-400 font-light">
-                                  <span className="text-slate-500 font-mono font-semibold shrink-0">Hints:</span>
+                                <div className="flex gap-2 text-muted-foreground font-light">
+                                  <span className="text-muted-foreground font-mono font-semibold shrink-0">Hints:</span>
                                   <span>{challenge.hints.length} registered hints</span>
                                 </div>
                               )}
@@ -2786,18 +2786,19 @@ export default function StandaloneAdminCTFControl() {
                           <div className="flex sm:flex-col gap-2 shrink-0">
                             <Button
                               size="sm"
+                              variant="outline"
                               onClick={() => {
                                 setCurrentChallenge({ ...challenge, labId: selectedLabId })
                                 setIsEditing(true)
                               }}
-                              className="bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-lg h-7 px-3 text-xs"
+                              className="rounded-lg h-7 px-3 text-xs"
                             >
                               <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
                             </Button>
                             <Button
                               size="sm"
                               onClick={() => handleDeleteChallenge(selectedLabId, challenge.id)}
-                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg h-7 px-3 text-xs"
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-lg h-7 px-3 text-xs"
                             >
                               <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
                             </Button>
