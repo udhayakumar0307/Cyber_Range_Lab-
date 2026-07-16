@@ -1,6 +1,7 @@
 export type CtfCategory = 'Web' | 'Pwn' | 'Reverse' | 'Crypto' | 'Forensics' | 'OSINT' | 'Misc';
 export type CtfEventMode = 'individual' | 'team';
 export type CtfScoringType = 'static' | 'dynamic';
+export type CtfEventStatus = 'upcoming' | 'live' | 'paused' | 'concluded';
 
 export interface CtfHint {
   id: string;
@@ -26,6 +27,12 @@ export interface CtfChallenge {
   isSolved?: boolean;
 }
 
+export interface CtfPrize {
+  rank: number;
+  title: string;
+  reward: string;
+}
+
 export interface CtfEvent {
   id: string;
   title: string;
@@ -35,6 +42,12 @@ export interface CtfEvent {
   endTime: string;   // ISO string
   mode: CtfEventMode;
   scoringType: CtfScoringType;
+  status: CtfEventStatus;
+  maxTeamSize?: number;
+  rateLimitAttempts?: number;
+  rulesMarkdown?: string;
+  prizes?: CtfPrize[];
+  extendedMinutes?: number;
   isFrozen: boolean;
   freezeTime?: string;
   isPublic: boolean;

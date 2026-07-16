@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { UserLayout } from '../../components/user/UserLayout';
-import type { CtfEvent, CtfTeam } from '../../types/ctf';
+import type { CtfEvent, CtfTeam, CtfEventStatus } from '../../types/ctf';
 import { useNavigate } from 'react-router-dom';
 import { 
   Trophy, 
   Clock, 
   ArrowRight, 
   Award,
-  Sparkles
+  Sparkles,
+  Pause,
+  Square
 } from 'lucide-react';
 
 const MOCK_EVENTS: CtfEvent[] = [
@@ -20,6 +22,7 @@ const MOCK_EVENTS: CtfEvent[] = [
     endTime: new Date(Date.now() + 240 * 60 * 1000).toISOString(),
     mode: 'team',
     scoringType: 'dynamic',
+    status: 'live',
     isFrozen: false,
     isPublic: true,
     totalChallenges: 12,
@@ -34,6 +37,7 @@ const MOCK_EVENTS: CtfEvent[] = [
     endTime: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     mode: 'individual',
     scoringType: 'static',
+    status: 'upcoming',
     isFrozen: false,
     isPublic: true,
     totalChallenges: 8,
@@ -95,6 +99,35 @@ export const CtfPortalPage: React.FC = () => {
     setIsTeamModalOpen(false);
   };
 
+  const renderStatusBadge = (status: CtfEventStatus) => {
+    switch (status) {
+      case 'live':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 animate-pulse">
+            <span className="w-2 h-2 mr-1.5 rounded-full bg-emerald-500"></span> Live Competition
+          </span>
+        );
+      case 'paused':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+            <Pause className="w-3.5 h-3.5 mr-1 text-amber-600" /> Submissions Paused
+          </span>
+        );
+      case 'upcoming':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+            <Clock className="w-3.5 h-3.5 mr-1" /> Upcoming Scheduled
+          </span>
+        );
+      case 'concluded':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
+            <Square className="w-3.5 h-3.5 mr-1 text-gray-500" /> Concluded
+          </span>
+        );
+    }
+  };
+
   return (
     <UserLayout>
       <div className="space-y-8">
@@ -150,69 +183,58 @@ export const CtfPortalPage: React.FC = () => {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {events.map((event) => {
-              const isLive = new Date(event.startTime) <= new Date() && new Date(event.endTime) >= new Date();
-              return (
-                <div
-                  key={event.id}
-                  className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
-                >
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      {isLive ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 animate-pulse">
-                          <span className="w-2 h-2 mr-1.5 rounded-full bg-emerald-500"></span> Live Competition
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-                          <Clock className="w-3.5 h-3.5 mr-1" /> Upcoming
-                        </span>
-                      )}
+            {events.map((event) => (
+              <div
+                key={event.id}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
+              >
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    {renderStatusBadge(event.status)}
 
-                      <span className="text-xs font-semibold px-2.5 py-1 bg-purple-50 text-purple-700 rounded-md capitalize border border-purple-100">
-                        {event.mode} Mode ({event.scoringType})
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-                      <p className="text-xs text-gray-600 mt-2 leading-relaxed">{event.description}</p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded-xl text-center text-xs font-mono border border-gray-200">
-                      <div>
-                        <span className="text-gray-400 text-[10px] block uppercase">Challenges</span>
-                        <span className="font-bold text-gray-900 text-sm">{event.totalChallenges}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-[10px] block uppercase">Solves</span>
-                        <span className="font-bold text-emerald-600 text-sm">{event.totalSolves}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 text-[10px] block uppercase">Players</span>
-                        <span className="font-bold text-purple-600 text-sm">{event.participantCount}</span>
-                      </div>
-                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-purple-50 text-purple-700 rounded-md capitalize border border-purple-100">
+                      {event.mode} Mode ({event.scoringType})
+                    </span>
                   </div>
 
-                  <div className="bg-gray-50/80 px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-                    <button
-                      onClick={() => navigate(`/ctf/events/${event.id}/scoreboard`)}
-                      className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center"
-                    >
-                      <Award className="w-4 h-4 mr-1" /> View Leaderboard
-                    </button>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+                    <p className="text-xs text-gray-600 mt-2 leading-relaxed">{event.description}</p>
+                  </div>
 
-                    <button
-                      onClick={() => navigate(`/ctf/events/${event.id}`)}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-                    >
-                      Enter Competition Arena <ArrowRight className="w-4 h-4 ml-1.5" />
-                    </button>
+                  <div className="grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded-xl text-center text-xs font-mono border border-gray-200">
+                    <div>
+                      <span className="text-gray-400 text-[10px] block uppercase">Challenges</span>
+                      <span className="font-bold text-gray-900 text-sm">{event.totalChallenges}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[10px] block uppercase">Solves</span>
+                      <span className="font-bold text-emerald-600 text-sm">{event.totalSolves}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[10px] block uppercase">Players</span>
+                      <span className="font-bold text-purple-600 text-sm">{event.participantCount}</span>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="bg-gray-50/80 px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                  <button
+                    onClick={() => navigate(`/ctf/events/${event.id}/scoreboard`)}
+                    className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center"
+                  >
+                    <Award className="w-4 h-4 mr-1" /> View Leaderboard
+                  </button>
+
+                  <button
+                    onClick={() => navigate(`/ctf/events/${event.id}`)}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    Enter Competition Arena <ArrowRight className="w-4 h-4 ml-1.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserLayout } from '../../components/user/UserLayout';
-import type { CtfChallenge, CtfCategory } from '../../types/ctf';
+import type { CtfChallenge, CtfCategory, CtfEventStatus } from '../../types/ctf';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Trophy, 
@@ -9,7 +9,10 @@ import {
   Download, 
   ArrowLeft, 
   Award, 
-  AlertCircle
+  AlertCircle,
+  Pause,
+  Lock,
+  Square
 } from 'lucide-react';
 
 const ARENA_CHALLENGES: CtfChallenge[] = [
@@ -122,6 +125,7 @@ const ARENA_CHALLENGES: CtfChallenge[] = [
 export const CtfArenaPage: React.FC = () => {
   const navigate = useNavigate();
   const { eventId } = useParams();
+  const [eventStatus] = useState<CtfEventStatus>('live'); // Active event status state
   const [challenges, setChallenges] = useState<CtfChallenge[]>(ARENA_CHALLENGES);
   const [selectedCategory, setSelectedCategory] = useState<'All' | CtfCategory>('All');
   const [activeChallenge, setActiveChallenge] = useState<CtfChallenge | null>(null);
@@ -141,6 +145,8 @@ export const CtfArenaPage: React.FC = () => {
     .reduce((acc, curr) => acc + curr.currentPoints, 0);
 
   const totalSolvedCount = challenges.filter((c) => c.isSolved).length;
+
+  const isSubmissionsLocked = eventStatus === 'paused' || eventStatus === 'concluded';
 
   const handleOpenChallenge = (chal: CtfChallenge) => {
     setActiveChallenge(chal);
@@ -171,6 +177,16 @@ export const CtfArenaPage: React.FC = () => {
     e.preventDefault();
     if (!activeChallenge || !flagInput.trim()) return;
 
+    if (isSubmissionsLocked) {
+      setFeedback({
+        type: 'error',
+        text: eventStatus === 'paused'
+          ? 'Submissions temporarily locked by competition admin.'
+          : 'Competition concluded. Submissions are closed.',
+      });
+      return;
+    }
+
     if (activeChallenge.isSolved) {
       setFeedback({ type: 'already', text: 'You have already solved this challenge!' });
       return;
@@ -200,6 +216,35 @@ export const CtfArenaPage: React.FC = () => {
   return (
     <UserLayout>
       <div className="space-y-6">
+        {/* Real-Time Lifecycle Banner Indicator */}
+        {eventStatus === 'paused' && (
+          <div className="p-4 bg-amber-500 text-white rounded-2xl shadow-md flex items-center space-x-3 border border-amber-600 animate-pulse">
+            <Pause className="w-6 h-6 text-amber-100 shrink-0" />
+            <div>
+              <h4 className="font-extrabold text-sm uppercase tracking-wider">
+                COMPETITION PAUSED BY ADMIN — SUBMISSIONS TEMPORARILY LOCKED
+              </h4>
+              <p className="text-xs text-amber-100 mt-0.5">
+                The competition organizers have temporarily paused flag submission processing. Standings remain saved.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {eventStatus === 'concluded' && (
+          <div className="p-4 bg-gray-800 text-white rounded-2xl shadow-md flex items-center space-x-3 border border-gray-700">
+            <Square className="w-6 h-6 text-gray-400 shrink-0" />
+            <div>
+              <h4 className="font-extrabold text-sm uppercase tracking-wider">
+                COMPETITION CONCLUDED — FINAL STANDINGS LOCKED
+              </h4>
+              <p className="text-xs text-gray-300 mt-0.5">
+                This CTF competition has officially ended. Thank you for participating! Check the live scoreboard for final rankings.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Arena Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <div className="space-y-1">
@@ -416,22 +461,31 @@ export const CtfArenaPage: React.FC = () => {
 
               {/* Flag Submission Form */}
               <form onSubmit={handleSubmitFlag} className="space-y-3 pt-3 border-t border-gray-100">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                  Submit Flag Solution
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>Submit Flag Solution</span>
+                  {isSubmissionsLocked && (
+                    <span className="text-rose-600 flex items-center normal-case font-semibold">
+                      <Lock className="w-3 h-3 mr-1" /> Locked by Admin
+                    </span>
+                  )}
                 </label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
                     required
-                    disabled={activeChallenge.isSolved}
-                    placeholder="CTF{...}"
+                    disabled={activeChallenge.isSolved || isSubmissionsLocked}
+                    placeholder={
+                      isSubmissionsLocked
+                        ? 'Flag submissions locked by Admin...'
+                        : 'CTF{...}'
+                    }
                     value={flagInput}
                     onChange={(e) => setFlagInput(e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-purple-500 outline-none disabled:bg-gray-100"
+                    className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-purple-500 outline-none disabled:bg-gray-100 text-gray-800"
                   />
                   <button
                     type="submit"
-                    disabled={activeChallenge.isSolved}
+                    disabled={activeChallenge.isSolved || isSubmissionsLocked}
                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Submit Flag

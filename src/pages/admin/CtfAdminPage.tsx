@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import type { CtfEvent, CtfChallenge, CtfSubmission, CtfCategory } from '../../types/ctf';
+import type { CtfEvent, CtfChallenge, CtfSubmission, CtfCategory, CtfEventStatus, CtfPrize } from '../../types/ctf';
 import { 
   Plus, 
   Snowflake, 
@@ -8,7 +8,13 @@ import {
   Trash2, 
   CheckCircle2, 
   XCircle, 
-  Trophy 
+  Trophy,
+  Play,
+  Pause,
+  RotateCcw,
+  Clock,
+  Square,
+  Settings
 } from 'lucide-react';
 
 const INITIAL_EVENTS: CtfEvent[] = [
@@ -21,6 +27,15 @@ const INITIAL_EVENTS: CtfEvent[] = [
     endTime: new Date(Date.now() + 240 * 60 * 1000).toISOString(),
     mode: 'team',
     scoringType: 'dynamic',
+    status: 'live',
+    maxTeamSize: 4,
+    rateLimitAttempts: 5,
+    rulesMarkdown: '### CTF Rules & Code of Conduct\n1. No denial of service against platform infrastructure.\n2. Flag sharing between teams is strictly prohibited.\n3. Brute forcing flags is rate-limited to 5 attempts/minute.',
+    prizes: [
+      { rank: 1, title: 'Champion Gold Trophy', reward: '₹50,000 Cash + Gold Certificate' },
+      { rank: 2, title: 'Silver Runner-Up Badge', reward: '₹25,000 Cash + Silver Certificate' },
+      { rank: 3, title: 'Bronze Podium Award', reward: '₹10,000 Cash + Bronze Certificate' },
+    ],
     isFrozen: false,
     isPublic: true,
     totalChallenges: 12,
@@ -35,6 +50,11 @@ const INITIAL_EVENTS: CtfEvent[] = [
     endTime: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     mode: 'individual',
     scoringType: 'static',
+    status: 'upcoming',
+    maxTeamSize: 1,
+    rateLimitAttempts: 10,
+    rulesMarkdown: 'Individual blitz rules apply.',
+    prizes: [],
     isFrozen: false,
     isPublic: true,
     totalChallenges: 8,
@@ -112,16 +132,6 @@ const INITIAL_SUBMISSIONS: CtfSubmission[] = [
     isCorrect: false,
     flagSubmitted: 'CTF{wrong_flag_attempt_000}',
     pointsEarned: 0,
-  },
-  {
-    id: 'sub-3',
-    challengeId: 'chal-3',
-    challengeTitle: 'Corrupted PCAP Network Stream',
-    teamOrUserName: 'Cyber Squad 7',
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    isCorrect: true,
-    flagSubmitted: 'CTF{pcap_w1r3sh4rk_f0r3ns1cs}',
-    pointsEarned: 220,
   }
 ];
 
@@ -131,14 +141,15 @@ export const CtfAdminPage: React.FC = () => {
   const [submissions] = useState<CtfSubmission[]>(INITIAL_SUBMISSIONS);
   const [activeTab, setActiveTab] = useState<'events' | 'challenges' | 'submissions'>('challenges');
 
-  // Scoreboard Freeze state for event 1
+  const [activeEvent, setActiveEvent] = useState<CtfEvent>(INITIAL_EVENTS[0]);
+
+  // Scoreboard Freeze state
   const [isFrozen, setIsFrozen] = useState(false);
 
   // Broadcast Modal State
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementContent, setAnnouncementContent] = useState('');
-  const [broadcastLog, setBroadcastLog] = useState<string[]>([]);
 
   // Challenge Modal State
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
@@ -149,20 +160,83 @@ export const CtfAdminPage: React.FC = () => {
   const [newFlag, setNewFlag] = useState('');
   const [newHintText, setNewHintText] = useState('');
 
-  const activeEvent = events[0];
+  // Full Configurator Wizard State
+  const [isConfigWizardOpen, setIsConfigWizardOpen] = useState(false);
+  const [wizardTab, setWizardTab] = useState<'meta' | 'rules' | 'scoring' | 'prizes'>('meta');
+  const [cfgTitle, setCfgTitle] = useState(activeEvent.title);
+  const [cfgDesc, setCfgDesc] = useState(activeEvent.description);
+  const [cfgMode, setCfgMode] = useState(activeEvent.mode);
+  const [cfgMaxTeamSize, setCfgMaxTeamSize] = useState(activeEvent.maxTeamSize || 4);
+  const [cfgScoringType, setCfgScoringType] = useState(activeEvent.scoringType);
+  const [cfgRateLimit, setCfgRateLimit] = useState(activeEvent.rateLimitAttempts || 5);
+  const [cfgRulesMarkdown, setCfgRulesMarkdown] = useState(activeEvent.rulesMarkdown || '');
+  const [cfgPrize1, setCfgPrize1] = useState(activeEvent.prizes?.[0]?.reward || '₹50,000 Cash');
+  const [cfgPrize2, setCfgPrize2] = useState(activeEvent.prizes?.[1]?.reward || '₹25,000 Cash');
+  const [cfgPrize3, setCfgPrize3] = useState(activeEvent.prizes?.[2]?.reward || '₹10,000 Cash');
+
+  // Lifecycle Action Handlers
+  const handleStartCompetition = (eventId: string) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, status: 'live' as CtfEventStatus } : e))
+    );
+    setActiveEvent((prev) => ({ ...prev, status: 'live' }));
+  };
+
+  const handlePauseCompetition = (eventId: string) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, status: 'paused' as CtfEventStatus } : e))
+    );
+    setActiveEvent((prev) => ({ ...prev, status: 'paused' }));
+  };
+
+  const handleResumeCompetition = (eventId: string) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, status: 'live' as CtfEventStatus } : e))
+    );
+    setActiveEvent((prev) => ({ ...prev, status: 'live' }));
+  };
+
+  const handleExtendCompetition = (eventId: string, minutes: number) => {
+    setEvents((prev) =>
+      prev.map((e) => {
+        if (e.id === eventId) {
+          const newEndMs = new Date(e.endTime).getTime() + minutes * 60 * 1000;
+          return {
+            ...e,
+            endTime: new Date(newEndMs).toISOString(),
+            extendedMinutes: (e.extendedMinutes || 0) + minutes,
+          };
+        }
+        return e;
+      })
+    );
+    setActiveEvent((prev) => {
+      const newEndMs = new Date(prev.endTime).getTime() + minutes * 60 * 1000;
+      return {
+        ...prev,
+        endTime: new Date(newEndMs).toISOString(),
+        extendedMinutes: (prev.extendedMinutes || 0) + minutes,
+      };
+    });
+  };
+
+  const handleEndCompetition = (eventId: string) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, status: 'concluded' as CtfEventStatus } : e))
+    );
+    setActiveEvent((prev) => ({ ...prev, status: 'concluded' }));
+  };
 
   const handleToggleFreeze = () => {
     setIsFrozen(!isFrozen);
     setEvents((prev) =>
-      prev.map((ev) => (ev.id === 'ctf-1' ? { ...ev, isFrozen: !isFrozen } : ev))
+      prev.map((ev) => (ev.id === activeEvent.id ? { ...ev, isFrozen: !isFrozen } : ev))
     );
   };
 
   const handleSendBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!announcementTitle || !announcementContent) return;
-    const logMsg = `[${new Date().toLocaleTimeString()}] ${announcementTitle}: ${announcementContent}`;
-    setBroadcastLog([logMsg, ...broadcastLog]);
     setAnnouncementTitle('');
     setAnnouncementContent('');
     setIsBroadcastOpen(false);
@@ -173,7 +247,7 @@ export const CtfAdminPage: React.FC = () => {
     e.preventDefault();
     const newChal: CtfChallenge = {
       id: `chal-${Date.now()}`,
-      eventId: 'ctf-1',
+      eventId: activeEvent.id,
       title: newTitle || 'New Cryptographic Cipher',
       category: newCategory,
       description: newDesc || 'Decrypt the ciphertext payload using RSA public key parameters.',
@@ -189,8 +263,62 @@ export const CtfAdminPage: React.FC = () => {
     setIsChallengeModalOpen(false);
   };
 
+  const handleSaveWizardConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedPrizes: CtfPrize[] = [
+      { rank: 1, title: 'Gold Champion', reward: cfgPrize1 },
+      { rank: 2, title: 'Silver Runner-Up', reward: cfgPrize2 },
+      { rank: 3, title: 'Bronze Podium', reward: cfgPrize3 },
+    ];
+
+    const updatedEvent: CtfEvent = {
+      ...activeEvent,
+      title: cfgTitle,
+      description: cfgDesc,
+      mode: cfgMode,
+      maxTeamSize: cfgMaxTeamSize,
+      scoringType: cfgScoringType,
+      rateLimitAttempts: cfgRateLimit,
+      rulesMarkdown: cfgRulesMarkdown,
+      prizes: updatedPrizes,
+    };
+
+    setEvents((prev) => prev.map((ev) => (ev.id === activeEvent.id ? updatedEvent : ev)));
+    setActiveEvent(updatedEvent);
+    setIsConfigWizardOpen(false);
+  };
+
   const handleDeleteChallenge = (id: string) => {
     setChallenges((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const getStatusBadge = (status: CtfEventStatus) => {
+    switch (status) {
+      case 'live':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+            <span className="w-2 h-2 mr-1.5 rounded-full bg-emerald-400"></span> LIVE COMPETITION
+          </span>
+        );
+      case 'paused':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <Pause className="w-3.5 h-3.5 mr-1" /> SUBMISSIONS PAUSED
+          </span>
+        );
+      case 'upcoming':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            <Clock className="w-3.5 h-3.5 mr-1" /> UPCOMING SCHEDULED
+          </span>
+        );
+      case 'concluded':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-500/20 text-gray-300 border border-gray-500/30">
+            <Square className="w-3.5 h-3.5 mr-1" /> COMPETITION CONCLUDED
+          </span>
+        );
+    }
   };
 
   return (
@@ -206,11 +334,18 @@ export const CtfAdminPage: React.FC = () => {
               <h1 className="text-2xl font-bold text-gray-900">CTFd Competition Hub</h1>
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              Manage CTF competitions, dynamic scoring rules, challenge bank repositories, and live broadcasts.
+              Configure competition parameters, manage life cycle transitions, and operate live events.
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsConfigWizardOpen(true)}
+              className="inline-flex items-center px-3 py-2 bg-white hover:bg-gray-50 text-gray-800 font-semibold text-xs rounded-lg border border-gray-300 shadow-xs transition-colors cursor-pointer"
+            >
+              <Settings className="w-4 h-4 mr-1.5 text-blue-600" /> Event Configurator
+            </button>
+
             <button
               onClick={() => setIsBroadcastOpen(true)}
               className="inline-flex items-center px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-xs rounded-lg border border-purple-200 transition-colors cursor-pointer"
@@ -220,7 +355,7 @@ export const CtfAdminPage: React.FC = () => {
 
             <button
               onClick={handleToggleFreeze}
-              className={`inline-flex items-center px-3.5 py-2 font-semibold text-xs rounded-lg shadow-xs transition-colors cursor-pointer border ${
+              className={`inline-flex items-center px-3 py-2 font-semibold text-xs rounded-lg transition-colors cursor-pointer border ${
                 isFrozen
                   ? 'bg-cyan-600 text-white border-cyan-700 hover:bg-cyan-700'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -241,14 +376,18 @@ export const CtfAdminPage: React.FC = () => {
 
         {/* Active Event Banner Highlight Card */}
         {activeEvent && (
-          <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden space-y-5">
             <div className="absolute right-0 top-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2 max-w-2xl">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Active CTF Event
-                  </span>
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  {getStatusBadge(activeEvent.status)}
+                  {activeEvent.extendedMinutes ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      +{activeEvent.extendedMinutes}m Extended
+                    </span>
+                  ) : null}
                   {isFrozen && (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center">
                       <Snowflake className="w-3 h-3 mr-1" /> Scoreboard Frozen
@@ -259,16 +398,48 @@ export const CtfAdminPage: React.FC = () => {
                 <p className="text-xs text-gray-300">{activeEvent.description}</p>
               </div>
 
-              <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 text-xs font-mono">
-                <div>
-                  <p className="text-gray-400 text-[10px] uppercase">Mode & Scoring</p>
-                  <p className="font-bold text-amber-300 capitalize">{activeEvent.mode} Mode ({activeEvent.scoringType})</p>
-                </div>
-                <div className="h-8 w-px bg-white/20"></div>
-                <div>
-                  <p className="text-gray-400 text-[10px] uppercase">Solves / Users</p>
-                  <p className="font-bold text-emerald-300">{activeEvent.totalSolves} Solves ({activeEvent.participantCount} Active)</p>
-                </div>
+              {/* One-Click Admin Lifecycle Action Toolbar */}
+              <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/15 flex flex-wrap items-center gap-2">
+                {activeEvent.status !== 'live' && activeEvent.status !== 'concluded' && (
+                  <button
+                    onClick={() => handleStartCompetition(activeEvent.id)}
+                    className="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                  >
+                    <Play className="w-3.5 h-3.5 mr-1" /> Start CTF Now
+                  </button>
+                )}
+
+                {activeEvent.status === 'live' && (
+                  <>
+                    <button
+                      onClick={() => handlePauseCompetition(activeEvent.id)}
+                      className="inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                    >
+                      <Pause className="w-3.5 h-3.5 mr-1" /> Pause Submissions
+                    </button>
+                    <button
+                      onClick={() => handleExtendCompetition(activeEvent.id, 60)}
+                      className="inline-flex items-center px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                    >
+                      +1h Extend
+                    </button>
+                    <button
+                      onClick={() => handleEndCompetition(activeEvent.id)}
+                      className="inline-flex items-center px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                    >
+                      <Square className="w-3.5 h-3.5 mr-1" /> Force End
+                    </button>
+                  </>
+                )}
+
+                {activeEvent.status === 'paused' && (
+                  <button
+                    onClick={() => handleResumeCompetition(activeEvent.id)}
+                    className="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" /> Resume Event
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -367,19 +538,20 @@ export const CtfAdminPage: React.FC = () => {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-xs uppercase tracking-wider">
                   <th className="py-3.5 px-4">Event Title</th>
-                  <th className="py-3.5 px-4">Mode & Scoring</th>
-                  <th className="py-3.5 px-4">Window</th>
-                  <th className="py-3.5 px-4">Solves & Teams</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4">Status & Mode</th>
+                  <th className="py-3.5 px-4">Execution Window</th>
+                  <th className="py-3.5 px-4">Competitors</th>
+                  <th className="py-3.5 px-4 text-right">Lifecycle Control</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 text-gray-700">
                 {events.map((ev) => (
                   <tr key={ev.id} className="hover:bg-gray-50/80">
                     <td className="py-4 px-4 font-bold text-gray-900 max-w-xs">{ev.title}</td>
-                    <td className="py-4 px-4">
-                      <span className="capitalize px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        {ev.mode} ({ev.scoringType})
+                    <td className="py-4 px-4 space-y-1">
+                      <div>{getStatusBadge(ev.status)}</div>
+                      <span className="capitalize text-xs font-semibold text-gray-500 block">
+                        {ev.mode} Mode (Max {ev.maxTeamSize || 4}/team)
                       </span>
                     </td>
                     <td className="py-4 px-4 text-xs font-mono text-gray-600">
@@ -387,12 +559,36 @@ export const CtfAdminPage: React.FC = () => {
                       <div>End: {new Date(ev.endTime).toLocaleString()}</div>
                     </td>
                     <td className="py-4 px-4 font-mono text-xs">
-                      {ev.totalSolves} Solves / {ev.participantCount} Competitors
+                      {ev.totalSolves} Solves / {ev.participantCount} Players
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <button className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors">
-                        Edit Settings
-                      </button>
+                      <div className="flex items-center justify-end space-x-2">
+                        {ev.status !== 'live' && ev.status !== 'concluded' && (
+                          <button
+                            onClick={() => handleStartCompetition(ev.id)}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded border border-emerald-200"
+                          >
+                            Start
+                          </button>
+                        )}
+                        {ev.status === 'live' && (
+                          <button
+                            onClick={() => handlePauseCompetition(ev.id)}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded border border-amber-200"
+                          >
+                            Pause
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setActiveEvent(ev);
+                            setIsConfigWizardOpen(true);
+                          }}
+                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded"
+                        >
+                          Configure
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -439,6 +635,223 @@ export const CtfAdminPage: React.FC = () => {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Multi-Section Event Configuration Wizard Modal */}
+        {isConfigWizardOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-gray-100 space-y-5 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <Settings className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-bold text-gray-900">CTF Competition Configurator</h3>
+                </div>
+                <button onClick={() => setIsConfigWizardOpen(false)} className="text-gray-400 hover:text-gray-600 font-bold">
+                  ✕
+                </button>
+              </div>
+
+              {/* Config Wizard Tabs */}
+              <div className="grid grid-cols-4 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setWizardTab('meta')}
+                  className={`py-2 rounded-lg transition-colors ${
+                    wizardTab === 'meta' ? 'bg-white text-blue-600 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Metadata & Mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWizardTab('scoring')}
+                  className={`py-2 rounded-lg transition-colors ${
+                    wizardTab === 'scoring' ? 'bg-white text-blue-600 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Scoring & Rate Limits
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWizardTab('rules')}
+                  className={`py-2 rounded-lg transition-colors ${
+                    wizardTab === 'rules' ? 'bg-white text-blue-600 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Rules (Markdown)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWizardTab('prizes')}
+                  className={`py-2 rounded-lg transition-colors ${
+                    wizardTab === 'prizes' ? 'bg-white text-blue-600 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Prizes & Awards
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveWizardConfig} className="space-y-4">
+                {wizardTab === 'meta' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                        Event Title
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={cfgTitle}
+                        onChange={(e) => setCfgTitle(e.target.value)}
+                        className="w-full px-3.5 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                        Description Summary
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={cfgDesc}
+                        onChange={(e) => setCfgDesc(e.target.value)}
+                        className="w-full px-3.5 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                          Participation Mode
+                        </label>
+                        <select
+                          value={cfgMode}
+                          onChange={(e) => setCfgMode(e.target.value as any)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="team">Team Competition</option>
+                          <option value="individual">Individual Operators</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                          Max Team Size ({cfgMaxTeamSize} Players)
+                        </label>
+                        <input
+                          type="range"
+                          min={1}
+                          max={5}
+                          value={cfgMaxTeamSize}
+                          onChange={(e) => setCfgMaxTeamSize(Number(e.target.value))}
+                          className="w-full mt-2"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {wizardTab === 'scoring' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                          Scoring Formula Model
+                        </label>
+                        <select
+                          value={cfgScoringType}
+                          onChange={(e) => setCfgScoringType(e.target.value as any)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="dynamic">Dynamic Decay (Solves reduce value)</option>
+                          <option value="static">Static Fixed Points</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                          Flag Rate Limit (Attempts/Min)
+                        </label>
+                        <input
+                          type="number"
+                          value={cfgRateLimit}
+                          onChange={(e) => setCfgRateLimit(Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {wizardTab === 'rules' && (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Event Code of Conduct & Rules (Markdown)
+                    </label>
+                    <textarea
+                      rows={6}
+                      value={cfgRulesMarkdown}
+                      onChange={(e) => setCfgRulesMarkdown(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+
+                {wizardTab === 'prizes' && (
+                  <div className="space-y-3">
+                    <span className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Podium Rewards Breakdown
+                    </span>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-xs text-amber-700 font-bold block">1st Place Gold Prize</label>
+                        <input
+                          type="text"
+                          value={cfgPrize1}
+                          onChange={(e) => setCfgPrize1(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-700 font-bold block">2nd Place Silver Prize</label>
+                        <input
+                          type="text"
+                          value={cfgPrize2}
+                          onChange={(e) => setCfgPrize2(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-amber-800 font-bold block">3rd Place Bronze Prize</label>
+                        <input
+                          type="text"
+                          value={cfgPrize3}
+                          onChange={(e) => setCfgPrize3(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsConfigWizardOpen(false)}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm"
+                  >
+                    Save Configuration
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
