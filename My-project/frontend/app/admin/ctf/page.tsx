@@ -10,11 +10,9 @@ import {
   XCircle,
   Search,
   Activity,
-  Award,
   Layers,
   Settings,
   HelpCircle,
-  Eye,
   RotateCcw,
   Sparkles
 } from "lucide-react"
@@ -208,45 +206,48 @@ export default function AdminCTFControl() {
     ]
 
     saveLabsToStorage(updated)
-    setNewLabData({ id: "", title: "", description: "", difficulty: "Medium", durationLabel: "4 Hours" })
     setIsCreatingLab(false)
-    showToast("success", "CTF Lab Scenario successfully created.")
+    setNewLabData({ id: "", title: "", description: "", difficulty: "Medium", durationLabel: "4 Hours" })
+    setSelectedLabId(newLabData.id)
+    showToast("success", `Created new lab scenario: ${newLabData.title}`)
   }
 
-  // Add / Edit Challenge Handler
+  // Save Challenge Handler (Add or Edit)
   const handleSaveChallenge = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!currentChallenge.title || !currentChallenge.flag || currentChallenge.points === undefined) {
-      showToast("error", "Title, Points, and Flag are required.")
+    const targetLabId = currentChallenge.labId || selectedLabId
+    
+    if (!currentChallenge.title || !currentChallenge.flag) {
+      showToast("error", "Title and Flag key are required.")
       return
     }
 
-    const targetLabId = currentChallenge.labId || selectedLabId
     const updated = labs.map((lab) => {
       if (lab.id !== targetLabId) return lab
 
-      const chalList = [...lab.challenges]
-      if (currentChallenge.id) {
-        // Edit existing
-        const idx = chalList.findIndex(c => c.id === currentChallenge.id)
-        if (idx !== -1) {
-          chalList[idx] = {
-            id: currentChallenge.id,
-            title: currentChallenge.title || "",
-            points: Number(currentChallenge.points) || 0,
-            difficulty: currentChallenge.difficulty || "Medium",
-            category: currentChallenge.category || "General",
-            scenario: currentChallenge.scenario || "",
-            instructions: currentChallenge.instructions || "",
-            hints: currentChallenge.hints || [],
-            flag: currentChallenge.flag || "",
-            solutionText: currentChallenge.solutionText || ""
-          }
-        }
+      const isExisting = lab.challenges.some(c => c.id === currentChallenge.id)
+      let chalList: CTFChallenge[]
+
+      if (isExisting) {
+        chalList = lab.challenges.map((c) =>
+          c.id === currentChallenge.id
+            ? ({
+                ...c,
+                title: currentChallenge.title || c.title,
+                points: Number(currentChallenge.points) || c.points,
+                difficulty: currentChallenge.difficulty || c.difficulty,
+                category: currentChallenge.category || c.category,
+                scenario: currentChallenge.scenario || "",
+                instructions: currentChallenge.instructions || "",
+                hints: currentChallenge.hints || [],
+                flag: currentChallenge.flag || c.flag,
+                solutionText: currentChallenge.solutionText || ""
+              } as CTFChallenge)
+            : c
+        )
       } else {
-        // Create new
-        const newId = `${lab.id}-${Date.now()}`
-        chalList.push({
+        const newId = `${lab.id}-${Date.now().toString().slice(-4)}`
+        chalList = [...lab.challenges, {
           id: newId,
           title: currentChallenge.title || "",
           points: Number(currentChallenge.points) || 0,
@@ -257,7 +258,7 @@ export default function AdminCTFControl() {
           hints: currentChallenge.hints || [],
           flag: currentChallenge.flag || "",
           solutionText: currentChallenge.solutionText || ""
-        })
+        }]
       }
       return { ...lab, challenges: chalList }
     })
@@ -330,7 +331,7 @@ export default function AdminCTFControl() {
       status: isCorrect ? "Correct" : "Incorrect"
     }
 
-    const updatedLogs = [newLog, ...auditLogs].slice(0, 50) // Cap at 50 logs
+    const updatedLogs = [newLog, ...auditLogs].slice(0, 50)
     saveLogsToStorage(updatedLogs)
     showToast(isCorrect ? "success" : "error", `Telemetry: Flag submission simulated from ${randomOp}`)
   }
@@ -367,20 +368,20 @@ export default function AdminCTFControl() {
     <div className="space-y-8 pb-12">
       
       {/* Page Header banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-emerald-400" />
-            <h1 className="text-2xl font-bold tracking-tight text-white">CTF Challenges Control</h1>
+            <Trophy className="w-5 h-5 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">CTF Challenges Control</h1>
           </div>
-          <p className="text-xs text-slate-400">Configure range CTF challenge scenarios, deploy keys, customize writeups, and inspect live submit telemetry.</p>
+          <p className="text-xs text-muted-foreground">Configure range CTF challenge scenarios, deploy keys, customize writeups, and inspect live submit telemetry.</p>
         </div>
         
         <div className="flex items-center gap-3">
-          <Button onClick={handleResetToDefaults} variant="outline" className="border-white/10 bg-white/5 text-xs text-slate-300 hover:bg-white/10 rounded-xl h-9">
+          <Button onClick={handleResetToDefaults} variant="outline" className="text-xs text-muted-foreground hover:text-foreground rounded-xl h-9">
             <RotateCcw className="w-4 h-4 mr-2" /> Reset Default Data
           </Button>
-          <Button onClick={() => setIsCreatingLab(true)} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-xl h-9">
+          <Button onClick={() => setIsCreatingLab(true)} className="bg-primary text-primary-foreground text-xs font-bold rounded-xl h-9 shadow-sm">
             <Plus className="w-4 h-4 mr-1.5" /> Add Lab Scenario
           </Button>
         </div>
@@ -388,43 +389,43 @@ export default function AdminCTFControl() {
 
       {/* KPI Overview Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl shadow-lg">
+        <Card className="border border-border bg-card rounded-2xl shadow-xs">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Scenarios</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Scenarios</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-white font-mono">{totalScenarios}</div>
-            <p className="text-[10px] text-slate-400 mt-1">Active lab categories</p>
+            <div className="text-3xl font-extrabold text-foreground font-mono">{totalScenarios}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Active lab categories</p>
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl shadow-lg">
+        <Card className="border border-border bg-card rounded-2xl shadow-xs">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Flags</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Flags</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-white font-mono">{totalChals}</div>
-            <p className="text-[10px] text-slate-400 mt-1">Configured challenges</p>
+            <div className="text-3xl font-extrabold text-foreground font-mono">{totalChals}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Configured challenges</p>
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl shadow-lg">
+        <Card className="border border-border bg-card rounded-2xl shadow-xs">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Max Points Pool</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Max Points Pool</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-emerald-400 font-mono">{totalPoints} <span className="text-xs text-slate-500">PTS</span></div>
-            <p className="text-[10px] text-slate-400 mt-1">Total score value</p>
+            <div className="text-3xl font-extrabold text-primary font-mono">{totalPoints} <span className="text-xs text-muted-foreground">PTS</span></div>
+            <p className="text-[10px] text-muted-foreground mt-1">Total score value</p>
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl shadow-lg">
+        <Card className="border border-border bg-card rounded-2xl shadow-xs">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Solves Telemetry</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Solves Telemetry</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-white font-mono">{correctAttempts} <span className="text-xs text-emerald-400">Correct</span></div>
-            <p className="text-[10px] text-slate-400 mt-1">Active flags verified</p>
+            <div className="text-3xl font-extrabold text-foreground font-mono">{correctAttempts} <span className="text-xs text-primary font-bold">Correct</span></div>
+            <p className="text-[10px] text-muted-foreground mt-1">Active flags verified</p>
           </CardContent>
         </Card>
       </div>
@@ -435,8 +436,8 @@ export default function AdminCTFControl() {
         {/* Left Side: Scenarios Navigation */}
         <div className="lg:col-span-1 space-y-4">
           <div className="flex justify-between items-center px-1">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-emerald-400" /> Active Scenarios
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-primary" /> Active Scenarios
             </h2>
           </div>
           
@@ -454,17 +455,17 @@ export default function AdminCTFControl() {
                   className={cn(
                     "w-full text-left p-4 rounded-xl border transition-all duration-200 block",
                     isSelected
-                      ? "border-emerald-500/40 bg-emerald-500/[0.03] text-white"
-                      : "border-white/5 bg-white/[0.01] text-slate-300 hover:border-white/15 hover:bg-white/[0.03]"
+                      ? "border-primary/40 bg-primary/10 text-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/20 hover:text-foreground"
                   )}
                 >
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-mono text-emerald-400 uppercase tracking-wider">{lab.difficulty} · {lab.durationLabel}</span>
-                      <span className="text-[9px] font-mono text-slate-500">{lab.challenges.length} Flags</span>
+                      <span className="text-[9px] font-mono text-primary font-bold uppercase tracking-wider">{lab.difficulty} · {lab.durationLabel}</span>
+                      <span className="text-[9px] font-mono text-muted-foreground">{lab.challenges.length} Flags</span>
                     </div>
-                    <h3 className="text-sm font-bold truncate">{lab.title}</h3>
-                    <p className="text-[10px] text-slate-500 line-clamp-1">{lab.description}</p>
+                    <h3 className="text-sm font-bold truncate text-foreground">{lab.title}</h3>
+                    <p className="text-[10px] text-muted-foreground line-clamp-1">{lab.description}</p>
                   </div>
                 </button>
               )
@@ -472,19 +473,19 @@ export default function AdminCTFControl() {
           </div>
 
           {/* Telemetry Simulator Widget */}
-          <Card className="border border-white/10 bg-slate-950/40 rounded-xl overflow-hidden shadow-inner p-4 space-y-3">
+          <Card className="border border-border bg-card rounded-xl overflow-hidden shadow-xs p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-emerald-400 animate-pulse" /> Telemetry Simulator
+              <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-primary animate-pulse" /> Telemetry Simulator
               </span>
-              <Button size="sm" onClick={handleClearLogs} className="h-6 text-[9px] bg-white/5 border border-white/10 text-slate-400 hover:text-white rounded-md px-2">
+              <Button size="sm" onClick={handleClearLogs} variant="outline" className="h-6 text-[9px] text-muted-foreground rounded-md px-2">
                 Clear Logs
               </Button>
             </div>
-            <p className="text-[10px] text-slate-500 leading-normal">
+            <p className="text-[10px] text-muted-foreground leading-normal">
               Simulate real-time student activity by spawning a random flag submission log in the audit pipeline feed.
             </p>
-            <Button onClick={handleSimulateEvent} className="w-full h-8 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-semibold">
+            <Button onClick={handleSimulateEvent} className="w-full h-8 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Inject Flag Attempt
             </Button>
           </Card>
@@ -494,26 +495,26 @@ export default function AdminCTFControl() {
         <div className="lg:col-span-2 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
             <div className="space-y-0.5">
-              <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                 {activeLab?.title || "Scenario Challenges"}
               </h2>
-              <p className="text-[10px] text-slate-500">Manage flags, writeups and hints for this scenario</p>
+              <p className="text-[10px] text-muted-foreground">Manage flags, writeups and hints for this scenario</p>
             </div>
             
             <div className="flex gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Filter flags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs w-40 rounded-lg border-white/10 bg-white/5 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="h-8 pl-8 text-xs w-40 rounded-lg border-border bg-card text-foreground"
                 />
               </div>
               <Button onClick={() => {
                 setCurrentChallenge({ labId: selectedLabId, difficulty: "Medium", category: "Recon", hints: [""] })
                 setIsEditing(true)
-              }} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-lg h-8">
+              }} className="bg-primary text-primary-foreground text-xs font-bold rounded-lg h-8">
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add Flag
               </Button>
             </div>
@@ -521,39 +522,39 @@ export default function AdminCTFControl() {
 
           <div className="space-y-3">
             {filteredChallenges.length === 0 ? (
-              <Card className="border border-dashed border-white/10 bg-white/[0.01] p-8 text-center rounded-2xl">
-                <HelpCircle className="mx-auto h-8 w-8 text-slate-600 mb-2 animate-pulse" />
-                <h3 className="text-xs font-bold text-white mb-1">No Flags Found</h3>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
+              <Card className="border border-dashed border-border bg-card p-8 text-center rounded-2xl">
+                <HelpCircle className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2 animate-pulse" />
+                <h3 className="text-xs font-bold text-foreground mb-1">No Flags Found</h3>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
                   No challenges mapped to this scenario query. Add a new flag or reset default database.
                 </p>
               </Card>
             ) : (
               filteredChallenges.map((challenge) => (
-                <Card key={challenge.id} className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl overflow-hidden shadow-md">
+                <Card key={challenge.id} className="border border-border bg-card rounded-xl overflow-hidden shadow-xs">
                   <div className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn(
                           "text-[9px] font-bold px-1.5 py-0.5 rounded font-mono uppercase",
-                          challenge.difficulty === "Easy" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                          challenge.difficulty === "Medium" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                          "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                          challenge.difficulty === "Easy" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" :
+                          challenge.difficulty === "Medium" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
+                          "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                         )}>
                           {challenge.difficulty}
                         </span>
-                        <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">{challenge.category}</span>
-                        <span className="text-[9px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">+{challenge.points} PTS</span>
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">{challenge.category}</span>
+                        <span className="text-[9px] text-primary font-mono font-bold bg-primary/10 px-2 py-0.5 rounded">+{challenge.points} PTS</span>
                       </div>
-                      <h3 className="text-sm font-bold text-white">{challenge.title}</h3>
-                      <div className="mt-2 pt-2 border-t border-white/5 space-y-1.5 text-[11px]">
+                      <h3 className="text-sm font-bold text-foreground">{challenge.title}</h3>
+                      <div className="mt-2 pt-2 border-t border-border space-y-1.5 text-[11px]">
                         <div className="flex gap-2">
-                          <span className="text-slate-500 font-mono font-semibold shrink-0">Flag Secret:</span>
-                          <code className="text-emerald-400 select-all font-mono break-all">{challenge.flag}</code>
+                          <span className="text-muted-foreground font-mono font-semibold shrink-0">Flag Secret:</span>
+                          <code className="text-primary select-all font-mono break-all font-bold">{challenge.flag}</code>
                         </div>
                         {challenge.hints && challenge.hints.length > 0 && (
-                          <div className="flex gap-2 text-slate-400 font-light">
-                            <span className="text-slate-500 font-mono font-semibold shrink-0">Hints:</span>
+                          <div className="flex gap-2 text-muted-foreground font-light">
+                            <span className="text-muted-foreground font-mono font-semibold shrink-0">Hints:</span>
                             <span>{challenge.hints.length} registered hints</span>
                           </div>
                         )}
@@ -563,18 +564,19 @@ export default function AdminCTFControl() {
                     <div className="flex sm:flex-col gap-2 shrink-0">
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={() => {
                           setCurrentChallenge({ ...challenge, labId: selectedLabId })
                           setIsEditing(true)
                         }}
-                        className="bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-lg h-7 px-3 text-xs"
+                        className="rounded-lg h-7 px-3 text-xs"
                       >
                         <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => handleDeleteChallenge(selectedLabId, challenge.id)}
-                        className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg h-7 px-3 text-xs"
+                        className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-lg h-7 px-3 text-xs"
                       >
                         <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
                       </Button>
@@ -590,44 +592,44 @@ export default function AdminCTFControl() {
 
       {/* Live Telemetry audit logs list */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
-          <Activity className="w-4 h-4 text-emerald-400" /> Active Flag Submission Telemetry Stream
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 px-1">
+          <Activity className="w-4 h-4 text-primary" /> Active Flag Submission Telemetry Stream
         </h2>
         
-        <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl overflow-hidden shadow-xl">
+        <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-white/15 bg-white/[0.02]">
-                  <th className="py-3 px-4 font-bold text-slate-300">Timestamp</th>
-                  <th className="py-3 px-4 font-bold text-slate-300">Student Email</th>
-                  <th className="py-3 px-4 font-bold text-slate-300">Lab Scenario</th>
-                  <th className="py-3 px-4 font-bold text-slate-300">Challenge</th>
-                  <th className="py-3 px-4 font-bold text-slate-300">Flag Payload</th>
-                  <th className="py-3 px-4 font-bold text-slate-300 text-center">Status</th>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="py-3 px-4 font-bold text-muted-foreground">Timestamp</th>
+                  <th className="py-3 px-4 font-bold text-muted-foreground">Student Email</th>
+                  <th className="py-3 px-4 font-bold text-muted-foreground">Lab Scenario</th>
+                  <th className="py-3 px-4 font-bold text-muted-foreground">Challenge</th>
+                  <th className="py-3 px-4 font-bold text-muted-foreground">Flag Payload</th>
+                  <th className="py-3 px-4 font-bold text-muted-foreground text-center">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {auditLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 px-4 text-center text-slate-500">
+                    <td colSpan={6} className="py-8 px-4 text-center text-muted-foreground">
                       Telemetry log is currently empty. Simulating player interactions or solving flags will spawn events here.
                     </td>
                   </tr>
                 ) : (
                   auditLogs.map((log, idx) => (
-                    <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.01] transition-all">
-                      <td className="py-3 px-4 font-mono text-slate-400">{log.timestamp}</td>
-                      <td className="py-3 px-4 font-semibold text-slate-200">{log.operator}</td>
-                      <td className="py-3 px-4 text-slate-400">{log.labTitle}</td>
-                      <td className="py-3 px-4 text-slate-300 font-bold">{log.challengeTitle}</td>
-                      <td className="py-3 px-4 font-mono text-slate-500 max-w-[150px] truncate" title={log.attemptedFlag}>{log.attemptedFlag}</td>
+                    <tr key={idx} className="hover:bg-muted/30 transition-all">
+                      <td className="py-3 px-4 font-mono text-muted-foreground">{log.timestamp}</td>
+                      <td className="py-3 px-4 font-semibold text-foreground">{log.operator}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{log.labTitle}</td>
+                      <td className="py-3 px-4 text-foreground font-bold">{log.challengeTitle}</td>
+                      <td className="py-3 px-4 font-mono text-muted-foreground max-w-[150px] truncate" title={log.attemptedFlag}>{log.attemptedFlag}</td>
                       <td className="py-3 px-4 text-center">
                         <span className={cn(
                           "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase",
                           log.status === "Correct"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                         )}>
                           {log.status === "Correct" ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                           {log.status}
@@ -644,100 +646,95 @@ export default function AdminCTFControl() {
 
       {/* Editor Challenge Dialog Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <Card className="max-w-xl w-full border-white/10 bg-[#0E0E12]/95 backdrop-blur-xl shadow-2xl rounded-2xl overflow-y-auto max-h-[85vh]">
-            <CardHeader className="border-b border-white/5 pb-4">
-              <CardTitle className="text-white text-lg flex items-center gap-1.5">
-                <Settings className="w-5 h-5 text-emerald-400" /> {currentChallenge.id ? "Edit Challenge Settings" : "Configure New CTF Flag"}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <Card className="max-w-xl w-full border-border bg-card shadow-2xl rounded-2xl overflow-y-auto max-h-[85vh]">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="text-foreground text-lg flex items-center gap-1.5">
+                <Settings className="w-5 h-5 text-primary" /> {currentChallenge.id ? "Edit Challenge Settings" : "Configure New CTF Flag"}
               </CardTitle>
               <CardDescription>Setup challenge guidelines, category tags, validation hashes, and hint solutions.</CardDescription>
             </CardHeader>
             <form onSubmit={handleSaveChallenge} className="p-6 space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Challenge Title</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Challenge Title</label>
                   <Input
                     required
                     value={currentChallenge.title || ""}
                     onChange={(e) => setCurrentChallenge(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g. Local privilege escalation root key"
-                    className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                    className="border-border bg-background text-foreground rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Category Tag</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Category Tag</label>
                   <Input
                     value={currentChallenge.category || ""}
                     onChange={(e) => setCurrentChallenge(prev => ({ ...prev, category: e.target.value }))}
-                    placeholder="e.g. Active Directory, SQLi, BOLA"
-                    className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                    className="border-border bg-background text-foreground rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Difficulty</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Difficulty</label>
                   <select
                     value={currentChallenge.difficulty || "Medium"}
                     onChange={(e) => setCurrentChallenge(prev => ({ ...prev, difficulty: e.target.value as any }))}
-                    className="w-full h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="Easy" className="bg-[#0A0A0B]">Easy</option>
-                    <option value="Medium" className="bg-[#0A0A0B]">Medium</option>
-                    <option value="Hard" className="bg-[#0A0A0B]">Hard</option>
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Score Reward (Points)</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Score Reward (Points)</label>
                   <Input
                     required
                     type="number"
                     value={currentChallenge.points ?? 100}
                     onChange={(e) => setCurrentChallenge(prev => ({ ...prev, points: Number(e.target.value) }))}
-                    className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                    className="border-border bg-background text-foreground rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Validation Flag</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Validation Flag</label>
                   <Input
                     required
                     value={currentChallenge.flag || ""}
                     onChange={(e) => setCurrentChallenge(prev => ({ ...prev, flag: e.target.value }))}
-                    placeholder="flag{xxxxxxxxxxxxxxxxxxxxxxxx}"
-                    className="border-white/10 bg-white/5 text-emerald-400 rounded-xl focus:border-emerald-500 font-mono"
+                    className="border-border bg-background text-primary font-bold rounded-xl font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Mission Story Context</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Mission Story Context</label>
                 <textarea
                   rows={3}
                   value={currentChallenge.scenario || ""}
                   onChange={(e) => setCurrentChallenge(prev => ({ ...prev, scenario: e.target.value }))}
-                  placeholder="Set the narrative context for the student..."
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y"
+                  className="w-full border border-border bg-background text-foreground rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-y"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Challenge Instructions</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Challenge Instructions</label>
                 <textarea
                   rows={3}
                   value={currentChallenge.instructions || ""}
                   onChange={(e) => setCurrentChallenge(prev => ({ ...prev, instructions: e.target.value }))}
-                  placeholder="Explain exactly what the user should query or target to recover the flag key..."
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y"
+                  className="w-full border border-border bg-background text-foreground rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-y"
                 />
               </div>
 
               {/* Hints array */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-semibold text-slate-400 uppercase">Intel Hints (Optional)</label>
-                  <Button type="button" size="sm" onClick={handleAddHintField} className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 rounded px-2 h-6 text-[10px]">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Intel Hints (Optional)</label>
+                  <Button type="button" size="sm" onClick={handleAddHintField} className="bg-primary/10 text-primary border border-primary/20 rounded px-2 h-6 text-[10px]">
                     + Add Hint
                   </Button>
                 </div>
@@ -747,10 +744,9 @@ export default function AdminCTFControl() {
                       <Input
                         value={hint}
                         onChange={(e) => handleHintChange(idx, e.target.value)}
-                        placeholder={`Hint #${idx + 1} text`}
-                        className="border-white/10 bg-white/5 text-white rounded-xl text-xs flex-1"
+                        className="border-border bg-background text-foreground rounded-xl text-xs flex-1"
                       />
-                      <Button type="button" size="icon" onClick={() => handleRemoveHintField(idx)} className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl h-10 w-10">
+                      <Button type="button" size="icon" onClick={() => handleRemoveHintField(idx)} className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-xl h-10 w-10">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -759,24 +755,23 @@ export default function AdminCTFControl() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Solution Methodology Writeup</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Solution Methodology Writeup</label>
                 <textarea
                   rows={3}
                   value={currentChallenge.solutionText || ""}
                   onChange={(e) => setCurrentChallenge(prev => ({ ...prev, solutionText: e.target.value }))}
-                  placeholder="Enter step-by-step documentation detailing how to solve the challenge..."
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y"
+                  className="w-full border border-border bg-background text-foreground rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-y"
                 />
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-white/5">
-                <Button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold flex-1 rounded-xl">
+              <div className="flex gap-3 pt-4 border-t border-border">
+                <Button type="submit" className="bg-primary text-primary-foreground font-bold flex-1 rounded-xl">
                   Save Changes
                 </Button>
                 <Button type="button" variant="outline" onClick={() => {
                   setIsEditing(false)
                   setCurrentChallenge({})
-                }} className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 flex-1 rounded-xl">
+                }} className="flex-1 rounded-xl">
                   Cancel
                 </Button>
               </div>
@@ -787,72 +782,67 @@ export default function AdminCTFControl() {
 
       {/* Create Lab Scenario Modal */}
       {isCreatingLab && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <Card className="max-w-md w-full border-white/10 bg-[#0E0E12]/95 backdrop-blur-xl shadow-2xl rounded-2xl">
-            <CardHeader className="border-b border-white/5 pb-4">
-              <CardTitle className="text-white text-lg flex items-center gap-1.5">
-                <Layers className="w-5 h-5 text-emerald-400" /> Create Lab Scenario Category
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <Card className="max-w-md w-full border-border bg-card shadow-2xl rounded-2xl">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="text-foreground text-lg flex items-center gap-1.5">
+                <Layers className="w-5 h-5 text-primary" /> Create Lab Scenario Category
               </CardTitle>
             </CardHeader>
             <form onSubmit={handleCreateLab} className="p-6 space-y-4 text-sm">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Scenario Unique ID</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Scenario Unique ID</label>
                 <Input
                   required
                   value={newLabData.id || ""}
                   onChange={(e) => setNewLabData(prev => ({ ...prev, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
-                  placeholder="e.g. active-directory, owasp-top-10"
-                  className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                  className="border-border bg-background text-foreground rounded-xl"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Scenario Title</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Scenario Title</label>
                 <Input
                   required
                   value={newLabData.title || ""}
                   onChange={(e) => setNewLabData(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Active Directory Enterprise Range"
-                  className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                  className="border-border bg-background text-foreground rounded-xl"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Difficulty</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Difficulty</label>
                 <Input
                   value={newLabData.difficulty || "Medium"}
                   onChange={(e) => setNewLabData(prev => ({ ...prev, difficulty: e.target.value }))}
-                  placeholder="e.g. Easy, Medium, Hard"
-                  className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                  className="border-border bg-background text-foreground rounded-xl"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Estimated Duration</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Estimated Duration</label>
                 <Input
                   value={newLabData.durationLabel || "4 Hours"}
                   onChange={(e) => setNewLabData(prev => ({ ...prev, durationLabel: e.target.value }))}
-                  placeholder="e.g. 3 Hours, 2 Days"
-                  className="border-white/10 bg-white/5 text-white rounded-xl focus:border-emerald-500"
+                  className="border-border bg-background text-foreground rounded-xl"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase">Description</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Description</label>
                 <textarea
                   rows={3}
                   value={newLabData.description || ""}
                   onChange={(e) => setNewLabData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Write a brief overview of the learning goals..."
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                  className="w-full border border-border bg-background text-foreground rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                 />
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-white/5">
-                <Button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold flex-1 rounded-xl">
+              <div className="flex gap-3 pt-4 border-t border-border">
+                <Button type="submit" className="bg-primary text-primary-foreground font-bold flex-1 rounded-xl">
                   Create Scenario
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setIsCreatingLab(false)} className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 flex-1 rounded-xl">
+                <Button type="button" variant="outline" onClick={() => setIsCreatingLab(false)} className="flex-1 rounded-xl">
                   Cancel
                 </Button>
               </div>

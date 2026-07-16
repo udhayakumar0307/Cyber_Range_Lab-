@@ -2002,23 +2002,23 @@ export default function StandaloneAdminCTFControl() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070709] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-300">
       <Header active={undefined} />
       
       {/* Standalone Alert Banner */}
       <div className="bg-amber-500/10 border-b border-amber-500/20 py-2.5 px-6">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-2 text-amber-400">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold">
             <ShieldAlert className="w-4 h-4 shrink-0" />
-            <span><strong>CTF Control Deck Access:</strong> Authenticated as <strong className="text-white">{user.email}</strong> ({user.role === 'sys_admin' ? 'Super Admin' : 'CTF Admin'}).</span>
+            <span><strong>CTF Control Deck Access:</strong> Authenticated as <strong className="text-foreground">{user.email}</strong> ({user.role === 'sys_admin' ? 'Super Admin' : 'CTF Admin'}).</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline" className="h-7 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-400 text-[10px] font-bold rounded-lg px-3">
+            <Button asChild size="sm" variant="outline" className="h-7 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 text-[10px] font-bold rounded-lg px-3">
               <Link href={user.role === "sys_admin" ? "/admin" : "/dashboard"}>
                 <ArrowLeft className="w-3 h-3 mr-1" /> Back to Workspace
               </Link>
             </Button>
-            <Button asChild size="sm" className="h-7 bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-bold rounded-lg px-3">
+            <Button asChild size="sm" className="h-7 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg px-3 text-[10px]">
               <Link href="/ctf">
                 View Player Arena <ExternalLink className="w-3 h-3 ml-1" />
               </Link>
@@ -2030,12 +2030,12 @@ export default function StandaloneAdminCTFControl() {
       <div className="max-w-[1600px] mx-auto w-full flex-1 p-6 flex flex-col lg:flex-row gap-6">
         {/* Navigation Sidebar */}
         <aside className="w-full lg:w-72 shrink-0 space-y-4">
-          <div className="border border-white/10 bg-slate-950/40 backdrop-blur-xl rounded-2xl p-4 space-y-3 shadow-lg">
+          <div className="border border-border bg-card rounded-2xl p-4 space-y-3 shadow-xs">
             <div className="space-y-1 py-2 px-1">
-              <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              <h1 className="text-xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
                 CTF Control Deck
               </h1>
-              <p className="text-slate-400 text-[10px] font-light">Unrestricted sandbox admin console.</p>
+              <p className="text-muted-foreground text-[10px] font-light">Unrestricted sandbox admin console.</p>
             </div>
 
             <nav className="space-y-1">
