@@ -173,26 +173,30 @@ export default function LoginPage() {
             {activeRole === "student" && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="student@example.com"
-                      value={studentEmail}
-                      onChange={(e) => setStudentEmail(e.target.value)}
-                      className="pl-10 h-12 rounded-xl text-sm"
-                    />
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground block">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        value={studentEmail}
+                        onChange={(e) => setStudentEmail(e.target.value)}
+                        className="pl-10 h-12 rounded-xl text-sm"
+                      />
+                    </div>
                   </div>
-                  
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Participant Name"
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      className="pl-10 h-12 rounded-xl text-sm"
-                    />
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground block">Full Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={studentName}
+                        onChange={(e) => setStudentName(e.target.value)}
+                        className="pl-10 h-12 rounded-xl text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -210,26 +214,30 @@ export default function LoginPage() {
             {activeRole === "ctf_admin" && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="anandadmin@academy.io"
-                      value={ctfAdminEmail}
-                      onChange={(e) => setCtfAdminEmail(e.target.value)}
-                      className="pl-10 h-12 rounded-xl text-sm"
-                    />
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground block">CTF Admin Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        value={ctfAdminEmail}
+                        onChange={(e) => setCtfAdminEmail(e.target.value)}
+                        className="pl-10 h-12 rounded-xl text-sm"
+                      />
+                    </div>
                   </div>
-                  
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="CTF Coordinator Name"
-                      value={ctfAdminName}
-                      onChange={(e) => setCtfAdminName(e.target.value)}
-                      className="pl-10 h-12 rounded-xl text-sm"
-                    />
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground block">Admin Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={ctfAdminName}
+                        onChange={(e) => setCtfAdminName(e.target.value)}
+                        className="pl-10 h-12 rounded-xl text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
 

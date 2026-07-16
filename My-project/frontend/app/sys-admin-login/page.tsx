@@ -110,28 +110,32 @@ export default function SysAdminLoginPage() {
               className="space-y-4"
             >
               <div className="space-y-3">
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    required
-                    placeholder="anand@academy.io"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    className="pl-10 h-12 rounded-xl text-sm"
-                  />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-muted-foreground block">Operator Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      required
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      className="pl-10 h-12 rounded-xl text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div className="relative">
-                  <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    required
-                    placeholder="System Administrator Name"
-                    value={adminName}
-                    onChange={(e) => setAdminName(e.target.value)}
-                    className="pl-10 h-12 rounded-xl text-sm"
-                  />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-muted-foreground block">Operator Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      required
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      className="pl-10 h-12 rounded-xl text-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
