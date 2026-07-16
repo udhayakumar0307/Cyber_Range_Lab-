@@ -1820,8 +1820,8 @@ export default function StandaloneCTFPlayground() {
       </div>
 
       {/* Footer */}
-      <footer className="py-8 px-6 border-t border-white/5 bg-slate-950/40 text-center mt-auto">
-        <p className="text-[10px] text-slate-600">
+      <footer className="py-8 px-6 border-t border-border bg-card text-center mt-auto transition-colors duration-300">
+        <p className="text-[10px] text-muted-foreground">
           All local submissions are checked in browser state. Refreshing will retain progress using localStorage cache settings.
         </p>
       </footer>
