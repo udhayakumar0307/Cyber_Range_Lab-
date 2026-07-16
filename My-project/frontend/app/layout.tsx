@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth"
+import { ThemeProvider } from "@/components/theme-provider"
 import { ToastContainer } from "@/components/toast"
 import { ClientOnly } from "@/components/client-only"
 import { SiteFooterGate } from "@/components/SiteFooterGate"
@@ -19,13 +20,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <AuthProvider>
-          {children}
-          <SiteFooterGate />
-          <ClientOnly>
-            <ToastContainer />
-          </ClientOnly>
-        </AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+            <SiteFooterGate />
+            <ClientOnly>
+              <ToastContainer />
+            </ClientOnly>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
