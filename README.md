@@ -106,7 +106,6 @@ CyberRange/
 │   ├── types/                 # Data schemas & TypeScript interfaces
 │   ├── App.tsx                # Central router & application routes
 │   └── index.css              # Global styles & Tailwind v4 tokens
-├── auth-mockups/              # Static HTML prototype reference mockups
 ├── tasks/                     # Development task tracking documentation
 └── README.md
 ```
