@@ -96,10 +96,10 @@ export function FeaturedLabsGrid() {
     <section className="py-20">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
             Training labs
           </h2>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <p className="text-muted-foreground max-w-2xl mx-auto">
             Hands-on cyber range environments on RangeOps — explore, expand, and
             purchase access from the catalog.
           </p>
@@ -109,9 +109,9 @@ export function FeaturedLabsGrid() {
           {cards.map((card) => (
             <article
               key={card.key}
-              className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-emerald-500/30 transition-colors"
+              className="group flex flex-col rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/40 transition-colors shadow-xs"
             >
-              <div className="relative aspect-[16/10] w-full bg-black/40">
+              <div className="relative aspect-[16/10] w-full bg-muted">
                 <Image
                   src={card.cover}
                   alt=""
@@ -121,18 +121,18 @@ export function FeaturedLabsGrid() {
                 />
               </div>
               <div className="flex flex-1 flex-col p-5">
-                <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                <h3 className="text-lg font-bold text-foreground mb-2 line-clamp-2">
                   {card.title}
                 </h3>
-                <p className="text-sm text-gray-400 leading-relaxed line-clamp-3 flex-1">
+                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 flex-1">
                   {card.blurb}
                 </p>
                 {card.meta ? (
-                  <p className="text-xs text-gray-500 mt-3">{card.meta}</p>
+                  <p className="text-xs text-muted-foreground/80 mt-3">{card.meta}</p>
                 ) : null}
                 <Button
                   variant="outline"
-                  className="mt-5 w-full border-white/15 bg-transparent text-white hover:bg-emerald-500/10 hover:border-emerald-500/40"
+                  className="mt-5 w-full border-border bg-card text-foreground hover:bg-primary/10 hover:border-primary/40"
                   asChild
                 >
                   <Link href={card.href}>
@@ -147,7 +147,7 @@ export function FeaturedLabsGrid() {
 
         <div className="text-center mt-10">
           <Button
-            className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 shadow-md"
             asChild
           >
             <Link href="/labs">
