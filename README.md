@@ -86,6 +86,19 @@ An enterprise-grade, clean **light-themed cybersecurity training and learning pl
 
 ---
 
+### 🔑 Interactive Authentication Mockups (Pages 1.1 – 1.4)
+
+High-fidelity interactive mockup templates are available in the **[auth-mockups](auth-mockups)** directory, serving as styling and interaction blueprints for the portal onboarding flow.
+
+* **🔑 Login Page ([index.html](auth-mockups/index.html))**: Standard credentials form and Enterprise SSO domain redirect selectors, featuring responsive viewport slide transitions and SVG shackle lock animations.
+* **✉️ Forgot Password Page ([forgot-password.html](auth-mockups/forgot-password.html))**: Email address recovery token dispatcher showcasing vector checkmark drawing transitions.
+* **🔄 Reset Password Page ([reset-password.html](auth-mockups/reset-password.html))**: Password parameter strength indicators with requirements checklist flags and matching checkers.
+* **📝 Register Page ([register.html](auth-mockups/register.html))**: Signup registration forms with integrated 6-digit email confirmation code grid boxes (supporting auto-focus forwarding).
+
+For setup and hosting guidelines, see the [auth-mockups/README.md](auth-mockups/README.md) file.
+
+---
+
 ## 🎨 Design System & Aesthetics
 
 Built in accordance with the PRD **Light Theme Palette**:
@@ -182,6 +195,12 @@ CyberRange/
 │   ├── App.tsx                          # React Router definitions
 │   ├── index.css                        # Tailwind v4 configuration & base styles
 │   └── main.tsx                         # DOM mounting root
+├── auth-mockups/                        # Interactive static mockup pages (1.1 - 1.4)
+│   ├── README.md                        # Mockup guide & server options
+│   ├── index.html                       # 1.1 Login Page
+│   ├── forgot-password.html             # 1.2 Forgot Password Page
+│   ├── reset-password.html              # 1.3 Reset Password Page
+│   └── register.html                    # 1.4 Register Page
 ├── tasks/                               # Task tracking documents
 ├── index.html                           # Application entry HTML
 ├── package.json                         # Dependencies & scripts
