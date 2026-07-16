@@ -192,6 +192,29 @@ This document outlines all webpages required to implement the full Cyber Range P
 - **Components**: SettingsForm, NotificationTemplateEditor, APIKeyManager
 - **API Calls**: GET `/admin/settings`, PUT `/admin/settings`
 
+### 2.10 Admin Automated Lab Scheduler
+- **Route**: `/admin/scheduler`
+- **Description**: Automated calendar scheduler for provisioning, email reminders, and container teardowns
+- **Key Features**:
+  - Calendar & tabular schedules overview
+  - Schedule creation modal (Target Labs, Target Groups, Date & Time windows)
+  - Auto-provisioning & email reminder dispatches
+  - Force Start, Window Extension (+15m/+1h), and Immediate Teardown controls
+- **Components**: ScheduleCalendar, ScheduleTable, ScheduleCreateModal, StatusBadges
+- **API Calls**: GET `/admin/schedules`, POST `/admin/schedules`, PUT `/admin/schedules/:id`, DELETE `/admin/schedules/:id`
+
+### 2.11 Admin CTF Competition Manager & Challenge Bank Hub
+- **Route**: `/admin/ctf`
+- **Description**: Control hub for CTFd-style Jeopardy & Attack-Defense competitions
+- **Key Features**:
+  - Competition creation wizard (Individual vs Team mode, Static vs Dynamic Decay scoring)
+  - Challenge bank CRUD editor (Categories: Web, Pwn, Crypto, Forensics, Reverse, OSINT)
+  - Flag validation string (`CTF{...}`), base points, decay parameters, and hint penalty costs
+  - Scoreboard Freeze control toggle and Broadcast Announcement modal
+  - Live flag submission log audit feed
+- **Components**: CtfEventTable, ChallengeBankGrid, CtfChallengeModal, ScoreboardFreezeToggle, AnnouncementModal
+- **API Calls**: GET `/admin/ctf/events`, POST `/admin/ctf/events`, POST `/admin/ctf/challenges`, POST `/admin/ctf/freeze`
+
 ---
 
 ## 3. USER PAGES (Role-Protected)
@@ -323,6 +346,38 @@ This document outlines all webpages required to implement the full Cyber Range P
   - Settings: email preferences, password change, notifications
 - **Components**: ProfileHeader, StatsWidget, SettingsForm
 - **API Calls**: GET `/user/profile`, PUT `/user/profile`
+
+### 3.10 CTF Competition Portal
+- **Route**: `/ctf`
+- **Description**: Entry point for browsing active, upcoming, and past CTF competitions
+- **Key Features**:
+  - Active/Upcoming CTF event cards with ticking countdown clocks
+  - Team creation & 6-digit invite code join dialogs
+  - Direct enter-competition routing
+- **Components**: CtfEventGrid, TeamRegistrationModal, CountdownTimer
+- **API Calls**: GET `/ctf/events`, POST `/ctf/teams/create`, POST `/ctf/teams/join`
+
+### 3.11 Jeopardy CTF Challenge Arena
+- **Route**: `/ctf/events/:eventId`
+- **Description**: Interactive category matrix for solving CTF challenges
+- **Key Features**:
+  - Filterable category grid (Web, Pwn, Crypto, Reverse, Forensics, OSINT)
+  - Interactive challenge details modal with Markdown description & file asset downloads
+  - Hint reveal modals with point penalty warning
+  - Flag input form (`CTF{...}`) with real-time pass/fail feedback and solved badges
+- **Components**: JeopardyMatrixGrid, ChallengeModal, FlagSubmissionForm, HintUnlockModal
+- **API Calls**: GET `/ctf/events/:eventId/challenges`, POST `/ctf/challenges/:id/submit`, POST `/ctf/hints/:id/unlock`
+
+### 3.12 CTF Scoreboard & Solves Trajectory
+- **Route**: `/ctf/events/:eventId/scoreboard`
+- **Description**: Live competition scoreboard and dynamic solve graphs
+- **Key Features**:
+  - Gold, silver, and bronze champion podium cards
+  - Interactive multi-line SVG solve trajectory graph tracking score progression over time
+  - Category solve badge grid matrix per participant/team
+  - Scoreboard Freeze alert banner when active
+- **Components**: CtfScoreboardTable, TopPodiumCards, SolveTrajectoryChart, FreezeAlertBanner
+- **API Calls**: GET `/ctf/events/:eventId/scoreboard`
 
 ---
 
