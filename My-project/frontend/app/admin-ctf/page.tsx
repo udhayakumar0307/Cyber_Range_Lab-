@@ -2816,17 +2816,17 @@ export default function StandaloneAdminCTFControl() {
               {/* Header */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
                 <div className="space-y-0.5">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-1.5">
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-1.5">
                     Cohort & Group Management
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium">Create groups, register students, and assign them directly to teams.</p>
+                  <p className="text-xs text-muted-foreground font-medium">Create groups, register students, and assign them directly to teams.</p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     onClick={handleFetchEmails}
                     disabled={isFetchingEmails}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-lg px-4 h-9 flex items-center gap-1.5"
+                    className="bg-primary text-primary-foreground font-bold text-xs rounded-lg px-4 h-9 flex items-center gap-1.5 shadow-xs"
                   >
                     <RotateCcw className={cn("w-3.5 h-3.5", isFetchingEmails && "animate-spin")} />
                     {isFetchingEmails ? "Syncing Directory..." : "Sync Directory"}
@@ -2839,9 +2839,9 @@ export default function StandaloneAdminCTFControl() {
                 {/* COLUMN 1: GROUPS & TEAMS (lg:col-span-4) */}
                 <div className="lg:col-span-4 space-y-4">
                   {/* Create New Group Card */}
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-4 shadow-lg space-y-3">
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <FolderPlus className="w-4 h-4 text-emerald-400" /> Create Cohort / Group
+                  <Card className="border border-border bg-card rounded-xl p-4 shadow-xs space-y-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <FolderPlus className="w-4 h-4 text-primary" /> Create Cohort / Group
                     </h3>
                     <form onSubmit={handleCreateGroup} className="flex gap-2">
                       <input
@@ -2849,53 +2849,53 @@ export default function StandaloneAdminCTFControl() {
                         placeholder="e.g. Alpha Team, Cohort B"
                         value={newGroupName}
                         onChange={(e) => setNewGroupName(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                        className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
                       />
-                      <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-lg px-3">
+                      <Button type="submit" size="sm" className="bg-primary text-primary-foreground text-xs font-bold rounded-lg px-3">
                         Create
                       </Button>
                     </form>
                   </Card>
 
                   {/* Configured Groups / Rosters Card */}
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-4 shadow-lg min-h-[300px] space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <UsersRound className="w-4 h-4 text-emerald-400" /> Configured Teams ({groups.length})
+                  <Card className="border border-border bg-card rounded-xl p-4 shadow-xs min-h-[300px] space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-border">
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <UsersRound className="w-4 h-4 text-primary" /> Configured Teams ({groups.length})
                       </h3>
                       <Button
                         type="button"
                         onClick={() => setShowAutoGroupPanel(!showAutoGroupPanel)}
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-[10px] text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-md font-bold"
+                        className="h-6 px-2 text-[10px] text-primary hover:bg-primary/10 rounded-md font-bold"
                       >
                         {showAutoGroupPanel ? "Hide Auto-Split" : "Auto-Split"}
                       </Button>
                     </div>
 
                     {showAutoGroupPanel && (
-                      <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-3 space-y-2.5 transition-all text-xs">
-                        <h4 className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Auto-Split Options</h4>
-                        <div className="flex bg-white/5 p-0.5 rounded-lg border border-white/10 text-[9px]">
+                      <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 space-y-2.5 transition-all text-xs">
+                        <h4 className="text-[10px] font-bold text-primary uppercase tracking-wider">Auto-Split Options</h4>
+                        <div className="flex bg-muted p-0.5 rounded-lg border border-border text-[9px]">
                           <button 
                             type="button" 
                             onClick={() => setAutoGroupType("all")} 
-                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "all" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-white")}
+                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                           >
                             All in One
                           </button>
                           <button 
                             type="button" 
                             onClick={() => setAutoGroupType("size")} 
-                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "size" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-white")}
+                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "size" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                           >
                             By Size
                           </button>
                           <button 
                             type="button" 
                             onClick={() => setAutoGroupType("count")} 
-                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "count" ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-white")}
+                            className={cn("flex-1 py-1 px-1 rounded-md font-bold transition-all", autoGroupType === "count" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                           >
                             By Count
                           </button>
@@ -2903,11 +2903,11 @@ export default function StandaloneAdminCTFControl() {
 
                         {autoGroupType === "all" && (
                           <div className="space-y-2">
-                            <p className="text-[10px] text-slate-400">Creates a single team containing all total students ({fetchedEmails.length || fetchedUsers.filter(u => u.role === "participant").length}).</p>
+                            <p className="text-[10px] text-muted-foreground">Creates a single team containing all total students ({fetchedEmails.length || fetchedUsers.filter(u => u.role === "participant").length}).</p>
                             <Button 
                               type="button" 
                               onClick={() => handleAutoGroup("all")} 
-                              className="w-full bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg py-1.5"
+                              className="w-full bg-primary text-primary-foreground text-xs font-bold rounded-lg py-1.5"
                             >
                               Group All Students
                             </Button>
@@ -2916,7 +2916,7 @@ export default function StandaloneAdminCTFControl() {
 
                         {autoGroupType === "size" && (
                           <div className="space-y-2">
-                            <p className="text-[10px] text-slate-400">Split roster into groups of max size:</p>
+                            <p className="text-[10px] text-muted-foreground">Split roster into groups of max size:</p>
                             <div className="flex gap-2">
                               <input
                                 type="number"
@@ -2924,12 +2924,12 @@ export default function StandaloneAdminCTFControl() {
                                 placeholder="Group Size"
                                 value={autoGroupSize}
                                 onChange={(e) => setAutoGroupSize(e.target.value)}
-                                className="w-20 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                                className="w-20 bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                               />
                               <Button 
                                 type="button" 
                                 onClick={() => handleAutoGroup("size")} 
-                                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg py-1"
+                                className="flex-1 bg-primary text-primary-foreground text-xs font-bold rounded-lg py-1"
                               >
                                 Auto Split
                               </Button>
@@ -2939,7 +2939,7 @@ export default function StandaloneAdminCTFControl() {
 
                         {autoGroupType === "count" && (
                           <div className="space-y-2">
-                            <p className="text-[10px] text-slate-400">Split roster evenly into fixed count of groups:</p>
+                            <p className="text-[10px] text-muted-foreground">Split roster evenly into fixed count of groups:</p>
                             <div className="flex gap-2">
                               <input
                                 type="number"
@@ -2947,12 +2947,12 @@ export default function StandaloneAdminCTFControl() {
                                 placeholder="Group Count"
                                 value={autoGroupCount}
                                 onChange={(e) => setAutoGroupCount(e.target.value)}
-                                className="w-20 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                                className="w-20 bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                               />
                               <Button 
                                 type="button" 
                                 onClick={() => handleAutoGroup("count")} 
-                                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg py-1"
+                                className="flex-1 bg-primary text-primary-foreground text-xs font-bold rounded-lg py-1"
                               >
                                 Auto Split
                               </Button>
@@ -2963,7 +2963,7 @@ export default function StandaloneAdminCTFControl() {
                     )}
 
                     {groups.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-center space-y-2">
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center space-y-2">
                         <Users className="w-8 h-8 opacity-20" />
                         <p className="text-xs max-w-[200px]">No teams configured yet. Use the card above to create a team.</p>
                       </div>
@@ -2972,20 +2972,20 @@ export default function StandaloneAdminCTFControl() {
                         {groups.map((group) => (
                           <div 
                             key={group.id} 
-                            className="border border-white/5 bg-white/[0.01] hover:border-white/10 rounded-xl p-3.5 space-y-2.5 transition-all"
+                            className="border border-border bg-background hover:border-primary/20 rounded-xl p-3.5 space-y-2.5 transition-all"
                           >
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <h4 className="text-xs font-bold text-white truncate max-w-[130px]">{group.name}</h4>
-                                <span className="text-[10px] text-slate-500 font-mono">({group.emails.length})</span>
+                                <span className="w-2 h-2 rounded-full bg-primary" />
+                                <h4 className="text-xs font-bold text-foreground truncate max-w-[130px]">{group.name}</h4>
+                                <span className="text-[10px] text-muted-foreground font-mono">({group.emails.length})</span>
                               </div>
                               <Button
                                 type="button"
                                 onClick={() => handleDeleteGroup(group.id)}
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 w-6 p-0 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
@@ -2993,18 +2993,18 @@ export default function StandaloneAdminCTFControl() {
 
                             <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
                               {group.emails.length === 0 ? (
-                                <p className="text-[9px] text-slate-600 italic">No members assigned.</p>
+                                <p className="text-[9px] text-muted-foreground italic">No members assigned.</p>
                               ) : (
                                 group.emails.map((email) => (
                                   <div 
                                     key={email} 
-                                    className="flex justify-between items-center bg-white/[0.01] border border-white/5 px-2 py-1 rounded-md text-[9px] text-slate-300 font-mono"
+                                    className="flex justify-between items-center bg-muted/40 border border-border px-2 py-1 rounded-md text-[9px] text-foreground font-mono"
                                   >
                                     <span className="truncate max-w-[160px]">{email}</span>
                                     <button
                                       type="button"
                                       onClick={() => handleRemoveStudentFromGroup(group.id, email)}
-                                      className="text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded p-0.5 transition-colors"
+                                      className="text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded p-0.5 transition-colors"
                                     >
                                       <X className="w-2.5 h-2.5" />
                                     </button>
@@ -3022,40 +3022,40 @@ export default function StandaloneAdminCTFControl() {
                 {/* COLUMN 2: REGISTERED STUDENT DIRECTORY (lg:col-span-8) */}
                 <div className="lg:col-span-8 space-y-4">
                   {/* Onboard New Student Card */}
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-4 shadow-lg space-y-3">
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <UserPlus className="w-4 h-4 text-amber-400" /> Onboard Student
+                  <Card className="border border-border bg-card rounded-xl p-4 shadow-xs space-y-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-amber-500" /> Onboard Student
                     </h3>
                     <form onSubmit={handleOnboardStudent} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">Full Name</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">Full Name</label>
                         <input
                           type="text"
                           placeholder="e.g. Alice Smith"
                           value={onboardName}
                           onChange={(e) => setOnboardName(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500 transition-colors"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">Email Address</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">Email Address</label>
                         <input
                           type="email"
                           placeholder="student@example.com"
                           value={onboardEmail}
                           onChange={(e) => setOnboardEmail(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500 transition-colors"
                           required
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] text-slate-400 uppercase font-semibold">System Role</label>
+                        <label className="text-[9px] text-muted-foreground uppercase font-semibold">System Role</label>
                         <select
                           value={onboardRole}
                           onChange={(e) => setOnboardRole(e.target.value)}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-amber-500 transition-colors"
                         >
                           <option value="participant">Participant (Learner)</option>
                           <option value="course_admin">Course Admin (Instructor)</option>
@@ -3067,7 +3067,7 @@ export default function StandaloneAdminCTFControl() {
                         type="submit" 
                         disabled={isOnboarding}
                         size="sm" 
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg py-2"
+                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg py-2"
                       >
                         {isOnboarding ? "Onboarding..." : "Register & Onboard"}
                       </Button>
@@ -3075,31 +3075,31 @@ export default function StandaloneAdminCTFControl() {
                   </Card>
 
                   {/* Registered Users List Card */}
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-4 shadow-lg space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                  <Card className="border border-border bg-card rounded-xl p-4 shadow-xs space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-border">
                       <div className="flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-amber-400" />
-                        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                        <UserCheck className="w-4 h-4 text-amber-500" />
+                        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           Registered Students & Users Directory ({fetchedUsers.length})
                         </h3>
                       </div>
                       
                       {/* Search Roster Input */}
                       <div className="relative w-full md:w-64">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                         <input
                           type="text"
                           placeholder="Search users by email..."
                           value={rosterSearchQuery}
                           onChange={(e) => setRosterSearchQuery(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500 transition-colors"
                         />
                       </div>
                     </div>
 
                     <div className="pt-2">
                       {fetchedUsers.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-slate-500 space-y-3">
+                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground space-y-3">
                           <Users className="w-8 h-8 opacity-20" />
                           <p className="text-xs italic">No registered users in system database.</p>
                           <Button
@@ -3107,7 +3107,7 @@ export default function StandaloneAdminCTFControl() {
                             onClick={handleFetchEmails}
                             disabled={isFetchingEmails}
                             size="sm"
-                            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-1.5 rounded-lg mt-1"
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg mt-1"
                           >
                             {isFetchingEmails ? "Syncing..." : "Sync Roster from DB"}
                           </Button>
@@ -3120,7 +3120,7 @@ export default function StandaloneAdminCTFControl() {
                           
                           if (filtered.length === 0) {
                             return (
-                              <div className="text-center text-xs text-slate-500 py-12 italic">
+                              <div className="text-center text-xs text-muted-foreground py-12 italic">
                                 No users match your search query.
                               </div>
                             )
@@ -3137,22 +3137,22 @@ export default function StandaloneAdminCTFControl() {
                                 return (
                                   <div
                                     key={user.user_id}
-                                    className="flex justify-between items-center border border-white/5 bg-white/[0.01] hover:border-white/10 rounded-xl p-3 transition-all"
+                                    className="flex justify-between items-center border border-border bg-background hover:border-primary/20 rounded-xl p-3 transition-all"
                                   >
                                     <div className="flex items-center gap-2.5 min-w-0">
-                                      <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-bold text-[10px] text-amber-400 shrink-0">
+                                      <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-bold text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
                                         {(user.email || "S").charAt(0).toUpperCase()}
                                       </div>
                                       <div className="min-w-0">
-                                        <p className="text-xs text-white font-semibold truncate leading-tight">
+                                        <p className="text-xs text-foreground font-semibold truncate leading-tight">
                                           {user.email}
                                         </p>
                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400 font-mono scale-95 origin-left">
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-mono scale-95 origin-left">
                                             {user.role}
                                           </span>
                                           {user.is_active && (
-                                            <span className="text-[8px] text-emerald-400 font-bold uppercase tracking-wider scale-90">
+                                            <span className="text-[8px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider scale-90">
                                               Active
                                             </span>
                                           )}
@@ -3171,7 +3171,7 @@ export default function StandaloneAdminCTFControl() {
                                             handleAssignStudentDirectly(val, user.email)
                                           }
                                         }}
-                                        className="h-7 bg-[#0E0E12]/80 border border-white/10 rounded-lg text-[10px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors px-2 cursor-pointer"
+                                        className="h-7 bg-background border border-border rounded-lg text-[10px] text-primary font-bold focus:outline-none focus:border-primary transition-colors px-2 cursor-pointer"
                                       >
                                         <option value="">No Group</option>
                                         {groups.map(g => (
@@ -3184,7 +3184,7 @@ export default function StandaloneAdminCTFControl() {
                                         onClick={() => handleImpersonateStudent(user.email)}
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 px-2.5 text-[10px] text-amber-400 hover:text-amber-350 hover:bg-amber-500/10 rounded-lg transition-colors font-bold"
+                                        className="h-7 px-2.5 text-[10px] text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors font-bold"
                                       >
                                         Sign In
                                       </Button>
@@ -3194,7 +3194,7 @@ export default function StandaloneAdminCTFControl() {
                                         onClick={() => handleDeleteRegisteredUser(user.user_id)}
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 w-7 p-0 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </Button>
@@ -3218,10 +3218,10 @@ export default function StandaloneAdminCTFControl() {
             <div className="space-y-6">
               <div className="flex justify-between items-center px-1">
                 <div className="space-y-0.5">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-1.5">
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-1.5">
                     Billing & Lab Entitlements
                   </h2>
-                  <p className="text-xs text-slate-500">Grant manual system permissions and audit payment history.</p>
+                  <p className="text-xs text-muted-foreground">Grant manual system permissions and audit payment history.</p>
                 </div>
                 <Button
                   type="button"
@@ -3229,7 +3229,7 @@ export default function StandaloneAdminCTFControl() {
                   disabled={isFetchingPayments}
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2.5 text-[10px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-md font-mono"
+                  className="h-7 px-2.5 text-[10px] text-primary hover:bg-primary/10 rounded-md font-mono"
                 >
                   {isFetchingPayments ? "Refreshing..." : "Refresh Payments"}
                 </Button>
@@ -3238,20 +3238,20 @@ export default function StandaloneAdminCTFControl() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Grant Entitlement Panel */}
                 <div className="lg:col-span-1">
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl p-5 space-y-4 shadow-lg">
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" /> Manual Payment / Access Grant
+                  <Card className="border border-border bg-card rounded-xl p-5 space-y-4 shadow-xs">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <UserPlus className="w-3.5 h-3.5 text-primary" /> Manual Payment / Access Grant
                     </h3>
-                    <p className="text-[10px] text-slate-500 leading-normal">
+                    <p className="text-[10px] text-muted-foreground leading-normal">
                       Grant direct lab permissions and simulate a successful mock payment checkout for manually registered students.
                     </p>
                     <form onSubmit={handleGrantEntitlement} className="space-y-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 uppercase font-semibold">Select Student</label>
+                        <label className="text-[10px] text-muted-foreground uppercase font-semibold">Select Student</label>
                         <select
                           value={selectedUserForPayment}
                           onChange={(e) => setSelectedUserForPayment(e.target.value)}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary transition-colors"
                           required
                         >
                           <option value="">-- Choose Student --</option>
@@ -3264,11 +3264,11 @@ export default function StandaloneAdminCTFControl() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 uppercase font-semibold">Select Target Lab</label>
+                        <label className="text-[10px] text-muted-foreground uppercase font-semibold">Select Target Lab</label>
                         <select
                           value={selectedLabForPayment}
                           onChange={(e) => setSelectedLabForPayment(e.target.value)}
-                          className="w-full bg-[#0E0E12]/80 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary transition-colors"
                           required
                         >
                           <option value="">-- Choose Lab --</option>
@@ -3282,7 +3282,7 @@ export default function StandaloneAdminCTFControl() {
                         <Button
                           type="submit"
                           disabled={isGrantingEntitlement}
-                          className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-lg py-2"
+                          className="w-full bg-primary text-primary-foreground text-xs font-bold rounded-lg py-2"
                         >
                           {isGrantingEntitlement ? "Processing..." : "Grant Lab Entitlement"}
                         </Button>
@@ -3290,7 +3290,7 @@ export default function StandaloneAdminCTFControl() {
                           type="button"
                           onClick={handleInitiateCheckout}
                           disabled={isGrantingEntitlement}
-                          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg py-2"
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg py-2"
                         >
                           {isGrantingEntitlement ? "Opening Checkout..." : "Initiate Checkout Flow"}
                         </Button>
@@ -3301,50 +3301,50 @@ export default function StandaloneAdminCTFControl() {
 
                 {/* Payments History Table */}
                 <div className="lg:col-span-2">
-                  <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-xl overflow-hidden min-h-[220px] shadow-lg">
+                  <Card className="border border-border bg-card rounded-xl overflow-hidden min-h-[220px] shadow-xs">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
-                          <tr className="border-b border-white/15 bg-white/[0.02]">
-                            <th className="py-3 px-4 font-bold text-slate-300">Transaction ID</th>
-                            <th className="py-3 px-4 font-bold text-slate-300">Payer Roster Email</th>
-                            <th className="py-3 px-4 font-bold text-slate-300">Purchased Lab Title</th>
-                            <th className="py-3 px-4 font-bold text-slate-300">Amount</th>
-                            <th className="py-3 px-4 font-bold text-slate-300">Payment Status</th>
-                            <th className="py-3 px-4 font-bold text-slate-300">Date Issued</th>
+                          <tr className="border-b border-border bg-muted/50">
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Transaction ID</th>
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Payer Roster Email</th>
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Purchased Lab Title</th>
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Amount</th>
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Payment Status</th>
+                            <th className="py-3 px-4 font-bold text-muted-foreground">Date Issued</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-border">
                           {payments.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="py-12 px-4 text-center text-slate-500 italic">
+                              <td colSpan={6} className="py-12 px-4 text-center text-muted-foreground italic">
                                 No payment transactions found. Grant manual entitlements or check out labs on the public catalog to populate logs.
                               </td>
                             </tr>
                           ) : (
                             payments.map((p, idx) => (
-                              <tr key={p.payment_id || idx} className="border-b border-white/5 hover:bg-white/[0.01] transition-all">
-                                <td className="py-3 px-4 font-mono text-slate-400 text-[10px]">
+                              <tr key={p.payment_id || idx} className="hover:bg-muted/30 transition-all">
+                                <td className="py-3 px-4 font-mono text-muted-foreground text-[10px]">
                                   {p.payment_id.startsWith("pay_") ? p.payment_id : p.payment_id.substring(0, 12) + "..."}
                                 </td>
-                                <td className="py-3 px-4 font-semibold text-slate-200 font-mono">{p.email}</td>
-                                <td className="py-3 px-4 text-slate-300 font-bold">{p.content_title || "Premium Range Package"}</td>
-                                <td className="py-3 px-4 text-emerald-400 font-bold font-mono">
+                                <td className="py-3 px-4 font-semibold text-foreground font-mono">{p.email}</td>
+                                <td className="py-3 px-4 text-foreground font-bold">{p.content_title || "Premium Range Package"}</td>
+                                <td className="py-3 px-4 text-primary font-bold font-mono">
                                   {p.amount > 0 ? `${p.currency} ${p.amount}` : "FREE (Manual Grant)"}
                                 </td>
                                 <td className="py-3 px-4">
                                   <span className={cn(
                                     "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
                                     p.status === "captured" || p.status === "paid"
-                                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                                       : p.status === "pending"
-                                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                      : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                                   )}>
                                     {p.status}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-slate-500 font-mono text-[10px]">
+                                <td className="py-3 px-4 text-muted-foreground font-mono text-[10px]">
                                   {new Date(p.created_at).toLocaleString()}
                                 </td>
                               </tr>
@@ -3364,18 +3364,18 @@ export default function StandaloneAdminCTFControl() {
             <div className="space-y-6">
               <div className="flex justify-between items-center px-1">
                 <div className="space-y-0.5">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-1.5">
+                  <h2 className="text-xl font-bold text-foreground flex items-center gap-1.5">
                     Solves & Live Leaderboard
                   </h2>
-                  <p className="text-xs text-slate-500">Track and monitor live solver metrics and flag submissions stream.</p>
+                  <p className="text-xs text-muted-foreground">Track and monitor live solver metrics and flag submissions stream.</p>
                 </div>
               </div>
 
               {/* High-fidelity CTF Leaderboard */}
-              <div className="border border-white/10 bg-white/[0.01] backdrop-blur-xl rounded-2xl p-6 shadow-xl space-y-4 relative overflow-hidden">
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-500/5 blur-[100px] pointer-events-none" />
-                <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                  <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="border border-border bg-card rounded-2xl p-6 shadow-xs space-y-4 relative overflow-hidden">
+                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
+                <div className="flex justify-between items-center border-b border-border pb-3">
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Trophy className="w-4 h-4 text-amber-500" /> Administrative Leaderboard Overview
                   </h2>
                   <button
@@ -3387,8 +3387,8 @@ export default function StandaloneAdminCTFControl() {
                     className={cn(
                       "text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border transition-colors",
                       isLiveMode 
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20" 
-                        : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20" 
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
                     )}
                   >
                     {isLiveMode ? "Server Mode" : "Sandbox Mode"}
