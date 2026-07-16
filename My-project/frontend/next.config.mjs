@@ -1,36 +1,29 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
   },
-  // Allow access from local network
-  // Note: Next.js only supports string arrays, not regex
-  // Add your specific IPs here, or use wildcard '*' for development
-  experimental: {
-    allowedDevOrigins: [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-      'http://localhost:18080',
-      'http://127.0.0.1:18080',
-      'http://10.42.80.169:3000', // Your current IP
-      'http://10.135.80.17:3000',
-      'http://192.168.1.100:3000',
-      'http://192.168.0.100:3000',
-      'http://10.42.80.169:3001',
-      'http://10.135.80.17:3001',
-      'http://192.168.1.100:3001',
-      'http://192.168.0.100:3001',
-      // Add more IPs as needed for testing
-    ],
-  },
+  // Allow access from local network and external tunnels (ngrok) in Next.js
+  allowedDevOrigins: [
+    'localhost:3000',
+    '127.0.0.1:3000',
+    'localhost:3001',
+    '127.0.0.1:3001',
+    'localhost:18080',
+    '127.0.0.1:18080',
+    '*.ngrok-free.app',
+    '*.ngrok-free.dev',
+    '*.ngrok.app',
+    '*.ngrok.io',
+    'implode-tackling-conical.ngrok-free.dev',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://*.ngrok-free.app',
+    'https://*.ngrok-free.dev',
+  ],
   serverExternalPackages: [],
   async redirects() {
     return [
