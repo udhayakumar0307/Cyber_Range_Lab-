@@ -106,109 +106,114 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
     }
   }, [])
 
-  // Use either entries, or if empty / default, merge/use mock list for visual completeness
-  const activeEntries = useMemo(() => {
-    if (!entries || entries.length === 0) {
-      return DEFAULT_TEAMS
-    }
-    // If entries exist but are less than 3, pad with some DEFAULT_TEAMS for robust UI presentation
-    if (entries.length < 4) {
-      const existingNames = new Set(entries.map(e => e.name.toLowerCase()))
-      const padding = DEFAULT_TEAMS.filter(t => !existingNames.has(t.name.toLowerCase()))
-      return [...entries, ...padding].slice(0, 10)
-    }
-    return entries
+  const currentIndividualEntries = useMemo(() => {
+    return entries && entries.length > 0 ? entries : DEFAULT_TEAMS
   }, [entries])
 
-  // Sort individual standings
-  const sortedStandings = useMemo(() => {
-    return [...activeEntries].sort((a, b) => b.totalPoints - a.totalPoints || a.totalTimeSpent - b.totalTimeSpent)
-  }, [activeEntries])
-
-  // Compute group standings
-  const groupStandings = useMemo(() => {
-    if (groups.length === 0) return []
-    return groups.map(group => {
-      const memberEntries = activeEntries.filter(entry => 
-        group.emails.some((email: string) => email.toLowerCase() === entry.email.toLowerCase())
+  const groupLeaderboardEntries = useMemo(() => {
+    return groups.map((g) => {
+      const groupMembers = currentIndividualEntries.filter((p) =>
+        g.emails.some((e: string) => e.toLowerCase() === p.email.toLowerCase())
       )
-      const totalPoints = memberEntries.reduce((sum, entry) => sum + (entry.totalPoints || 0), 0)
-      const totalTimeSpent = memberEntries.reduce((sum, entry) => sum + (entry.totalTimeSpent || 0), 0)
-      const completedCount = memberEntries.reduce((sum, entry) => sum + (entry.completedChallenges || 0), 0)
-      return {
-        name: group.name,
-        email: group.id,
-        completedChallenges: completedCount,
-        totalPoints,
-        totalTimeSpent,
-        memberCount: group.emails.length
-      }
-    }).sort((a, b) => b.totalPoints - a.totalPoints || a.totalTimeSpent - b.totalTimeSpent)
-  }, [groups, activeEntries])
+      const totalPoints = groupMembers.reduce((sum, m) => sum + m.totalPoints, 0)
+      const completedChallenges = groupMembers.reduce((sum, m) => sum + m.completedChallenges, 0)
+      const totalTimeSpent = groupMembers.reduce((sum, m) => sum + m.totalTimeSpent, 0)
 
-  // Get current active standings list based on toggle
+      return {
+        name: g.name,
+        email: `group-${g.id}`,
+        totalPoints,
+        completedChallenges,
+        totalTimeSpent,
+        memberCount: g.emails.length,
+      }
+    }).sort((a, b) => b.totalPoints - a.totalPoints)
+  }, [groups, currentIndividualEntries])
+
   const currentStandings = useMemo(() => {
     if (leaderboardType === "group") {
-      return groupStandings
+      return groupLeaderboardEntries.length > 0 ? groupLeaderboardEntries : [
+        { name: "Alpha Squad", email: "group-1", totalPoints: 10400, completedChallenges: 39, totalTimeSpent: 415, memberCount: 3 },
+        { name: "Beta Division", email: "group-2", totalPoints: 9250, completedChallenges: 32, totalTimeSpent: 440, memberCount: 3 },
+        { name: "Cyber Knights", email: "group-3", totalPoints: 8500, completedChallenges: 34, totalTimeSpent: 465, memberCount: 3 }
+      ]
     }
-    return sortedStandings
-  }, [leaderboardType, sortedStandings, groupStandings])
 
-  // Key stats
-  const topScore = currentStandings[0]?.totalPoints || 0
-  const leadingTeam = currentStandings[0]?.name || "N/A"
-  const totalSubmissions = currentStandings.reduce((sum, e) => sum + (e.completedChallenges || 0), 0)
-
-  // Generate deterministic progression points for chart rendering
-  const chartData = useMemo(() => {
-    const hours = ["01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00"]
-    return hours.map((hour, hourIdx) => {
-      const point: any = { name: hour }
-      currentStandings.forEach((player) => {
-        const maxScore = player.totalPoints
-        if (hourIdx === 0) {
-          point[player.name] = 0
-        } else if (hourIdx === hours.length - 1) {
-          point[player.name] = maxScore
-        } else {
-          // Semi-random deterministic progress
-          const progressFactor = hourIdx / (hours.length - 1)
-          const nameHash = player.name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
-          const noise = (nameHash % 3) * 0.08
-          const factor = Math.min(1, Math.max(0, progressFactor * (0.75 + noise)))
-          point[player.name] = Math.round(maxScore * factor)
+    let standings = [...currentIndividualEntries]
+    if (user?.email) {
+      const userIndex = standings.findIndex(
+        (e) => e.email.toLowerCase() === user.email.toLowerCase()
+      )
+      if (userIndex !== -1) {
+        standings[userIndex] = {
+          ...standings[userIndex],
+          name: `${standings[userIndex].name} (You)`,
         }
+      }
+    }
+    return standings.sort((a, b) => b.totalPoints - a.totalPoints)
+  }, [leaderboardType, groupLeaderboardEntries, currentIndividualEntries, user])
+
+  const chartData = useMemo(() => {
+    const timePoints = [
+      { name: "01:00", factor: 0.0 },
+      { name: "02:00", factor: 0.15 },
+      { name: "03:00", factor: 0.28 },
+      { name: "04:00", factor: 0.42 },
+      { name: "05:00", factor: 0.58 },
+      { name: "06:00", factor: 0.73 },
+      { name: "07:00", factor: 0.88 },
+      { name: "08:00", factor: 1.0 },
+    ]
+
+    return timePoints.map((tp) => {
+      const dataPoint: { [key: string]: any } = { name: tp.name }
+      currentStandings.forEach((player) => {
+        dataPoint[player.name] = Math.round(player.totalPoints * tp.factor)
       })
-      return point
+      return dataPoint
     })
   }, [currentStandings])
 
-  // Helper to extract series values for sparklines
-  const getTeamProgressValues = (playerName: string) => {
-    return chartData.map(d => d[playerName] || 0)
+  const topScore = useMemo(() => {
+    if (currentStandings.length === 0) return 0
+    return Math.max(...currentStandings.map((p) => p.totalPoints))
+  }, [currentStandings])
+
+  const leadingTeam = useMemo(() => {
+    if (currentStandings.length === 0) return "N/A"
+    return currentStandings[0].name
+  }, [currentStandings])
+
+  const totalSubmissions = useMemo(() => {
+    return currentStandings.reduce((sum, p) => sum + p.completedChallenges, 0)
+  }, [currentStandings])
+
+  const getTeamProgressValues = (name: string): number[] => {
+    return chartData.map((d) => (d[name] as number) || 0)
   }
 
-  // Render polyline sparkline
-  const renderSparkline = (points: number[], color: string) => {
-    const width = 80
-    const height = 16
-    const max = Math.max(...points, 1)
-    const min = Math.min(...points, 0)
-    const range = max - min
-
-    const coords = points.map((p, idx) => {
-      const x = (idx / (points.length - 1)) * width
-      const y = height - 1 - ((p - min) / (range || 1)) * (height - 2)
-      return `${x},${y}`
-    }).join(" ")
+  const renderSparkline = (values: number[], color: string) => {
+    if (!values || values.length === 0) return null
+    const min = 0
+    const max = Math.max(...values, 1)
+    const points = values
+      .map((val, idx) => {
+        const x = (idx / (values.length - 1)) * 80
+        const y = 20 - (val / max) * 16
+        return `${x},${y}`
+      })
+      .join(" ")
 
     return (
-      <svg width={width} height={height} className="overflow-visible">
+      <svg className="w-20 h-6 overflow-visible inline-block">
         <polyline
           fill="none"
           stroke={color}
-          strokeWidth="1.5"
-          points={coords}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
         />
       </svg>
     )
@@ -217,26 +222,31 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
   if (!mounted) return null
 
   return (
-    <div className="space-y-6 text-slate-100 w-full">
-      {/* Top Banner and KPI Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="space-y-1">
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <Flag className="w-6 h-6 text-indigo-400 fill-indigo-400/20" /> CTF Leaderboard
-            </h2>
-            <p className="text-slate-400 text-xs font-light">
-              Capture The Flag · {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · Top Standings
-            </p>
+    <div className="space-y-6">
+      {/* Top Banner Header & Toggle Switcher */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-foreground">Capture The Flag Standings</h2>
+              <span className="text-[10px] font-mono text-muted-foreground uppercase px-2 py-0.5 rounded bg-muted border border-border">
+                {isLiveMode ? "Live Sync" : "Sandbox"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">Top Individual Solvers & Group Scoring</p>
           </div>
 
-          <div className="flex items-center bg-slate-950/60 p-1 rounded-xl border border-white/10 self-start sm:self-center">
+          {/* Toggle Switcher */}
+          <div className="flex bg-muted p-1 rounded-xl border border-border text-xs ml-2">
             <button
               onClick={() => setLeaderboardType("individual")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition-all ${
                 leaderboardType === "individual"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Award className="w-3.5 h-3.5" />
@@ -244,10 +254,10 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
             </button>
             <button
               onClick={() => setLeaderboardType("group")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition-all ${
                 leaderboardType === "group"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -258,21 +268,21 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
 
         {/* KPI Indicators */}
         <div className="flex items-center gap-3">
-          <div className="bg-slate-950/40 border border-white/10 rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
-            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Top Score</span>
-            <span className="text-sm font-extrabold text-white font-mono mt-0.5">{topScore} pts</span>
+          <div className="bg-card border border-border rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
+            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Top Score</span>
+            <span className="text-sm font-extrabold text-foreground font-mono mt-0.5">{topScore} pts</span>
           </div>
 
-          <div className="bg-slate-950/40 border border-white/10 rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
-            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">
+          <div className="bg-card border border-border rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
+            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">
               {leaderboardType === "individual" ? "Leading Operator" : "Leading Team"}
             </span>
-            <span className="text-sm font-extrabold text-white truncate max-w-[100px] mt-0.5">{leadingTeam}</span>
+            <span className="text-sm font-extrabold text-foreground truncate max-w-[100px] mt-0.5">{leadingTeam}</span>
           </div>
 
-          <div className="bg-slate-950/40 border border-white/10 rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
-            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Total Solves</span>
-            <span className="text-sm font-extrabold text-white font-mono mt-0.5">{totalSubmissions}</span>
+          <div className="bg-card border border-border rounded-xl p-3 flex flex-col min-w-[100px] md:min-w-[120px]">
+            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Total Solves</span>
+            <span className="text-sm font-extrabold text-foreground font-mono mt-0.5">{totalSubmissions}</span>
           </div>
         </div>
       </div>
@@ -280,13 +290,13 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Card: Score Progression */}
-        <div className="lg:col-span-7 bg-slate-950/30 border border-white/10 rounded-2xl p-5 space-y-4">
+        <div className="lg:col-span-7 bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-sm font-bold text-white">Score Progression</h3>
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-bold text-foreground">Score Progression</h3>
             </div>
-            <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
+            <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">
               01:00 → 08:00 | Timeline
             </span>
           </div>
@@ -295,27 +305,27 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
           <div className="h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis 
                   dataKey="name" 
-                  stroke="rgba(255,255,255,0.3)" 
+                  stroke="var(--muted-foreground)" 
                   fontSize={10} 
                   tickLine={false} 
                   axisLine={false} 
                 />
                 <YAxis 
-                  stroke="rgba(255,255,255,0.3)" 
+                  stroke="var(--muted-foreground)" 
                   fontSize={10} 
                   tickLine={false} 
                   axisLine={false} 
                 />
                 <Tooltip 
                   contentStyle={{ 
-                    backgroundColor: "rgba(13, 13, 18, 0.95)", 
-                    borderColor: "rgba(255,255,255,0.1)",
+                    backgroundColor: "var(--card)", 
+                    borderColor: "var(--border)",
                     borderRadius: "12px",
                     fontSize: "11px",
-                    color: "#fff"
+                    color: "var(--foreground)"
                   }} 
                 />
                 {currentStandings.map((player, idx) => {
@@ -341,7 +351,7 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
           </div>
 
           {/* Color Legend Grid */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2 border-t border-white/5">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2 border-t border-border">
             {currentStandings.map((player, idx) => {
               const color = getTeamColor(player.name, idx)
               const isHovered = hoveredTeam === player.name
@@ -351,7 +361,7 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
                   onMouseEnter={() => setHoveredTeam(player.name)}
                   onMouseLeave={() => setHoveredTeam(null)}
                   className={`flex items-center gap-1.5 text-[10px] font-medium transition-all ${
-                    isHovered ? "text-white scale-105" : "text-slate-500 hover:text-slate-300"
+                    isHovered ? "text-foreground font-bold scale-105" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -363,29 +373,29 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
         </div>
 
         {/* Right Card: Final Standings Table */}
-        <div className="lg:col-span-5 bg-slate-950/30 border border-white/10 rounded-2xl p-5 space-y-4">
+        <div className="lg:col-span-5 bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-bold text-white">Final Standings</h3>
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-bold text-foreground">Final Standings</h3>
             </div>
-            <span className="text-[9px] text-slate-500">Hover rows to trace path</span>
+            <span className="text-[9px] text-muted-foreground">Hover rows to trace path</span>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-white/5 bg-black/20">
+          <div className="overflow-x-auto rounded-xl border border-border bg-background">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-white/5 bg-white/[0.01]">
-                  <th className="py-2.5 px-3 font-bold text-slate-400 text-center w-8">#</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-400">
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="py-2.5 px-3 font-bold text-muted-foreground text-center w-8">#</th>
+                  <th className="py-2.5 px-3 font-bold text-muted-foreground">
                     {leaderboardType === "individual" ? "Operator" : "Team"}
                   </th>
-                  <th className="py-2.5 px-3 font-bold text-slate-400 text-right">Score</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-400 text-center">Subs</th>
-                  <th className="py-2.5 px-3 font-bold text-slate-400 text-center w-24">Trend</th>
+                  <th className="py-2.5 px-3 font-bold text-muted-foreground text-right">Score</th>
+                  <th className="py-2.5 px-3 font-bold text-muted-foreground text-center">Subs</th>
+                  <th className="py-2.5 px-3 font-bold text-muted-foreground text-center w-24">Trend</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {currentStandings.map((player, idx) => {
                   const color = getTeamColor(player.name, idx)
                   const isHovered = hoveredTeam === player.name
@@ -395,38 +405,38 @@ export default function CTFLeaderboardView({ entries, isLiveMode = false }: CTFL
                       key={player.name}
                       onMouseEnter={() => setHoveredTeam(player.name)}
                       onMouseLeave={() => setHoveredTeam(null)}
-                      className={`border-b border-white/[0.03] transition-all hover:bg-white/[0.02] cursor-pointer ${
-                        isMe ? "bg-emerald-500/[0.04] border-l-2 border-l-emerald-500" : ""
-                      } ${isHovered ? "bg-white/[0.04]" : ""}`}
+                      className={`transition-all hover:bg-muted/40 cursor-pointer ${
+                        isMe ? "bg-primary/10 border-l-2 border-l-primary" : ""
+                      } ${isHovered ? "bg-muted/60" : ""}`}
                     >
                       <td className="py-2.5 px-3 text-center">
                         {idx === 0 ? (
-                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-amber-500 text-slate-950 font-extrabold text-[10px] shadow-lg shadow-amber-500/20 mx-auto">1</span>
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-amber-500 text-white font-extrabold text-[10px] shadow-xs mx-auto">1</span>
                         ) : idx === 1 ? (
-                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-300 text-slate-950 font-extrabold text-[10px] shadow-lg shadow-slate-300/20 mx-auto">2</span>
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-400 text-white font-extrabold text-[10px] shadow-xs mx-auto">2</span>
                         ) : idx === 2 ? (
-                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-amber-700 text-white font-extrabold text-[10px] shadow-lg shadow-amber-700/20 mx-auto">3</span>
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-amber-700 text-white font-extrabold text-[10px] shadow-xs mx-auto">3</span>
                         ) : (
-                          <span className="font-mono text-slate-500">{idx + 1}</span>
+                          <span className="font-mono text-muted-foreground">{idx + 1}</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                          <span className="font-bold text-slate-200">
+                          <span className="font-bold text-foreground">
                             {isMe ? `${player.name} (You)` : player.name}
                           </span>
                           {leaderboardType === "group" && (
-                            <span className="text-[10px] text-slate-500 font-normal">
+                            <span className="text-[10px] text-muted-foreground font-normal">
                               ({(player as any).memberCount} members)
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-white">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
                         {player.totalPoints}
                       </td>
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-400">
+                      <td className="py-2.5 px-3 text-center font-mono text-muted-foreground">
                         {player.completedChallenges}
                       </td>
                       <td className="py-2.5 px-3 text-center align-middle">

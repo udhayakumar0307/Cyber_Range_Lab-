@@ -3402,44 +3402,44 @@ export default function StandaloneAdminCTFControl() {
 
               {/* Audit telemetries (Full Width) */}
               <div className="space-y-4">
-                <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
-                  <Activity className="w-4 h-4 text-emerald-400" /> Active Flag Submission Telemetry Stream
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 px-1">
+                  <Activity className="w-4 h-4 text-primary" /> Active Flag Submission Telemetry Stream
                 </h2>
                 
-                <Card className="border border-white/10 bg-white/[0.02] backdrop-blur-xl rounded-2xl overflow-hidden shadow-xl">
+                <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="border-b border-white/15 bg-white/[0.02]">
-                          <th className="py-3 px-4 font-bold text-slate-300">Timestamp</th>
-                          <th className="py-3 px-4 font-bold text-slate-300">Student Email</th>
-                          <th className="py-3 px-4 font-bold text-slate-300">Lab Scenario</th>
-                          <th className="py-3 px-4 font-bold text-slate-300">Challenge</th>
-                          <th className="py-3 px-4 font-bold text-slate-300">Flag Payload</th>
-                          <th className="py-3 px-4 font-bold text-slate-300 text-center">Status</th>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="py-3 px-4 font-bold text-muted-foreground">Timestamp</th>
+                          <th className="py-3 px-4 font-bold text-muted-foreground">Student Email</th>
+                          <th className="py-3 px-4 font-bold text-muted-foreground">Lab Scenario</th>
+                          <th className="py-3 px-4 font-bold text-muted-foreground">Challenge</th>
+                          <th className="py-3 px-4 font-bold text-muted-foreground">Flag Payload</th>
+                          <th className="py-3 px-4 font-bold text-muted-foreground text-center">Status</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-border">
                         {auditLogs.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-8 px-4 text-center text-slate-500">
+                            <td colSpan={6} className="py-8 px-4 text-center text-muted-foreground">
                               Telemetry log is currently empty. Simulating player interactions or solving flags will spawn events here.
                             </td>
                           </tr>
                         ) : (
                           auditLogs.map((log, idx) => (
-                            <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.01] transition-all">
-                              <td className="py-3 px-4 font-mono text-slate-400">{log.timestamp}</td>
-                              <td className="py-3 px-4 font-semibold text-slate-200">{log.operator}</td>
-                              <td className="py-3 px-4 text-slate-400">{log.labTitle}</td>
-                              <td className="py-3 px-4 text-slate-300 font-bold">{log.challengeTitle}</td>
-                              <td className="py-3 px-4 font-mono text-slate-500 max-w-[150px] truncate" title={log.attemptedFlag}>{log.attemptedFlag}</td>
+                            <tr key={idx} className="hover:bg-muted/30 transition-all">
+                              <td className="py-3 px-4 font-mono text-muted-foreground">{log.timestamp}</td>
+                              <td className="py-3 px-4 font-semibold text-foreground">{log.operator}</td>
+                              <td className="py-3 px-4 text-muted-foreground">{log.labTitle}</td>
+                              <td className="py-3 px-4 text-foreground font-bold">{log.challengeTitle}</td>
+                              <td className="py-3 px-4 font-mono text-muted-foreground max-w-[150px] truncate" title={log.attemptedFlag}>{log.attemptedFlag}</td>
                               <td className="py-3 px-4 text-center">
                                 <span className={cn(
                                   "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase",
                                   log.status === "Correct"
-                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                    : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                                 )}>
                                   <CheckCircle className="w-3 h-3" />
                                   {log.status}
