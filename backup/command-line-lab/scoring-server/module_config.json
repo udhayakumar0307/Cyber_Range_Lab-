@@ -1,0 +1,689 @@
+{
+  "modules": {
+    "module1": {
+      "title": "Linux Navigation",
+      "difficulty": 1,
+      "points": 100,
+      "story": "Orientation day. IT dropped you into a workstation with a maze of folders and no map. Before they'll grant you real access, you need to prove you can find your own way around.",
+      "mission": "Locate the onboarding key hidden somewhere inside your home directory.",
+      "key_path": "/home/student/module1/records/logs/archive/.keyfile",
+      "objectives": [
+        {
+          "id": "pwd",
+          "label": "Print your current directory with pwd",
+          "type": "log_regex",
+          "pattern": "^pwd\\b"
+        },
+        {
+          "id": "ls",
+          "label": "List directory contents with ls",
+          "type": "log_regex",
+          "pattern": "^ls\\b"
+        },
+        {
+          "id": "cd",
+          "label": "Navigate into records/logs/archive with cd",
+          "type": "log_regex",
+          "pattern": "\\|/home/student/module1/records/logs/archive\\|"
+        },
+        {
+          "id": "cat",
+          "label": "Read the hidden key file with cat",
+          "type": "log_regex",
+          "pattern": "^cat\\s+.*\\.keyfile"
+        }
+      ],
+      "hints": [
+        "pwd tells you where you are right now \u2014 start there.",
+        "ls -la will reveal hidden files too, not just the obvious ones.",
+        "The key lives at records/logs/archive/.keyfile \u2014 cd there and cat it."
+      ],
+      "track": "linux"
+    },
+    "module2": {
+      "title": "File Operations",
+      "difficulty": 1,
+      "points": 150,
+      "story": "The workstation from Module 1 is now yours, but it's a mess. Your supervisor wants the inbox cleaned up: organize what matters, discard what doesn't.",
+      "mission": "Create a backup folder, copy the manifest into it, move the draft into its final form, and delete the junk file.",
+      "key_path": "/home/student/module2/.vault/.key",
+      "objectives": [
+        {
+          "id": "mkdir",
+          "label": "Create workspace/backup with mkdir",
+          "type": "fs_test",
+          "test_cmd": "test -d /home/student/module2/workspace/backup"
+        },
+        {
+          "id": "cp",
+          "label": "Copy inbox/manifest.txt into workspace/backup",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/workspace/backup/manifest.txt"
+        },
+        {
+          "id": "mv",
+          "label": "Move inbox/draft.txt to workspace/final.txt",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/workspace/final.txt && test ! -f /home/student/module2/inbox/draft.txt"
+        },
+        {
+          "id": "rm",
+          "label": "Remove workspace/junk.tmp with rm",
+          "type": "fs_test",
+          "test_cmd": "test ! -f /home/student/module2/workspace/junk.tmp"
+        }
+      ],
+      "hints": [
+        "mkdir -p can create the whole workspace/backup path in one shot.",
+        "cp inbox/manifest.txt workspace/backup/ keeps the original in place.",
+        "mv both renames and relocates \u2014 use it to turn draft.txt into workspace/final.txt.",
+        "The key is hidden in a dotfile: ls -a in module2/.vault"
+      ],
+      "track": "linux"
+    },
+    "module3": {
+      "title": "Searching & Filtering",
+      "difficulty": 2,
+      "points": 200,
+      "story": "Someone on the team logged an access key deep inside a pile of rotated log files and now nobody remembers which one. Your job: find it without opening every file by hand.",
+      "mission": "Use find, grep, and head/tail to locate the log line containing the access key.",
+      "key_path": null,
+      "key_search": {
+        "root": "/home/student/module3/data",
+        "pattern": "ACCESS_KEY:\\s*(\\S+)"
+      },
+      "objectives": [
+        {
+          "id": "find",
+          "label": "Use find to search the data directory",
+          "type": "log_regex",
+          "pattern": "^find\\b"
+        },
+        {
+          "id": "grep",
+          "label": "Use grep to filter file contents",
+          "type": "log_regex",
+          "pattern": "^grep\\b"
+        },
+        {
+          "id": "headtail",
+          "label": "Use head or tail to inspect a file",
+          "type": "log_regex",
+          "pattern": "^(head|tail)\\b"
+        },
+        {
+          "id": "found_key",
+          "label": "Locate the line containing ACCESS_KEY",
+          "type": "log_regex",
+          "pattern": "ACCESS_KEY"
+        }
+      ],
+      "hints": [
+        "find /home/student/module3/data -type f lists every log file, however deep.",
+        "grep -r 'ACCESS_KEY' /home/student/module3/data searches recursively in one command.",
+        "Once you've narrowed it down, tail the specific file to read the last lines."
+      ],
+      "track": "linux"
+    },
+    "module4": {
+      "title": "Permissions & Shell Scripting",
+      "difficulty": 3,
+      "points": 250,
+      "story": "A deployment script has been sitting broken for weeks because nobody fixed its permissions or ran it as the right user. Fix it and let it do its job.",
+      "mission": "Make run.sh executable, fix report.txt's ownership, and run the script to unlock the key.",
+      "key_path": "/home/student/module4/.done",
+      "objectives": [
+        {
+          "id": "chmod",
+          "label": "Make scripts/run.sh executable with chmod",
+          "type": "fs_test",
+          "test_cmd": "test -x /home/student/module4/scripts/run.sh"
+        },
+        {
+          "id": "sudo",
+          "label": "Use sudo at least once",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|sudo\\b"
+        },
+        {
+          "id": "chown",
+          "label": "Change the owner of data/report.txt with chown",
+          "type": "fs_test",
+          "test_cmd": "[ \"$(stat -c %U /home/student/module4/data/report.txt)\" = \"student\" ]"
+        },
+        {
+          "id": "run_script",
+          "label": "Execute run.sh so it unlocks the key",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module4/.done"
+        }
+      ],
+      "hints": [
+        "chmod +x scripts/run.sh grants execute permission.",
+        "sudo chown student data/report.txt changes the owner (you'll need sudo).",
+        "Run the script with ./run.sh once it's executable \u2014 check what file it creates."
+      ],
+      "track": "linux"
+    },
+    "module5": {
+      "title": "Advanced Linux",
+      "difficulty": 3,
+      "points": 300,
+      "story": "Capstone day. A misbehaving background process is eating resources, and the only way to identify and stop it \u2014 then extract what it left behind \u2014 is by combining everything you've learned so far.",
+      "mission": "Find the runaway process, kill it, then pipe and redirect your way to the final key.",
+      "key_path": "/home/student/module5/.final/key.txt",
+      "objectives": [
+        {
+          "id": "ps",
+          "label": "Use ps or top to inspect running processes",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|(ps|top)\\b"
+        },
+        {
+          "id": "kill",
+          "label": "Use kill to stop the runaway process",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|kill\\b"
+        },
+        {
+          "id": "pipe",
+          "label": "Chain commands together with a pipe (|)",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|[^\\n]*\\|"
+        },
+        {
+          "id": "redirect_awk_sed",
+          "label": "Use awk or sed with output redirection",
+          "type": "log_regex",
+          "pattern": "^\\d+\\|[^|]*\\|.*\\b(awk|sed)\\b.*>"
+        }
+      ],
+      "hints": [
+        "ps aux will show you the runaway sleep process and its PID.",
+        "kill <pid> stops it \u2014 the PID is also saved in module5/.runaway_pid.",
+        "Try: cat .final/key.txt | awk '{print $1}' \u2014 combine pipes and redirection to explore."
+      ],
+      "track": "linux"
+    },
+    "python_module1": {
+      "track": "python",
+      "title": "Python Basics: print, variables, input",
+      "difficulty": 1,
+      "points": 100,
+      "story": "Welcome to the Python track. Let's start with basic input, variables, and printing output.",
+      "mission": "Create a Python script named module1/python/main.py that takes input and prints it.",
+      "key_path": "/home/student/module1/python/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module1/python/main.py",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/python/main.py"
+        },
+        {
+          "id": "run_python",
+          "label": "Run main.py using python3 at least once",
+          "type": "log_regex",
+          "pattern": "python3\\s+.*main\\.py"
+        },
+        {
+          "id": "validate_output",
+          "label": "The program reads standard input and prints it back",
+          "type": "fs_test",
+          "test_cmd": "echo 'Alice' | python3 /home/student/module1/python/main.py | grep -i 'Alice'"
+        }
+      ],
+      "hints": [
+        "Use the standard input() function to read from stdin, store it in a variable, and use print() to print it.",
+        "Make sure your file path is exactly /home/student/module1/python/main.py."
+      ]
+    },
+    "python_module2": {
+      "track": "python",
+      "title": "Python Control Flow: conditions & loops",
+      "difficulty": 1,
+      "points": 150,
+      "story": "Time to add logic to your scripts. Using if-else conditions and loops allows you to repeat and fork code blocks.",
+      "mission": "Create /home/student/module2/python/loops.py to loop numbers 1 to 10 and print whether they are even or odd.",
+      "key_path": "/home/student/module2/python/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module2/python/loops.py",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/python/loops.py"
+        },
+        {
+          "id": "loop_numbers",
+          "label": "Print numbers 1 to 10",
+          "type": "fs_test",
+          "test_cmd": "python3 /home/student/module2/python/loops.py | grep -E '1' | grep -E '10'"
+        },
+        {
+          "id": "check_even_odd",
+          "label": "Print whether numbers are even or odd",
+          "type": "fs_test",
+          "test_cmd": "python3 /home/student/module2/python/loops.py | grep -i 'even' | grep -i 'odd'"
+        }
+      ],
+      "hints": [
+        "Use a for i in range(1, 11): loop to iterate through the numbers.",
+        "Use the modulo operator % to determine if a number is even or odd (e.g. i % 2 == 0)."
+      ]
+    },
+    "python_module3": {
+      "track": "python",
+      "title": "Python Collections: functions, lists, dicts",
+      "difficulty": 2,
+      "points": 200,
+      "story": "Functions organize your code, while lists and dictionaries let you store complex data structures.",
+      "mission": "Create /home/student/module3/python/collections.py defining lists, dicts, and a custom function.",
+      "key_path": "/home/student/module3/python/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module3/python/collections.py",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module3/python/collections.py"
+        },
+        {
+          "id": "define_structures",
+          "label": "Define at least one list and one dictionary",
+          "type": "fs_test",
+          "test_cmd": "grep -E '\\[.*\\]' /home/student/module3/python/collections.py && grep -E '\\{.*\\}' /home/student/module3/python/collections.py"
+        },
+        {
+          "id": "define_function",
+          "label": "Define a custom function using def keyword",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'def ' /home/student/module3/python/collections.py"
+        }
+      ],
+      "hints": [
+        "A list is declared with square brackets: my_list = [...].",
+        "A dictionary uses curly braces: my_dict = {...}.",
+        "Define functions using the def keyword, e.g. def my_func():."
+      ]
+    },
+    "python_module4": {
+      "track": "python",
+      "title": "Python Robustness: files, imports, exceptions",
+      "difficulty": 3,
+      "points": 250,
+      "story": "Production scripts need to read files from disk and handle errors gracefully.",
+      "mission": "Create /home/student/module4/python/files.py to read /home/student/module4/python/data.txt inside a try-except block.",
+      "key_path": "/home/student/module4/python/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module4/python/files.py",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module4/python/files.py"
+        },
+        {
+          "id": "read_data_file",
+          "label": "Use open() to read data.txt",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'open\\(.*data\\.txt' /home/student/module4/python/files.py"
+        },
+        {
+          "id": "handle_exception",
+          "label": "Wrap code in a try-except block",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'try:' /home/student/module4/python/files.py && grep -E 'except.*:' /home/student/module4/python/files.py"
+        }
+      ],
+      "hints": [
+        "Use with open('/home/student/module4/python/data.txt', 'r') as f: inside your try block.",
+        "Catch FileNotFoundError in your except block and print a user-friendly error message."
+      ]
+    },
+    "python_module5": {
+      "track": "python",
+      "title": "Python OS & Automation Challenge",
+      "difficulty": 3,
+      "points": 300,
+      "story": "Python is widely used for system administration. The os and subprocess modules let you automate shell operations.",
+      "mission": "Create /home/student/module5/python/script.py using os/subprocess to execute system operations.",
+      "key_path": "/home/student/module5/python/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module5/python/script.py",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module5/python/script.py"
+        },
+        {
+          "id": "import_modules",
+          "label": "Import os or subprocess module",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'import (os|subprocess)' /home/student/module5/python/script.py"
+        },
+        {
+          "id": "run_subprocess",
+          "label": "Call os.system or subprocess function to run shell commands",
+          "type": "fs_test",
+          "test_cmd": "grep -E '(subprocess\\.run|os\\.system|subprocess\\.Popen|subprocess\\.check_output)' /home/student/module5/python/script.py"
+        }
+      ],
+      "hints": [
+        "Use import subprocess at the top.",
+        "Call subprocess.run(['ls', '-la']) or os.system('ls -la') to run a basic command."
+      ]
+    },
+    "c_module1": {
+      "track": "c",
+      "title": "C Basics: printf, scanf, variables",
+      "difficulty": 1,
+      "points": 100,
+      "story": "Welcome to the C track. C is compiled and fast, but requires type declarations and memory consideration.",
+      "mission": "Create /home/student/module1/c/main.c, compile to app, and test user input using scanf.",
+      "key_path": "/home/student/module1/c/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module1/c/main.c",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/c/main.c"
+        },
+        {
+          "id": "compile_app",
+          "label": "Compile main.c using gcc into app",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/c/app"
+        },
+        {
+          "id": "validate_execution",
+          "label": "Program reads standard input and prints it with printf",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/c/app && echo '42' | /home/student/module1/c/app | grep '42'"
+        }
+      ],
+      "hints": [
+        "Write a standard C main function and include <stdio.h>.",
+        "Compile your code using: gcc main.c -o app"
+      ]
+    },
+    "c_module2": {
+      "track": "c",
+      "title": "C Control Flow: Conditions & Loops",
+      "difficulty": 1,
+      "points": 150,
+      "story": "Implement decision making in C using if-else conditions and iterate using loops.",
+      "mission": "Create /home/student/module2/c/loops.c containing a loop that compiles and executes successfully.",
+      "key_path": "/home/student/module2/c/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module2/c/loops.c",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/c/loops.c"
+        },
+        {
+          "id": "compile_app",
+          "label": "Compile loops.c to app",
+          "type": "fs_test",
+          "test_cmd": "gcc /home/student/module2/c/loops.c -o /home/student/module2/c/app"
+        },
+        {
+          "id": "validate_output",
+          "label": "Execute app and verify loop output",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/c/app && /home/student/module2/c/app | grep -E '(1|Loop|loop)'"
+        }
+      ],
+      "hints": [
+        "Write a basic for loop in C: for(int i = 0; i < 10; i++) { ... }.",
+        "Compile with gcc loops.c -o app and run with ./app."
+      ]
+    },
+    "c_module3": {
+      "track": "c",
+      "title": "C Structures: Functions & Arrays",
+      "difficulty": 2,
+      "points": 200,
+      "story": "Functions break down complexity in C, while arrays store collections of similar data types.",
+      "mission": "Create /home/student/module3/c/arrays.c defining a custom function and an array.",
+      "key_path": "/home/student/module3/c/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module3/c/arrays.c",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module3/c/arrays.c"
+        },
+        {
+          "id": "define_array",
+          "label": "Define an array in the source file",
+          "type": "fs_test",
+          "test_cmd": "grep -E '\\[.*\\]' /home/student/module3/c/arrays.c"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile arrays.c and execute successfully",
+          "type": "fs_test",
+          "test_cmd": "gcc /home/student/module3/c/arrays.c -o /home/student/module3/c/app && /home/student/module3/c/app"
+        }
+      ],
+      "hints": [
+        "An array is declared like: int numbers[5] = {1, 2, 3, 4, 5};.",
+        "Declare your custom function before main() or write a function prototype."
+      ]
+    },
+    "c_module4": {
+      "track": "c",
+      "title": "C Memory: Pointers & Allocation",
+      "difficulty": 3,
+      "points": 250,
+      "story": "Pointers hold memory addresses and are key to data structures in C.",
+      "mission": "Create /home/student/module4/c/pointers.c to practice pointer syntax and dereferencing.",
+      "key_path": "/home/student/module4/c/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module4/c/pointers.c",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module4/c/pointers.c"
+        },
+        {
+          "id": "use_pointers",
+          "label": "De-reference a pointer (* ptr) or call malloc",
+          "type": "fs_test",
+          "test_cmd": "grep -E '\\*.*=' /home/student/module4/c/pointers.c || grep -E 'malloc' /home/student/module4/c/pointers.c"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile and run app successfully",
+          "type": "fs_test",
+          "test_cmd": "gcc /home/student/module4/c/pointers.c -o /home/student/module4/c/app && /home/student/module4/c/app"
+        }
+      ],
+      "hints": [
+        "Use the dereference operator * to modify the value pointed to by a pointer.",
+        "Example pointer usage: int val = 10; int *ptr = &val; *ptr = 20;"
+      ]
+    },
+    "c_module5": {
+      "track": "c",
+      "title": "C Programming Challenge",
+      "difficulty": 3,
+      "points": 300,
+      "story": "Showcase your C proficiency by completing a final coding challenge.",
+      "mission": "Create /home/student/module5/c/challenge.c, compile and execute it successfully.",
+      "key_path": "/home/student/module5/c/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module5/c/challenge.c",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module5/c/challenge.c"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile and run challenge successfully",
+          "type": "fs_test",
+          "test_cmd": "gcc /home/student/module5/c/challenge.c -o /home/student/module5/c/app && /home/student/module5/c/app"
+        }
+      ],
+      "hints": [
+        "Ensure you have a main function that returns 0 upon success.",
+        "Verify compiling with: gcc challenge.c -o app."
+      ]
+    },
+    "cpp_module1": {
+      "track": "cpp",
+      "title": "C++ Basics: cout & cin",
+      "difficulty": 1,
+      "points": 100,
+      "story": "Welcome to the C++ track. C++ introduces streams and object-oriented features on top of C.",
+      "mission": "Create /home/student/module1/cpp/main.cpp, compile it, and process input using cin and cout.",
+      "key_path": "/home/student/module1/cpp/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module1/cpp/main.cpp",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/cpp/main.cpp"
+        },
+        {
+          "id": "compile_app",
+          "label": "Compile main.cpp using g++ into app",
+          "type": "fs_test",
+          "test_cmd": "g++ /home/student/module1/cpp/main.cpp -o /home/student/module1/cpp/app"
+        },
+        {
+          "id": "validate_io",
+          "label": "Use cout and cin to print input",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module1/cpp/app && echo 'HelloCPP' | /home/student/module1/cpp/app | grep 'HelloCPP'"
+        }
+      ],
+      "hints": [
+        "Include <iostream> and use std::cout and std::cin.",
+        "Compile using g++: g++ main.cpp -o app"
+      ]
+    },
+    "cpp_module2": {
+      "track": "cpp",
+      "title": "C++ Control Flow: loops & functions",
+      "difficulty": 1,
+      "points": 150,
+      "story": "C++ supports loops and robust procedural programming features through functions.",
+      "mission": "Create /home/student/module2/cpp/loops.cpp defining a custom function.",
+      "key_path": "/home/student/module2/cpp/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module2/cpp/loops.cpp",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module2/cpp/loops.cpp"
+        },
+        {
+          "id": "define_function",
+          "label": "Define a custom function in the source file",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'void|int|double|string' /home/student/module2/cpp/loops.cpp | grep -v 'main'"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile loops.cpp and execute successfully",
+          "type": "fs_test",
+          "test_cmd": "g++ /home/student/module2/cpp/loops.cpp -o /home/student/module2/cpp/app && /home/student/module2/cpp/app"
+        }
+      ],
+      "hints": [
+        "Define a helper function like void showMessage() { ... } and call it from main."
+      ]
+    },
+    "cpp_module3": {
+      "track": "cpp",
+      "title": "C++ OOP: Classes & Objects",
+      "difficulty": 2,
+      "points": 200,
+      "story": "Classes are the building blocks of C++ OOP, encapsulating data and functions.",
+      "mission": "Create /home/student/module3/cpp/classes.cpp defining a simple C++ class.",
+      "key_path": "/home/student/module3/cpp/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module3/cpp/classes.cpp",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module3/cpp/classes.cpp"
+        },
+        {
+          "id": "define_class",
+          "label": "Define a class in the source file",
+          "type": "fs_test",
+          "test_cmd": "grep -E 'class ' /home/student/module3/cpp/classes.cpp"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile classes.cpp and run successfully",
+          "type": "fs_test",
+          "test_cmd": "g++ /home/student/module3/cpp/classes.cpp -o /home/student/module3/cpp/app && /home/student/module3/cpp/app"
+        }
+      ],
+      "hints": [
+        "Declare a class Student or similar: class Student { public: ... private: ... };."
+      ]
+    },
+    "cpp_module4": {
+      "track": "cpp",
+      "title": "C++ STL: Vectors & Streams",
+      "difficulty": 3,
+      "points": 250,
+      "story": "The Standard Template Library (STL) provides powerful containers like vectors and file stream utilities.",
+      "mission": "Create /home/student/module4/cpp/vectors.cpp utilizing std::vector or std::fstream.",
+      "key_path": "/home/student/module4/cpp/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module4/cpp/vectors.cpp",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module4/cpp/vectors.cpp"
+        },
+        {
+          "id": "include_stl",
+          "label": "Include vector or fstream header",
+          "type": "fs_test",
+          "test_cmd": "grep -E '#include\\s*<vector>|#include\\s*<fstream>' /home/student/module4/cpp/vectors.cpp"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile vectors.cpp and run successfully",
+          "type": "fs_test",
+          "test_cmd": "g++ /home/student/module4/cpp/vectors.cpp -o /home/student/module4/cpp/app && /home/student/module4/cpp/app"
+        }
+      ],
+      "hints": [
+        "Add #include <vector> to use dynamic arrays: std::vector<int> vec;."
+      ]
+    },
+    "cpp_module5": {
+      "track": "cpp",
+      "title": "C++ Capstone Challenge",
+      "difficulty": 3,
+      "points": 300,
+      "story": "Showcase your C++ proficiency by completing a final programming challenge.",
+      "mission": "Create /home/student/module5/cpp/challenge.cpp, compile and execute it successfully.",
+      "key_path": "/home/student/module5/cpp/.keyfile",
+      "objectives": [
+        {
+          "id": "create_file",
+          "label": "Create module5/cpp/challenge.cpp",
+          "type": "fs_test",
+          "test_cmd": "test -f /home/student/module5/cpp/challenge.cpp"
+        },
+        {
+          "id": "compile_run",
+          "label": "Compile and run challenge successfully",
+          "type": "fs_test",
+          "test_cmd": "g++ /home/student/module5/cpp/challenge.cpp -o /home/student/module5/cpp/app && /home/student/module5/cpp/app"
+        }
+      ],
+      "hints": [
+        "Verify compiling with: g++ challenge.cpp -o app."
+      ]
+    }
+  }
+}

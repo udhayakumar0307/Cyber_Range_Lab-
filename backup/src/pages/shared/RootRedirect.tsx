@@ -1,33 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, UserCheck, LogIn } from 'lucide-react';
+import { Shield } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const RootRedirect: React.FC = () => {
   const navigate = useNavigate();
-  const [simulatedRole, setSimulatedRole] = useState<'admin' | 'user' | 'guest'>('admin');
-  const [isRedirecting, setIsRedirecting] = useState(false);
-
-  const handleProceed = (roleToUse: 'admin' | 'user' | 'guest') => {
-    setIsRedirecting(true);
-    setTimeout(() => {
-      if (roleToUse === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (roleToUse === 'user') {
-        navigate('/dashboard');
-      } else {
-        navigate('/login');
-      }
-    }, 400);
-  };
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    // Default auto-redirect after brief landing animation
-    const timer = setTimeout(() => {
-      handleProceed(simulatedRole);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [simulatedRole]);
+    if (!isLoading) {
+      if (user) {
+        if (user.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      } else {
+        navigate('/login', { replace: true });
+      }
+    }
+  }, [user, isLoading, navigate]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#2D3436] flex flex-col items-center justify-center p-6 text-center">
@@ -43,7 +35,7 @@ export const RootRedirect: React.FC = () => {
 
         <div>
           <span className="text-xs font-extrabold uppercase tracking-widest text-[#0052CC] bg-blue-50 px-3 py-1 rounded-full border border-blue-100 inline-block mb-2">
-            CyberRange Platform Auth Gateway
+            CyberRange Platform Gateway
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Authenticating Active Session
@@ -57,58 +49,8 @@ export const RootRedirect: React.FC = () => {
         <div className="py-2 flex items-center justify-center gap-3">
           <div className="w-5 h-5 border-3 border-[#0052CC] border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs font-bold text-slate-600">
-            {isRedirecting ? 'Redirecting...' : `Evaluating Role: ${simulatedRole.toUpperCase()}`}
+            Evaluating Role...
           </span>
-        </div>
-
-        {/* Interactive Role Selector Sandbox Toolbar */}
-        <div className="pt-4 border-t border-slate-100 space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Dev Sandbox: Test Role Landing Override
-          </span>
-          <div className="grid grid-cols-3 gap-2 text-xs font-bold">
-            <button
-              onClick={() => {
-                setSimulatedRole('admin');
-                handleProceed('admin');
-              }}
-              className={`p-2.5 rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
-                simulatedRole === 'admin'
-                  ? 'bg-blue-50 text-[#0052CC] border-blue-300 ring-2 ring-[#0052CC]/15 shadow-xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" /> Admin Portal
-            </button>
-
-            <button
-              onClick={() => {
-                setSimulatedRole('user');
-                handleProceed('user');
-              }}
-              className={`p-2.5 rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
-                simulatedRole === 'user'
-                  ? 'bg-emerald-50 text-[#28A745] border-emerald-300 ring-2 ring-emerald-500/15 shadow-xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" /> User View
-            </button>
-
-            <button
-              onClick={() => {
-                setSimulatedRole('guest');
-                handleProceed('guest');
-              }}
-              className={`p-2.5 rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
-                simulatedRole === 'guest'
-                  ? 'bg-purple-50 text-[#6F42C1] border-purple-300 ring-2 ring-purple-500/15 shadow-xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5" /> Login Flow
-            </button>
-          </div>
         </div>
       </div>
     </div>

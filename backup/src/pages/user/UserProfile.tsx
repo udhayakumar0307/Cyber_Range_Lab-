@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { 
   ShieldCheck, 
   Camera, 
@@ -16,11 +17,29 @@ interface NotificationSettings {
 }
 
 export const UserProfile: React.FC = () => {
+  const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'details' | 'security' | 'notifications'>('details');
   
   // Form State Values
   const [name, setName] = useState('Alex Operator');
   const [email, setEmail] = useState('student@cyberrange.io');
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setEmail(user.email);
+    }
+  }, [user]);
+
+  const getInitials = (nameStr: string) => {
+    if (!nameStr) return 'AO';
+    return nameStr
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
   const [organization, setOrganization] = useState('CyberRange Academy');
 
   const [passwordForm, setPasswordForm] = useState({
@@ -79,7 +98,7 @@ export const UserProfile: React.FC = () => {
           {/* Avatar frame */}
           <div className="relative group">
             <div className="w-24 h-24 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-3xl shadow-md border-4 border-white">
-              AO
+              {getInitials(name)}
             </div>
             {/* Edit camera circle */}
             <button 

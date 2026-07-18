@@ -1,4 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { LabMarketplace } from './pages/admin/LabMarketplace';
@@ -10,31 +13,34 @@ import { LabControlPanel } from './pages/admin/LabControlPanel';
 import { MonitoringAnalytics } from './pages/admin/MonitoringAnalytics';
 import { AdminSettings } from './pages/admin/AdminSettings';
 
-// New Admin Scheduler & CTF Hub Pages
+// Admin Scheduler & CTF Hub Pages
 import { LabSchedulerPage } from './pages/admin/LabSchedulerPage';
 import { CtfAdminPage } from './pages/admin/CtfAdminPage';
 
-// Auth Section Pages (1.1 - 1.4)
+// Auth Section Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { OnboardingPage } from './pages/auth/OnboardingPage';
 
 // User Layout & Pages
 import { UserLayout } from './components/user/UserLayout';
 import { UserDashboard } from './pages/user/UserDashboard';
 import { AvailableLabs } from './pages/user/AvailableLabs';
 import { ChallengeSession } from './pages/user/ChallengeSession';
+import { CommandLineLabSession } from './pages/user/CommandLineLabSession';
 import { ProgressTracking } from './pages/user/ProgressTracking';
 import { LeaderboardPortal } from './pages/user/LeaderboardPortal';
-import { UserProfile } from './pages/user/UserProfile';
+import { ProfilePage } from './pages/user/ProfilePage';
+import { SettingsPage } from './pages/user/SettingsPage';
 
-// New Student CTF Competition Engine Pages
+// Student CTF Competition Engine Pages
 import { CtfPortalPage } from './pages/user/CtfPortalPage';
 import { CtfArenaPage } from './pages/user/CtfArenaPage';
 import { CtfScoreboardPage } from './pages/user/CtfScoreboardPage';
 
-// Shared Pages (4.1 to 4.5)
+// Shared Pages
 import { RootRedirect } from './pages/shared/RootRedirect';
 import { NotFoundPage } from './pages/shared/NotFoundPage';
 import { ServerErrorPage } from './pages/shared/ServerErrorPage';
@@ -44,156 +50,296 @@ import { UnauthorizedPage } from './pages/shared/UnauthorizedPage';
 export function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* 4.1 Root Auto-Redirect Gateway */}
-        <Route path="/" element={<RootRedirect />} />
+      <AuthProvider>
+        <ThemeProvider>
+          <Routes>
+            {/* Root Gateway */}
+            <Route path="/" element={<RootRedirect />} />
 
-        {/* Auth Flow Routes (1.1 - 1.4) */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+            {/* Auth Flow Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <OnboardingPage />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* User Portal Dashboard (Page 3.1) */}
-        <Route
-          path="/dashboard"
-          element={
-            <UserLayout>
-              <UserDashboard />
-            </UserLayout>
-          }
-        />
-        <Route
-          path="/labs"
-          element={
-            <UserLayout>
-              <AvailableLabs />
-            </UserLayout>
-          }
-        />
-        <Route
-          path="/labs/:labId/session/:sessionId"
-          element={<ChallengeSession />}
-        />
-        
-        {/* Student CTF Competition Engine Routes (3.10 - 3.12) */}
-        <Route path="/ctf" element={<CtfPortalPage />} />
-        <Route path="/ctf/events/:eventId" element={<CtfArenaPage />} />
-        <Route path="/ctf/events/:eventId/scoreboard" element={<CtfScoreboardPage />} />
+            {/* User Portal Dashboard Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <UserDashboard />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
 
-        <Route
-          path="/progress"
-          element={
-            <UserLayout>
-              <ProgressTracking />
-            </UserLayout>
-          }
-        />
-        <Route
-          path="/leaderboards"
-          element={
-            <UserLayout>
-              <LeaderboardPortal />
-            </UserLayout>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <UserLayout>
-              <UserProfile />
-            </UserLayout>
-          }
-        />
-        <Route path="/error" element={<ServerErrorPage />} />
-        <Route path="/maintenance" element={<MaintenancePage />} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            {/* Available Labs Routes */}
+            <Route
+              path="/labs"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <AvailableLabs />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/available-labs"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <AvailableLabs />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Admin Management Suite Routes (2.1 - 2.11) */}
-        <Route
-          path="/admin/dashboard"
-          element={
-            <AdminLayout>
-              <AdminDashboard />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/labs"
-          element={
-            <AdminLayout>
-              <LabMarketplace />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/scheduler"
-          element={<LabSchedulerPage />}
-        />
-        <Route
-          path="/admin/ctf"
-          element={<CtfAdminPage />}
-        />
-        <Route
-          path="/admin/labs/:labId/purchase"
-          element={
-            <AdminLayout>
-              <LabPurchaseConfirmation />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <AdminLayout>
-              <UserManagement />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/groups"
-          element={
-            <AdminLayout>
-              <GroupManagement />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/allocations"
-          element={
-            <AdminLayout>
-              <LabAllocation />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/labs/control"
-          element={
-            <AdminLayout>
-              <LabControlPanel />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/monitoring"
-          element={
-            <AdminLayout>
-              <MonitoringAnalytics />
-            </AdminLayout>
-          }
-        />
-        <Route
-          path="/admin/settings"
-          element={
-            <AdminLayout>
-              <AdminSettings />
-            </AdminLayout>
-          }
-        />
+            {/* Command Line Lab Routes & Aliases */}
+            <Route
+              path="/labs/command-line-lab/session"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CommandLineLabSession />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/command-line-lab"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CommandLineLabSession />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/labs/command-line-lab"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CommandLineLabSession />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* 4.2 Catch-All 404 Page Not Found */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+            {/* Dynamic Lab Challenge Sessions */}
+            <Route
+              path="/labs/:labId/session/:sessionId"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ChallengeSession />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lab/:id"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ChallengeSession />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Student CTF Competition Engine Routes */}
+            <Route
+              path="/ctf"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CtfPortalPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ctf/events/:eventId"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CtfArenaPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ctf/events/:eventId/scoreboard"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <CtfScoreboardPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Progress Tracking */}
+            <Route
+              path="/progress"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <ProgressTracking />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Leaderboard */}
+            <Route
+              path="/leaderboards"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <LeaderboardPortal />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* User Profile */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <ProfilePage />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Settings */}
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <UserLayout>
+                    <SettingsPage />
+                  </UserLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Error Pages */}
+            <Route path="/error" element={<ServerErrorPage />} />
+            <Route path="/maintenance" element={<MaintenancePage />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+            {/* Admin Management Suite Routes */}
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <AdminDashboard />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/labs"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <LabMarketplace />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/scheduler"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <LabSchedulerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/ctf"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <CtfAdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/labs/:labId/purchase"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <LabPurchaseConfirmation />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <UserManagement />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/groups"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <GroupManagement />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/allocations"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <LabAllocation />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/labs/control"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <LabControlPanel />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/monitoring"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <MonitoringAnalytics />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLayout>
+                    <AdminSettings />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Catch-All 404 Page Not Found */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </ThemeProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

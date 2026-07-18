@@ -23,8 +23,8 @@ interface Lab {
   solvedChallenges: number;
   durationHours: number;
   status: 'not_started' | 'in_progress' | 'upcoming' | 'completed';
-  timeRemaining?: number; // live container countdown in seconds
-  timeToStart?: number; // upcoming scheduled container countdown in seconds
+  timeRemaining?: number;
+  timeToStart?: number;
   tags: string[];
   objectives: string[];
   environmentType: string;
@@ -38,118 +38,33 @@ export const AvailableLabs: React.FC = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   
-  // Modal & Deployment States
   const [selectedDetailLab, setSelectedDetailLab] = useState<Lab | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(0);
 
-  // Mock list of allocated training labs
   const [labs, setLabs] = useState<Lab[]>([
     {
-      id: 'lab-1',
-      title: 'Active Directory Security Basics',
-      category: 'windows',
-      categoryLabel: 'Windows Domain Security',
-      description: 'Learn the fundamentals of Windows Active Directory structure, enumeration vectors, and standard security misconfigurations.',
-      difficulty: 'advanced',
-      totalChallenges: 8,
-      solvedChallenges: 2,
-      durationHours: 3,
-      status: 'in_progress',
-      timeRemaining: 7342, // 2 hours
-      tags: ['AD', 'Enumeration', 'Kerberos'],
-      objectives: [
-        'Enumerate Active Directory organizational structures',
-        'Perform Kerberoasting to harvest system service tickets',
-        'Analyze attack path maps using BloodHound analyzer'
-      ],
-      environmentType: 'Kali Desktop & Windows Domain target',
-      prerequisites: 'None'
-    },
-    {
-      id: 'lab-2',
-      title: 'AI Prompt Injection Sandpit',
-      category: 'ai',
-      categoryLabel: 'AI Model Safety',
-      description: 'Explore the risk vectors in Large Language Model applications and attempt to bypass safety prompts using jailbreaks.',
-      difficulty: 'intermediate',
-      totalChallenges: 5,
-      solvedChallenges: 0,
-      durationHours: 2,
-      status: 'upcoming',
-      timeToStart: 495, // 8 mins
-      tags: ['LLM', 'Jailbreak', 'OWASP'],
-      objectives: [
-        'Analyze system prompt leak security guidelines',
-        'Construct jailbreak injections to leak admin keys',
-        'Implement input validation and semantic filters'
-      ],
-      environmentType: 'Jupyter Notebook Console',
-      prerequisites: 'SQL Injection Sandbox'
-    },
-    {
-      id: 'lab-3',
-      title: 'Linux Privilege Escalation Tactics',
+      id: 'command-line-lab',
+      title: 'Command Line Lab',
       category: 'linux',
       categoryLabel: 'Linux Infrastructure',
-      description: 'Hone your local privilege escalation skills on a target Linux container, auditing cron, SUID, and kernel exploits.',
-      difficulty: 'intermediate',
-      totalChallenges: 6,
-      solvedChallenges: 6,
-      durationHours: 3,
-      status: 'completed',
-      tags: ['SUID', 'Cron', 'Exploit'],
-      objectives: [
-        'Audit SUID/GUID binary privilege vulnerabilities',
-        'Exploit misconfigured cron tab execution paths',
-        'Leverage kernel versions for local root shells'
-      ],
-      environmentType: 'Web Terminal Workspace',
-      prerequisites: 'None'
-    },
-    {
-      id: 'lab-4',
-      title: 'SQL Injection Sandbox Range',
-      category: 'web',
-      categoryLabel: 'Web Application Security',
-      description: 'Practice union-based, error-based, and blind SQL injection methods on a mock target database to retrieve admin keys.',
+      description: 'Master the Linux command line. Audit permissions, search files, manage processes, and test standard scripting challenges.',
       difficulty: 'beginner',
-      totalChallenges: 4,
-      solvedChallenges: 0,
-      durationHours: 2,
-      status: 'not_started',
-      tags: ['SQLi', 'SQL', 'DBMS'],
-      objectives: [
-        'Analyze blind SQL query response behaviors',
-        'Execute union database structure mappings',
-        'Retrieve database tables schema parameters'
-      ],
-      environmentType: 'Web Form & Database Terminal',
-      prerequisites: 'None'
-    },
-    {
-      id: 'lab-5',
-      title: 'Kubernetes Cluster Hijacking',
-      category: 'linux',
-      categoryLabel: 'Linux Infrastructure',
-      description: 'Investigate misconfigured API services and token leakages to compromise and escape container runtimes to host node systems.',
-      difficulty: 'expert',
-      totalChallenges: 7,
+      totalChallenges: 20,
       solvedChallenges: 0,
       durationHours: 4,
       status: 'not_started',
-      tags: ['K8s', 'API Security', 'Escalation'],
+      tags: ['Linux', 'Terminal', 'Docker', 'Scoring'],
       objectives: [
-        'Compromise unprotected dashboard services',
-        'Extract leaked cluster service account tokens',
-        'Escape container contexts to compromise root nodes'
+        'Practice Linux file navigation and manipulation',
+        'Analyze system administration basics',
+        'Verify scripting with python and compiled executables'
       ],
-      environmentType: 'K8s Multi-Node Cluster Terminal',
-      prerequisites: 'Linux Privilege Escalation'
+      environmentType: 'Docker Container Terminal',
+      prerequisites: 'None'
     }
   ]);
 
-  // Real-time countdown updates
   useEffect(() => {
     const interval = setInterval(() => {
       setLabs((prevLabs) =>
@@ -188,15 +103,15 @@ export const AvailableLabs: React.FC = () => {
   const getDifficultyStyles = (diff: string) => {
     switch (diff) {
       case 'beginner':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
       case 'intermediate':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
       case 'advanced':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
+        return 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800';
       case 'expert':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800';
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
+        return 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
     }
   };
 
@@ -211,7 +126,11 @@ export const AvailableLabs: React.FC = () => {
           setTimeout(() => {
             setIsDeploying(false);
             setSelectedDetailLab(null);
-            navigate(`/labs/${lab.id}/session/sess-123`);
+            if (lab.id === 'command-line-lab') {
+              navigate('/labs/command-line-lab/session');
+            } else {
+              navigate(`/labs/${lab.id}/session/sess-123`);
+            }
           }, 600);
           return prev;
         }
@@ -220,7 +139,6 @@ export const AvailableLabs: React.FC = () => {
     }, 850);
   };
 
-  // Filter computation logic
   const filteredLabs = labs.filter((lab) => {
     const matchesSearch = 
       lab.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -235,45 +153,43 @@ export const AvailableLabs: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header title node */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Available Labs</h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Available Labs</h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Access training scenarios allocated to your cybersecurity cohort.
           </p>
         </div>
-        <span className="self-start sm:self-center text-xs font-bold text-[#0052CC] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+        <span className="self-start sm:self-center text-xs font-bold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-900">
           {filteredLabs.length} {filteredLabs.length === 1 ? 'Lab' : 'Labs'} Available
         </span>
       </div>
 
       {/* Filter and Search controls toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-          <Filter className="w-4 h-4 text-slate-400" />
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4 transition-colors">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+          <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           <span>Filter Allocated Catalog</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Query search input */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder="Search by name, tag..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/15 focus:border-[#0052CC] transition-all"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#2563EB] transition-all"
             />
           </div>
 
-          {/* Category Dropdown */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/15 focus:border-[#0052CC] transition-all"
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#2563EB] transition-all"
           >
             <option value="all">All Domains</option>
             <option value="windows">Windows Domain Security</option>
@@ -282,11 +198,10 @@ export const AvailableLabs: React.FC = () => {
             <option value="ai">AI Model Safety</option>
           </select>
 
-          {/* Difficulty Dropdown */}
           <select
             value={selectedDifficulty}
             onChange={(e) => setSelectedDifficulty(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/15 focus:border-[#0052CC] transition-all"
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#2563EB] transition-all"
           >
             <option value="all">All Difficulties</option>
             <option value="beginner">Beginner</option>
@@ -295,11 +210,10 @@ export const AvailableLabs: React.FC = () => {
             <option value="expert">Expert</option>
           </select>
 
-          {/* Status Dropdown */}
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/15 focus:border-[#0052CC] transition-all"
+            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#2563EB] transition-all"
           >
             <option value="all">All Statuses</option>
             <option value="not_started">Not Started</option>
@@ -312,28 +226,27 @@ export const AvailableLabs: React.FC = () => {
 
       {/* Grid listing */}
       {filteredLabs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 py-12 px-6 text-center shadow-xs">
-          <HelpCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm font-bold text-slate-700">No training labs match your filters.</p>
-          <p className="text-xs text-slate-400 mt-1">Try clearing your filters or search keywords.</p>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-12 px-6 text-center shadow-xs transition-colors">
+          <HelpCircle className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No training labs match your filters.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Try clearing your filters or search keywords.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredLabs.map((lab) => (
             <div
               key={lab.id}
-              className={`bg-white rounded-xl border shadow-xs flex flex-col justify-between overflow-hidden transition-all ${
+              className={`bg-white dark:bg-slate-900 rounded-xl border shadow-xs flex flex-col justify-between overflow-hidden transition-all ${
                 lab.status === 'in_progress' 
-                  ? 'border-emerald-300 ring-2 ring-emerald-500/10' 
+                  ? 'border-emerald-300 dark:border-emerald-800 ring-2 ring-emerald-500/10' 
                   : lab.status === 'upcoming' 
-                  ? 'border-amber-200 bg-amber-50/10' 
-                  : 'border-slate-200'
+                  ? 'border-amber-200 dark:border-amber-800 bg-amber-50/10 dark:bg-amber-950/10' 
+                  : 'border-slate-200 dark:border-slate-800'
               }`}
             >
-              {/* Card content top */}
               <div className="p-5 space-y-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                     {lab.categoryLabel}
                   </span>
                   <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full ${getDifficultyStyles(lab.difficulty)}`}>
@@ -342,50 +255,53 @@ export const AvailableLabs: React.FC = () => {
                 </div>
 
                 <div>
-                  <h3 className="font-bold text-slate-800 text-base leading-snug group-hover:text-[#0052CC] transition-colors">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug">
                     {lab.title}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-2 leading-relaxed line-clamp-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed line-clamp-3">
                     {lab.description}
                   </p>
                 </div>
 
-                {/* Progress bar info */}
                 {lab.status !== 'upcoming' && (
                   <div className="space-y-1.5 pt-1">
-                    <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
                       <span>Challenges Progress</span>
                       <span>{lab.solvedChallenges} / {lab.totalChallenges} Solved</span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full rounded-full transition-all ${lab.status === 'completed' ? 'bg-[#28A745]' : 'bg-[#0052CC]'}`}
+                        className={`h-full rounded-full transition-all ${lab.status === 'completed' ? 'bg-[#10B981]' : 'bg-[#2563EB]'}`}
                         style={{ width: `${(lab.solvedChallenges / lab.totalChallenges) * 100}%` }}
                       ></div>
                     </div>
                   </div>
                 )}
 
-                {/* Tags */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {lab.tags.map((tag, idx) => (
-                    <span key={idx} className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                    <span key={idx} className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                       #{tag}
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* Card footer details */}
-              <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+              <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between gap-3">
                 {lab.status === 'in_progress' ? (
                   <>
-                    <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <Clock className="w-3.5 h-3.5" />
                       <span>{formatTime(lab.timeRemaining)} left</span>
                     </div>
                     <button
-                      onClick={() => navigate(`/labs/${lab.id}/session/sess-123`)}
+                      onClick={() => {
+                        if (lab.id === 'command-line-lab') {
+                          navigate('/labs/command-line-lab/session');
+                        } else {
+                          navigate(`/labs/${lab.id}/session/sess-123`);
+                        }
+                      }}
                       className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors shadow-xs"
                     >
                       Resume Lab
@@ -393,36 +309,36 @@ export const AvailableLabs: React.FC = () => {
                   </>
                 ) : lab.status === 'upcoming' ? (
                   <>
-                    <div className="flex items-center gap-1 text-xs font-semibold text-amber-600 animate-pulse">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 animate-pulse">
                       <Clock className="w-3.5 h-3.5" />
                       <span>Starts in {formatTime(lab.timeToStart)}</span>
                     </div>
                     <button
                       disabled
-                      className="bg-slate-100 text-slate-400 border border-slate-200 font-semibold text-xs px-3.5 py-1.5 rounded-lg cursor-not-allowed"
+                      className="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 font-semibold text-xs px-3.5 py-1.5 rounded-lg cursor-not-allowed"
                     >
                       Locked
                     </button>
                   </>
                 ) : lab.status === 'completed' ? (
                   <>
-                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-600">
+                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                       <span>Completed</span>
                     </div>
                     <button
                       onClick={() => setSelectedDetailLab(lab)}
-                      className="text-[#0052CC] hover:text-blue-700 font-bold text-xs inline-flex items-center gap-1"
+                      className="text-[#2563EB] dark:text-blue-400 hover:underline font-bold text-xs inline-flex items-center gap-1"
                     >
                       Review Score
                     </button>
                   </>
                 ) : (
                   <>
-                    <span className="text-xs font-semibold text-slate-500">Duration: {lab.durationHours} hrs</span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Duration: {lab.durationHours} hrs</span>
                     <button
                       onClick={() => setSelectedDetailLab(lab)}
-                      className="bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
                     >
                       <span>Start Lab</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -435,12 +351,11 @@ export const AvailableLabs: React.FC = () => {
         </div>
       )}
 
-      {/* Lab Details Modal Dialog overlay (Page 3.3 preview / Spin-up deployment console) */}
+      {/* Modal Dialog */}
       {selectedDetailLab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95">
             {isDeploying ? (
-              /* Deployment Console Screen Overlay */
               <div className="bg-slate-950 font-mono text-xs text-emerald-400 p-6 h-[380px] flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-slate-400 border-b border-slate-800 pb-2 mb-3">
@@ -481,37 +396,33 @@ export const AvailableLabs: React.FC = () => {
                 </div>
               </div>
             ) : (
-              /* High-Fidelity Details View */
               <>
-                {/* Header banner */}
-                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-2 py-0.5 rounded-full">
                       {selectedDetailLab.categoryLabel}
                     </span>
-                    <h3 className="font-black text-slate-900 text-base mt-1">{selectedDetailLab.title}</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white text-base mt-1">{selectedDetailLab.title}</h3>
                   </div>
                   <button
                     onClick={() => setSelectedDetailLab(null)}
-                    className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Modal Body */}
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 text-slate-800 dark:text-slate-200">
                   <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Overview</span>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Overview</span>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                       {selectedDetailLab.description}
                     </p>
                   </div>
 
-                  {/* Learning Objectives milestones list */}
                   <div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Learning Objectives</span>
-                    <ul className="list-disc list-inside text-xs text-slate-600 mt-1.5 space-y-1">
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Learning Objectives</span>
+                    <ul className="list-disc list-inside text-xs text-slate-600 dark:text-slate-300 mt-1.5 space-y-1">
                       {selectedDetailLab.objectives.map((obj, idx) => (
                         <li key={idx} className="leading-relaxed">
                           {obj}
@@ -520,44 +431,42 @@ export const AvailableLabs: React.FC = () => {
                     </ul>
                   </div>
 
-                  {/* Four box grid specs */}
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Duration</span>
-                      <span className="text-xs font-extrabold text-slate-700 mt-0.5 block">{selectedDetailLab.durationHours} Hours Max</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Duration</span>
+                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{selectedDetailLab.durationHours} Hours Max</span>
                     </div>
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Difficulty</span>
-                      <span className="text-xs font-extrabold text-slate-700 mt-0.5 block capitalize">{selectedDetailLab.difficulty}</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Difficulty</span>
+                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block capitalize">{selectedDetailLab.difficulty}</span>
                     </div>
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Points Target</span>
-                      <span className="text-xs font-extrabold text-slate-700 mt-0.5 block">{selectedDetailLab.totalChallenges * 25} points</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Points Target</span>
+                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{selectedDetailLab.totalChallenges * 25} points</span>
                     </div>
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Platform</span>
-                      <span className="text-xs font-extrabold text-slate-700 mt-0.5 block truncate">{selectedDetailLab.environmentType}</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Platform</span>
+                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block truncate">{selectedDetailLab.environmentType}</span>
                     </div>
                   </div>
 
-                  <div className="pt-1 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                    <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Prerequisites:</span>
-                    <span className="font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">{selectedDetailLab.prerequisites}</span>
+                  <div className="pt-1 flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <span className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">Prerequisites:</span>
+                    <span className="font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px]">{selectedDetailLab.prerequisites}</span>
                   </div>
                 </div>
 
-                {/* Modal Footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
                   <button
                     onClick={() => setSelectedDetailLab(null)}
-                    className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors"
+                    className="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs px-4 py-2 rounded-lg transition-colors"
                   >
                     Close
                   </button>
                   {selectedDetailLab.status !== 'completed' && (
                     <button
                       onClick={() => handleDeployLab(selectedDetailLab)}
-                      className="bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-xs inline-flex items-center gap-1.5"
+                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-xs inline-flex items-center gap-1.5"
                     >
                       <Shield className="w-3.5 h-3.5" />
                       <span>Spin Up Lab</span>

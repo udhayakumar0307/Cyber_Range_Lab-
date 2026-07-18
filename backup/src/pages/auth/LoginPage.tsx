@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, Mail, ArrowRight, Eye, EyeOff, Building2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'standard' | 'sso'>('standard');
   const [email, setEmail] = useState('');
@@ -13,7 +15,7 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleStandardSubmit = (e: React.FormEvent) => {
+  const handleStandardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!email.trim() || !password.trim()) {
@@ -22,60 +24,58 @@ export const LoginPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const { role } = await login(email, password);
       setIsLoading(false);
-      navigate('/admin/dashboard');
-    }, 1000);
+      if (role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err.message || 'Invalid Email or Password.');
+    }
   };
 
   const handleSsoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('');
-    if (!ssoDomain.trim()) {
-      setErrorMsg('Please enter your organization domain or email.');
-      return;
-    }
-
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate('/admin/dashboard');
-    }, 1200);
+    setErrorMsg('Enterprise SSO is not configured. Please use Standard Account.');
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-[#2D3436] flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Dynamic Ambient Mesh Orbs */}
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-[#0F172A] dark:text-white flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-200">
+      {/* Ambient Mesh Orbs */}
       <div className="absolute top-[-10%] right-[-10%] w-[450px] h-[450px] bg-blue-500/10 rounded-full blur-[140px] pointer-events-none animate-pulse"></div>
       <div className="absolute bottom-[-15%] left-[-15%] w-[550px] h-[550px] bg-purple-500/10 rounded-full blur-[140px] pointer-events-none animate-pulse"></div>
 
       <div className="w-full max-w-[460px] mx-auto z-10 space-y-6">
         {/* Brand Logo & Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0052CC] to-[#6F42C1] text-white shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform cursor-pointer">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#2563EB] text-white shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform cursor-pointer">
             <Shield className="w-8 h-8" />
           </div>
 
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight bg-gradient-to-r from-slate-900 to-[#0052CC] bg-clip-text text-transparent">
+            <h1 className="text-3xl font-black text-[#0F172A] dark:text-white tracking-tight">
               CyberRange
             </h1>
-            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
+            <p className="text-xs sm:text-sm font-semibold text-[#64748B] dark:text-[#CBD5E1] mt-1">
               Enterprise Cyber Operations & Training Platform
             </p>
           </div>
         </div>
 
         {/* Glassmorphic Auth Card */}
-        <div className="bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6">
+        <div className="bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-3xl p-8 sm:p-10 shadow-xl space-y-6 transition-colors">
           {/* Tab Switcher */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl text-xs font-bold relative">
+          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl text-xs font-bold relative">
             <button
               onClick={() => setActiveTab('standard')}
               className={`py-2.5 rounded-xl transition-all ${
                 activeTab === 'standard'
-                  ? 'bg-white text-[#0052CC] shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-[#2563EB] dark:text-white shadow-xs'
+                  : 'text-[#64748B] dark:text-[#CBD5E1] hover:text-[#0F172A]'
               }`}
             >
               Standard Account
@@ -84,8 +84,8 @@ export const LoginPage: React.FC = () => {
               onClick={() => setActiveTab('sso')}
               className={`py-2.5 rounded-xl transition-all ${
                 activeTab === 'sso'
-                  ? 'bg-white text-[#0052CC] shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-[#2563EB] dark:text-white shadow-xs'
+                  : 'text-[#64748B] dark:text-[#CBD5E1] hover:text-[#0F172A]'
               }`}
             >
               Enterprise SSO
@@ -93,50 +93,49 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {errorMsg && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-bold text-center">
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold text-center">
               {errorMsg}
             </div>
           )}
 
-          {/* Standard Credentials Form */}
           {activeTab === 'standard' && (
             <form onSubmit={handleStandardSubmit} className="space-y-4">
               <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1">
+                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
                   Work Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="analyst@cybersec.io"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-xs text-slate-700">Account Password</label>
+                  <label className="font-bold text-xs text-[#0F172A] dark:text-white">Account Password</label>
                   <Link
                     to="/forgot-password"
-                    className="text-xs font-bold text-[#0052CC] hover:underline"
+                    className="text-xs font-bold text-[#2563EB] hover:underline"
                   >
                     Forgot password?
                   </Link>
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                    className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
                   />
                   <button
                     type="button"
@@ -151,7 +150,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+                className="w-full py-3.5 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
@@ -167,25 +166,24 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* SSO Form */}
           {activeTab === 'sso' && (
             <form onSubmit={handleSsoSubmit} className="space-y-4">
               <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1">
+                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
                   Organization Domain / Email
                 </label>
                 <div className="relative">
-                  <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type="text"
                     required
                     value={ssoDomain}
                     onChange={(e) => setSsoDomain(e.target.value)}
                     placeholder="company.com or name@company.com"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-1">
                   We'll redirect you to your organization's SAML 2.0 / Okta IDP provider.
                 </p>
               </div>
@@ -193,7 +191,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+                className="w-full py-3.5 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
@@ -209,11 +207,10 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Footer Navigation */}
-          <div className="text-center pt-2 border-t border-slate-100">
-            <p className="text-xs text-slate-500 font-medium">
+          <div className="text-center pt-2 border-t border-[#E2E8F0] dark:border-[#334155]">
+            <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] font-medium">
               Don't have an enterprise account?{' '}
-              <Link to="/register" className="font-bold text-[#0052CC] hover:underline">
+              <Link to="/register" className="font-bold text-[#2563EB] hover:underline">
                 Create new account
               </Link>
             </p>

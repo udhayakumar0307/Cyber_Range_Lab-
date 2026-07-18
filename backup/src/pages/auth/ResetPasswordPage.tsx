@@ -5,7 +5,9 @@ import { Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, ArrowLeft } fr
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
 
-  const isTokenExpired = searchParams.get('token') === 'expired';
+  const [isTokenExpired, setIsTokenExpired] = useState(searchParams.get('token') === 'expired');
+  const [errorMsg, setErrorMsg] = useState('');
+  const token = searchParams.get('token') || '';
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,15 +32,38 @@ export const ResetPasswordPage: React.FC = () => {
 
   const strengthInfo = getStrengthLabel();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
     if (!hasMinLength || !hasNumber || !hasSpecial || !isMatching) return;
+    if (!token) {
+      setIsTokenExpired(true);
+      return;
+    }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch('/api/v1/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.message && (data.message.toLowerCase().includes('expired') || data.message.toLowerCase().includes('token'))) {
+          setIsTokenExpired(true);
+          return;
+        }
+        throw new Error(data.message || 'Failed to reset password.');
+      }
       setIsSuccess(true);
-    }, 1000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -111,6 +136,12 @@ export const ResetPasswordPage: React.FC = () => {
           ) : (
             /* Form View */
             <form onSubmit={handleSubmit} className="space-y-4">
+              {errorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-bold text-center">
+                  {errorMsg}
+                </div>
+              )}
+
               <div>
                 <label className="font-bold text-xs text-slate-700 block mb-1">New Password</label>
                 <div className="relative">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, 
   Store, 
@@ -22,6 +23,17 @@ interface AdminSidebarProps {
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClose }) => {
+  const { user, logout } = useAuth();
+  
+  const getInitials = (name: string) => {
+    if (!name) return 'AD';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Lab Marketplace', path: '/admin/labs', icon: Store, badge: 'New' },
@@ -112,16 +124,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
       {/* Admin User Footer Profile */}
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 font-medium">
             <div className="w-9 h-9 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-              AD
+              {getInitials(user?.name || 'Admin Lead')}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-semibold text-slate-800 truncate">Admin Lead</p>
-              <p className="text-xs text-slate-500 truncate">admin@cyberrange.io</p>
+              <p className="text-sm font-semibold text-slate-800 truncate">{user?.name || 'Admin Lead'}</p>
+              <p className="text-xs text-slate-500 truncate">{user?.email || 'admin@cyberrange.in'}</p>
             </div>
           </div>
           <button 
+            onClick={logout}
             title="Log out" 
             className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
           >

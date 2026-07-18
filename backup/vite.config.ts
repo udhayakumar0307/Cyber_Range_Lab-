@@ -8,5 +8,11 @@ export default defineConfig({
   server: {
     host: true, // Listen on all network interfaces (0.0.0.0)
     allowedHosts: true, // Allow ngrok host headers
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      }
+    }
   },
 })

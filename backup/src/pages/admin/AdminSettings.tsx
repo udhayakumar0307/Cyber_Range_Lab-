@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Settings, 
   Building, 
@@ -9,8 +10,16 @@ import {
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
+  const { user } = useAuth();
   const [orgName, setOrgName] = useState('CyberRange Enterprise Security Inc.');
   const [adminEmail, setAdminEmail] = useState('admin@cyberrange.io');
+
+  useEffect(() => {
+    if (user) {
+      setAdminEmail(user.email);
+    }
+  }, [user]);
+
   const [sessionTimeout, setSessionTimeout] = useState('30'); // 30 minutes
   const [enableSso, setEnableSso] = useState(true);
 
