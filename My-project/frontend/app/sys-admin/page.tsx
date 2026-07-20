@@ -184,7 +184,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     )
   }
@@ -192,9 +192,9 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header Banner */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/20 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[100px] pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-xs">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
+        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
         
         <div className="flex flex-wrap items-center justify-between gap-6 relative z-10">
           <div>
@@ -203,26 +203,26 @@ export default function AdminDashboard() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">System Administrator</span>
+              <span className="text-xs font-mono uppercase tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">System Administrator</span>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400">
+            <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
               Operations Command Center
             </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400 leading-relaxed">
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
               Real-time monitoring, orchestration lanes, and resource provisioning management.
             </p>
           </div>
           
           <div className="flex items-center gap-4">
             {lastRefreshedAt && (
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-muted-foreground">
                 LKG: {lastRefreshedAt.toLocaleTimeString()}
               </span>
             )}
             <Button 
               variant="outline" 
               onClick={() => void load()}
-              className="border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white transition-all duration-300 rounded-xl"
+              className="border-border bg-background text-foreground hover:bg-muted transition-all duration-300 rounded-xl"
             >
               Refresh Data
             </Button>
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
         </div>
 
         {anyCriticalLoadFailure && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-rose-500/10 border border-rose-500/25 px-4 py-2 text-rose-400 text-xs w-fit">
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-rose-500/10 border border-rose-500/25 px-4 py-2 text-rose-600 dark:text-rose-400 text-xs w-fit">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>Degraded connectivity: Some backend metrics failed to load.</span>
           </div>
@@ -243,30 +243,26 @@ export default function AdminDashboard() {
           title="Total Users"
           value={data.totalUsersCount}
           statusLabel="All Active"
-          icon={<Users className="h-5 w-5 text-indigo-400" />}
-          gradient="from-indigo-500/10 to-transparent"
+          icon={<Users className="h-5 w-5 text-primary" />}
         />
         <KpiCard
           title="Pending Actions"
           value={data.activeEntitlementNoDeploymentCount}
           statusLabel="Pending Deploy"
-          icon={<AlertTriangle className="h-5 w-5 text-amber-400" />}
-          gradient="from-amber-500/10 to-transparent"
+          icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
           highlight={data.activeEntitlementNoDeploymentCount > 0}
         />
         <KpiCard
           title="Workshop Cohorts"
           value={data.workshopLaneUsersCount}
           statusLabel="Active Seats"
-          icon={<BookOpen className="h-5 w-5 text-purple-400" />}
-          gradient="from-purple-500/10 to-transparent"
+          icon={<BookOpen className="h-5 w-5 text-purple-500" />}
         />
         <KpiCard
           title="Failed Labs"
           value={data.failedDeploymentsCount}
           statusLabel="Requires Attention"
-          icon={<Server className="h-5 w-5 text-rose-400" />}
-          gradient="from-rose-500/10 to-transparent"
+          icon={<Server className="h-5 w-5 text-rose-500" />}
           danger={data.failedDeploymentsCount > 0}
           highlight={data.failedDeploymentsCount > 0}
         />
@@ -274,51 +270,49 @@ export default function AdminDashboard() {
           title="Pending Invoices"
           value={data.pendingPaymentsCount}
           statusLabel="Awaiting Gateway"
-          icon={<CreditCard className="h-5 w-5 text-emerald-400" />}
-          gradient="from-emerald-500/10 to-transparent"
+          icon={<CreditCard className="h-5 w-5 text-emerald-500" />}
         />
       </div>
 
       {/* Operations Lanes split */}
       <div className="grid gap-8 xl:grid-cols-2">
         {/* Individual Operations */}
-        <Card className="relative overflow-hidden border border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-2xl flex flex-col group hover:border-emerald-500/20 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-500" />
-          <CardHeader className="pb-4 border-b border-white/5 bg-slate-950/20">
+        <Card className="relative overflow-hidden border border-border bg-card rounded-2xl flex flex-col group hover:border-primary/30 transition-all duration-300 shadow-xs">
+          <CardHeader className="pb-4 border-b border-border bg-muted/40">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <CreditCard className="h-5 w-5 text-emerald-400" />
+              <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
+                <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-xl text-white">Individual Pipeline</CardTitle>
-                <p className="text-xs text-slate-400 mt-0.5">B2C Retail Lab Activation & Provisioning</p>
+                <CardTitle className="text-xl text-foreground">Individual Pipeline</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">B2C Retail Lab Activation & Provisioning</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col p-6 gap-6">
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Monitor individual participant workspaces, process incoming transaction webhooks, and manage direct lab server endpoints.
             </p>
             <div className="space-y-3">
               <MetricRow
                 label="B2C Registered Users"
                 value={`${data.individualLaneUsersCount} users`}
-                icon={<Users className="h-4 w-4 text-emerald-400" />}
+                icon={<Users className="h-4 w-4 text-primary" />}
               />
               <MetricRow
                 label="Provisioning Queue Blocks"
                 value={`${data.activeEntitlementNoDeploymentCount} queued`}
-                icon={<Server className="h-4 w-4 text-amber-400" />}
+                icon={<Server className="h-4 w-4 text-amber-500" />}
                 highlight={data.activeEntitlementNoDeploymentCount > 0}
               />
               <MetricRow
                 label="Unpaid/Pending Checkouts"
                 value={`${data.pendingPaymentUsersCount} checkouts`}
-                icon={<CreditCard className="h-4 w-4 text-slate-400" />}
+                icon={<CreditCard className="h-4 w-4 text-muted-foreground" />}
               />
             </div>
-            <Button asChild className="mt-auto bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl shadow-lg shadow-emerald-500/10 border-0 py-5 transition-all duration-300 hover:translate-x-0.5">
-              <Link href="/admin/ops/individual">
+            <Button asChild className="mt-auto bg-primary text-primary-foreground rounded-xl shadow-xs border-0 py-5 transition-all duration-300 hover:translate-x-0.5">
+              <Link href="/sys-admin/ops/individual">
                 Access Individual Ops
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
@@ -327,28 +321,27 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Workshop Operations */}
-        <Card className="relative overflow-hidden border border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-2xl flex flex-col group hover:border-indigo-500/20 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-indigo-500/10 transition-all duration-500" />
-          <CardHeader className="pb-4 border-b border-white/5 bg-slate-950/20">
+        <Card className="relative overflow-hidden border border-border bg-card rounded-2xl flex flex-col group hover:border-primary/30 transition-all duration-300 shadow-xs">
+          <CardHeader className="pb-4 border-b border-border bg-muted/40">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                <BookOpen className="h-5 w-5 text-indigo-400" />
+              <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                <BookOpen className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <CardTitle className="text-xl text-white">Workshop & Corporate</CardTitle>
-                <p className="text-xs text-slate-400 mt-0.5">B2B Cohorts & Instructor Delivery Management</p>
+                <CardTitle className="text-xl text-foreground">Workshop & Corporate</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">B2B Cohorts & Instructor Delivery Management</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col p-6 gap-6">
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Track course-admin allocations, monitor cohort-wide lab subnets, and audit virtual environment configuration states.
             </p>
             <div className="space-y-3">
               <MetricRow
                 label="B2B Enrolled Cohort Users"
                 value={`${data.workshopLaneUsersCount} users`}
-                icon={<Users className="h-4 w-4 text-indigo-400" />}
+                icon={<Users className="h-4 w-4 text-purple-500" />}
               />
               <MetricRow
                 label="Courses with Active Admins"
@@ -357,18 +350,18 @@ export default function AdminDashboard() {
                     ? "coming soon"
                     : `${data.coursesWithActiveAdminsCount} active`
                 }
-                icon={<BookOpen className="h-4 w-4 text-purple-400" />}
+                icon={<BookOpen className="h-4 w-4 text-purple-500" />}
                 muted={data.coursesWithActiveAdminsCount === null}
               />
               <MetricRow
                 label="Subnet Coverage Alerts"
                 value={`${data.workshopCoverageIssuesCount} issues`}
-                icon={<AlertTriangle className="h-4 w-4 text-rose-400" />}
+                icon={<AlertTriangle className="h-4 w-4 text-rose-500" />}
                 highlight={data.workshopCoverageIssuesCount > 0}
               />
             </div>
-            <Button asChild variant="outline" className="mt-auto border-white/10 hover:bg-indigo-500/10 hover:border-indigo-500/30 text-white rounded-xl py-5 transition-all duration-300 hover:translate-x-0.5">
-              <Link href="/admin/ops/workshop">
+            <Button asChild variant="outline" className="mt-auto border-border bg-background text-foreground hover:bg-muted rounded-xl py-5 transition-all duration-300 hover:translate-x-0.5">
+              <Link href="/sys-admin/ops/workshop">
                 Access Workshop Ops
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
@@ -378,29 +371,29 @@ export default function AdminDashboard() {
       </div>
 
       {/* Health Console Feed */}
-      <Card className="border border-white/5 bg-slate-950/40 backdrop-blur-xl rounded-2xl overflow-hidden">
-        <CardHeader className="border-b border-white/5 pb-4">
+      <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-xs">
+        <CardHeader className="border-b border-border bg-muted/40 pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-white font-semibold flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <CardTitle className="text-base text-foreground font-semibold flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               System Status Console
             </CardTitle>
-            <span className="text-[10px] font-mono uppercase text-slate-500 tracking-wider">Diagnostic Log feed</span>
+            <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider">Diagnostic Log feed</span>
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="rounded-xl bg-black/60 p-4 font-mono text-xs text-slate-400 border border-white/5 shadow-inner space-y-2.5 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
-            <p className="text-emerald-400/90"><span className="text-slate-600">[00:20:15]</span> [INFO] Backend engine connected. Connection pool warmed.</p>
-            <p className="text-indigo-400/90"><span className="text-slate-600">[00:21:02]</span> [SYSTEM] Active subnet allocation ranges monitored (VPC 10.20.0.0/16).</p>
-            <p className="text-teal-400/90"><span className="text-slate-600">[00:21:16]</span> [WORKER] Lab provisioning worker online and listening to database queue.</p>
-            <p className="text-slate-500"><span className="text-slate-600">[00:23:45]</span> [CONSOLE] Health diagnostics queried. System status: fully operational.</p>
+          <div className="rounded-xl bg-muted border border-border p-4 font-mono text-xs text-foreground space-y-2.5 max-h-[160px] overflow-y-auto scrollbar-thin">
+            <p className="text-emerald-600 dark:text-emerald-400"><span className="text-muted-foreground">[00:20:15]</span> [INFO] Backend engine connected. Connection pool warmed.</p>
+            <p className="text-primary"><span className="text-muted-foreground">[00:21:02]</span> [SYSTEM] Active subnet allocation ranges monitored (VPC 10.20.0.0/16).</p>
+            <p className="text-teal-600 dark:text-teal-400"><span className="text-muted-foreground">[00:21:16]</span> [WORKER] Lab provisioning worker online and listening to database queue.</p>
+            <p className="text-muted-foreground"><span className="text-muted-foreground">[00:23:45]</span> [CONSOLE] Health diagnostics queried. System status: fully operational.</p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button asChild size="sm" variant="outline" className="border-white/5 hover:bg-white/5 text-slate-300 rounded-lg">
-              <Link href="/admin/deployments">View Active Deployments</Link>
+            <Button asChild size="sm" variant="outline" className="border-border bg-background text-foreground hover:bg-muted rounded-lg">
+              <Link href="/sys-admin/deployments">View Active Deployments</Link>
             </Button>
-            <Button asChild size="sm" variant="outline" className="border-white/5 hover:bg-white/5 text-slate-300 rounded-lg">
-              <Link href="/admin/billing/payments">Audit Billing Payments</Link>
+            <Button asChild size="sm" variant="outline" className="border-border bg-background text-foreground hover:bg-muted rounded-lg">
+              <Link href="/sys-admin/billing/payments">Audit Billing Payments</Link>
             </Button>
           </div>
         </CardContent>
@@ -414,7 +407,6 @@ function KpiCard({
   value,
   statusLabel,
   icon,
-  gradient,
   danger = false,
   highlight = false,
 }: {
@@ -422,30 +414,25 @@ function KpiCard({
   value: number
   statusLabel: string
   icon: React.ReactNode
-  gradient: string
   danger?: boolean
   highlight?: boolean
 }) {
   return (
-    <Card className={`relative overflow-hidden border border-white/5 bg-slate-900/20 backdrop-blur-md rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:border-white/10 ${
-      highlight ? (danger ? 'shadow-[0_0_20px_rgba(239,68,68,0.1)]' : 'shadow-[0_0_20px_rgba(245,158,11,0.08)]') : ''
-    }`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} pointer-events-none opacity-40`} />
-      
+    <Card className="relative overflow-hidden border border-border bg-card rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 shadow-xs">
       <div className="flex items-start justify-between relative z-10">
         <div>
-          <span className="text-xs font-medium text-slate-400 tracking-wider block mb-1">{title}</span>
-          <span className={`text-4xl font-extrabold tracking-tight ${danger ? 'text-rose-400' : highlight ? 'text-amber-400' : 'text-white'}`}>
+          <span className="text-xs font-medium text-muted-foreground tracking-wider block mb-1">{title}</span>
+          <span className={`text-4xl font-extrabold tracking-tight ${danger ? 'text-rose-600 dark:text-rose-400' : highlight ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
             {value}
           </span>
         </div>
-        <div className={`p-2 rounded-xl bg-white/5 border border-white/10`}>
+        <div className="p-2 rounded-xl bg-muted border border-border">
           {icon}
         </div>
       </div>
       
-      <div className="mt-4 flex items-center justify-between relative z-10 border-t border-white/5 pt-3">
-        <span className="text-[10px] uppercase font-mono tracking-widest text-slate-500">{statusLabel}</span>
+      <div className="mt-4 flex items-center justify-between relative z-10 border-t border-border pt-3">
+        <span className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground">{statusLabel}</span>
         <Badge variant={danger ? "destructive" : highlight ? "outline" : "secondary"} className="text-[10px] rounded-md px-1.5 py-0.5">
           Active
         </Badge>
@@ -468,21 +455,20 @@ function MetricRow({
   highlight?: boolean
 }) {
   return (
-    <div className={`flex items-center justify-between rounded-xl border border-white/5 bg-slate-950/30 px-4 py-3 transition-all duration-200 hover:bg-slate-950/50 ${
-      highlight ? 'border-amber-500/20 bg-amber-500/5' : ''
+    <div className={`flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3 transition-all duration-200 hover:bg-muted/40 ${
+      highlight ? 'border-amber-500/30 bg-amber-500/5' : ''
     }`}>
-      <p className="inline-flex items-center gap-3 text-sm text-slate-300">
-        <span className="p-1 rounded-lg bg-white/5">
+      <p className="inline-flex items-center gap-3 text-sm text-foreground">
+        <span className="p-1 rounded-lg bg-muted border border-border">
           {icon}
         </span>
         {label}
       </p>
       <span className={`text-sm font-bold ${
-        muted ? "text-slate-500" : highlight ? "text-amber-400" : "text-white"
+        muted ? "text-muted-foreground" : highlight ? "text-amber-600 dark:text-amber-400" : "text-foreground"
       }`}>
         {value}
       </span>
     </div>
   )
 }
-

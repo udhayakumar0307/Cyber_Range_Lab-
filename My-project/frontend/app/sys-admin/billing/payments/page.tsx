@@ -103,41 +103,41 @@ export default function AdminBillingPaymentsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#0A0A0B]">
+      <div className="flex min-h-[60vh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="relative h-16 w-16">
             <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 animate-pulse" />
             <Loader2 className="h-16 w-16 animate-spin text-emerald-500" />
           </div>
-          <p className="text-sm font-medium text-slate-400 animate-pulse">Loading billing ledger payments...</p>
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">Loading billing ledger payments...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-slate-100 flex flex-col selection:bg-emerald-500/30 space-y-8 pb-16">
+    <div className="min-h-screen bg-background text-foreground flex flex-col space-y-8 pb-16">
       <OpsFeedReturnBanner />
 
       {/* Top Glassmorphic Hero Banner */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-white/[0.05] via-white/[0.02] to-white/[0.05] p-8 backdrop-blur-xl shadow-2xl m-6 mb-0">
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-xs m-6 mb-0">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-[100px] pointer-events-none animate-pulse" />
         
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 font-mono text-xs text-emerald-400 font-bold shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                 <CreditCard className="w-3.5 h-3.5" /> Billing Ledger
               </span>
-              <Badge className="bg-white/5 border border-white/10 text-slate-400 text-xs px-2.5 py-0.5">Payments Admin</Badge>
+              <Badge variant="outline" className="border-border text-muted-foreground text-xs px-2.5 py-0.5">Payments Admin</Badge>
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">Billing Payments</h1>
-            <p className="text-slate-400 text-sm max-w-2xl leading-relaxed font-light font-sans">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Billing Payments</h1>
+            <p className="text-muted-foreground text-sm max-w-2xl leading-relaxed font-light font-sans">
               Diagnose and audit individual gateway transactions. Troubleshoot pending, expired, or failed payments, and map entitlements to user accounts.
             </p>
           </div>
-          <Button asChild variant="outline" className="h-11 rounded-xl border-white/10 bg-white/5 hover:bg-white/10 font-semibold px-6 text-white text-xs shrink-0">
-            <Link href="/admin/billing">
+          <Button asChild variant="outline" className="h-11 rounded-xl border-border bg-background hover:bg-muted font-semibold px-6 text-foreground text-xs shrink-0">
+            <Link href="/sys-admin/billing">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Snapshot
             </Link>
