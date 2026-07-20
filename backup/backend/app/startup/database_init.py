@@ -146,6 +146,44 @@ def create_default_admin_logic(session_factory):
                 idx += 1
             session.commit()
 
+        # Seed Recon Lab & modules dynamically
+        recon_lab = session.query(Lab).filter(Lab.id == "lab1-recon").first()
+        if not recon_lab:
+            recon_lab = Lab(
+                id="lab1-recon",
+                name="Network Reconnaissance Lab",
+                category="recon",
+                difficulty="intermediate",
+                max_points=1000,
+                estimated_time=180,
+                status="ACTIVE"
+            )
+            session.add(recon_lab)
+            session.commit()
+
+            recon_modules = [
+                ("recon_mod1", 1, "Module 1: Port Discovery & Enumeration", "Perform initial network reconnaissance and discover open TCP ports.", 100, "recon"),
+                ("recon_mod2", 2, "Module 2: Service Version Fingerprinting", "Fingerprint service banners and identify software versions.", 150, "recon"),
+                ("recon_mod3", 3, "Module 3: Hidden Service Discovery", "Locate hidden administration endpoints and unlisted HTTP paths.", 200, "recon"),
+                ("recon_mod4", 4, "Module 4: Credential Discovery", "Extract exposed credentials from configuration files and service logs.", 250, "recon"),
+                ("recon_mod5", 5, "Module 5: Full Network Infiltration (Capstone)", "Synthesize recon findings, escalate privileges, and compromise target system.", 300, "recon")
+            ]
+            for mid, mnum, mtitle, mdesc, mpts, mtrack in recon_modules:
+                existing_mod = session.query(LabModule).filter(LabModule.id == mid, LabModule.lab_id == "lab1-recon").first()
+                if not existing_mod:
+                    new_mod = LabModule(
+                        id=mid,
+                        lab_id="lab1-recon",
+                        module_number=mnum,
+                        title=mtitle,
+                        description=mdesc,
+                        points=mpts,
+                        display_order=mnum,
+                        track=mtrack
+                    )
+                    session.add(new_mod)
+            session.commit()
+
         # Check and provision settings-configured admin
         config_admin_email = settings.ADMIN_EMAIL
         if config_admin_email and config_admin_email != "admin@cyberrange.in":
@@ -167,24 +205,30 @@ def create_default_admin_logic(session_factory):
                 session.commit()
                 logger.info(f"Configured admin user created with email '{config_admin_email}'")
 
-        # Provision TASK 5 Default Admin (admin@cyberrange.in)
+        # Provision Default Admin (admin@cyberrange.in)
         default_admin_email = "admin@cyberrange.in"
+        from app.core.security import get_password_hash
+        hashed_pw = get_password_hash("password")
+
         default_admin = session.query(User).filter(User.email == default_admin_email).first()
         if not default_admin:
-            from app.core.security import get_password_hash
-            hashed_pw = get_password_hash("password")
             new_default_admin = User(
                 name="Admin",
                 email=default_admin_email,
                 password_hash=hashed_pw,
                 role="admin",
+                organization="CyberRange HQ",
                 is_active=True
             )
             session.add(new_default_admin)
             session.commit()
-            logger.info("Default admin created")
+            logger.info("Default admin (admin@cyberrange.in / password) created successfully.")
         else:
-            logger.info("Admin already exists")
+            default_admin.password_hash = hashed_pw
+            default_admin.role = "admin"
+            default_admin.is_active = True
+            session.commit()
+            logger.info("Default admin (admin@cyberrange.in) verified and password updated.")
 
         # Provision TASK 6 Demo User (Alex Operator - user@cyberrange.in)
         demo_user_email = "user@cyberrange.in"
@@ -202,6 +246,34 @@ def create_default_admin_logic(session_factory):
             session.add(new_demo_user)
             session.commit()
             logger.info("Demo user 'Alex Operator' created successfully")
+
+        # Provision System Admin user from settings (.env)
+        sys_admin_email = settings.SYSTEM_ADMIN_EMAIL or "sysadmin@cyberrange.in"
+        sys_admin_password = settings.SYSTEM_ADMIN_PASSWORD or "sysadmin_password_2026"
+        sys_admin_name = settings.SYSTEM_ADMIN_NAME or "System Admin"
+
+        existing_sys_admin = session.query(User).filter(User.email == sys_admin_email).first()
+        if not existing_sys_admin:
+            from app.core.security import get_password_hash
+            hashed_sys_pw = get_password_hash(sys_admin_password)
+            new_sys_admin = User(
+                name=sys_admin_name,
+                email=sys_admin_email,
+                password_hash=hashed_sys_pw,
+                role="SYSTEM_ADMIN",
+                organization="CyberRange Platform",
+                is_active=True
+            )
+            session.add(new_sys_admin)
+            session.commit()
+            logger.info(f"System Admin user '{sys_admin_email}' seeded successfully during database initialization.")
+        else:
+            from app.core.security import get_password_hash
+            existing_sys_admin.password_hash = get_password_hash(sys_admin_password)
+            existing_sys_admin.role = "SYSTEM_ADMIN"
+            existing_sys_admin.is_active = True
+            session.commit()
+            logger.info(f"System Admin user '{sys_admin_email}' verified and updated in database.")
     except Exception as e:
         logger.error(f"Error provisioning roles or default admin user: {e}", exc_info=True)
         session.rollback()

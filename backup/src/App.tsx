@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { LabMarketplace } from './pages/admin/LabMarketplace';
@@ -16,13 +17,23 @@ import { AdminSettings } from './pages/admin/AdminSettings';
 // Admin Scheduler & CTF Hub Pages
 import { LabSchedulerPage } from './pages/admin/LabSchedulerPage';
 import { CtfAdminPage } from './pages/admin/CtfAdminPage';
+import { SystemAuditPortal } from './pages/admin/SystemAuditPortal';
+import { SystemPortal } from './pages/admin/SystemPortal';
+
 
 // Auth Section Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { AdminLoginPage } from './pages/auth/AdminLoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { AdminRegisterPage } from './pages/auth/AdminRegisterPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
+
+// Admin Extended Pages
+import { AdminProfilePage } from './pages/admin/AdminProfilePage';
+import { PaymentHistoryPage } from './pages/admin/PaymentHistoryPage';
+import { PurchasedLabsPage } from './pages/admin/PurchasedLabsPage';
 
 // User Layout & Pages
 import { UserLayout } from './components/user/UserLayout';
@@ -61,6 +72,17 @@ export function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Hidden Admin Portal Routes (Unlinked from all public navigation) */}
+            <Route path="/adminform" element={<AdminLoginPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route path="/admin-login" element={<AdminLoginPage />} />
+            <Route path="/adminform/register" element={<AdminRegisterPage />} />
+            <Route path="/adminform/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/adminform/reset-password" element={<ResetPasswordPage />} />
+            
+            <Route path="/admin/register" element={<AdminRegisterPage />} />
+            <Route path="/admin-register" element={<AdminRegisterPage />} />
             <Route
               path="/onboarding"
               element={
@@ -126,6 +148,32 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['user', 'admin']}>
                   <CommandLineLabSession />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Network Reconnaissance Lab Routes & Aliases */}
+            <Route
+              path="/labs/lab1-recon/session"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ChallengeSession />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/recon-lab"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ChallengeSession />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/labs/lab1-recon"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ChallengeSession />
                 </ProtectedRoute>
               }
             />
@@ -232,9 +280,11 @@ export function App() {
               path="/admin/dashboard"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <AdminDashboard />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <AdminDashboard />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -242,9 +292,11 @@ export function App() {
               path="/admin/labs"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <LabMarketplace />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <LabMarketplace />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -252,7 +304,19 @@ export function App() {
               path="/admin/scheduler"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <LabSchedulerPage />
+                  <ErrorBoundary>
+                    <LabSchedulerPage />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/lab-scheduler"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <LabSchedulerPage />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -260,7 +324,9 @@ export function App() {
               path="/admin/ctf"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <CtfAdminPage />
+                  <ErrorBoundary>
+                    <CtfAdminPage />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -268,9 +334,11 @@ export function App() {
               path="/admin/labs/:labId/purchase"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <LabPurchaseConfirmation />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <LabPurchaseConfirmation />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -278,9 +346,11 @@ export function App() {
               path="/admin/users"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <UserManagement />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <UserManagement />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -288,9 +358,11 @@ export function App() {
               path="/admin/groups"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <GroupManagement />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <GroupManagement />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -298,9 +370,11 @@ export function App() {
               path="/admin/allocations"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <LabAllocation />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <LabAllocation />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -308,9 +382,23 @@ export function App() {
               path="/admin/labs/control"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <LabControlPanel />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <LabControlPanel />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/lab-control"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <LabControlPanel />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -318,9 +406,11 @@ export function App() {
               path="/admin/monitoring"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <MonitoringAnalytics />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <MonitoringAnalytics />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -328,9 +418,72 @@ export function App() {
               path="/admin/settings"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminLayout>
-                    <AdminSettings />
-                  </AdminLayout>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <AdminSettings />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/profile"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <AdminProfilePage />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <PaymentHistoryPage />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/system" element={<SystemPortal />} />
+            <Route
+              path="/system/audit"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'system_admin', 'SYSTEM_ADMIN']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <SystemAuditPortal />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/payment-history"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <PaymentHistoryPage />
+                    </AdminLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/purchased-labs"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ErrorBoundary>
+                    <AdminLayout>
+                      <PurchasedLabsPage />
+                    </AdminLayout>
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             />

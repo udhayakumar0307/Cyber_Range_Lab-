@@ -1,0 +1,25 @@
+{
+  "student_id": "student",
+  "flags": {
+    "module1": "FLAG{cll_module1_student_8e06105f}",
+    "module2": "FLAG{cll_module2_student_66796faf}",
+    "module3": "FLAG{cll_module3_student_9cc49203}",
+    "module4": "FLAG{cll_module4_student_4297bae3}",
+    "module5": "FLAG{cll_module5_student_109dd437}",
+    "python_module1": "FLAG{cll_python_module1_student_89d09a2e}",
+    "python_module2": "FLAG{cll_python_module2_student_86e5e00d}",
+    "python_module3": "FLAG{cll_python_module3_student_c6ea5573}",
+    "python_module4": "FLAG{cll_python_module4_student_fbadb689}",
+    "python_module5": "FLAG{cll_python_module5_student_268bd1e2}",
+    "c_module1": "FLAG{cll_c_module1_student_341633f0}",
+    "c_module2": "FLAG{cll_c_module2_student_3f7faea7}",
+    "c_module3": "FLAG{cll_c_module3_student_bcc023a3}",
+    "c_module4": "FLAG{cll_c_module4_student_92788f58}",
+    "c_module5": "FLAG{cll_c_module5_student_e8cc5d35}",
+    "cpp_module1": "FLAG{cll_cpp_module1_student_2c9d6501}",
+    "cpp_module2": "FLAG{cll_cpp_module2_student_4612549c}",
+    "cpp_module3": "FLAG{cll_cpp_module3_student_e8f63cdf}",
+    "cpp_module4": "FLAG{cll_cpp_module4_student_d57edb25}",
+    "cpp_module5": "FLAG{cll_cpp_module5_student_d5a7f3a6}"
+  }
+}

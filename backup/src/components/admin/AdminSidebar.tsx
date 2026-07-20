@@ -14,7 +14,9 @@ import {
   ChevronRight,
   LogOut,
   Calendar,
-  Trophy
+  Trophy,
+  FlaskConical,
+  CreditCard
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -37,6 +39,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Lab Marketplace', path: '/admin/labs', icon: Store, badge: 'New' },
+    { name: 'Purchased Labs', path: '/admin/purchased-labs', icon: FlaskConical },
+    { name: 'Payment History', path: '/admin/payments', icon: CreditCard },
     { name: 'Lab Scheduler', path: '/admin/scheduler', icon: Calendar },
     { name: 'CTF Event Hub', path: '/admin/ctf', icon: Trophy, badge: 'CTF' },
     { name: 'User Management', path: '/admin/users', icon: Users },
@@ -48,12 +52,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   ];
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col justify-between shadow-sm`}>
+    <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col justify-between shadow-sm`}>
       {/* Brand Header */}
       <div>
-        <div className="h-16 flex items-center px-6 border-b border-slate-100 justify-between">
+        <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-800 justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0052CC] shadow-sm relative group">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-800 flex items-center justify-center text-[#0052CC] dark:text-blue-400 shadow-sm relative group">
               <Shield className="w-6 h-6 animate-shield" />
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -61,29 +65,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
               </span>
             </div>
             <div>
-              <h1 className="font-bold text-slate-800 text-base leading-none">CyberRange</h1>
-              <span className="text-xs font-semibold text-[#0052CC] bg-blue-50 px-2 py-0.5 rounded-full mt-1 inline-block">
-                Admin Portal
+              <h1 className="font-bold text-slate-900 dark:text-white text-base leading-none">CyberRange</h1>
+              <span className="text-[11px] font-semibold text-[#0052CC] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full mt-1 inline-block border border-blue-100/50 dark:border-blue-900/40">
+                Admin Console
               </span>
             </div>
           </div>
-
-          {onClose && (
-            <button 
-              onClick={onClose}
-              className="lg:hidden text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-            >
-              ✕
-            </button>
-          )}
         </div>
 
-        {/* Navigation Section */}
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)]">
-          <div className="px-3 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Admin Management
-          </div>
-
+        {/* Navigation Items */}
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-160px)]">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -92,10 +83,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                 to={item.path}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
                     isActive
-                      ? 'bg-blue-50 text-[#0052CC] font-semibold shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-[#0052CC] dark:text-blue-400 font-bold border border-blue-100 dark:border-blue-800/50'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white'
                   }`
                 }
               >
@@ -109,11 +100,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   )}
                   {item.badge && (
-                    <span className="text-[10px] font-bold bg-purple-100 text-[#6F42C1] px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-950/60 text-[#6F42C1] dark:text-purple-300 px-2 py-0.5 rounded-full">
                       {item.badge}
                     </span>
                   )}
-                  <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+                  <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 dark:text-slate-500" />
                 </div>
               </NavLink>
             );
@@ -122,21 +113,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
       </div>
 
       {/* Admin User Footer Profile */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+      <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 font-medium">
+          <NavLink to="/admin/profile" className="flex items-center gap-3 font-medium hover:opacity-80 transition-opacity">
             <div className="w-9 h-9 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-sm shadow-sm">
               {getInitials(user?.name || 'Admin Lead')}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-semibold text-slate-800 truncate">{user?.name || 'Admin Lead'}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email || 'admin@cyberrange.in'}</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{user?.name || 'Admin Lead'}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email || 'admin@cyberrange.in'}</p>
             </div>
-          </div>
+          </NavLink>
           <button 
             onClick={logout}
             title="Log out" 
-            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+            className="text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
           >
             <LogOut className="w-4 h-4" />
           </button>

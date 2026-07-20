@@ -27,10 +27,10 @@ export const LoginPage: React.FC = () => {
     try {
       const { role } = await login(email, password);
       setIsLoading(false);
-      if (role === 'admin') {
+      if (role && role.toLowerCase() === 'admin') {
         navigate('/admin/dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/labs');
       }
     } catch (err: any) {
       setIsLoading(false);

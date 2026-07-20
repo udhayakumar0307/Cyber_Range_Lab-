@@ -442,8 +442,10 @@ def submit_flag(
             progress.browser = browser
             progress.device = device
 
+        old_rank = db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() + 1
         logger.info(f"[submit_flag] Updating total_score for user_id={current_user.id}: previous={current_user.total_score}, added={points}")
         current_user.total_score += points
+        new_rank = db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() + 1
 
         # Achievement evaluation
         achievements_earned = []
@@ -550,6 +552,18 @@ def submit_flag(
             )
             db.add(log_lab)
 
+        from app.services.notification_service import notification_service
+        if solved_count == total_db_mods:
+            notification_service.create_and_send(db, current_user.id, "Lab Completion",
+                                                 f"You completed {lab.name}.", "LAB_COMPLETION", current_user.phone)
+        for achievement_id in achievements_earned:
+            notification_service.create_and_send(db, current_user.id, "Achievement Unlocked",
+                                                 f"You unlocked {achievement_id}.", "ACHIEVEMENT", current_user.phone)
+        if new_rank < old_rank:
+            notification_service.create_and_send(db, current_user.id, "Rank Improvement",
+                                                 f"Your leaderboard position improved from #{old_rank} to #{new_rank}.",
+                                                 "RANK_IMPROVEMENT", current_user.phone)
+
         logger.info(f"[submit_flag] Committing single ACID transaction for user_id={current_user.id}...")
         db.commit()
         logger.info(f"[submit_flag] Commit successful! Returning success response to client.")
@@ -564,5 +578,3 @@ def submit_flag(
         db.rollback()
         logger.error(f"[submit_flag] Transaction failed for module_id='{payload.module_id}'. Rolled back! Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Database transaction error: {str(e)}")
-
-

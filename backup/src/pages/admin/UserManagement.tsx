@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PlatformUser } from '../../types/admin';
 import { UserAddModal } from '../../components/admin/UserAddModal';
 import { BulkImportModal } from '../../components/admin/BulkImportModal';
@@ -17,80 +17,36 @@ import {
 } from 'lucide-react';
 
 export const UserManagement: React.FC = () => {
-  // Initial Mock Users
-  const [users, setUsers] = useState<PlatformUser[]>([
-    {
-      id: 'usr-1',
-      fullName: 'Sarah Connor',
-      email: 's.connor@cybersec.io',
-      role: 'Admin',
-      groupName: 'Red Team Cohort 2026',
-      groupId: 'grp-1',
-      status: 'Active',
-      joinedDate: '2026-01-15',
-      lastActive: '5 mins ago',
-      score: 2450,
-      completedLabsCount: 8,
-    },
-    {
-      id: 'usr-2',
-      fullName: 'Marcus Vance',
-      email: 'm.vance@defense.org',
-      role: 'Instructor',
-      groupName: 'Blue Team Defense Alpha',
-      groupId: 'grp-2',
-      status: 'Active',
-      joinedDate: '2026-02-01',
-      lastActive: '12 mins ago',
-      score: 1980,
-      completedLabsCount: 6,
-    },
-    {
-      id: 'usr-3',
-      fullName: 'Alex Mercer',
-      email: 'alex@soc-team.com',
-      role: 'User',
-      groupName: 'SOC Analysts Batch B',
-      groupId: 'grp-3',
-      status: 'Active',
-      joinedDate: '2026-03-10',
-      lastActive: '1 hour ago',
-      score: 1120,
-      completedLabsCount: 4,
-    },
-    {
-      id: 'usr-4',
-      fullName: 'Elena Rostova',
-      email: 'elena@cyber-academy.edu',
-      role: 'User',
-      groupName: 'Red Team Cohort 2026',
-      groupId: 'grp-1',
-      status: 'Inactive',
-      joinedDate: '2026-04-05',
-      lastActive: '3 days ago',
-      score: 840,
-      completedLabsCount: 3,
-    },
-    {
-      id: 'usr-5',
-      fullName: 'David Kim',
-      email: 'dkim@enterprise.net',
-      role: 'User',
-      groupName: 'SOC Analysts Batch B',
-      groupId: 'grp-3',
-      status: 'Active',
-      joinedDate: '2026-05-18',
-      lastActive: 'Just now',
-      score: 1650,
-      completedLabsCount: 5,
-    },
-  ]);
+  const [users, setUsers] = useState<PlatformUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Filtering & Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch('/api/v1/admin/users', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setUsers(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   // Modal visibility states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -236,11 +192,11 @@ export const UserManagement: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 font-semibold">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800 font-semibold">
           <span>Showing {filteredUsers.length} of {users.length} registered platform users</span>
           <button
             onClick={() => alert('Exporting users roster report to CSV format...')}
-            className="text-[#0052CC] hover:underline inline-flex items-center gap-1"
+            className="text-[#0052CC] dark:text-blue-400 hover:underline inline-flex items-center gap-1"
           >
             <Download className="w-3.5 h-3.5" /> Export Users CSV Report
           </button>
@@ -248,10 +204,10 @@ export const UserManagement: React.FC = () => {
       </div>
 
       {/* 5.2 Comprehensive User Data Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100/80 text-slate-600 text-xs font-extrabold uppercase tracking-wider border-b border-slate-200">
+            <thead className="bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="p-4">User Metadata</th>
                 <th className="p-4">Role Permission</th>
@@ -262,10 +218,10 @@ export const UserManagement: React.FC = () => {
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
                     No matching users found for current filter selections.
                   </td>
                 </tr>

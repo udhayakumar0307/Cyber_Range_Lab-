@@ -15,6 +15,11 @@ from app.models.user_achievement import UserAchievement
 from app.models.professor_assignment import ProfessorAssignment
 from app.models.student_assignment import StudentAssignment
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification, NotificationPreference
+from app.models.admin_models import (
+    Organization, AdminProfile, Cart, CartItem, Order, OrderItem,
+    Payment, Invoice, PurchasedLab, License, BillingAddress, Subscription
+)
 
 __all__ = [
     "Base",
@@ -33,6 +38,19 @@ __all__ = [
     "UserAchievement",
     "ProfessorAssignment",
     "StudentAssignment",
-    "AuditLog"
+    "AuditLog",
+    "Notification",
+    "NotificationPreference",
+    "Organization",
+    "AdminProfile",
+    "Cart",
+    "CartItem",
+    "Order",
+    "OrderItem",
+    "Payment",
+    "Invoice",
+    "PurchasedLab",
+    "License",
+    "BillingAddress",
+    "Subscription"
 ]
-

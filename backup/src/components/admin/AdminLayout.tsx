@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { 
   Bell, 
   Search, 
   Menu, 
-  HelpCircle 
+  HelpCircle,
+  ChevronDown,
+  User as UserIcon,
+  Building2,
+  CreditCard,
+  FlaskConical,
+  Sun,
+  Moon,
+  Monitor,
+  Shield,
+  Settings,
+  LogOut
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -13,8 +26,11 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const getInitials = (name: string) => {
     if (!name) return 'AD';
@@ -122,14 +138,118 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               )}
             </div>
 
-            {/* Profile Avatar Badge */}
-            <div className="flex items-center gap-2 border-l border-[#E2E8F0] dark:border-[#334155] pl-3 sm:pl-4">
-              <div className="w-8 h-8 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                {getInitials(user?.name || 'Security Admin')}
-              </div>
-              <span className="hidden md:inline-block font-semibold text-sm text-[#0F172A] dark:text-white">
-                {user?.name || 'Security Admin'}
-              </span>
+            {/* Profile Avatar & Dropdown */}
+            <div className="relative border-l border-[#E2E8F0] dark:border-[#334155] pl-3 sm:pl-4">
+              <button
+                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  {getInitials(user?.name || 'Security Admin')}
+                </div>
+                <span className="hidden md:inline-block font-semibold text-sm text-[#0F172A] dark:text-white">
+                  {user?.name || 'Security Admin'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-xl py-2 z-50 animate-in fade-in duration-150">
+                  <div className="px-4 py-3 border-b border-[#E2E8F0] dark:border-[#334155]">
+                    <p className="font-bold text-sm text-[#0F172A] dark:text-white truncate">{user?.name || 'Admin Lead'}</p>
+                    <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] truncate">{user?.email || 'admin@cyberrange.in'}</p>
+                    <span className="inline-block mt-1 text-[10px] font-bold text-[#2563EB] bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                      System Administrator
+                    </span>
+                  </div>
+
+                  <div className="py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/profile'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <UserIcon className="w-4 h-4 text-slate-400" />
+                      <span>My Profile</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/profile?tab=org'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <Building2 className="w-4 h-4 text-slate-400" />
+                      <span>Organization Profile</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/payments'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <CreditCard className="w-4 h-4 text-slate-400" />
+                      <span>Payment History</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/purchased-labs'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <FlaskConical className="w-4 h-4 text-slate-400" />
+                      <span>Purchased Labs</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); setIsNotificationMenuOpen(true); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <Bell className="w-4 h-4 text-slate-400" />
+                      <span>Notifications</span>
+                    </button>
+
+                    {/* Single Clean Theme Toggle Action */}
+                    <button
+                      onClick={async () => {
+                        await toggleTheme();
+                      }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      {theme === 'dark' ? (
+                        <>
+                          <Sun className="w-4 h-4 text-amber-500" />
+                          <span>Toggle Light Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Moon className="w-4 h-4 text-indigo-500" />
+                          <span>Toggle Dark Mode</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/profile?tab=security'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <Shield className="w-4 h-4 text-slate-400" />
+                      <span>Security</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsProfileMenuOpen(false); navigate('/admin/settings'); }}
+                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Settings</span>
+                    </button>
+
+                    <button
+                      onClick={logout}
+                      className="w-full px-4 py-2.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-800 mt-1"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

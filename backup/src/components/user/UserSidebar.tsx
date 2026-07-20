@@ -22,7 +22,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
   const { user, logout } = useAuth();
 
   const getInitials = (name: string) => {
-    if (!name) return 'AO';
+    if (!name) return '';
     return name
       .split(' ')
       .map(n => n[0])
@@ -111,11 +111,11 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 font-medium">
             <div className="w-9 h-9 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-              {getInitials(user?.name || 'Alex Operator')}
+              {getInitials(user?.name ?? '')}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-semibold text-[#0F172A] dark:text-white truncate">{user?.name || 'Alex Operator'}</p>
-              <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] truncate">{user?.email || 'student@cyberrange.in'}</p>
+              <p className="text-sm font-semibold text-[#0F172A] dark:text-white truncate">{user?.name ?? ''}</p>
+              <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] truncate">{user?.email ?? ''}</p>
             </div>
           </div>
           <button 

@@ -45,6 +45,7 @@ export const LabPurchaseConfirmation: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'invoice' | 'credits'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const labPrice = labData.priceInr ?? 0;
 
   const licenseOptions: LicenseOption[] = [
     {
@@ -52,21 +53,21 @@ export const LabPurchaseConfirmation: React.FC = () => {
       label: 'Single Event License',
       description: 'One-time cohort training event up to 10 participants.',
       baseMultiplier: 1.0,
-      unitPrice: labData.priceInr,
+      unitPrice: labPrice,
     },
     {
       type: 'annual_subscription',
       label: '1-Year Unlimited Subscription',
       description: 'Unlimited user launches and retries across all groups for 365 days.',
       baseMultiplier: 2.5,
-      unitPrice: Math.round(labData.priceInr * 2.5),
+      unitPrice: Math.round(labPrice * 2.5),
     },
     {
       type: 'per_user_seats',
       label: 'Per-User Seat Allocation',
       description: 'Pay per active user seat assigned. Scale flexibly.',
       baseMultiplier: 0.15,
-      unitPrice: Math.round(labData.priceInr * 0.15),
+      unitPrice: Math.round(labPrice * 0.15),
     },
   ];
 
@@ -139,7 +140,7 @@ export const LabPurchaseConfirmation: React.FC = () => {
                 <Clock className="w-3.5 h-3.5 text-slate-400" /> {labData.durationHours} Hours Duration
               </span>
               <span className="flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-slate-400" /> {labData.modules.length} Security Modules
+                <Layers className="w-3.5 h-3.5 text-slate-400" /> {(labData.modules ?? []).length} Security Modules
               </span>
             </div>
           </div>

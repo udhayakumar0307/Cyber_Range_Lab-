@@ -30,7 +30,7 @@ class DatabaseManager:
             settings.reload()
             target_url = settings.get_database_url()
             
-            if self.engine is not None and self.current_url == target_url and not force:
+            if self.engine is not None and self.session_factory is not None and self.current_url == target_url and not force:
                 return
 
             # Check and create database if using PostgreSQL
@@ -79,8 +79,6 @@ class DatabaseManager:
                 except Exception as e:
                     logger.error(f"Error disposing old engine: {e}")
             
-            self.current_url = target_url
-            
             # Connect with retry logic
             max_retries = 5
             retry_delay = 2
@@ -97,6 +95,7 @@ class DatabaseManager:
                         
                     self.engine = engine
                     self.session_factory = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+                    self.current_url = target_url
                     
                     dialect_name = self.engine.dialect.name
                     if dialect_name == "postgresql":
@@ -288,6 +287,37 @@ class DatabaseManager:
                                     ALTER TABLE lab_modules
                                     ADD COLUMN IF NOT EXISTS track VARCHAR(100) DEFAULT 'linux';
                                 """))
+                            audit_exists = bool(pconn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_logs')")).scalar())
+                            if audit_exists:
+                                pconn.execute(text("""
+                                    ALTER TABLE audit_logs
+                                    ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    ADD COLUMN IF NOT EXISTS action VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS entity VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS entity_id VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS performed_by VARCHAR(255) NULL,
+                                    ADD COLUMN IF NOT EXISTS performed_by_role VARCHAR(50) NULL,
+                                    ADD COLUMN IF NOT EXISTS organization_id VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS browser VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS operating_system VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS request_method VARCHAR(20) NULL,
+                                    ADD COLUMN IF NOT EXISTS endpoint VARCHAR(255) NULL,
+                                    ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'SUCCESS',
+                                    ADD COLUMN IF NOT EXISTS old_value TEXT NULL,
+                                    ADD COLUMN IF NOT EXISTS new_value TEXT NULL,
+                                    ADD COLUMN IF NOT EXISTS user_id INTEGER NULL,
+                                    ADD COLUMN IF NOT EXISTS request_id VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS resource VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS resource_id VARCHAR(100) NULL,
+                                    ADD COLUMN IF NOT EXISTS device VARCHAR(100) NULL;
+                                """))
+                            groups_exists = bool(pconn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'groups')")).scalar())
+                            if groups_exists:
+                                pconn.execute(text("""
+                                    ALTER TABLE groups
+                                    ADD COLUMN IF NOT EXISTS organization_id VARCHAR(100) NULL;
+                                """))
                     except Exception as pg_err:
                         logger.warning(f"Postgres migration check skipped or deferred: {pg_err}")
 
@@ -328,12 +358,13 @@ class DatabaseManager:
 
     def get_session(self) -> Session:
         """
-        Returns a database session. Automatically handles dynamic DATABASE_URL changes.
+        Returns a database session. Automatically initializes or re-initializes if uninitialized
+        or if DATABASE_URL changes.
         """
         target_url = settings.get_database_url()
-        if self.current_url != target_url:
-            logger.warning("DATABASE_URL change detected at session request. Re-initializing...")
-            self.init_db()
+        if self.session_factory is None or self.current_url != target_url:
+            logger.info("Database session requested before initialization or URL change detected. Triggering init_db()...")
+            self.init_db(force=(self.session_factory is None))
             
         if self.session_factory is None:
             raise RuntimeError("DatabaseManager has not been initialized. Call init_db() first.")

@@ -1,0 +1,77 @@
+# ============================================================
+# LAB 1: NETWORK RECONNAISSANCE
+# SecureGuard Red Team vs. TechCorp Industries
+# ============================================================
+# Usage:
+#   STUDENT_ID=alice docker-compose up --build
+#   Then: docker exec -it lab1-student bash
+# ============================================================
+
+networks:
+  techcorp-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+
+services:
+
+  # ── Vulnerable Services Target ───────────────────────────
+  techcorp-services:
+    build:
+      context: ./vulnerable-services
+    container_name: lab1-target
+    hostname: techcorp-internal
+    networks:
+      techcorp-net:
+        ipv4_address: 10.10.0.10
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+    volumes:
+      - ./vulnerable-services/flags:/flags
+    restart: unless-stopped
+
+  # ── Student Workspace ─────────────────────────────────────
+  student-env:
+    build:
+      context: ./student-env
+    container_name: lab1-student
+    hostname: secureguard-kali
+    networks:
+      techcorp-net:
+        ipv4_address: 10.10.0.50
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - TARGET_IP=10.10.0.10
+      - SCORING_URL=http://10.10.0.99:5000
+    volumes:
+      - ./modules:/modules:ro
+    depends_on:
+      - techcorp-services
+      - scoring-server
+    stdin_open: true
+    tty: true
+
+  # ── Scoring Server ────────────────────────────────────────
+  scoring-server:
+    build:
+      context: ./scoring-server
+    container_name: lab1-scoring
+    hostname: scoring
+    networks:
+      techcorp-net:
+        ipv4_address: 10.10.0.99
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+    ports:
+      - "5000:5000"   # Scoring UI accessible from host browser
+    volumes:
+      - scoring-data:/data
+      - ./modules:/app/static/modules:ro
+    restart: unless-stopped
+
+volumes:
+  scoring-data:

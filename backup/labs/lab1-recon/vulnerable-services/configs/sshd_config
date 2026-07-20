@@ -1,0 +1,91 @@
+# TechCorp SSH Server Configuration
+# Intentionally configured for password-based authentication
+# (for lab purposes to allow students to SSH with discovered credentials)
+
+Port 22
+#AddressFamily any
+ListenAddress 0.0.0.0
+ListenAddress ::
+
+# HostKeys for different key types
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# ─────────────────────────────────────────────────────────
+# AUTHENTICATION (Module 4: Students need password auth!)
+# ─────────────────────────────────────────────────────────
+
+# Allow password authentication (ENABLED for lab)
+PasswordAuthentication yes
+PermitEmptyPasswords no
+
+# Also allow pubkey for flexibility
+PubkeyAuthentication yes
+
+# Challenge-response (not recommended but sometimes used)
+ChallengeResponseAuthentication no
+
+# Kerberos/GSSAPI (disabled for lab)
+GSSAPIAuthentication no
+
+# ─────────────────────────────────────────────────────────
+# ACCESS CONTROL
+# ─────────────────────────────────────────────────────────
+
+# Allow root login via password (for admin purposes)
+PermitRootLogin yes
+
+# Strict modes checking
+StrictModes yes
+
+# Maximum authentication attempts
+MaxAuthTries 6
+MaxSessions 10
+
+# ─────────────────────────────────────────────────────────
+# SESSION & BEHAVIOR
+# ─────────────────────────────────────────────────────────
+
+X11Forwarding yes
+X11UseLocalhost yes
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+PermitUserEnvironment no
+Compression yes
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# ─────────────────────────────────────────────────────────
+# SUBSYSTEMS
+# ─────────────────────────────────────────────────────────
+
+Subsystem sftp	/usr/lib/openssh/sftp-server
+
+# ─────────────────────────────────────────────────────────
+# BANNER
+# ─────────────────────────────────────────────────────────
+
+# Show banner for educational purposes
+Banner /etc/ssh/banner.txt
+
+# ─────────────────────────────────────────────────────────
+# SECURITY (Lab-appropriate settings)
+# ─────────────────────────────────────────────────────────
+
+# Allow specific ciphers (for compatibility)
+Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com
+
+# Key exchange algorithms
+KexAlgorithms diffie-hellman-group14-sha1,diffie-hellman-group14-sha256,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521
+
+# Message authentication codes
+MACs hmac-sha2-256,hmac-sha2-512
+
+# ─────────────────────────────────────────────────────────
+# DEBUGGING (Optional - commented out)
+# ─────────────────────────────────────────────────────────
+
+# SyslogFacility AUTH
+# LogLevel INFO

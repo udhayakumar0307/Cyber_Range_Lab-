@@ -20,19 +20,25 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!user) {
+    if (location.pathname.startsWith('/admin')) {
+      return <Navigate to="/adminform" state={{ from: location }} replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
+    if (location.pathname.startsWith('/admin')) {
+      return <Navigate to="/adminform" replace />;
+    }
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // Onboarding Redirection Guard
-  if (user.profile_completed === false && location.pathname !== '/onboarding') {
+  // Onboarding Redirection Guard for students
+  if (user.role !== 'admin' && user.profile_completed === false && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (user.profile_completed === true && location.pathname === '/onboarding') {
+  if (user.role !== 'admin' && user.profile_completed === true && location.pathname === '/onboarding') {
     return <Navigate to="/dashboard" replace />;
   }
 

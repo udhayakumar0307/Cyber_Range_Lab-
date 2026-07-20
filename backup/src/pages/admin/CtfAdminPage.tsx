@@ -466,18 +466,18 @@ export const CtfAdminPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 animate-in fade-in duration-200">
 
         {/* ── Top Header Action Bar ─────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <div>
             <div className="flex items-center space-x-2">
-              <span className="p-2 bg-purple-100 text-purple-700 rounded-lg">
+              <span className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl">
                 <Trophy className="w-5 h-5" />
               </span>
-              <h1 className="text-2xl font-bold text-gray-900">CTFd Competition Hub</h1>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">CTFd Competition Control Center</h1>
             </div>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Create competitions, manage challenge banks, and operate live events.
             </p>
           </div>
@@ -486,7 +486,7 @@ export const CtfAdminPage: React.FC = () => {
             {/* Task 2.1: Create New CTF Event button */}
             <button
               onClick={() => { setIsCreateEventOpen(true); setCreateStep(1); }}
-              className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors cursor-pointer"
+              className="inline-flex items-center px-4 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4 mr-1.5" /> Create New CTF Event
             </button>
@@ -583,16 +583,16 @@ export const CtfAdminPage: React.FC = () => {
         )}
 
         {/* ── Tab Controls ──────────────────────────────────────────────────── */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-slate-200 dark:border-slate-800">
           <nav className="flex space-x-8">
             {(['challenges', 'events', 'submissions'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`py-3 px-1 border-b-2 font-semibold text-sm transition-colors cursor-pointer capitalize ${
+                className={`py-3 px-1 border-b-2 font-bold text-xs transition-colors cursor-pointer capitalize ${
                   activeTab === tab
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-[#0052CC] dark:border-blue-400 text-[#0052CC] dark:text-blue-400'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 {tab === 'challenges' && `Challenge Bank (${filteredChallenges.length})`}
@@ -609,12 +609,12 @@ export const CtfAdminPage: React.FC = () => {
             {/* Task 3.1: Global Filter Dropdown */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center space-x-2">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Filter by CTF Event:</span>
+                <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Filter by CTF Event:</span>
                 <select
                   value={selectedEventFilter}
                   onChange={(e) => setSelectedEventFilter(e.target.value)}
-                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-800"
+                  className="text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-[#0052CC]/20 outline-none text-slate-800 dark:text-slate-100"
                 >
                   <option value="all">All Events ({challenges.length} Challenges)</option>
                   {events.map((ev) => (
@@ -627,7 +627,7 @@ export const CtfAdminPage: React.FC = () => {
               {selectedEventFilter !== 'all' && (
                 <button
                   onClick={() => setSelectedEventFilter('all')}
-                  className="text-xs font-semibold text-blue-600 hover:underline"
+                  className="text-xs font-bold text-[#0052CC] dark:text-blue-400 hover:underline"
                 >
                   Clear Filter → Show All
                 </button>
@@ -635,10 +635,10 @@ export const CtfAdminPage: React.FC = () => {
             </div>
 
             {filteredChallenges.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
-                <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-gray-500">No Challenges Found</h3>
-                <p className="text-xs text-gray-400 mt-1">Add the first challenge to this CTF event using the button above.</p>
+              <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <BookOpen className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                <h3 className="text-base font-extrabold text-slate-500 dark:text-slate-400">No Challenges Found</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Add the first challenge to this CTF event using the button above.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -647,25 +647,25 @@ export const CtfAdminPage: React.FC = () => {
                   return (
                     <div
                       key={chal.id}
-                      className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-100 text-purple-700">
+                          <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                             {chal.category}
                           </span>
-                          <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                             {chal.currentPoints} pts
                           </span>
                         </div>
-                        <h3 className="text-base font-bold text-gray-900">{chal.title}</h3>
+                        <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{chal.title}</h3>
                         {/* Show parent event label */}
                         {parentEvent && (
-                          <span className="inline-flex items-center text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 max-w-full truncate">
+                          <span className="inline-flex items-center text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-800 max-w-full truncate">
                             📁 {parentEvent.title}
                           </span>
                         )}
-                        <p className="text-xs text-gray-600 line-clamp-2">{chal.description}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{chal.description}</p>
                       </div>
 
                       <div className="space-y-3 pt-3 border-t border-gray-100">
@@ -707,57 +707,58 @@ export const CtfAdminPage: React.FC = () => {
 
         {/* ── Tab 2: CTF Events Roster ──────────────────────────────────────── */}
         {activeTab === 'events' && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-xs uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Event Title</th>
-                  <th className="py-3.5 px-4">Status & Mode</th>
-                  <th className="py-3.5 px-4">Execution Window</th>
-                  <th className="py-3.5 px-4">Competitors</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 text-gray-700">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="hover:bg-gray-50/80">
-                    <td className="py-4 px-4 font-bold text-gray-900 max-w-xs">{ev.title}</td>
-                    <td className="py-4 px-4 space-y-1">
-                      <div>{getStatusBadge(ev.status)}</div>
-                      <span className="capitalize text-xs font-semibold text-gray-500 block">
-                        {ev.mode} Mode (Max {ev.maxTeamSize || 4}/team)
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-xs font-mono text-gray-600">
-                      <div>Start: {new Date(ev.startTime).toLocaleString()}</div>
-                      <div>End: {new Date(ev.endTime).toLocaleString()}</div>
-                    </td>
-                    <td className="py-4 px-4 font-mono text-xs">
-                      {ev.totalSolves} Solves / {ev.participantCount} Players
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end space-x-2 flex-wrap gap-y-1">
-                        {ev.status !== 'live' && ev.status !== 'concluded' && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4">Event Title</th>
+                    <th className="py-3.5 px-4">Status & Mode</th>
+                    <th className="py-3.5 px-4">Execution Window</th>
+                    <th className="py-3.5 px-4">Competitors</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  {events.map((ev) => (
+                    <tr key={ev.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="py-4 px-4 font-black text-slate-900 dark:text-slate-100 max-w-xs">{ev.title}</td>
+                      <td className="py-4 px-4 space-y-1">
+                        <div>{getStatusBadge(ev.status)}</div>
+                        <span className="capitalize text-xs font-bold text-slate-500 dark:text-slate-400 block">
+                          {ev.mode} Mode (Max {ev.maxTeamSize || 4}/team)
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-xs font-mono text-slate-600 dark:text-slate-400">
+                        <div>Start: {new Date(ev.startTime).toLocaleString()}</div>
+                        <div>End: {new Date(ev.endTime).toLocaleString()}</div>
+                      </td>
+                      <td className="py-4 px-4 font-mono text-xs text-slate-800 dark:text-slate-200">
+                        {ev.totalSolves} Solves / {ev.participantCount} Players
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end space-x-2 flex-wrap gap-y-1">
+                          {ev.status !== 'live' && ev.status !== 'concluded' && (
+                            <button
+                              onClick={() => handleStartCompetition(ev.id)}
+                              className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-[#28A745] dark:text-emerald-400 text-xs font-bold rounded-lg border border-emerald-200 dark:border-emerald-800 cursor-pointer"
+                            >
+                              Start
+                            </button>
+                          )}
+                          {ev.status === 'live' && (
+                            <button
+                              onClick={() => handlePauseCompetition(ev.id)}
+                              className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-200 dark:border-amber-800 cursor-pointer"
+                            >
+                              Pause
+                            </button>
+                          )}
+                          {/* Task 3.3: Manage Challenges button */}
                           <button
-                            onClick={() => handleStartCompetition(ev.id)}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded border border-emerald-200"
+                            onClick={() => handleManageChallenges(ev.id)}
+                            className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-[#0052CC] dark:text-blue-400 text-xs font-bold rounded-lg border border-blue-200 dark:border-blue-800 flex items-center space-x-1 cursor-pointer"
                           >
-                            Start
-                          </button>
-                        )}
-                        {ev.status === 'live' && (
-                          <button
-                            onClick={() => handlePauseCompetition(ev.id)}
-                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded border border-amber-200"
-                          >
-                            Pause
-                          </button>
-                        )}
-                        {/* Task 3.3: Manage Challenges button */}
-                        <button
-                          onClick={() => handleManageChallenges(ev.id)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-200 flex items-center space-x-1"
-                        >
                           <BookOpen className="w-3 h-3" />
                           <span>Manage Challenges ({challenges.filter((c) => c.eventId === ev.id).length})</span>
                         </button>
@@ -787,41 +788,42 @@ export const CtfAdminPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        )}
+        </div>
+      )}
 
         {/* ── Tab 3: Submissions Audit Feed ─────────────────────────────────── */}
         {activeTab === 'submissions' && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
-            <h3 className="text-base font-bold text-gray-900">Real-Time Submission Stream</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-4">
+            <h3 className="text-base font-black text-slate-900 dark:text-slate-100">Real-Time Submission Stream</h3>
             <div className="space-y-3">
               {submissions.map((sub) => (
                 <div
                   key={sub.id}
                   className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${
                     sub.isCorrect
-                      ? 'bg-emerald-50/50 border-emerald-200 text-emerald-950'
-                      : 'bg-rose-50/50 border-rose-200 text-rose-950'
+                      ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-slate-900 dark:text-slate-100'
+                      : 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-slate-900 dark:text-slate-100'
                   }`}
                 >
                   <div className="flex items-center space-x-3">
                     {sub.isCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     ) : (
-                      <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                      <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
                     )}
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-bold text-sm">{sub.teamOrUserName}</span>
-                        <span className="text-xs font-mono text-gray-500">• {new Date(sub.timestamp).toLocaleTimeString()}</span>
+                        <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">{sub.teamOrUserName}</span>
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">• {new Date(sub.timestamp).toLocaleTimeString()}</span>
                       </div>
-                      <p className="text-xs font-medium mt-0.5">
-                        Challenge: <span className="font-bold">{sub.challengeTitle}</span> — Flag:{' '}
-                        <code className="bg-white/80 px-1.5 py-0.5 rounded text-[11px]">{sub.flagSubmitted}</code>
+                      <p className="text-xs font-medium mt-0.5 text-slate-600 dark:text-slate-300">
+                        Challenge: <span className="font-bold text-slate-800 dark:text-slate-200">{sub.challengeTitle}</span> — Flag:{' '}
+                        <code className="bg-white/80 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[11px] font-mono text-slate-900 dark:text-slate-100">{sub.flagSubmitted}</code>
                       </p>
                     </div>
                   </div>
                   {sub.isCorrect && (
-                    <span className="font-mono font-bold text-emerald-700 text-sm">+{sub.pointsEarned} pts</span>
+                    <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">+{sub.pointsEarned} pts</span>
                   )}
                 </div>
               ))}
@@ -834,7 +836,7 @@ export const CtfAdminPage: React.FC = () => {
         {/* ════════════════════════════════════════════════════════════════════ */}
         {isCreateEventOpen && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div>

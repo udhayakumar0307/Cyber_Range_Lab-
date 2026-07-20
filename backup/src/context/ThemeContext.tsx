@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type ThemeMode = 'light' | 'dark' | 'system';
+type ThemeMode = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -11,26 +11,54 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ThemeMode>('dark');
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem('cyberrange-theme') || localStorage.getItem('theme');
+    return saved === 'dark' ? 'dark' : 'light';
+  });
 
-  // Apply root DOM class on theme state change
+  // Helper to check if current URL is an auth route
+  const isAuthRoute = () => {
+    const path = window.location.pathname.toLowerCase();
+    return (
+      path === '/' ||
+      path.includes('/login') ||
+      path.includes('/register') ||
+      path.includes('/forgot-password') ||
+      path.includes('/reset-password') ||
+      path.includes('/verify-otp') ||
+      path.includes('/onboarding') ||
+      path.includes('/adminform') ||
+      path.includes('/admin/login') ||
+      path.includes('/admin/register') ||
+      path.includes('/admin/forgot-password')
+    );
+  };
+
+  // Apply root DOM class on theme state change or route navigation
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
+    const applyTheme = () => {
+      const root = document.documentElement;
+      root.classList.remove('light', 'dark');
 
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
+      const token = localStorage.getItem('token');
+      // Auth pages must ALWAYS open in Light Theme
+      if (!token || isAuthRoute()) {
+        root.classList.add('light');
+      } else {
+        root.classList.add(theme);
+      }
+    };
+
+    applyTheme();
+    window.addEventListener('popstate', applyTheme);
+    return () => window.removeEventListener('popstate', applyTheme);
   }, [theme]);
 
   // Fetch initial theme preference from database when token exists
   useEffect(() => {
     const fetchUserTheme = async () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token || isAuthRoute()) return;
 
       try {
         const res = await fetch('/api/v1/user/profile', {
@@ -38,8 +66,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.theme) {
+          if (data.theme && (data.theme === 'dark' || data.theme === 'light')) {
             setThemeState(data.theme as ThemeMode);
+            localStorage.setItem('cyberrange-theme', data.theme);
+            localStorage.setItem('theme', data.theme);
           }
         }
       } catch (err) {
@@ -51,7 +81,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const setTheme = async (newTheme: ThemeMode) => {
-    setThemeState(newTheme);
+    const validTheme: ThemeMode = newTheme === 'dark' ? 'dark' : 'light';
+    setThemeState(validTheme);
+    localStorage.setItem('cyberrange-theme', validTheme);
+    localStorage.setItem('theme', validTheme);
 
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -63,7 +96,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ theme: newTheme })
+        body: JSON.stringify({ theme: validTheme })
       });
     } catch (err) {
       console.error('Error saving theme to database:', err);
@@ -89,3 +122,4 @@ export const useTheme = () => {
   }
   return context;
 };
+

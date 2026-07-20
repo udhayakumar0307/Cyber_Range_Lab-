@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Clock, 
   Terminal as TerminalIcon, 
@@ -24,57 +25,104 @@ interface Challenge {
 
 export const ChallengeSession: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { labId } = useParams<{ labId?: string }>();
+
+  const isReconLab = labId === 'lab1-recon' || labId === 'recon-lab';
+  const labTitle = isReconLab ? 'Lab: Network Reconnaissance Lab' : 'Lab: Active Directory & Network Security';
+
+  const handleReturn = () => {
+    if (user?.role === 'admin') {
+      navigate('/admin/labs');
+    } else {
+      navigate('/labs');
+    }
+  };
 
   // Session Duration (ticking countdown)
-  const [timeRemaining, setTimeRemaining] = useState(7200); // 2 hours
+  const [timeRemaining, setTimeRemaining] = useState(10800); // 3 hours
   const [score, setScore] = useState(0);
 
   // Challenges list
   const [challenges, setChallenges] = useState<Challenge[]>([
     {
       id: 'ch-1',
-      title: 'Information Gathering & Port Scan',
-      points: 50,
+      title: 'Module 1: Port Discovery & Enumeration',
+      points: 100,
       isSolved: false,
-      description: 'The target machine is running at IP address 10.10.12.5. Before attempting exploitation, you need to map out active services and identify potential ingress routes.',
+      description: 'The target machine is online at IP address 10.10.0.10 (or 10.10.12.5). Map out all active listening ports and locate developer notes.',
       instructions: [
-        'Run an Nmap scan on the target system: `nmap 10.10.12.5`',
-        'Identify the active Web service port and verify its configuration.',
-        'Find the hidden directory path to uncover the recon flag.'
+        'Run an Nmap scan on target: `nmap 10.10.0.10`',
+        'Identify active open service ports (21/FTP, 22/SSH, 80/HTTP, 8080/HTTP).',
+        'Read `recon_notes.txt` to retrieve the Module 1 flag.'
       ],
       hints: [
-        'Use the `nmap` command in your terminal console to scan the target.',
-        'Type `cat recon_notes.txt` to read the developer notes left in the folder.'
+        'Use `nmap 10.10.0.10` in your terminal to map ports.',
+        'Type `cat recon_notes.txt` to inspect notes left in your folder.'
       ],
       correctFlag: 'flag{recon_complete}'
     },
     {
       id: 'ch-2',
-      title: 'Web Service Exploitation',
-      points: 100,
+      title: 'Module 2: Service Version Fingerprinting',
+      points: 150,
       isSolved: false,
-      description: 'Now that you have mapped the ports, audit the web endpoint. There is a vulnerable administration panel that may allow remote command injections.',
+      description: 'Fingerprint service banners and identify running software versions across open target ports.',
       instructions: [
-        'Locate the administration helper script.',
-        'Inject local commands using the exploit tools in your folder.',
-        'Extract the service flag.'
+        'Run `nmap -sV 10.10.0.10` to inspect detailed service version strings.',
+        'Check service banners on ports 21 (FTP) and 80 (Apache).',
+        'Submit the fingerprinting flag.'
       ],
       hints: [
-        'Examine the SUID binaries in the listing with `sudo -l`.',
-        'Run the `sys-helper` tool with double hyphens to see help commands.'
+        'Run `nmap -sV 10.10.0.10` to trigger version detection.',
+        'Version banners disclose hash key: flag{service_fingerprint}'
+      ],
+      correctFlag: 'flag{service_fingerprint}'
+    },
+    {
+      id: 'ch-3',
+      title: 'Module 3: Hidden Service Discovery',
+      points: 200,
+      isSolved: false,
+      description: 'Locate hidden administration endpoints and unlisted HTTP paths hosted on port 8080.',
+      instructions: [
+        'Inspect HTTP proxy/admin service running on port 8080.',
+        'Discover unlisted administrative endpoint `/admin-secret`.',
+        'Retrieve the hidden service discovery flag.'
+      ],
+      hints: [
+        'Scan port 8080 or type `cat recon_notes.txt` to find administrative routes.',
+        'The unlisted proxy header contains: flag{hidden_service_found}'
+      ],
+      correctFlag: 'flag{hidden_service_found}'
+    },
+    {
+      id: 'ch-4',
+      title: 'Module 4: Credential Discovery',
+      points: 250,
+      isSolved: false,
+      description: 'Locate exposed credentials and audit misconfigured administration utilities across the file system.',
+      instructions: [
+        'Audit local administrative binary utilities in your PATH.',
+        'Run system helper checks to inspect configuration logs.',
+        'Extract the credential discovery flag.'
+      ],
+      hints: [
+        'Run `sys-helper --status` or inspect environment notes.',
+        'Admin utility status log contains: flag{service_compromise}'
       ],
       correctFlag: 'flag{service_compromise}'
     },
     {
-      id: 'ch-3',
-      title: 'Privilege Escalation via SUID Helper',
-      points: 150,
+      id: 'ch-5',
+      title: 'Module 5: Full Network Infiltration (Capstone)',
+      points: 300,
       isSolved: false,
-      description: 'You have restricted shell access. To compromise the environment fully, elevate your privileges to root using the misconfigured system helper binary.',
+      description: 'Synthesize all recon findings, exploit misconfigured SUID binaries, and gain root shell access on the target system.',
       instructions: [
-        'Inspect local SUID command permissions.',
-        'Exploit the binary system helper utility to trigger a root shell.',
-        'Read the file `/root/flag.txt`.'
+        'Inspect SUID permissions using `sudo -l`.',
+        'Exploit `/usr/bin/sys-helper` to escalate to root (`sys-helper --exec "/bin/sh"`).',
+        'Read `/root/flag.txt` to capture the final capstone flag.'
       ],
       hints: [
         'Run `sys-helper --exec "/bin/sh"` to trigger a privilege escape.',
@@ -212,18 +260,21 @@ export const ChallengeSession: React.FC = () => {
         }
         break;
       case 'nmap':
-        const targetIp = tokens[1];
+        const targetIp = tokens.slice(1).join(' ');
         if (!targetIp) {
           output.push('nmap: missing target IP address');
-        } else if (targetIp === '10.10.12.5') {
+        } else if (targetIp.includes('10.10.0.10') || targetIp.includes('10.10.12.5')) {
           output.push(
-            'Starting Nmap 7.93...',
-            'Scan report for 10.10.12.5',
-            'PORT     STATE SERVICE',
-            '22/tcp   open  ssh',
-            '80/tcp   open  http (Apache/2.4.41)',
-            '8080/tcp open  http-proxy (Mock admin console: flag{service_compromise})',
-            'Nmap done: 1 IP address scanned.'
+            'Starting Nmap 7.93 ( https://nmap.org )...',
+            'Nmap scan report for target-host (10.10.0.10)',
+            'Host is up (0.0012s latency).',
+            'PORT     STATE SERVICE       VERSION',
+            '21/tcp   open  ftp           vsftpd 3.0.3 (Anonymous access allowed)',
+            '22/tcp   open  ssh           OpenSSH 8.9p1 Ubuntu 3ubuntu0.1',
+            '80/tcp   open  http          Apache httpd 2.4.52 ((Ubuntu) flag{service_fingerprint})',
+            '8080/tcp open  http-proxy    Mock Admin Proxy v2.4 (Endpoint: /admin-secret - flag{hidden_service_found})',
+            'Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel',
+            'Nmap done: 1 IP address (1 host up) scanned in 1.84 seconds.'
           );
         } else {
           output.push(`nmap: ${targetIp}: Target host offline or unreachable`);
@@ -281,7 +332,7 @@ export const ChallengeSession: React.FC = () => {
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-20 flex-shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate('/labs')}
+            onClick={handleReturn}
             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors"
             title="Return to Labs list"
           >
@@ -292,7 +343,7 @@ export const ChallengeSession: React.FC = () => {
               Active Session
             </span>
             <h1 className="font-bold text-slate-800 text-sm leading-tight mt-0.5">
-              Lab: Active Directory Security Basics
+              {labTitle}
             </h1>
           </div>
         </div>
@@ -326,7 +377,7 @@ export const ChallengeSession: React.FC = () => {
           <button
             onClick={() => {
               if (window.confirm('Are you sure you want to exit this challenge session? Your container states will be suspended.')) {
-                navigate('/labs');
+                handleReturn();
               }
             }}
             className="bg-slate-100 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-700 border border-slate-200 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors"

@@ -33,7 +33,7 @@ export const LeaderboardPortal: React.FC = () => {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         const [profileRes, progressRes, personalRankRes] = await Promise.all([
           fetch('/api/v1/auth/me', { headers }),
@@ -67,7 +67,7 @@ export const LeaderboardPortal: React.FC = () => {
     const fetchGlobal = async () => {
       try {
         const token = localStorage.getItem('token');
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`/api/v1/reporting/leaderboard?type=global&page=${globalPage}&limit=${limit}`, { headers });
         if (res.ok) {
           const data = await res.json();
@@ -87,7 +87,7 @@ export const LeaderboardPortal: React.FC = () => {
     const fetchCollege = async () => {
       try {
         const token = localStorage.getItem('token');
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`/api/v1/reporting/leaderboard?type=college&page=${collegePage}&limit=${limit}`, { headers });
         if (res.ok) {
           const data = await res.json();

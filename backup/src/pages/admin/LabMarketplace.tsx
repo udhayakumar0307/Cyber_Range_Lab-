@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { SecurityLab } from '../../types/admin';
+import type { CartItem } from '../../types/cart';
 import { LabDetailModal } from '../../components/admin/LabDetailModal';
+import { CartDrawer } from '../../components/admin/CartDrawer';
+import { CheckoutModal } from '../../components/admin/CheckoutModal';
 import { 
   Store, 
   Search, 
   Clock, 
   Star, 
   ShoppingCart, 
-  ShieldCheck, 
   Layers, 
-  SlidersHorizontal
+  Play
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const LabMarketplace: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'marketplace' | 'inventory'>('marketplace');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -24,131 +25,101 @@ export const LabMarketplace: React.FC = () => {
   const [selectedModalLab, setSelectedModalLab] = useState<SecurityLab | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Mock catalog labs
-  const mockLabs: SecurityLab[] = [
-    {
-      id: 'lab-aws-01',
-      title: 'AWS Security Architecture & Exploitation',
-      shortDescription: 'Audit IAM policies, exploit S3 bucket misconfigurations, and analyze CloudTrail forensic logs.',
-      fullDescription: 'Comprehensive hands-on security challenge covering AWS cloud infrastructure vulnerability analysis. Practice real-world exploit mitigation, identity access policy auditing, and automated detection rule setup.',
-      difficulty: 'Advanced',
-      category: 'Cloud Infrastructure Security',
-      priceInr: 24999,
-      durationHours: 4,
-      rating: 4.9,
-      reviewCount: 142,
-      prerequisites: ['Basic AWS CLI familiarity', 'JSON IAM schema understanding'],
-      skillsCovered: ['IAM Policy Auditing', 'S3 Misconfiguration Detection', 'CloudTrail Log Forensics'],
-      isPurchased: true,
-      purchasedDate: '2026-05-12',
-      assignedGroupCount: 3,
-      modules: [
-        { id: 'm1', title: 'Exploiting Public Bucket Permissions', durationMinutes: 45, points: 250 },
-        { id: 'm2', title: 'Escalating Privileges via Misconfigured Roles', durationMinutes: 60, points: 350 },
-        { id: 'm3', title: 'CloudTrail Event Investigation', durationMinutes: 45, points: 300 },
-      ],
-    },
-    {
-      id: 'lab-web-01',
-      title: 'OWASP Top 10 Exploitation & Defense',
-      shortDescription: 'Identify and mitigate SQL Injections, XSS, SSRF, and Broken Access Controls in web apps.',
-      fullDescription: 'Interactive lab simulating real modern web vulnerabilities. Attack sandboxed e-commerce applications and implement remediation code patches in real time.',
-      difficulty: 'Intermediate',
-      category: 'Web Application Security',
-      priceInr: 16499,
-      durationHours: 3,
-      rating: 4.8,
-      reviewCount: 310,
-      prerequisites: ['HTTP protocol basics', 'HTML/JS fundamentals'],
-      skillsCovered: ['SQLi Mitigation', 'Reflected XSS Remediation', 'SSRF Payload Bypass'],
-      isPurchased: true,
-      purchasedDate: '2026-06-01',
-      assignedGroupCount: 5,
-      modules: [
-        { id: 'm1', title: 'Blind SQL Injection Extraction', durationMinutes: 45, points: 200 },
-        { id: 'm2', title: 'Bypassing WAF with Encoded Payloads', durationMinutes: 45, points: 250 },
-        { id: 'm3', title: 'Server-Side Request Forgery Exfiltration', durationMinutes: 50, points: 300 },
-      ],
-    },
-    {
-      id: 'lab-net-01',
-      title: 'Network Traffic Forensics & PCAP Analysis',
-      shortDescription: 'Analyze Wireshark packet captures to isolate C2 server malware communication.',
-      fullDescription: 'Investigate enterprise PCAP network dumps under SOC scenario conditions. Filter DNS tunneling attacks, decrypt TLS streams, and reconstruct payload drops.',
-      difficulty: 'Intermediate',
-      category: 'Network Forensics & SOC',
-      priceInr: 12499,
-      durationHours: 2.5,
-      rating: 4.7,
-      reviewCount: 98,
-      prerequisites: ['TCP/IP stack knowledge', 'Wireshark filter syntax'],
-      skillsCovered: ['Packet Inspection', 'DNS Tunneling Analysis', 'TLD Beacon Identification'],
-      isPurchased: false,
-      modules: [
-        { id: 'm1', title: 'Isolating Anomaly Beaconing Interval', durationMinutes: 40, points: 150 },
-        { id: 'm2', title: 'Reconstructing Exfiltrated Data Stream', durationMinutes: 50, points: 250 },
-      ],
-    },
-    {
-      id: 'lab-mal-01',
-      title: 'Reverse Engineering & Malware Decompilation',
-      shortDescription: 'Disassemble malicious PE binaries in Ghidra and extract C2 configuration strings.',
-      fullDescription: 'Deep technical malware analysis lab. Analyze obfuscated ransomware samples, reverse engineer assembly execution paths, and craft YARA threat hunting signatures.',
-      difficulty: 'Expert',
-      category: 'Reverse Engineering & Malware',
-      priceInr: 41499,
-      durationHours: 6,
-      rating: 4.95,
-      reviewCount: 64,
-      prerequisites: ['x86/x64 assembly understanding', 'Debugger experience'],
-      skillsCovered: ['Ghidra Decompilation', 'YARA Rule Authoring', 'Anti-Analysis Bypass'],
-      isPurchased: false,
-      modules: [
-        { id: 'm1', title: 'Unpacking XOR Payload Obfuscation', durationMinutes: 90, points: 500 },
-        { id: 'm2', title: 'Decompiling Keylogger Dispatch Hooks', durationMinutes: 90, points: 600 },
-        { id: 'm3', title: 'Writing Enterprise YARA Rules', durationMinutes: 60, points: 400 },
-      ],
-    },
-    {
-      id: 'lab-k8s-01',
-      title: 'Kubernetes Cluster Container Hacking',
-      shortDescription: 'Break out of container runtime namespaces and gain root on K8s master node.',
-      fullDescription: 'Attack misconfigured Kubernetes control planes, exploit vulnerable service accounts, and demonstrate container breakout techniques in live isolated cluster nodes.',
-      difficulty: 'Advanced',
-      category: 'Cloud Infrastructure Security',
-      priceInr: 28999,
-      durationHours: 4.5,
-      rating: 4.88,
-      reviewCount: 115,
-      prerequisites: ['Docker container basics', 'kubectl usage'],
-      skillsCovered: ['Container Escape', 'RBAC Misconfig Exploitation', 'Kubelet API Hijacking'],
-      isPurchased: false,
-      modules: [
-        { id: 'm1', title: 'Service Account Token Theft', durationMinutes: 45, points: 300 },
-        { id: 'm2', title: 'Exploiting Host Path Mount Privileges', durationMinutes: 60, points: 400 },
-      ],
-    },
-  ];
+  // Cart & Checkout State
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutSummary, setCheckoutSummary] = useState<any>(null);
+  const [purchasedLabIds, setPurchasedLabIds] = useState<Set<string>>(new Set());
 
-  // Filter & Sort Logic
-  const categories = ['All', 'Cloud Infrastructure Security', 'Web Application Security', 'Network Forensics & SOC', 'Reverse Engineering & Malware'];
+  // Real catalog labs from backend PostgreSQL database
+  const [labs, setLabs] = useState<SecurityLab[]>([]);
+  const [loadingLabs, setLoadingLabs] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  // Fetch Cart & Labs from Backend API
+  useEffect(() => {
+    const fetchCartAndLabs = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        // Fetch cart
+        if (token) {
+          const cartRes = await fetch('/api/v1/cart', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (cartRes.ok) {
+            const data = await cartRes.json();
+            setCartItems(Array.isArray(data?.items) ? data.items : []);
+          }
+
+          // Fetch purchased labs
+          const purchasedRes = await fetch('/api/v1/admin/purchased-labs', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (purchasedRes.ok) {
+            const purchasedData = await purchasedRes.json();
+            if (Array.isArray(purchasedData)) {
+              setPurchasedLabIds(new Set(purchasedData.map((p: any) => p.lab_id)));
+            }
+          }
+        }
+
+        // Fetch labs catalog from PostgreSQL
+        const labsRes = await fetch('/api/v1/labs');
+        if (labsRes.ok) {
+          const labsData = await labsRes.json();
+          setLabs(Array.isArray(labsData) ? labsData : []);
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace data:', err);
+      } finally {
+        setLoadingLabs(false);
+      }
+    };
+    fetchCartAndLabs();
+  }, []);
+
+  const syncLabRepository = async () => {
+    const token = localStorage.getItem('token');
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/v1/admin/labs/sync', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error('sync failed');
+      const labsResponse = await fetch('/api/v1/labs');
+      if (labsResponse.ok) {
+        const labsData = await labsResponse.json();
+        setLabs(Array.isArray(labsData) ? labsData : []);
+      }
+    } catch (error) {
+      console.error('Lab repository sync failed', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const categories = ['All', ...Array.from(new Set((labs ?? []).map((l) => l.category ?? '')))];
   const difficulties = ['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'];
 
-  const filteredLabs = mockLabs.filter((lab) => {
-    const matchesTab = activeTab === 'marketplace' ? true : lab.isPurchased;
+  const filteredLabs = (labs ?? []).filter((lab) => {
     const matchesSearch =
-      lab.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lab.shortDescription.toLowerCase().includes(searchQuery.toLowerCase());
+      (lab.title ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lab.shortDescription ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lab.skillsCovered ?? []).some((s) => (s ?? '').toLowerCase().includes(searchQuery.toLowerCase()));
+
     const matchesDifficulty = selectedDifficulty === 'All' || lab.difficulty === selectedDifficulty;
     const matchesCategory = selectedCategory === 'All' || lab.category === selectedCategory;
-    return matchesTab && matchesSearch && matchesDifficulty && matchesCategory;
+
+    return matchesSearch && matchesDifficulty && matchesCategory;
   });
 
   const sortedLabs = [...filteredLabs].sort((a, b) => {
-    if (sortBy === 'price-asc') return a.priceInr - b.priceInr;
-    if (sortBy === 'price-desc') return b.priceInr - a.priceInr;
-    if (sortBy === 'difficulty') return a.difficulty.localeCompare(b.difficulty);
-    return b.rating - a.rating; // Popularity default
+    if (sortBy === 'price-asc') return (a.priceInr ?? 0) - (b.priceInr ?? 0);
+    if (sortBy === 'price-desc') return (b.priceInr ?? 0) - (a.priceInr ?? 0);
+    if (sortBy === 'difficulty') {
+      const order: Record<string, number> = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4 };
+      return (order[a.difficulty ?? ''] ?? 0) - (order[b.difficulty ?? ''] ?? 0);
+    }
+    return (b.rating ?? 0) - (a.rating ?? 0);
   });
 
   const handleOpenDetailModal = (lab: SecurityLab) => {
@@ -156,108 +127,177 @@ export const LabMarketplace: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleAddToCart = async (lab: SecurityLab) => {
+    const existingIndex = cartItems.findIndex((i) => i.lab_id === lab.id);
+    let updated: CartItem[] = [];
+    if (existingIndex >= 0) {
+      updated = cartItems.map((item, idx) =>
+        idx === existingIndex ? { ...item, quantity: (item.quantity ?? 0) + 1 } : item
+      );
+    } else {
+      const newItem: CartItem = {
+        id: Date.now(),
+        lab_id: lab.id,
+        lab_title: lab.title ?? '',
+        price_inr: lab.priceInr ?? 0,
+        quantity: 1,
+        license_duration_months: 12
+      };
+      updated = [...cartItems, newItem];
+    }
+    setCartItems(updated);
+    setIsCartOpen(true);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await fetch('/api/v1/cart/items', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            lab_id: lab.id,
+            lab_title: lab.title ?? '',
+            price_inr: lab.priceInr ?? 0,
+            quantity: 1,
+            license_duration_months: 12
+          })
+        });
+      } catch (err) {
+        console.error('Error syncing cart with API:', err);
+      }
+    }
+  };
+
+  const handleUpdateQuantity = (id: number | string, qty: number) => {
+    setCartItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: qty } : item)));
+  };
+
+  const handleUpdateDuration = (id: number | string, months: number) => {
+    setCartItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, license_duration_months: months } : item))
+    );
+  };
+
+  const handleRemoveCartItem = (id: number | string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
+
+  const handleProceedToCheckout = (summary: any) => {
+    setCheckoutSummary(summary);
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  };
+
+  const handlePaymentSuccess = (resultData: any) => {
+    if (cartItems.length > 0) {
+      const newPurchased = new Set(purchasedLabIds);
+      (cartItems ?? []).forEach((item) => newPurchased.add(item.lab_id));
+      setPurchasedLabIds(newPurchased);
+    }
+    setCartItems([]);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header Title Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Store className="w-7 h-7 text-[#0052CC]" />
-            Lab Marketplace & Inventory Catalog
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Browse available security training labs, procure enterprise licenses, and assign labs to groups.
+          <div className="flex items-center gap-2">
+            <Store className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
+            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Enterprise Lab Marketplace</h1>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Browse, purchase, and deploy enterprise-grade hands-on cybersecurity training labs.
           </p>
         </div>
 
-        {/* Catalog vs Inventory Tab Switcher */}
-        <div className="flex items-center bg-slate-200/80 p-1 rounded-xl self-start sm:self-auto font-semibold text-xs">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab('marketplace')}
-            className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'marketplace'
-                ? 'bg-white text-[#0052CC] shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={syncLabRepository}
+            disabled={syncing}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 font-bold text-xs px-4 py-2.5 rounded-xl transition-all"
           >
-            <Store className="w-4 h-4" />
-            Marketplace Catalog ({mockLabs.length})
+            {syncing ? 'Syncing…' : 'Sync Lab Repository'}
           </button>
           <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-              activeTab === 'inventory'
-                ? 'bg-white text-[#0052CC] shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={() => setIsCartOpen(true)}
+            className="relative bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-[#0052CC] dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2"
           >
-            <ShieldCheck className="w-4 h-4 text-[#28A745]" />
-            Purchased Inventory ({mockLabs.filter((l) => l.isPurchased).length})
+            <ShoppingCart className="w-4 h-4" />
+            <span>Cart</span>
+            {cartItems.length > 0 && (
+              <span className="bg-[#0052CC] text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
+                {cartItems.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
-      {/* 3.1 Search & Filter Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-4">
+      {/* Toolbar */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search Bar Input */}
           <div className="md:col-span-5 relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search labs by title, skill, or keyword..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 focus:border-[#0052CC]"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 focus:border-[#0052CC]"
             />
           </div>
 
-          {/* Difficulty Dropdown Filter */}
-          <div className="md:col-span-3">
-            <select
-              value={selectedDifficulty}
-              onChange={(e) => setSelectedDifficulty(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-            >
-              <option value="All">All Difficulty Levels</option>
-              {difficulties.filter((d) => d !== 'All').map((diff) => (
-                <option key={diff} value={diff}>
-                  {diff} Level
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Category Dropdown Filter */}
-          <div className="md:col-span-4">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-            >
-              <option value="All">All Security Domains</option>
-              {categories.filter((c) => c !== 'All').map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+          <div className="md:col-span-7 flex flex-wrap items-center justify-end gap-2 text-xs font-semibold">
+            <span className="text-slate-500 dark:text-slate-400">Difficulty:</span>
+            {['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'].map((diff) => (
+              <button
+                key={diff}
+                onClick={() => setSelectedDifficulty(diff)}
+                className={`px-3 py-1.5 rounded-lg border transition-all ${
+                  selectedDifficulty === diff
+                    ? 'bg-[#0052CC] text-white border-[#0052CC]'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {diff}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Sort Controls Sub-Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-2 text-slate-500 font-semibold">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            Showing <span className="text-slate-800 font-bold">{sortedLabs.length}</span> security labs
+        {/* Categories Bar */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-[10px] mr-1">Category:</span>
+            {['All', 'Web Security', 'Cloud Security', 'SOC & Forensics', 'Reverse Engineering'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+                  selectedCategory === cat
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0052CC] dark:text-blue-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-medium">Sort Catalog By:</span>
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Sort Catalog By:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="py-1 px-2.5 bg-slate-100 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 focus:outline-none"
+              className="py-1 px-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
             >
               <option value="popularity">Highest Rating & Popularity</option>
               <option value="price-asc">Price: Low to High</option>
@@ -268,67 +308,58 @@ export const LabMarketplace: React.FC = () => {
         </div>
       </div>
 
-      {/* 3.3 Lab Cards Grid */}
+      {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedLabs.length === 0 ? (
-          <div className="col-span-full py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
-            <Store className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-700">No Security Labs Found</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+          <div className="col-span-full py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+            <Store className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No Security Labs Found</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">
               Try adjusting your search criteria or clearing selected difficulty and category filters.
             </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedDifficulty('All');
-                setSelectedCategory('All');
-              }}
-              className="mt-4 px-4 py-2 bg-blue-50 text-[#0052CC] font-bold text-xs rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
-            >
-              Clear All Filters
-            </button>
           </div>
         ) : (
           sortedLabs.map((lab) => {
-            const difficultyBadgeColors = {
-              Beginner: 'bg-emerald-50 text-[#28A745] border-emerald-200',
-              Intermediate: 'bg-blue-50 text-[#0052CC] border-blue-200',
-              Advanced: 'bg-amber-50 text-amber-700 border-amber-200',
-              Expert: 'bg-purple-50 text-[#6F42C1] border-purple-200',
+            const isPurchased = lab.isPurchased || purchasedLabIds.has(lab.id);
+            const isInCart = cartItems.some((i) => i.lab_id === lab.id);
+
+            const difficultyBadgeColors: Record<string, string> = {
+              Beginner: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+              Intermediate: 'bg-blue-50 dark:bg-blue-950/40 text-[#0052CC] dark:text-blue-400 border-blue-200 dark:border-blue-800',
+              Advanced: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+              Expert: 'bg-purple-50 dark:bg-purple-950/40 text-[#6F42C1] dark:text-purple-400 border-purple-200 dark:border-purple-800',
             };
 
             return (
               <div
                 key={lab.id}
-                className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
               >
-                {/* Card Header Top */}
-                <div className="p-5 border-b border-slate-100 space-y-3">
+                <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full truncate max-w-[180px]">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full truncate max-w-[180px]">
                       {lab.category}
                     </span>
                     <span
                       className={`text-[11px] font-bold border px-2.5 py-0.5 rounded-full ${
-                        difficultyBadgeColors[lab.difficulty]
+                        difficultyBadgeColors[lab.difficulty ?? ''] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                       }`}
                     >
                       {lab.difficulty}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-extrabold text-slate-900 group-hover:text-[#0052CC] transition-colors line-clamp-1">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0052CC] transition-colors line-clamp-1">
                     {lab.title}
                   </h3>
 
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {lab.shortDescription}
                   </p>
                 </div>
 
-                {/* Card Body Details */}
-                <div className="p-5 bg-slate-50/50 space-y-4 flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 flex-1 flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
                       {lab.durationHours} Hours
@@ -339,60 +370,63 @@ export const LabMarketplace: React.FC = () => {
                     </span>
                     <span className="flex items-center gap-1">
                       <Layers className="w-3.5 h-3.5 text-slate-400" />
-                      {lab.modules.length} Modules
+                      {(lab.modules ?? []).length} Modules
                     </span>
                   </div>
 
-                  {/* Skills tags preview */}
                   <div className="flex flex-wrap gap-1">
-                    {lab.skillsCovered.slice(0, 2).map((skill, idx) => (
+                    {(lab.skillsCovered ?? []).slice(0, 2).map((skill, idx) => (
                       <span
                         key={idx}
-                        className="bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium"
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-medium"
                       >
                         {skill}
                       </span>
                     ))}
-                    {lab.skillsCovered.length > 2 && (
-                      <span className="text-[10px] text-slate-400 font-semibold px-1">
-                        +{lab.skillsCovered.length - 2} more
+                    {(lab.skillsCovered ?? []).length > 2 && (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold px-1">
+                        +{(lab.skillsCovered ?? []).length - 2} more
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Card Action Footer */}
-                <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between">
+                <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Base Price
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
+                      Price / Seat
                     </span>
-                    <span className="text-lg font-black text-slate-900">₹{lab.priceInr.toLocaleString('en-IN')}</span>
+                    <span className="text-lg font-black text-slate-900 dark:text-white">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleOpenDetailModal(lab)}
-                      className="px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-colors"
+                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
                     >
-                      Details
+                      View Details
                     </button>
 
-                    {lab.isPurchased ? (
+                    {isPurchased ? (
                       <button
-                        onClick={() => navigate('/admin/allocations')}
-                        className="px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#28A745] font-bold text-xs border border-emerald-200 transition-colors inline-flex items-center gap-1"
+                        onClick={() => navigate(lab.id === 'lab1-recon' ? '/labs/lab1-recon/session' : '/labs/command-line-lab/session')}
+                        className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
                       >
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        Allocate
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                        Launch Lab
                       </button>
                     ) : (
                       <button
-                        onClick={() => navigate(`/admin/labs/${lab.id}/purchase`)}
-                        className="px-3 py-2 rounded-lg bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-1"
+                        disabled={isInCart}
+                        onClick={() => handleAddToCart(lab)}
+                        className={`px-3 py-2 rounded-lg font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs ${
+                          isInCart
+                            ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            : 'bg-[#0052CC] hover:bg-blue-700 text-white'
+                        }`}
                       >
                         <ShoppingCart className="w-3.5 h-3.5" />
-                        Buy Lab
+                        <span>{isInCart ? 'In Cart' : 'Add to Cart'}</span>
                       </button>
                     )}
                   </div>
@@ -403,11 +437,28 @@ export const LabMarketplace: React.FC = () => {
         )}
       </div>
 
-      {/* Lab Detail Modal Component */}
       <LabDetailModal
         lab={selectedModalLab}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+      />
+
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cartItems={cartItems}
+        onUpdateQuantity={handleUpdateQuantity}
+        onUpdateDuration={handleUpdateDuration}
+        onRemoveItem={handleRemoveCartItem}
+        onClearCart={handleClearCart}
+        onProceedToCheckout={handleProceedToCheckout}
+      />
+
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        cartSummary={checkoutSummary}
+        onPaymentSuccess={handlePaymentSuccess}
       />
     </div>
   );

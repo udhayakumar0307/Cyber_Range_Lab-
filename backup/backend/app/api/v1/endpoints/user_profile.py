@@ -15,6 +15,10 @@ from app.models.user_lab_progress import UserLabProgress
 from app.models.user_achievement import UserAchievement
 from app.models.study_session import StudySession
 from app.models.audit_log import AuditLog
+from app.models.lab import Lab
+from app.models.lab_module import LabModule
+from app.models.professor_assignment import ProfessorAssignment
+from app.models.student_assignment import StudentAssignment
 from app.core.security import get_password_hash, verify_password
 
 router = APIRouter()
@@ -22,6 +26,72 @@ router = APIRouter()
 # ------------------------------------------------------------------
 # SCHEMAS
 # ------------------------------------------------------------------
+
+
+@router.get("/dashboard")
+def get_dashboard(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Database-backed student dashboard; no catalog or activity data is synthesized here."""
+    assignments = db.query(ProfessorAssignment, StudentAssignment, Lab).join(
+        StudentAssignment, StudentAssignment.assignment_id == ProfessorAssignment.id
+    ).join(Lab, Lab.id == ProfessorAssignment.lab_id).filter(
+        StudentAssignment.student_id == current_user.id
+    ).all()
+
+    assigned_labs = []
+    seen_lab_ids = set()
+    completed_labs = 0
+    for assignment, student_assignment, lab in assignments:
+        if lab.id in seen_lab_ids:
+            continue
+        seen_lab_ids.add(lab.id)
+        total_modules = db.query(func.count(LabModule.id)).filter(LabModule.lab_id == lab.id).scalar() or 0
+        solved_modules = db.query(func.count(func.distinct(UserLabProgress.module_id))).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab.id,
+            UserLabProgress.status == "COMPLETED"
+        ).scalar() or 0
+        is_completed = student_assignment.status.upper() == "COMPLETED" or (total_modules > 0 and solved_modules >= total_modules)
+        if is_completed:
+            completed_labs += 1
+        assigned_labs.append({
+            "id": lab.id,
+            "title": lab.name,
+            "category": lab.category,
+            "description": lab.description,
+            "status": "completed" if is_completed else "live",
+            "total_challenges": total_modules,
+            "solved_challenges": solved_modules,
+            "duration_hours": lab.estimated_time,
+            "tags": [lab.category] if lab.category else [],
+        })
+
+    total_assigned = len(assigned_labs)
+    completion_percentage = round((completed_labs / total_assigned) * 100) if total_assigned else 0
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    rank = (db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() or 0) + 1
+    activity_logs = db.query(AuditLog).filter(AuditLog.user_id == current_user.id).order_by(
+        AuditLog.timestamp.desc()
+    ).limit(10).all()
+
+    return {
+        "user": {"name": current_user.name, "email": current_user.email},
+        "statistics": {
+            "total_score": current_user.total_score or 0,
+            "rank": rank,
+            "total_users": total_users,
+            "completed_labs": completed_labs,
+            "assigned_labs": total_assigned,
+            "completion_percentage": completion_percentage,
+        },
+        "assigned_labs": assigned_labs,
+        "recent_activity": [{
+            "id": log.id,
+            "action": log.action,
+            "description": log.new_value or log.resource or log.entity or "",
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            "status": log.status,
+        } for log in activity_logs],
+    }
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
