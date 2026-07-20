@@ -72,7 +72,7 @@ export default function AdminLayout({
       router.replace("/login")
       return
     }
-    if (user?.role !== "sys_admin") {
+    if (user?.role !== "sys_admin" && user?.role !== "admin") {
       router.replace(getRoleHome(user?.role))
     }
   }, [isLoading, isAuthenticated, user, router])
@@ -85,7 +85,7 @@ export default function AdminLayout({
     )
   }
 
-  if (!user || user.role !== "sys_admin") return null
+  if (!user || (user.role !== "sys_admin" && user.role !== "admin")) return null
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans transition-colors duration-300">

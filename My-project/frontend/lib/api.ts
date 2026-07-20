@@ -5,16 +5,6 @@ const getApiBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('ngrok')) {
-      return 'http://localhost:8000';
-    } else {
-      // Fallback to the production Render backend for any deployed site
-      return 'https://cyberrange-api-l294.onrender.com';
-    }
-  }
-  // Server-side default to production Render URL
   return 'https://cyberrange-api-l294.onrender.com';
 };
 
