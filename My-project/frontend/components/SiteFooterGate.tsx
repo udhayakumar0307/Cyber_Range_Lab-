@@ -8,6 +8,7 @@ export function SiteFooterGate() {
   const pathname = usePathname()
   if (
     pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/sys-admin") ||
     pathname === "/login" ||
     pathname === "/register"
   ) {

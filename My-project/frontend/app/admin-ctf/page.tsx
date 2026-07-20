@@ -2014,7 +2014,7 @@ export default function StandaloneAdminCTFControl() {
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="outline" className="h-7 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 text-[10px] font-bold rounded-lg px-3">
-              <Link href={user.role === "sys_admin" ? "/admin" : "/dashboard"}>
+              <Link href={user.role === "sys_admin" ? "/sys-admin" : "/dashboard"}>
                 <ArrowLeft className="w-3 h-3 mr-1" /> Back to Workspace
               </Link>
             </Button>

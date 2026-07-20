@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2, ArrowLeft, ExternalLink, RefreshCcw, CreditCard, Activity, Clock, Terminal } from "lucide-react"
-import { OpsFeedReturnBanner } from "@/app/admin/ops/_components/ops-feed-return-banner"
+import { OpsFeedReturnBanner } from "@/app/sys-admin/ops/_components/ops-feed-return-banner"
 
 type PaymentFilter = "all" | "pending" | "captured" | "failed"
 

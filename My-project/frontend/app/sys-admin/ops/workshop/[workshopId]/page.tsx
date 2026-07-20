@@ -43,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { OpsFeedReturnBanner } from "@/app/admin/ops/_components/ops-feed-return-banner"
+import { OpsFeedReturnBanner } from "@/app/sys-admin/ops/_components/ops-feed-return-banner"
 import { Textarea } from "@/components/ui/textarea"
 import {
   ArrowLeft,

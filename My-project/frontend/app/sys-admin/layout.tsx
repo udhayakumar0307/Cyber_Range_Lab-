@@ -27,20 +27,20 @@ import { cn } from "@/lib/utils"
 import { getRoleHome } from "@/lib/role-home"
 
 const NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/ops/individual", label: "Individual Ops", icon: Users },
-  { href: "/admin/ops/workshop", label: "Workshop Ops", icon: Users2 },
-  { href: "/admin/ops/feed", label: "Operations Feed", icon: BellRing },
-  { href: "/admin/users", label: "Accounts", icon: Users },
-  { href: "/admin/courses", label: "Courses", icon: BookOpen },
-  { href: "/admin/content", label: "Content Studio", icon: FileText },
-  { href: "/admin/course-admins", label: "Course Admins", icon: UserCog },
-  { href: "/admin/guardrails", label: "Guardrails", icon: ShieldCheck },
-  { href: "/admin/participants", label: "Participants", icon: Users2 },
+  { href: "/sys-admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/sys-admin/ops/individual", label: "Individual Ops", icon: Users },
+  { href: "/sys-admin/ops/workshop", label: "Workshop Ops", icon: Users2 },
+  { href: "/sys-admin/ops/feed", label: "Operations Feed", icon: BellRing },
+  { href: "/sys-admin/users", label: "Accounts", icon: Users },
+  { href: "/sys-admin/courses", label: "Courses", icon: BookOpen },
+  { href: "/sys-admin/content", label: "Content Studio", icon: FileText },
+  { href: "/sys-admin/course-admins", label: "Course Admins", icon: UserCog },
+  { href: "/sys-admin/guardrails", label: "Guardrails", icon: ShieldCheck },
+  { href: "/sys-admin/participants", label: "Participants", icon: Users2 },
   { href: "/admin-ctf", label: "Admin CTF Hub", icon: Trophy },
-  { href: "/admin/deployments", label: "Lab Deployments", icon: Server },
-  { href: "/admin/billing", label: "Billing Snapshot", icon: CreditCard },
-  { href: "/admin/billing/payments", label: "Billing Payments", icon: CreditCard },
+  { href: "/sys-admin/deployments", label: "Lab Deployments", icon: Server },
+  { href: "/sys-admin/billing", label: "Billing Snapshot", icon: CreditCard },
+  { href: "/sys-admin/billing/payments", label: "Billing Payments", icon: CreditCard },
 ] as const
 
 export default function AdminLayout({
@@ -60,10 +60,10 @@ export default function AdminLayout({
 
   const activeHref = useMemo(() => {
     const matches = NAV.filter((item) => {
-      if (item.href === "/admin") return pathname === "/admin"
+      if (item.href === "/sys-admin") return pathname === "/sys-admin"
       return pathname === item.href || pathname.startsWith(`${item.href}/`)
     }).sort((a, b) => b.href.length - a.href.length)
-    return matches[0]?.href ?? "/admin"
+    return matches[0]?.href ?? "/sys-admin"
   }, [pathname])
 
   useEffect(() => {

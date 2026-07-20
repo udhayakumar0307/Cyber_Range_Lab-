@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { api, clearToken, type AdminBillingPaymentRow, type AdminDeployment } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { showToast } from "@/components/toast"
-import { OpsFeedReturnBanner } from "@/app/admin/ops/_components/ops-feed-return-banner"
+import { OpsFeedReturnBanner } from "@/app/sys-admin/ops/_components/ops-feed-return-banner"
 
 type DetailRow = {
   payment: AdminBillingPaymentRow | null
