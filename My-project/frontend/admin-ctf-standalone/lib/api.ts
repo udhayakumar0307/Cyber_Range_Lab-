@@ -5,7 +5,7 @@ const getApiBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  return 'http://localhost:8000';
+  return 'https://cyberrange-api-l294.onrender.com';
 };
 
 const API_BASE_URL = getApiBaseUrl();
