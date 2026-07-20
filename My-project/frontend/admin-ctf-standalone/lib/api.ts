@@ -77,9 +77,9 @@ class ApiClient {
     });
 
     try {
-      // Add a timeout using AbortController. Default 30s unless overridden by options.timeout
+      // Add a timeout using AbortController. Default 5s unless overridden by options.timeout
       const controller = new AbortController();
-      const timeoutMs = (options as any).timeout || 30000;
+      const timeoutMs = (options as any).timeout || 5000;
       // If caller passed a signal, prefer it but still set a timeout
       const userSignal = (options as any).signal as AbortSignal | undefined;
       const signal = userSignal || controller.signal;
