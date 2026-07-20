@@ -541,36 +541,39 @@ class ApiClient {
   // — no such endpoints exist on the backend.
 
   // Generic HTTP methods for quiz API
-  async get<T = any>(endpoint: string): Promise<ApiResponse<T>> {
+  async get<T = any>(endpoint: string, options?: RequestInit & { timeout?: number }): Promise<ApiResponse<T>> {
     if (endpoint === '/auth/validate') {
-      return this.request<T>('/auth/me', { method: 'GET' });
+      return this.request<T>('/auth/me', { method: 'GET', ...options });
     }
-    return this.request<T>(endpoint, { method: 'GET' });
+    return this.request<T>(endpoint, { method: 'GET', ...options });
   }
 
-  async post<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T = any>(endpoint: string, data?: any, options?: RequestInit & { timeout?: number }): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+      ...options,
     });
   }
 
-  async put<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async put<T = any>(endpoint: string, data?: any, options?: RequestInit & { timeout?: number }): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+      ...options,
     });
   }
 
-  async patch<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async patch<T = any>(endpoint: string, data?: any, options?: RequestInit & { timeout?: number }): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
+      ...options,
     });
   }
 
-  async delete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+  async delete<T = any>(endpoint: string, options?: RequestInit & { timeout?: number }): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'DELETE', ...options });
   }
 
   // Notification methods
@@ -1268,10 +1271,10 @@ export function clearToken() {
 export const api = {
   async me(): Promise<User> {
     try {
-      const res = await apiClient.get<User>("/auth/me")
+      const res = await apiClient.get<User>("/auth/me", { timeout: 3500 })
       if (res.success && res.data) return res.data
     } catch {
-      // Backend offline fallback
+      // Backend offline / cold-start fallback
     }
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("cystar_user")
@@ -1286,7 +1289,7 @@ export const api = {
     return {
       id: "dev-local-user",
       email: "anand@academy.io",
-      role: "admin",
+      role: "sys_admin",
       name: "Anand (Dev)",
       is_active: true,
     }
@@ -1294,7 +1297,7 @@ export const api = {
 
   async entitlements(): Promise<Entitlement[]> {
     try {
-      const res = await apiClient.get<Entitlement[]>("/billing/entitlements")
+      const res = await apiClient.get<Entitlement[]>("/billing/entitlements", { timeout: 3500 })
       return unwrap(res, "Failed to fetch entitlements")
     } catch {
       return []
@@ -1303,7 +1306,7 @@ export const api = {
 
   async catalogLabs(): Promise<CatalogLab[]> {
     try {
-      const res = await apiClient.get<CatalogLab[]>("/catalog/labs")
+      const res = await apiClient.get<CatalogLab[]>("/catalog/labs", { timeout: 3500 })
       return unwrap(res, "Failed to fetch lab catalog")
     } catch {
       return []
@@ -1322,7 +1325,7 @@ export const api = {
     const adminUser: User = {
       id: "dev-admin-id",
       email: "anand@academy.io",
-      role: "admin",
+      role: "sys_admin",
       name: "Anand (System Admin)",
       is_active: true,
     }
@@ -1330,12 +1333,12 @@ export const api = {
       localStorage.setItem("cystar_user", JSON.stringify(adminUser))
     }
     try {
-      const res = await apiClient.post<{ access_token: string }>("/auth/dev-login")
+      const res = await apiClient.post<{ access_token: string }>("/auth/dev-login", undefined, { timeout: 3500 })
       if (res.success && res.data?.access_token) {
         return res.data
       }
     } catch {
-      // Offline fallback
+      // Offline / cold-start fallback
     }
     return { access_token: "mock_dev_admin_access_token_12345" }
   },
@@ -1359,12 +1362,12 @@ export const api = {
       if (name) body.name = name
       if (role) body.role = role
       if (create_if_missing !== undefined) body.create_if_missing = create_if_missing
-      const res = await apiClient.post<{ access_token: string }>("/auth/dev-login-participant", body)
+      const res = await apiClient.post<{ access_token: string }>("/auth/dev-login-participant", body, { timeout: 3500 })
       if (res.success && res.data?.access_token) {
         return res.data
       }
     } catch {
-      // Offline fallback
+      // Offline / cold-start fallback
     }
     return { access_token: `mock_dev_${targetRole}_access_token_12345` }
   },
