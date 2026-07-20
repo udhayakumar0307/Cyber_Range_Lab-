@@ -43,3 +43,12 @@ coverage
 # Temporary & cache
 *.tmp
 *.bak
+
+# Python virtual environments
+.venv/
+venv/
+**/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
