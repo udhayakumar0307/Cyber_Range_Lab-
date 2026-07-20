@@ -45,7 +45,7 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
               <span className="text-xs font-bold bg-blue-500/20 text-blue-200 border border-blue-400/30 px-2.5 py-0.5 rounded-full">
                 {lab.category}
               </span>
-              <span className={`text-xs font-bold border px-2.5 py-0.5 rounded-full ${difficultyColors[lab.difficulty]}`}>
+              <span className={`text-xs font-bold border px-2.5 py-0.5 rounded-full ${difficultyColors[lab.difficulty ?? 'Beginner'] ?? ''}`}>
                 {lab.difficulty}
               </span>
               {lab.isPurchased && (
@@ -70,7 +70,7 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
               </span>
               <span className="flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
-                {lab.modules.length} Security Modules
+                {(lab.modules ?? []).length} Security Modules
               </span>
             </div>
           </div>
@@ -102,7 +102,7 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
               Skills Tested & Trained
             </h3>
             <div className="flex flex-wrap gap-1.5">
-              {lab.skillsCovered.map((skill, idx) => (
+              {(lab.skillsCovered ?? []).map((skill, idx) => (
                 <span
                   key={idx}
                   className="bg-blue-50 text-[#0052CC] border border-blue-100 px-2.5 py-1 rounded-md text-xs font-semibold"
@@ -116,10 +116,10 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
           {/* Included Challenge Modules */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Challenge Modules ({lab.modules.length})
+              Challenge Modules ({(lab.modules ?? []).length})
             </h3>
             <div className="space-y-2">
-              {lab.modules.map((mod, idx) => (
+              {(lab.modules ?? []).map((mod, idx) => (
                 <div
                   key={mod.id}
                   className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs"
@@ -142,13 +142,13 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
           </div>
 
           {/* Prerequisites */}
-          {lab.prerequisites.length > 0 && (
+          {(lab.prerequisites ?? []).length > 0 && (
             <div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                 Prerequisites & Target Knowledge
               </h3>
               <ul className="space-y-1 text-xs text-slate-600">
-                {lab.prerequisites.map((req, idx) => (
+                {(lab.prerequisites ?? []).map((req, idx) => (
                   <li key={idx} className="flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5 text-[#28A745]" />
                     <span>{req}</span>
@@ -164,7 +164,7 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
           <div>
             <span className="text-xs text-slate-500 font-semibold block">Lab License Price</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-slate-900">₹{lab.priceInr.toLocaleString('en-IN')}</span>
+              <span className="text-2xl font-black text-slate-900">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
               <span className="text-xs text-slate-500">/ base unit</span>
             </div>
           </div>

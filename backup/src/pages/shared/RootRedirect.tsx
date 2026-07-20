@@ -10,10 +10,10 @@ export const RootRedirect: React.FC = () => {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
-        if (user.role === 'admin') {
+        if (user.role && user.role.toLowerCase() === 'admin') {
           navigate('/admin/dashboard', { replace: true });
         } else {
-          navigate('/dashboard', { replace: true });
+          navigate('/labs', { replace: true });
         }
       } else {
         navigate('/login', { replace: true });

@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,13 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing application startup...")
     try:
         initialize_database()
+        from app.database.manager import db_manager
+        from app.services.lab_scanner import scan_lab_directory
+        with db_manager.transaction() as db:
+            scan_lab_directory(db, notify=True)
+        app.state.daily_notification_task = asyncio.create_task(
+            __import__("app.services.daily_notification_worker", fromlist=["daily_notification_loop"]).daily_notification_loop()
+        )
         logger.info("Database initialization completed successfully during startup.")
     except Exception as e:
         logger.critical(f"Database initialization failed during startup: {e}", exc_info=True)
@@ -31,6 +39,9 @@ async def lifespan(app: FastAPI):
     yield
     # Application shutdown logic
     logger.info("Initializing application shutdown...")
+    task = getattr(app.state, "daily_notification_task", None)
+    if task:
+        task.cancel()
     db_manager.shutdown()
     logger.info("Application shutdown completed successfully.")
 

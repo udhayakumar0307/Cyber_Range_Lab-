@@ -31,7 +31,7 @@ export const ProgressTracking: React.FC = () => {
     setErrorMsg(null);
     try {
       const token = localStorage.getItem('token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       const [dashRes, achRes] = await Promise.all([
         fetch('/api/v1/reporting/dashboard', { headers }),

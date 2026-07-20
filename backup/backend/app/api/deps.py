@@ -51,3 +51,50 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         )
         
     return user
+
+def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures current user is an admin or SYSTEM_ADMIN."""
+    role_upper = (current_user.role or "").upper()
+    if role_upper not in ["ADMIN", "SYSTEM_ADMIN", "PROFESSOR"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required"
+        )
+    return current_user
+
+def get_current_system_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures current user has SYSTEM_ADMIN role."""
+    role_upper = (current_user.role or "").upper()
+    if role_upper != "SYSTEM_ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. System Admin role required."
+        )
+    return current_user
+
+def get_admin_org_id(user: User, db: Session) -> int:
+    """Returns the organization_id associated with the admin user, creating an org if needed."""
+    from app.models.admin_models import AdminProfile, Organization
+    profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
+    if profile and profile.organization_id:
+        return profile.organization_id
+    
+    # Check if an organization exists with default or user's college/organization name
+    org_name = user.organization or (user.college.name if user.college else "Default Enterprise Organization")
+    org = db.query(Organization).filter(Organization.name == org_name).first()
+    if not org:
+        org = Organization(name=org_name, institution_type="Enterprise")
+        db.add(org)
+        db.commit()
+        db.refresh(org)
+    
+    if profile:
+        profile.organization_id = org.id
+        db.commit()
+    else:
+        profile = AdminProfile(user_id=user.id, organization_id=org.id)
+        db.add(profile)
+        db.commit()
+        
+    return org.id
+

@@ -1,117 +1,383 @@
 # 🛡️ Cyber Range Platform
 
-[![React](https://img.shields.io/badge/React-18%2B-blue?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6%2B-[#646CFF]?logo=vite)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+> Enterprise-Grade Cybersecurity Training, Assessment & Virtual Lab Platform
 
-An enterprise-grade, clean **light-themed cybersecurity training and assessment platform**. Cyber Range allows organizations to provision security lab environments, allocate challenge suites, monitor user performance in real-time, and execute hands-on terminal exercises.
-
----
-
-## 🚀 Overview & Key Modules
-
-### 🎓 Student Portal Suite
-- **Dashboard (`/dashboard`)**: Personal greeting banner, Level/XP progress bar, cohort rank, active container time remaining, and recent solve feeds.
-- **Labs Catalog & Preview (`/labs`)**: Searchable lab library filtered by domain and difficulty, detailed overview modal, and active lab resume actions.
-- **Interactive Lab Sandbox (`/labs/:labId/session/:sessionId`)**: Immersive full-screen environment featuring split-pane objectives & hints on the left, and an interactive terminal console (`nmap`, `cat`, `sudo`, SUID privilege escalation emulator) on the right.
-- **Progress Analytics (`/progress`)**: SVG score trajectories, domain proficiency heatmaps, weekly study hour stats, and milestone achievement badges.
-- **Leaderboards & Scoreboard (`/leaderboards`)**: Personal solve log, cohort standings, top-3 global podiums, and multi-line solve progression graphs.
-- **Profile & Settings (`/profile`)**: Account credentials, avatar manager, and lab notification options.
-
-### 👑 Admin Management Suite
-- **Executive Dashboard (`/admin/dashboard`)**: High-level platform KPIs, rapid user provisioning triggers, monthly activity charts, and security action logs.
-- **Lab Marketplace (`/admin/labs`)**: Catalog filtered by difficulty and domain, preview modal, purchased inventory tab, and localized pricing in **`₹ INR`**.
-- **License Procurement (`/admin/labs/:labId/purchase`)**: Dynamic pricing models (Single Event, Annual, Seats), tax breakdown, corporate payment options, and instant inventory sync.
-- **User & Group Management (`/admin/users`, `/admin/groups`)**: Searchable roster tables, CSV drag-and-drop batch importer, role toggles (`Admin`, `Instructor`, `User`), and cohort group controls.
-- **Lab Allocations (`/admin/allocations`)**: Interactive Group Matrix mapping access visibility and scheduled lab availability windows.
-- **Compute Telemetry & Control (`/admin/labs/control`, `/admin/monitoring`)**: Live container status indicators (`Running`, `Paused`, `Stopped`), CPU & RAM usage telemetry, live user leaderboards, and an emergency stop killswitch.
-
-### 🔐 Authentication Suite
-- **Login (`/login`)**: Dual-mode authentication (Standard Credentials vs Enterprise SAML 2.0 / Okta SSO) with password toggle.
-- **Password Recovery (`/forgot-password`, `/reset-password`)**: Recovery link dispatch, password complexity meter, and link expiration handlers.
-- **Registration & OTP (`/register`)**: Account registration form followed by a 6-digit auto-advancing OTP pin code grid.
-
-### 🌐 System & Shared Views
-- **Auth Gateway (`/`)**: Smart role-based auto-redirection with interactive dev testing switcher.
-- **Utility Pages**: Styled **404 Not Found** (`*`), **500 Server Error** (`/error`), **Maintenance Mode** (`/maintenance`), and **403 Unauthorized** (`/unauthorized`) routes.
+![React](https://img.shields.io/badge/React-18-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Vite](https://img.shields.io/badge/Vite-6-purple)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
+![Docker](https://img.shields.io/badge/Docker-Lab_Containers-2496ED)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## 🎨 Design System
+# 🚀 Overview
 
-Designed according to the platform's PRD **Light Theme Design System**:
+Cyber Range is an enterprise-grade cybersecurity training platform that enables universities, enterprises, and training organizations to conduct practical cybersecurity education through isolated virtual lab environments.
 
-| Color Token | Hex Code | Usage |
-|---|---|---|
-| **Background Light** | `#F8F9FA` | Off-white canvas for clarity and reduced glare |
-| **Primary Blue** | `#0052CC` | Security authority, main call-to-action triggers |
-| **Success Green** | `#28A745` | Solved flags, active container status, growth metrics |
-| **Warning Orange** | `#FFA500` | Lab alerts, medium difficulty level tags |
-| **Accent Purple** | `#6F42C1` | Leaderboard ranks, podium highlights, CSV utilities |
-| **Dark Charcoal** | `#2D3436` | High-contrast typography & structural headers |
+The platform provides role-based access for administrators and students, challenge management, learning paths, containerized command-line labs, real-time monitoring, progress analytics, and secure authentication.
 
 ---
 
-## 🛠️ Technology Stack
+# ✨ Features
 
-| Domain | Technology |
-|---|---|
-| **Core Framework** | [React 18](https://react.dev/) + [TypeScript 5](https://www.typescriptlang.org/) |
-| **Build & Bundling** | [Vite 6](https://vitejs.dev/) |
-| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) |
-| **Iconography** | [Lucide React](https://lucide.dev/) |
-| **Navigation & Routing** | [React Router Dom v7](https://reactrouter.com/) |
+## 👨‍🎓 Student Portal
+
+### Dashboard
+- Personalized dashboard
+- XP & Level progression
+- Learning statistics
+- Active labs
+- Recent activities
+- Achievement summary
+
+### Learning Modules
+- Available Labs
+- Learning Paths
+- CTF Challenges
+- Command Line Lab
+- Progress Tracking
+- Leaderboards
+
+### Interactive Command Line Lab
+
+Features include
+
+- Docker-based isolated Linux terminal
+- Real Linux commands
+- Interactive objectives
+- Hint system
+- Flag validation
+- Module progression
+- Automatic scoring
+- Session timer
+- Progress persistence
+
+### Profile
+
+- User profile
+- Avatar
+- Personal statistics
+- Account information
+
+### Settings
+
+- Theme preference
+- Notification settings
+- Security settings
+- Password management
 
 ---
 
-## 💻 Quick Start
+# 👨‍💼 Administrator Portal
 
-### Prerequisites
-- Node.js (v18.x or higher recommended)
-- npm or pnpm
+## Dashboard
 
-### Setup Commands
-```bash
-# 1. Clone the repository
-git clone https://github.com/umadhatri/cyberrange.git
-cd cyberrange
+- Platform analytics
+- Active users
+- Running labs
+- User statistics
+- Recent activities
+- Performance metrics
 
-# 2. Install dependencies
-npm install
+## User Management
 
-# 3. Launch local development server
-npm run dev
+- Create users
+- Edit users
+- Delete users
+- Role management
+- Search & filtering
+- Bulk import
 
-# 4. Build for production release
-npm run build
+## Group Management
+
+- Create groups
+- Assign students
+- Manage instructors
+- View members
+- Edit groups
+
+## Lab Management
+
+- Available lab catalog
+- Purchase marketplace
+- Lab allocation
+- Scheduler
+- Challenge assignment
+- Lab control panel
+
+## Monitoring
+
+- Live running containers
+- CPU & Memory monitoring
+- User activity
+- Session monitoring
+- Emergency stop controls
+
+---
+
+# 🔐 Authentication
+
+Implemented authentication system includes
+
+- Login
+- Register
+- Email OTP Verification
+- Forgot Password
+- Reset Password
+- JWT Authentication
+- Protected Routes
+- Role Based Access Control (RBAC)
+
+---
+
+# 📊 Progress & Analytics
+
+Students can monitor
+
+- XP
+- Level
+- Completed labs
+- Learning progress
+- Weekly statistics
+- Leaderboards
+- Achievements
+- Completion percentage
+
+---
+
+# 🏆 CTF Platform
+
+Implemented
+
+- CTF Portal
+- Active Competitions
+- Scoreboard
+- Challenge Sessions
+- Team Rankings
+- Dynamic Scoring
+
+Admin Features
+
+- Create CTF
+- Schedule competitions
+- Manage challenges
+- View submissions
+- Monitor participants
+
+---
+
+# 🐳 Command Line Lab
+
+Interactive Linux environment supporting
+
+- pwd
+- ls
+- cd
+- cat
+- touch
+- mkdir
+- rm
+- cp
+- mv
+- chmod
+- grep
+- find
+- echo
+- nano
+- vim
+- sudo (simulated)
+- nmap (simulated)
+
+Features
+
+- Docker Containers
+- WebSocket Terminal
+- Session Validation
+- Automatic Flag Detection
+- Progress Saving
+- Hint System
+- Module Based Learning
+
+---
+
+# 🎨 UI Features
+
+- Responsive Design
+- Light Theme
+- Dark Theme
+- Modern Dashboard
+- Sidebar Navigation
+- Animated Components
+- Mobile Friendly
+- Accessible UI
+
+---
+
+# 🛠 Technology Stack
+
+## Frontend
+
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- Lucide React
+
+## Backend
+
+- FastAPI
+- SQLAlchemy
+- Alembic
+- JWT Authentication
+- REST APIs
+
+## Database
+
+- PostgreSQL
+
+## Infrastructure
+
+- Docker
+- Docker Compose
+
+## Email
+
+- AWS SES
+
+---
+
+# 📂 Project Structure
+
 ```
-
----
-
-## 📁 Repository Structure
-
-```
-CyberRange/
+CyberRange
+│
+├── backend/
+│   ├── app/
+│   ├── alembic/
+│   ├── models/
+│   ├── routers/
+│   ├── services/
+│   └── main.py
+│
+├── command-line-lab/
+│   ├── backend/
+│   ├── frontend/
+│   ├── docker/
+│   └── modules/
+│
+├── public/
+│
 ├── src/
+│   ├── assets/
 │   ├── components/
-│   │   ├── admin/             # Admin layout, sidebar, and management modals
-│   │   └── user/              # Student layout & sidebar components
+│   │   ├── admin/
+│   │   ├── user/
+│   │   └── shared/
+│   │
+│   ├── context/
+│   ├── hooks/
 │   ├── pages/
-│   │   ├── admin/             # Admin pages (2.1 - 2.9)
-│   │   ├── auth/              # Auth pages (1.1 - 1.4)
-│   │   ├── user/              # Student pages (3.1 - 3.9)
-│   │   └── shared/            # Utility pages (404, 500, maintenance, etc.)
-│   ├── types/                 # Data schemas & TypeScript interfaces
-│   ├── App.tsx                # Central router & application routes
-│   └── index.css              # Global styles & Tailwind v4 tokens
-├── tasks/                     # Development task tracking documentation
+│   │   ├── admin/
+│   │   ├── auth/
+│   │   ├── user/
+│   │   └── shared/
+│   │
+│   ├── services/
+│   ├── types/
+│   ├── App.tsx
+│   └── main.tsx
+│
+├── tasks/
+├── package.json
 └── README.md
 ```
 
 ---
 
-## 📄 License
+# 🚀 Getting Started
 
-Distributed under the MIT License. See `LICENSE` for more information.
+## Clone
+
+```bash
+git clone https://github.com/umadhatri/cyberrange.git
+cd cyberrange
+```
+
+## Install
+
+```bash
+npm install
+```
+
+## Run Frontend
+
+```bash
+npm run dev
+```
+
+## Backend
+
+```bash
+cd backend
+
+python -m venv venv
+
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+uvicorn app.main:app --reload
+```
+
+---
+
+# 📌 Current Status
+
+## ✅ Completed
+
+- Authentication System
+- JWT Security
+- Student Dashboard
+- Admin Dashboard
+- User Management
+- Group Management
+- Profile
+- Settings
+- Progress Tracking
+- Leaderboards
+- CTF Module
+- Command Line Lab
+- Docker Integration
+- Backend APIs
+- PostgreSQL Integration
+- AWS SES Email
+- Responsive UI
+- Theme Support
+
+---
+
+# 🔒 Security Features
+
+- JWT Authentication
+- Password Hashing
+- Role Based Access Control
+- Protected Routes
+- Secure REST APIs
+- Input Validation
+- Session Management
+- Docker Isolation
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+## Developed for
+
+Cyber Range Platform for Cybersecurity Training, Practical Learning, CTF Competitions, and Virtual Lab Management.

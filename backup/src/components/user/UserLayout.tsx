@@ -34,7 +34,7 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
   const [unreadNotifications, setUnreadNotifications] = useState(2);
 
   const getInitials = (name: string) => {
-    if (!name) return 'AO';
+    if (!name) return '';
     return name
       .split(' ')
       .map(n => n[0])
@@ -146,11 +146,11 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
                 className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none"
               >
                 <div className="w-8 h-8 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                  {getInitials(user?.name || 'Alex Operator')}
+                  {getInitials(user?.name ?? '')}
                 </div>
                 <div className="hidden md:flex flex-col text-left">
                   <span className="font-bold text-xs text-[#0F172A] dark:text-white leading-tight">
-                    {user?.name || 'Alex Operator'}
+                    {user?.name ?? ''}
                   </span>
                   <span className="text-[10px] text-[#64748B] dark:text-[#CBD5E1] font-semibold uppercase tracking-wider">
                     {user?.account_type || 'STUDENT'}
@@ -163,7 +163,7 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
               {isUserDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2.5 border-b border-[#E2E8F0] dark:border-[#334155]">
-                    <p className="text-xs font-bold text-[#0F172A] dark:text-white truncate">{user?.name || 'Alex Operator'}</p>
+                    <p className="text-xs font-bold text-[#0F172A] dark:text-white truncate">{user?.name ?? ''}</p>
                     <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] truncate">{user?.email || 'student@cyberrange.in'}</p>
                   </div>
 
@@ -208,15 +208,17 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
                     >
                       <div className="flex items-center gap-2.5">
                         {theme === 'dark' ? (
-                          <Sun className="w-4 h-4 text-amber-500" />
+                          <>
+                            <Sun className="w-4 h-4 text-amber-500" />
+                            <span>Toggle Light Mode</span>
+                          </>
                         ) : (
-                          <Moon className="w-4 h-4 text-indigo-500" />
+                          <>
+                            <Moon className="w-4 h-4 text-indigo-500" />
+                            <span>Toggle Dark Mode</span>
+                          </>
                         )}
-                        <span>Toggle Dark Mode</span>
                       </div>
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                        {theme}
-                      </span>
                     </button>
 
                     <button

@@ -18,6 +18,7 @@ from app.models.otp import OTPVerification
 from app.models.password_reset import PasswordReset
 from app.models.audit_log import AuditLog
 from app.services.ses_service import ses_service
+from app.services.notification_service import notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,13 @@ def login(response: Response, login_data: UserLogin, db: Session = Depends(get_d
         raise AuthenticationError("Invalid Email or Password")
         
     logger.info("User authenticated")
-    role_name = user.role or "user"
-    token = create_access_token(data={"sub": user.email, "role": role_name})
+    role_name = user.role.lower() if user.role else "user"
+    token = create_access_token(data={
+        "sub": user.email,
+        "user_id": user.id,
+        "role": role_name,
+        "organization_id": user.organization or ""
+    })
     
     # Log successful login
     log_entry = AuditLog(
@@ -217,6 +223,12 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
         
     db.commit()
     db.refresh(user)
+    # Notify platform administrators of a real registration event. SNS failures are
+    # persisted as failed delivery audits and never fabricate a success response.
+    admins = db.query(User).filter(User.is_active.is_(True), User.role.in_(["admin", "SYSTEM_ADMIN"])).all()
+    notification_service.notify_users(db, admins, "New Student Registration",
+                                      f"A new student account was registered: {user.email}", "STUDENT_REGISTRATION")
+    db.commit()
     
     logger.info("Registration successful")
     return user

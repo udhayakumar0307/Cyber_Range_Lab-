@@ -135,7 +135,7 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleSaveAppearance = async (newTheme?: 'light' | 'dark' | 'system') => {
+  const handleSaveAppearance = async (newTheme?: 'light' | 'dark') => {
     setSaving(true);
     setMessage(null);
     const targetTheme = newTheme || theme;
@@ -326,7 +326,7 @@ export const SettingsPage: React.FC = () => {
 
           <div className="space-y-4">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Theme Selection</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 type="button"
                 onClick={() => handleSaveAppearance('light')}
@@ -347,17 +347,6 @@ export const SettingsPage: React.FC = () => {
               >
                 <Moon className="w-6 h-6 text-indigo-500" />
                 <span className="font-bold text-xs">Dark Mode</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSaveAppearance('system')}
-                className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${
-                  theme === 'system' ? 'border-[#2563EB] bg-blue-50/50 dark:bg-blue-950/20 text-[#2563EB]' : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Monitor className="w-6 h-6 text-slate-500" />
-                <span className="font-bold text-xs">System Default</span>
               </button>
             </div>
           </div>

@@ -42,28 +42,29 @@ export const AvailableLabs: React.FC = () => {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(0);
 
-  const [labs, setLabs] = useState<Lab[]>([
-    {
-      id: 'command-line-lab',
-      title: 'Command Line Lab',
-      category: 'linux',
-      categoryLabel: 'Linux Infrastructure',
-      description: 'Master the Linux command line. Audit permissions, search files, manage processes, and test standard scripting challenges.',
-      difficulty: 'beginner',
-      totalChallenges: 20,
-      solvedChallenges: 0,
-      durationHours: 4,
-      status: 'not_started',
-      tags: ['Linux', 'Terminal', 'Docker', 'Scoring'],
-      objectives: [
-        'Practice Linux file navigation and manipulation',
-        'Analyze system administration basics',
-        'Verify scripting with python and compiled executables'
-      ],
-      environmentType: 'Docker Container Terminal',
-      prerequisites: 'None'
-    }
-  ]);
+  const [labs, setLabs] = useState<Lab[]>([]);
+
+  useEffect(() => {
+    fetch('/api/v1/labs')
+      .then((response) => response.ok ? response.json() : [])
+      .then((items) => setLabs((Array.isArray(items) ? items : []).map((item: any) => ({
+        id: item?.id ?? '',
+        title: item?.title ?? item?.name ?? '',
+        category: 'linux', // presentation category; catalog categoryLabel remains database-backed
+        categoryLabel: item?.category ?? '',
+        description: item?.shortDescription ?? '',
+        difficulty: String(item?.difficulty ?? 'beginner').toLowerCase() as Lab['difficulty'],
+        totalChallenges: item?.modules?.length ?? 0,
+        solvedChallenges: 0,
+        durationHours: item?.durationHours ?? 0,
+        status: 'not_started',
+        tags: Array.isArray(item?.skillsCovered) ? item.skillsCovered : [],
+        objectives: [item?.fullDescription ?? item?.shortDescription ?? ''],
+        environmentType: item?.dockerImage ?? '',
+        prerequisites: (Array.isArray(item?.prerequisites) ? item.prerequisites : []).join(', ') || 'None'
+      }))))
+      .catch(() => setLabs([]));
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -128,6 +129,8 @@ export const AvailableLabs: React.FC = () => {
             setSelectedDetailLab(null);
             if (lab.id === 'command-line-lab') {
               navigate('/labs/command-line-lab/session');
+            } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
+              navigate('/labs/lab1-recon/session/sess-recon-01');
             } else {
               navigate(`/labs/${lab.id}/session/sess-123`);
             }
@@ -298,6 +301,8 @@ export const AvailableLabs: React.FC = () => {
                       onClick={() => {
                         if (lab.id === 'command-line-lab') {
                           navigate('/labs/command-line-lab/session');
+                        } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
+                          navigate('/labs/lab1-recon/session/sess-recon-01');
                         } else {
                           navigate(`/labs/${lab.id}/session/sess-123`);
                         }

@@ -1,0 +1,9 @@
+{
+  "name": "Command Line Lab",
+  "category": "Linux Infrastructure",
+  "difficulty": "Beginner",
+  "description": "Practice Linux terminal navigation, file inspection, privilege auditing, and command execution.",
+  "duration": "4",
+  "price": "9999",
+  "docker_image": "cyberrange/command-line-lab:latest"
+}

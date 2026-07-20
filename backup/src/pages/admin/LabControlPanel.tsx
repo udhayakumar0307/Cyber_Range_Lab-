@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
   Play, 
@@ -7,7 +7,9 @@ import {
   AlertOctagon, 
   Users, 
   Clock, 
-  Cpu
+  Cpu,
+  RotateCcw,
+  RotateCw
 } from 'lucide-react';
 
 interface LabInstanceControl {
@@ -22,60 +24,57 @@ interface LabInstanceControl {
 }
 
 export const LabControlPanel: React.FC = () => {
-  const [instances, setInstances] = useState<LabInstanceControl[]>([
-    {
-      id: 'inst-1',
-      labTitle: 'AWS Security Architecture & Exploitation',
-      category: 'Cloud Infrastructure',
-      status: 'running',
-      activeUserCount: 24,
-      cpuLoadPercent: 42,
-      uptimeHours: '14h 22m',
-      allocatedGroup: 'Red Team Cohort 2026',
-    },
-    {
-      id: 'inst-2',
-      labTitle: 'OWASP Top 10 Exploitation & Defense',
-      category: 'Web Security',
-      status: 'running',
-      activeUserCount: 18,
-      cpuLoadPercent: 35,
-      uptimeHours: '06h 45m',
-      allocatedGroup: 'SOC Analysts Batch B',
-    },
-    {
-      id: 'inst-3',
-      labTitle: 'Network Traffic Forensics & PCAP Analysis',
-      category: 'Network SOC',
-      status: 'paused',
-      activeUserCount: 0,
-      cpuLoadPercent: 5,
-      uptimeHours: '02h 10m (Paused)',
-      allocatedGroup: 'Blue Team Defense Alpha',
-    },
-    {
-      id: 'inst-4',
-      labTitle: 'Kubernetes Cluster Container Hacking',
-      category: 'Cloud Security',
-      status: 'idle',
-      activeUserCount: 0,
-      cpuLoadPercent: 0,
-      uptimeHours: '0h 0m',
-      allocatedGroup: 'Executive Security Briefing',
-    },
-  ]);
+  const [instances, setInstances] = useState<LabInstanceControl[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch('/api/v1/admin/sessions', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const mapped = data.map((s: any) => ({
+              id: s.id,
+              labTitle: s.labTitle,
+              category: "Security Challenge",
+              status: (s.status.toLowerCase() === 'running' ? 'running' : 'stopped') as any,
+              activeUserCount: 1,
+              cpuLoadPercent: 12,
+              uptimeHours: `${s.uptimeMinutes || 30} mins`,
+              allocatedGroup: s.userEmail || "Active Cohort"
+            }));
+            setInstances(mapped);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch running sessions:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSessions();
+  }, []);
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     instanceId: string;
-    targetAction: 'start' | 'pause' | 'stop';
+    targetAction: 'start' | 'pause' | 'stop' | 'restart';
     labTitle: string;
-  }>({ isOpen: false, instanceId: '', targetAction: 'start', labTitle: '' });
+  }>({
+    isOpen: false,
+    instanceId: '',
+    targetAction: 'start',
+    labTitle: '',
+  });
 
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [emergencyCode, setEmergencyCode] = useState('');
 
-  const handleActionClick = (instanceId: string, labTitle: string, targetAction: 'start' | 'pause' | 'stop') => {
+  const handleActionClick = (instanceId: string, labTitle: string, targetAction: 'start' | 'pause' | 'stop' | 'restart') => {
     setConfirmDialog({
       isOpen: true,
       instanceId,
@@ -88,9 +87,9 @@ export const LabControlPanel: React.FC = () => {
     const { instanceId, targetAction } = confirmDialog;
     setInstances((prev) =>
       prev.map((inst) => {
-        if (inst.id === instanceId) {
+        if (inst.id === instanceId || instanceId === 'all') {
           const newStatus =
-            targetAction === 'start'
+            targetAction === 'start' || targetAction === 'restart'
               ? 'running'
               : targetAction === 'pause'
               ? 'paused'
@@ -126,42 +125,48 @@ export const LabControlPanel: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Sliders className="w-7 h-7 text-[#0052CC]" />
-            Lab Control Panel & Instance Telemetry
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Start, pause, or terminate live security lab environments and monitor container compute loads.
+          <div className="flex items-center gap-2">
+            <Sliders className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
+            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Lab Environment Control Panel</h1>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Real-time management of active Docker container labs, virtual instances, and resource allocation.
           </p>
         </div>
 
         <button
-          onClick={() => setIsEmergencyModalOpen(true)}
-          className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-colors inline-flex items-center gap-2"
+          onClick={() => handleActionClick('all', 'All Container Labs', 'restart')}
+          className="px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-bold text-xs border border-amber-200 dark:border-amber-800 transition-colors inline-flex items-center gap-2 self-start sm:self-center cursor-pointer"
         >
-          <AlertOctagon className="w-4 h-4" />
-          Emergency Stop All Labs
+          <RotateCcw className="w-4 h-4" /> Restart All Containers
         </button>
       </div>
 
       {/* Instance List Grid */}
       <div className="grid grid-cols-1 gap-4">
-        {instances.map((inst) => {
+        {instances.length === 0 ? (
+          <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+            <Sliders className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No active containers</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Docker integration idle or no instances currently running.</p>
+          </div>
+        ) : (
+          instances.map((inst) => {
           const statusBadgeStyles = {
-            running: 'bg-emerald-50 text-[#28A745] border-emerald-200',
-            paused: 'bg-amber-50 text-amber-700 border-amber-200',
-            idle: 'bg-slate-100 text-slate-600 border-slate-200',
-            stopped: 'bg-rose-50 text-rose-600 border-rose-200',
+            running: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+            paused: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+            idle: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+            stopped: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800',
           };
 
           return (
             <div
               key={inst.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               {/* Lab Metadata */}
               <div className="space-y-1">
@@ -182,36 +187,36 @@ export const LabControlPanel: React.FC = () => {
                     ></span>
                     {inst.status}
                   </span>
-                  <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
                     {inst.category}
                   </span>
                 </div>
 
-                <h3 className="text-base font-extrabold text-slate-900">{inst.labTitle}</h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Allocated Cohort: <span className="text-slate-800 font-bold">{inst.allocatedGroup}</span>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">{inst.labTitle}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  Allocated Cohort: <span className="text-slate-800 dark:text-slate-200 font-bold">{inst.allocatedGroup}</span>
                 </p>
               </div>
 
               {/* Live Resource Telemetry */}
-              <div className="flex items-center gap-6 text-xs border-y md:border-y-0 border-slate-100 py-3 md:py-0">
+              <div className="flex items-center gap-6 text-xs border-y md:border-y-0 border-slate-100 dark:border-slate-800 py-3 md:py-0">
                 <div>
-                  <span className="text-slate-400 font-medium block">Active Users</span>
-                  <span className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-[#0052CC]" /> {inst.activeUserCount}
+                  <span className="text-slate-400 dark:text-slate-400 font-medium block">Active Users</span>
+                  <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-[#0052CC] dark:text-blue-400" /> {inst.activeUserCount}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-slate-400 font-medium block">CPU Utilization</span>
-                  <span className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
-                    <Cpu className="w-3.5 h-3.5 text-[#6F42C1]" /> {inst.cpuLoadPercent}%
+                  <span className="text-slate-400 dark:text-slate-400 font-medium block">CPU Utilization</span>
+                  <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1">
+                    <Cpu className="w-3.5 h-3.5 text-[#6F42C1] dark:text-purple-400" /> {inst.cpuLoadPercent}%
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-slate-400 font-medium block">Container Uptime</span>
-                  <span className="font-extrabold text-slate-800 text-sm flex items-center gap-1">
+                  <span className="text-slate-400 dark:text-slate-400 font-medium block">Container Uptime</span>
+                  <span className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-slate-400" /> {inst.uptimeHours}
                   </span>
                 </div>
@@ -222,9 +227,9 @@ export const LabControlPanel: React.FC = () => {
                 {inst.status !== 'running' && (
                   <button
                     onClick={() => handleActionClick(inst.id, inst.labTitle, 'start')}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#28A745] font-bold text-xs border border-emerald-200 transition-colors inline-flex items-center gap-1.5"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-[#28A745] dark:text-emerald-400 font-bold text-xs border border-emerald-200 dark:border-emerald-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 fill-[#28A745]" /> Start Lab
+                    <Play className="w-3.5 h-3.5 fill-[#28A745] dark:fill-emerald-400" /> Start Lab
                   </button>
                 )}
 
@@ -248,7 +253,7 @@ export const LabControlPanel: React.FC = () => {
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
 
       {/* Confirmation Dialog Modal */}

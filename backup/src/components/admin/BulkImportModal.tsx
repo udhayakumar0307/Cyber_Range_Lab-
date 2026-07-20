@@ -58,18 +58,18 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-purple-100 text-[#6F42C1]">
+            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-[#6F42C1] dark:text-purple-300">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-slate-900">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
                 Bulk Import Users via CSV
               </h2>
-              <p className="text-xs text-slate-500">Batch provision multiple user accounts simultaneously</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Batch provision multiple user accounts simultaneously</p>
             </div>
           </div>
 

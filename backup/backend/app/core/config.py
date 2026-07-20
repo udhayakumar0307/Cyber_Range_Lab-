@@ -6,16 +6,21 @@ logger = logging.getLogger(__name__)
 
 class Settings:
     def __init__(self):
-        # Locate the backend folder's .env file
-        self.backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.env_path = os.path.join(self.backend_dir, ".env")
+        self.app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.backend_dir = os.path.dirname(self.app_dir)
+        self.root_dir = os.path.dirname(self.backend_dir)
         self.reload()
 
     def reload(self):
-        # Reload the environment variables from disk
-        if os.path.exists(self.env_path):
-            load_dotenv(self.env_path, override=True)
-            logger.info("Configuration reloaded from .env file.")
+        backend_env = os.path.join(self.backend_dir, ".env")
+        root_env = os.path.join(self.root_dir, ".env")
+        
+        if os.path.exists(backend_env):
+            load_dotenv(backend_env, override=True)
+            logger.info(f"Configuration reloaded from {backend_env}")
+        elif os.path.exists(root_env):
+            load_dotenv(root_env, override=True)
+            logger.info(f"Configuration reloaded from {root_env}")
         else:
             load_dotenv(override=True)
             logger.warning(".env file not found. Reading from current process environment.")
@@ -26,15 +31,25 @@ class Settings:
         self.ALGORITHM = os.getenv("ALGORITHM", "HS256")
         self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # Default 24 hrs for dev ease
         
-        # Admin credentials
+        # Admin credentials & Security Key
         self.ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-        self.ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+        self.ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@cyberrange.in")
         self.ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "") # If empty, it'll generate one
+        self.ADMIN_REGISTRATION_KEY = os.getenv("ADMIN_REGISTRATION_KEY", "CYBERRANGE-ADMIN-2026")
+        self.SYSTEM_ADMIN_SECURITY_KEY = os.getenv("SYSTEM_ADMIN_SECURITY_KEY", "CYBERRANGE-SYSTEM-KEY-2026-X99")
+        self.SYSTEM_ADMIN_NAME = os.getenv("SYSTEM_ADMIN_NAME", "System Admin")
+        self.SYSTEM_ADMIN_EMAIL = os.getenv("SYSTEM_ADMIN_EMAIL", "sysadmin@cyberrange.in")
+        self.SYSTEM_ADMIN_PASSWORD = os.getenv("SYSTEM_ADMIN_PASSWORD", "sysadmin_password_2026")
+        self.ALLOWED_ADMIN_DOMAINS = [d.strip() for d in os.getenv("ALLOWED_ADMIN_DOMAINS", "cyberrange.in").split(",") if d.strip()]
+
         
         # AWS / Amazon SES Configurations
         self.AWS_REGION = os.getenv("AWS_REGION")
         self.AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
         self.AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self.SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
+        # Absolute path is deliberately configurable for container deployments.
+        self.LABS_DIRECTORY = os.getenv("LABS_DIRECTORY", os.path.join(self.root_dir, "labs"))
         self.SES_FROM_EMAIL = os.getenv("SES_FROM_EMAIL")
         
         # Database Configuration

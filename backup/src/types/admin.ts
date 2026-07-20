@@ -29,25 +29,27 @@ export interface OperationalActivity {
 
 export interface LabModule {
   id: string;
-  title: string;
-  durationMinutes: number;
-  points: number;
+  title?: string | null;
+  durationMinutes?: number | null;
+  points?: number | null;
 }
 
 export interface SecurityLab {
   id: string;
-  title: string;
-  shortDescription: string;
-  fullDescription: string;
-  difficulty: LabDifficulty;
-  category: string;
-  priceInr: number;
-  durationHours: number;
-  rating: number;
-  reviewCount: number;
-  prerequisites: string[];
-  skillsCovered: string[];
-  modules: LabModule[];
+  title?: string | null;
+  shortDescription?: string | null;
+  fullDescription?: string | null;
+  difficulty?: LabDifficulty | null;
+  category?: string | null;
+  priceInr?: number | null;
+  durationHours?: number | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  prerequisites?: string[] | null;
+  skillsCovered?: string[] | null;
+  modules?: LabModule[] | null;
+  dockerImage?: string | null;
+  registryPath?: string | null;
   isPurchased?: boolean;
   activeSessionsCount?: number;
   purchasedDate?: string;
