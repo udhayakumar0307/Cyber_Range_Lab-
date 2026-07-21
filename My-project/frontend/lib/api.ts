@@ -325,7 +325,7 @@ class ApiClient {
       return data;
     } catch (error: any) {
       if (error && error.name === 'AbortError') {
-        logger.warn('API request aborted due to timeout:', { url, timeout: (options as any).timeout || 30000 });
+        logger.warn('API request aborted due to timeout:', { url, timeout: timeoutMs });
         return {
           success: false,
           message: 'Request timeout',
