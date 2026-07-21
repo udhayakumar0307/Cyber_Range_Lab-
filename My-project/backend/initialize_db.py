@@ -3,6 +3,11 @@ import sys
 import asyncio
 import subprocess
 import asyncpg
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 async def main():
     db_url = os.environ.get("MIGRATION_DATABASE_URL") or os.environ.get("DATABASE_URL")
@@ -35,7 +40,18 @@ async def main():
     print("Resetting database schema for a clean install...")
     try:
         async with conn.transaction():
-            await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+            await conn.execute("""
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                        EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
+                    END LOOP;
+                    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+                        EXECUTE 'DROP SEQUENCE IF EXISTS public.' || quote_ident(r.sequence_name) || ' CASCADE';
+                    END LOOP;
+                END $$;
+            """)
         print("Database schema reset successful.")
     except Exception as e:
         print(f"Failed to reset database schema: {e}")
@@ -95,6 +111,12 @@ async def main():
     except Exception as e:
         print(f"Skipping subnet tracker seeding: {e}")
 
+    # Clear stale alembic_version entries if table exists
+    try:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM alembic_version;")
+    except Exception:
+        pass
 
     await conn.close()
 

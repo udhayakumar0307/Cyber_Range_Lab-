@@ -24,7 +24,7 @@ GUARDRAIL_DEFAULT_MAX_DURATION_HOURS = 500
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="backend/.env",
+        env_file=(".env", "backend/.env"),
         extra="ignore",
         case_sensitive=False,
     )
