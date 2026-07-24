@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureGuard Module Guide</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #090d12;
+            --card: #121824;
+            --border: #212e42;
+            --text: #f0f6fc;
+            --muted: #8b949e;
+            --green: #3fb950;
+            --blue: #58a6ff;
+            --red: #f85149;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'Outfit', sans-serif; 
+            padding: 40px 20px; 
+            line-height: 1.6; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            padding: 40px; 
+            border-radius: 12px; 
+        }
+        code { 
+            background: #1c2128; 
+            padding: 3px 6px; 
+            border-radius: 6px; 
+            font-family: 'Fira Code', monospace; 
+            font-size: 0.88rem;
+            color: #ff7b72; 
+        }
+        pre {
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            overflow-x: auto;
+        }
+        pre code { 
+            display: block; 
+            background: transparent;
+            padding: 0; 
+            color: #39ff14; 
+            font-size: 0.9rem;
+        }
+        h1, h2, h3 { 
+            color: var(--green); 
+            margin-top: 28px; 
+            margin-bottom: 16px; 
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 1.8rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        h2 { font-size: 1.4rem; }
+        h3 { font-size: 1.1rem; }
+        p {
+            margin-bottom: 16px;
+            color: #d1d9e0;
+        }
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 24px;
+            color: #d1d9e0;
+        }
+        li {
+            margin-bottom: 6px;
+        }
+        a { 
+            color: var(--blue); 
+            text-decoration: none; 
+        }
+        a:hover { 
+            text-decoration: underline; 
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container" id="content">Loading guide content...</div>
+
+    <script>
+        // Fetch raw markdown from server
+        fetch('/static/modules/{{ filename }}')
+            .then(res => {
+                if (!res.ok) throw new Error("File not found");
+                return res.text();
+            })
+            .then(text => {
+                document.getElementById('content').innerHTML = marked.parse(text);
+            })
+            .catch(err => {
+                document.getElementById('content').innerHTML = `<h1 style="color:var(--red)">Error</h1><p>Could not load the guide document. Please make sure the filename is correct.</p>`;
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+# ============================================================
+# LAB 2: CLOUD SECURITY MISCONFIGURATION
+# SecureGuard Red Team vs. TechCorp Industries Cloud
+# ============================================================
+# Usage:
+#   STUDENT_ID=alice LAB_SEED=myseed docker-compose up --build -d
+#   Then: docker exec -it lab2-student bash
+# ============================================================
+
+networks:
+  cloud-security-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.0.0/24
+
+services:
+
+  # ── AWS Cloud Emulator Target ─────────────────────────────
+  localstack:
+    container_name: lab2-target
+    image: localstack/localstack:3.8.0
+    hostname: localstack
+    networks:
+      cloud-security-net:
+        ipv4_address: 10.20.0.10
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,iam,sts,lambda,secretsmanager
+      - AWS_DEFAULT_REGION=us-east-1
+      - ENFORCE_IAM=1
+      - S3_SKIP_SIGNATURE_VALIDATION=0
+    volumes:
+      - "./localstack_data:/var/lib/localstack"
+    restart: unless-stopped
+
+  # ── Scoring Server & Room Dashboard ───────────────────────
+  scoring-server:
+    build:
+      context: ./scoring-server
+    container_name: lab2-scoring
+    hostname: scoring
+    networks:
+      cloud-security-net:
+        ipv4_address: 10.20.0.99
+    ports:
+      - "5000:5000"   # Web UI accessible from host browser
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - LOCALSTACK_ENDPOINT=http://10.20.0.10:4566
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=mock
+      - AWS_SECRET_ACCESS_KEY=mock
+    volumes:
+      - scoring-data:/data
+      - ./modules:/app/static/modules:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - localstack
+    restart: unless-stopped
+
+  # ── Student Kali Workspace ───────────────────────────────
+  student-env:
+    build:
+      context: ./student-env
+    container_name: lab2-student
+    hostname: secureguard-kali
+    networks:
+      cloud-security-net:
+        ipv4_address: 10.20.0.50
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - TARGET_IP=10.20.0.10
+      - SCORING_URL=http://10.20.0.99:5000
+    volumes:
+      - ./modules:/modules:ro
+    depends_on:
+      - localstack
+      - scoring-server
+    stdin_open: true
+    tty: true
+
+volumes:
+  scoring-data:

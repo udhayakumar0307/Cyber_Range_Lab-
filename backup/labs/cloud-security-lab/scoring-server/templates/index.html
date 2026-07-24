@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureGuard Cloud Security Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #090d12;
+    --sidebar-bg: #0d121a;
+    --card: #121824;
+    --card-hover: #162030;
+    --border: #212e42;
+    --text: #f0f6fc;
+    --muted: #8b949e;
+    
+    --green: #3fb950;
+    --green-glow: rgba(63, 185, 80, 0.15);
+    --blue: #58a6ff;
+    --blue-glow: rgba(88, 166, 255, 0.15);
+    --red: #f85149;
+    --yellow: #d29922;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout & Sidebar Navigation ── */
+  .app-container {
+    display: flex;
+    width: 100vw;
+  }
+
+  .sidebar {
+    width: 260px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    padding: 24px;
+  }
+
+  .brand {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 32px;
+    letter-spacing: 0.5px;
+  }
+
+  .nav-menu {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--muted);
+    transition: all 0.2s ease;
+  }
+
+  .nav-item:hover, .nav-item.active {
+    background: var(--card);
+    color: var(--text);
+  }
+
+  .nav-item.active {
+    border-left: 3px solid var(--green);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    background: var(--border);
+  }
+
+  /* ── Main Content Area ── */
+  .main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 40px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+  }
+
+  .title-area h1 {
+    font-size: 1.7rem;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .title-area span {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .stats-header {
+    display: flex;
+    gap: 24px;
+  }
+
+  .stat-badge {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .stat-val {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--blue);
+  }
+
+  /* ── Tabs Content ── */
+  .tab-content {
+    display: none;
+    flex-grow: 1;
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  .tab-content.active {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Card Styling ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card h2 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  /* ── Modules View (Challenges) ── */
+  .module {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: all 0.2s ease;
+  }
+
+  .module.solved {
+    border-color: var(--green);
+    background: var(--green-glow);
+  }
+
+  .module.locked {
+    opacity: 0.45;
+  }
+
+  .module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .module-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  .badge.solved {
+    background: #1a3a1a;
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+
+  .badge.open {
+    background: #1c2d3d;
+    color: var(--blue);
+    border: 1px solid var(--blue);
+  }
+
+  .badge.locked {
+    background: #1e1e1e;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .meta-row {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+  }
+
+  .diff { color: var(--muted); }
+  .pts { color: var(--yellow); font-weight: 500; }
+
+  .narrative {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    border-left: 3px solid var(--blue);
+    padding-left: 14px;
+    color: #d1d9e0;
+  }
+
+  .objectives {
+    list-style: none;
+    margin-bottom: 20px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    padding-left: 4px;
+  }
+
+  .objectives li {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .objectives li::before {
+    content: "▸";
+    color: var(--blue);
+  }
+
+  .guide-link {
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+  }
+
+  .guide-link a {
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .guide-link a:hover {
+    text-decoration: underline;
+  }
+
+  /* Form Elements */
+  form {
+    margin-top: 16px;
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  input[type=text] {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+  }
+
+  input[type=text]:focus {
+    border-color: var(--blue);
+    outline: none;
+  }
+
+  button {
+    background: var(--green);
+    color: #0d1117;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.92rem;
+    transition: opacity 0.2s;
+  }
+
+  button:hover { opacity: 0.9; }
+  button:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .result {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    display: none;
+  }
+
+  .result.correct {
+    background: #132b13;
+    border: 1px solid var(--green);
+    color: var(--green);
+  }
+
+  .result.incorrect {
+    background: #2b1313;
+    border: 1px solid var(--red);
+    color: var(--red);
+  }
+
+  /* Collapsible state rules */
+  .collapsible-area {
+    display: none;
+  }
+  .module.active .collapsible-area {
+    display: block;
+  }
+
+  /* ── Kali Web Terminal ── */
+  .terminal-wrapper {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 160px);
+    overflow: hidden;
+  }
+
+  .terminal-header {
+    background: #161b22;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .dot.red { background: #ff5f56; }
+  .dot.yellow { background: #ffbd2e; }
+  .dot.green { background: #27c93f; }
+
+  .terminal-screen {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.92rem;
+    color: #39ff14;
+    line-height: 1.5;
+  }
+
+  .terminal-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #000;
+    border-top: 1px solid var(--border);
+  }
+
+  .prompt-symbol {
+    color: var(--green);
+    font-weight: bold;
+    font-family: 'Fira Code', monospace;
+  }
+
+  .terminal-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: #39ff14;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.92rem;
+    outline: none;
+  }
+
+  /* ── Connection Details & Actions ── */
+  .conn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .conn-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .conn-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .conn-val-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+  }
+
+  .conn-val {
+    word-break: break-all;
+    flex-grow: 1;
+  }
+
+  .copy-btn {
+    background: transparent;
+    color: var(--blue);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    margin-left: 12px;
+    flex-shrink: 0;
+  }
+
+  .copy-btn:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  .reset-btn {
+    background: var(--red);
+    color: #fff;
+    padding: 12px 24px;
+    font-weight: 600;
+    border-radius: 8px;
+    margin-top: 12px;
+  }
+
+  /* ── Leaderboard Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 0.92rem;
+  }
+
+  th, td {
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.5px;
+  }
+
+  tr:hover td {
+    background: #0e1622;
+  }
+
+  .rank-badge {
+    background: var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="brand">🛡️ SecureGuard</div>
+    <ul class="nav-menu">
+      <li class="nav-item active" id="menu-challenges" onclick="switchTab('challenges')">
+        Challenges
+      </li>
+      <li class="nav-item" id="menu-terminal" onclick="switchTab('terminal')">
+        Kali Terminal
+      </li>
+      <li class="nav-item" id="menu-scoreboard" onclick="switchTab('scoreboard')">
+        Scoreboard
+      </li>
+      <li class="nav-item" id="menu-connection" onclick="switchTab('connection')">
+        Credentials & Lab
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    <header>
+      <div class="title-area">
+        <h1>Cloud Misconfigurations Lab</h1>
+        <span>Student Session Workspace</span>
+      </div>
+      <div class="stats-header">
+        <div class="stat-badge">
+          <div class="stat-label">Total Points</div>
+          <div class="stat-val" id="total-pts">{{ scores.total_points }}</div>
+        </div>
+        <div class="stat-badge">
+          <div class="stat-label">Progress</div>
+          <div class="stat-val" id="progress-solved">0/5</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Tab 1: Challenges ── -->
+    <section id="tab-challenges" class="tab-content active">
+      {% set modules = [
+        (1, "Module 1: S3 Anonymous Reconnaissance", "⭐ Trivial", 100,
+         "Enumerate the public S3 bucket anonymously to discover what assets TechCorp has exposed.",
+         ["Check connection details panel for public bucket name", "List the bucket using --no-sign-request parameter", "Locate welcome.txt file and retrieve the first flag"]),
+         
+        (2, "Module 2: Credential Theft & Log Analysis", "⭐ Easy", 150,
+         "Recover leaked internal AWS credentials from a system log file, and decode the obfuscated flag.",
+         ["Submit Stage 1 flag to trigger system.log generation", "Download system.log from public bucket", "Find developer keys and decode the Stage 2 flag (ROT13)"]),
+         
+        (3, "Module 3: Cloud Resource Enumeration", "⭐⭐ Medium", 200,
+         "Configure your AWS environment using the leaked credentials and inspect internal Lambda configurations.",
+         ["Set compromised keys in your terminal environment", "List active lambda functions targeting the local endpoint", "Inspect EnumerateResources function environment variables for Stage 3 flag"]),
+         
+        (4, "Module 4: Cloud Privilege Escalation", "⭐⭐ Medium", 250,
+         "Enumerate your user's permissions, locate a privilege escalation vulnerability, and elevate access.",
+         ["List policies attached to developer user", "Retrieve policy document and identify PutUserPolicy misconfiguration", "Upload admin policy to escalate and retrieve flag4.txt from S3"]),
+         
+        (5, "Module 5: Corporate Secrets Infiltration", "⭐⭐⭐ Hard", 300,
+         "Access the corporate Secrets Manager vault using your administrator access to loot the final flag.",
+         ["Open restricted bucket and read flag5.txt instructions", "Locate secret ID company/final/flag in note", "Retrieve secret value from Secrets Manager to finish the lab"])
+      ] %}
+
+      {% for num, name, diff, pts, narrative, objectives in modules %}
+      {% set mod_id = "mod" ~ num %}
+      {% set solved = mod_id in scores.solved %}
+      
+      <div class="module {% if solved %}solved{% endif %}" id="card-{{ num }}">
+        <div class="module-header">
+          <span class="module-title">{{ name }}</span>
+          <span class="badge" id="badge-{{ num }}">LOCKED</span>
+        </div>
+        
+        <div class="meta-row">
+          <span class="diff">{{ diff }}</span>
+          <span class="pts" id="pts-earned-{{ num }}">
+            {% if solved %}+{{ scores.solved[mod_id].points }} pts earned{% else %}{{ pts }} pts base{% endif %}
+          </span>
+        </div>
+
+        <div class="collapsible-area" id="content-{{ num }}">
+          <p class="narrative">{{ narrative }}</p>
+          <ul class="objectives">
+            {% for obj in objectives %}
+            <li>{{ obj }}</li>
+            {% endfor %}
+          </ul>
+          <div class="guide-link">
+            📖 <a href="/modules/MODULE_{{ num }}.md" target="_blank">Read the full guide →</a>
+          </div>
+          
+          <form id="form-{{ num }}" onsubmit="submitFlag(event, {{ num }})">
+            <div class="form-group">
+              <label>Flag Value</label>
+              <input type="text" name="flag" placeholder="FLAG{...}" required>
+            </div>
+            <button type="submit" id="submit-btn-{{ num }}">Submit Flag</button>
+          </form>
+          <div class="result" id="result-{{ num }}"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+
+    <!-- ── Tab 2: Terminal ── -->
+    <section id="tab-terminal" class="tab-content">
+      <div class="terminal-wrapper">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <span>lab2-student@secureguard-kali:~</span>
+          <span>bash 5.2</span>
+        </div>
+        <div class="terminal-screen" id="terminal-screen">
+          <div style="color:var(--muted)">SecureGuard Web Shell v1.0.0 initialized.</div>
+          <div style="color:var(--muted)">Kali Linux Workstation - AWS CLI / boto3 / jq ready.</div>
+          <div style="color:var(--muted)">Target LocalStack cloud endpoint: http://10.20.0.10:4566</div>
+          <div style="color:var(--muted)">-------------------------------------------------------------</div>
+        </div>
+        <form id="terminal-form" onsubmit="executeTerminalCommand(event)">
+          <div class="terminal-input-bar">
+            <span class="prompt-symbol">student-kali$</span>
+            <input type="text" id="terminal-input" class="terminal-input" placeholder="Type a command (e.g. aws s3 ls --no-sign-request --endpoint-url http://10.20.0.10:4566)..." autocomplete="off">
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ── Tab 3: Scoreboard ── -->
+    <section id="tab-scoreboard" class="tab-content">
+      <div class="card">
+        <h2>Your Progress Stats</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Points Earned</th>
+              <th>Submission Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for num in range(1, 6) %}
+            {% set mod_id = "mod" ~ num %}
+            {% set solved = mod_id in scores.solved %}
+            <tr>
+              <td><span class="rank-badge">Module {{ num }}</span></td>
+              <td>
+                {% if num == 1 %}S3 Public Reconnaissance
+                {% elif num == 2 %}Credential Theft & Log Decode
+                {% elif num == 3 %}Lambda Configuration Inspection
+                {% elif num == 4 %}IAM Privilege Escalation
+                {% elif num == 5 %}AWS Secrets Manager Looting
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge {% if solved %}solved{% else %}locked{% endif %}">
+                  {% if solved %}COMPLETED{% else %}LOCKED{% endif %}
+                </span>
+              </td>
+              <td style="color:var(--yellow);font-weight:bold;">
+                {% if solved %}+{{ scores.solved[mod_id].points }} pts{% else %}0 pts{% endif %}
+              </td>
+              <td style="font-family:monospace;font-size:0.85rem;color:var(--muted);">
+                {% if solved %}{{ scores.solved[mod_id].timestamp[:19].replace('T', ' ') }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Tab 4: Connection & Credentials ── -->
+    <section id="tab-connection" class="tab-content">
+      <div class="card">
+        <h2>AWS Target & Credentials Info</h2>
+        <div class="conn-list">
+          <div class="conn-item">
+            <div class="conn-label">AWS API Endpoint</div>
+            <div class="conn-val-box">
+              <span class="conn-val">http://10.20.0.10:4566</span>
+              <button class="copy-btn" onclick="copyText('http://10.20.0.10:4566')">Copy</button>
+            </div>
+          </div>
+          <div class="conn-item">
+            <div class="conn-label">Public S3 Bucket</div>
+            <div class="conn-val-box">
+              <span class="conn-val" id="cfg-pub-bucket">{{ config.public_bucket or "Loading..." }}</span>
+              <button class="copy-btn" onclick="copyText(document.getElementById('cfg-pub-bucket').innerText)">Copy</button>
+            </div>
+          </div>
+          <div class="conn-item">
+            <div class="conn-label">Restricted S3 Bucket</div>
+            <div class="conn-val-box">
+              <span class="conn-val" id="cfg-res-bucket">Locates in Stage 4</span>
+              <button class="copy-btn" onclick="copyText(document.getElementById('cfg-res-bucket').innerText)">Copy</button>
+            </div>
+          </div>
+          <div class="conn-item">
+            <div class="conn-label">Developer Access Key</div>
+            <div class="conn-val-box">
+              <span class="conn-val" id="cfg-access-key">Locates in Stage 2</span>
+              <button class="copy-btn" onclick="copyText(document.getElementById('cfg-access-key').innerText)">Copy</button>
+            </div>
+          </div>
+          <div class="conn-item">
+            <div class="conn-label">Developer Secret Key</div>
+            <div class="conn-val-box">
+              <span class="conn-val" id="cfg-secret-key">Locates in Stage 2</span>
+              <button class="copy-btn" onclick="copyText(document.getElementById('cfg-secret-key').innerText)">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Reset Challenge Progress</h2>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">
+          This will wipe your leaderboard score and clean S3, Secrets Manager, and IAM configurations back to initial state.
+        </p>
+        <button class="reset-btn" onclick="resetLab()">Reset Environment</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const studentId = "{{ student_id }}";
+  // Solved state map
+  const initialSolved = {
+    mod1: {% if 'mod1' in scores.solved %}true{% else %}false{% endif %},
+    mod2: {% if 'mod2' in scores.solved %}true{% else %}false{% endif %},
+    mod3: {% if 'mod3' in scores.solved %}true{% else %}false{% endif %},
+    mod4: {% if 'mod4' in scores.solved %}true{% else %}false{% endif %},
+    mod5: {% if 'mod5' in scores.solved %}true{% else %}false{% endif %}
+  };
+
+  function copyText(val) {
+    if (val.includes("[Hidden")) return;
+    navigator.clipboard.writeText(val);
+  }
+
+  // Handle Switching Tabs
+  function switchTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    // Deactivate all menu items
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    
+    // Show active tab content
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    // Highlight active menu item
+    document.getElementById(`menu-${tabName}`).classList.add('active');
+  }
+
+  // Update layout and lock status of modules based on solved map
+  function updateModuleDisplay(solvedMap) {
+    let solvedCount = 0;
+    
+    // Check modules 1-5
+    for (let i = 1; i <= 5; i++) {
+      const card = document.getElementById(`card-${i}`);
+      const badge = document.getElementById(`badge-${i}`);
+      const content = document.getElementById(`content-${i}`);
+      const isSolved = solvedMap[`mod${i}`];
+      
+      card.className = "module";
+      
+      if (isSolved) {
+        solvedCount++;
+        card.classList.add("solved");
+        badge.innerText = "✓ CAPTURED";
+        badge.className = "badge solved";
+        // Solved form inputs disabled
+        document.getElementById(`submit-btn-${i}`).disabled = true;
+        document.getElementById(`form-${i}`).querySelector('input').disabled = true;
+      }
+      
+      const isPriorSolved = i === 1 || solvedMap[`mod${i-1}`];
+      
+      if (!isSolved && isPriorSolved) {
+        card.classList.add("active");
+        badge.innerText = "OPEN";
+        badge.className = "badge open";
+      } else if (!isSolved && !isPriorSolved) {
+        card.classList.add("locked");
+        badge.innerText = "LOCKED";
+        badge.className = "badge locked";
+      }
+    }
+    
+    // Update S3 bucket names and keys based on solved map
+    const pubBucket = "{{ config.public_bucket }}";
+    const resBucket = "{{ config.restricted_bucket }}";
+    const accessKey = "{{ config.developer_access_key }}";
+    const secretKey = "{{ config.developer_secret_key }}";
+
+    if (solvedMap["mod2"]) {
+      document.getElementById("cfg-access-key").innerText = accessKey;
+      document.getElementById("cfg-secret-key").innerText = secretKey;
+    } else {
+      document.getElementById("cfg-access-key").innerText = "[Hidden — Solve Stage 2 to reveal]";
+      document.getElementById("cfg-secret-key").innerText = "[Hidden — Solve Stage 2 to reveal]";
+    }
+
+    if (solvedMap["mod4"]) {
+      document.getElementById("cfg-res-bucket").innerText = resBucket;
+    } else {
+      document.getElementById("cfg-res-bucket").innerText = "[Hidden — Solve Stage 4 to reveal]";
+    }
+    
+    document.getElementById("progress-solved").innerText = `${solvedCount}/5`;
+  }
+
+  async function submitFlag(event, moduleNum) {
+    event.preventDefault();
+    const form = document.getElementById(`form-${moduleNum}`);
+    const flagInput = form.querySelector('input[name="flag"]').value.trim();
+    const resultDiv = document.getElementById(`result-${moduleNum}`);
+    const submitBtn = document.getElementById(`submit-btn-${moduleNum}`);
+    
+    resultDiv.style.display = "none";
+    submitBtn.disabled = true;
+    
+    try {
+      const response = await fetch('/api/submit-flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: studentId,
+          module: moduleNum,
+          submitted_flag: flagInput
+        })
+      });
+      
+      const data = await response.json();
+      submitBtn.disabled = false;
+      
+      if (response.status === 429) {
+        resultDiv.className = "result incorrect";
+        resultDiv.innerText = "Rate limit exceeded. Try again in 60s.";
+        resultDiv.style.display = "block";
+        return;
+      }
+      
+      if (data.status === "correct") {
+        resultDiv.className = "result correct";
+        resultDiv.innerText = "✓ Correct flag! Module unlocked.";
+        resultDiv.style.display = "block";
+        
+        // Update points
+        document.getElementById("total-pts").innerText = data.points;
+        document.getElementById(`pts-earned-${moduleNum}`).innerText = `+${data.solved[`mod${moduleNum}`].points} pts earned`;
+        
+        // Update solved map
+        const solvedMap = {};
+        for(let i=1; i<=5; i++) {
+          solvedMap[`mod${i}`] = !!data.solved[`mod${i}`];
+        }
+        updateModuleDisplay(solvedMap);
+      } else {
+        resultDiv.className = "result incorrect";
+        resultDiv.innerText = "✗ Incorrect flag. Try again.";
+        resultDiv.style.display = "block";
+      }
+    } catch (e) {
+      submitBtn.disabled = false;
+      resultDiv.className = "result incorrect";
+      resultDiv.innerText = "Error contacting server.";
+      resultDiv.style.display = "block";
+    }
+  }
+
+  async function resetLab() {
+    if (!confirm("Are you sure you want to reset your environment S3, IAM user, and score?")) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId })
+      });
+      const data = await res.json();
+      
+      // Update display
+      document.getElementById("total-pts").innerText = "0";
+      const solvedMap = { mod1: false, mod2: false, mod3: false, mod4: false, mod5: false };
+      
+      // Enable all inputs/forms
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`submit-btn-${i}`).disabled = false;
+        const formInput = document.getElementById(`form-${i}`).querySelector('input');
+        formInput.disabled = false;
+        formInput.value = "";
+        document.getElementById(`result-${i}`).style.display = "none";
+        
+        const ptsBase = { 1: 100, 2: 150, 3: 200, 4: 250, 5: 300 };
+        document.getElementById(`pts-earned-${i}`).innerText = `${ptsBase[i]} pts base`;
+      }
+      
+      updateModuleDisplay(solvedMap);
+      
+      // Clear terminal screen
+      const screen = document.getElementById("terminal-screen");
+      screen.innerHTML = `
+        <div style="color:var(--muted)">SecureGuard Web Shell v1.0.0 initialized.</div>
+        <div style="color:var(--muted)">Kali Linux Workstation - AWS CLI / boto3 / jq ready.</div>
+        <div style="color:var(--muted)">Target LocalStack cloud endpoint: http://10.20.0.10:4566</div>
+        <div style="color:var(--muted)">-------------------------------------------------------------</div>
+      `;
+      
+      alert("Lab reset successfully!");
+    } catch (e) {
+      alert("Failed to reset lab.");
+    }
+  }
+
+  async function executeTerminalCommand(event) {
+    event.preventDefault();
+    const input = document.getElementById("terminal-input");
+    const cmd = input.value.trim();
+    if (!cmd) return;
+    
+    const screen = document.getElementById("terminal-screen");
+    
+    // Append command to screen
+    const cmdLine = document.createElement("div");
+    cmdLine.innerHTML = `<span style="color:var(--green)">student-kali$</span> <span style="color:#fff">${escapeHtml(cmd)}</span>`;
+    screen.appendChild(cmdLine);
+    screen.scrollTop = screen.scrollHeight;
+    
+    input.value = "";
+    
+    try {
+      const response = await fetch('/api/terminal/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: studentId,
+          command: cmd
+        })
+      });
+      const data = await response.json();
+      
+      const outputLine = document.createElement("pre");
+      outputLine.style.whiteSpace = "pre-wrap";
+      outputLine.style.wordBreak = "break-all";
+      outputLine.style.margin = "6px 0 12px 0";
+      outputLine.style.fontFamily = "'Fira Code', monospace";
+      outputLine.style.color = data.exit_code === 0 ? "#39ff14" : "var(--red)";
+      outputLine.innerText = data.output;
+      screen.appendChild(outputLine);
+      screen.scrollTop = screen.scrollHeight;
+    } catch(e) {
+      const errorLine = document.createElement("div");
+      errorLine.style.color = "var(--red)";
+      errorLine.innerText = "Error executing command on server.";
+      screen.appendChild(errorLine);
+      screen.scrollTop = screen.scrollHeight;
+    }
+  }
+
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+  }
+
+  // Run on startup
+  updateModuleDisplay(initialSolved);
+</script>
+</body>
+</html>
