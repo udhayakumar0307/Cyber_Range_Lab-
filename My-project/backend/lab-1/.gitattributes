@@ -1,2 +1,0 @@
-# Bash on Linux/WSL requires LF; CRLF breaks `set -o pipefail` (shows as pipefail\r).
-*.sh text eol=lf
