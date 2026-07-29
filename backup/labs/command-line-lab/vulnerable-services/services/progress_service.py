@@ -23,7 +23,11 @@ LOG_PATH_IN_CONTAINER = "/var/log/session/commands.log"
 app = Flask(__name__)
 
 with open(CONFIG_PATH) as f:
-    MODULE_CONFIG = json.load(f)["modules"]
+    CONFIG_DATA = json.load(f)
+
+TRACKS_CONFIG = CONFIG_DATA.get("tracks", {})
+# Legacy fallback flat modules mapping if tracks key is missing
+FLAT_MODULES = CONFIG_DATA.get("modules", {})
 
 
 def docker_exec(*args, timeout=5):
@@ -45,11 +49,67 @@ def read_command_log():
     return out
 
 
-def check_log_regex(pattern, log_text):
+def parse_command_log(log_text):
+    """
+    Parses commands.log lines into structured tuples: (timestamp, cwd, cmd, raw_line).
+    Each line in commands.log is formatted as: timestamp|cwd|cmd
+    """
+    entries = []
+    for line in log_text.splitlines():
+        line_str = line.strip()
+        if not line_str:
+            continue
+        parts = line_str.split("|", 2)
+        if len(parts) == 3:
+            ts, cwd, cmd = parts
+            entries.append((ts, cwd, cmd, line_str))
+        else:
+            entries.append(("", "", line_str, line_str))
+    return entries
+
+
+def filter_log_for_module(parsed_log, track_id, module_id):
+    """
+    Filters parsed command log entries so that ONLY commands executed
+    within the specific module's working directory context are evaluated.
+    Prevents cross-module, cross-track, and historical command carryover.
+    """
+    module_path_key = f"{track_id}/{module_id}".lower()
+    filtered = []
+    for ts, cwd, cmd, raw_line in parsed_log:
+        cwd_lower = cwd.lower()
+        if module_path_key in cwd_lower or not cwd:
+            filtered.append((ts, cwd, cmd, raw_line))
+    return filtered
+
+
+def check_log_regex(pattern, parsed_log):
+    """
+    Checks pattern against:
+    1. Bare command (cmd)
+    2. Working directory / formatted raw log line (raw_line)
+    3. Stripped pattern without leading '^' against cmd
+    Returns (matched_bool, matched_cmd_string).
+    """
     try:
-        return re.search(pattern, log_text, re.MULTILINE) is not None
+        flags = re.MULTILINE | re.IGNORECASE if 'access_key' in pattern.lower() else re.MULTILINE
+        regex = re.compile(pattern, flags)
     except re.error:
-        return False
+        return False, None
+
+    for ts, cwd, cmd, raw_line in parsed_log:
+        if regex.search(cmd):
+            return True, cmd
+        if regex.search(raw_line):
+            return True, cmd
+        if pattern.startswith("^"):
+            clean_pat = pattern[1:]
+            try:
+                if re.search(clean_pat, cmd, flags):
+                    return True, cmd
+            except re.error:
+                pass
+    return False, None
 
 
 def check_fs_test(test_cmd):
@@ -57,51 +117,49 @@ def check_fs_test(test_cmd):
     return ok
 
 
-def evaluate_module(module_id):
-    module = MODULE_CONFIG.get(module_id)
+def evaluate_module(module_id, track_id="linux"):
+    module = None
+    if TRACKS_CONFIG and track_id in TRACKS_CONFIG:
+        module = TRACKS_CONFIG[track_id].get("modules", {}).get(module_id)
+    if not module and FLAT_MODULES:
+        module = FLAT_MODULES.get(module_id)
+
     if not module:
         return None
 
     log_text = read_command_log()
+    parsed_log = parse_command_log(log_text)
+    module_log = filter_log_for_module(parsed_log, track_id, module_id)
+
+    # Print log of all received commands for debug
+    for ts, cwd, cmd, _ in module_log:
+        if cmd:
+            print(f"[DEBUG] received command: {cmd}", flush=True)
+
     results = []
-    for obj in module["objectives"]:
+    for obj in module.get("objectives", []):
+        complete = False
+        matched_cmd = None
         if obj["type"] == "log_regex":
-            complete = check_log_regex(obj["pattern"], log_text)
+            complete, matched_cmd = check_log_regex(obj["pattern"], module_log)
         elif obj["type"] == "fs_test":
             complete = check_fs_test(obj["test_cmd"])
         else:
             complete = False
+
+        if complete:
+            rec_cmd = matched_cmd if matched_cmd else (module_log[-1][2] if module_log else "N/A")
+            print(f"[DEBUG] received command: {rec_cmd}", flush=True)
+            print(f"[DEBUG] matched objective: {obj['label']}", flush=True)
+            print(f"[DEBUG] objective completed: {obj['id']}", flush=True)
+
         results.append({"id": obj["id"], "label": obj["label"], "complete": complete})
 
-    module_complete = all(r["complete"] for r in results)
-
-    if module_complete:
-        try:
-            with open("/flags/flags.json") as f:
-                flags = json.load(f).get("flags", {})
-            flag = flags.get(module_id)
-            if flag:
-                if module_id.startswith("python_"):
-                    mod_num = module_id.split("_")[1]
-                    key_path = f"/home/student/{mod_num}/python/.keyfile"
-                    docker_exec("mkdir", "-p", f"/home/student/{mod_num}/python")
-                    docker_exec("bash", "-c", f"echo '{flag}' > {key_path} && chown student:student {key_path}")
-                elif module_id.startswith("c_"):
-                    mod_num = module_id.split("_")[1]
-                    key_path = f"/home/student/{mod_num}/c/.keyfile"
-                    docker_exec("mkdir", "-p", f"/home/student/{mod_num}/c")
-                    docker_exec("bash", "-c", f"echo '{flag}' > {key_path} && chown student:student {key_path}")
-                elif module_id.startswith("cpp_"):
-                    mod_num = module_id.split("_")[1]
-                    key_path = f"/home/student/{mod_num}/cpp/.keyfile"
-                    docker_exec("mkdir", "-p", f"/home/student/{mod_num}/cpp")
-                    docker_exec("bash", "-c", f"echo '{flag}' > {key_path} && chown student:student {key_path}")
-        except Exception:
-            pass
-
+    module_complete = all(r["complete"] for r in results) if results else False
     return {
         "module": module_id,
-        "title": module["title"],
+        "track": track_id,
+        "title": module.get("title", ""),
         "objectives": results,
         "module_complete": module_complete,
     }
@@ -109,18 +167,17 @@ def evaluate_module(module_id):
 
 @app.route("/progress/<student_id>")
 def progress_default(student_id):
-    # Show the first module that isn't fully complete yet, else the last one.
-    for module_id in MODULE_CONFIG.keys():
-        data = evaluate_module(module_id)
-        if not data["module_complete"]:
-            return jsonify(data)
-    last = list(MODULE_CONFIG.keys())[-1]
-    return jsonify(evaluate_module(last))
+    # Default to linux track module1
+    data = evaluate_module("module1", "linux")
+    return jsonify(data)
 
 
+@app.route("/progress/<student_id>/<track_id>/<module_id>")
 @app.route("/progress/<student_id>/<module_id>")
-def progress_module(student_id, module_id):
-    data = evaluate_module(module_id)
+def progress_module(student_id, module_id, track_id=None):
+    if not track_id:
+        track_id = "linux"
+    data = evaluate_module(module_id, track_id)
     if data is None:
         return jsonify({"error": "unknown module"}), 404
     return jsonify(data)
@@ -128,7 +185,11 @@ def progress_module(student_id, module_id):
 
 @app.route("/progress-all/<student_id>")
 def progress_all(student_id):
-    return jsonify({m: evaluate_module(m) for m in MODULE_CONFIG.keys()})
+    res = {}
+    for tid, tcfg in TRACKS_CONFIG.items():
+        for mid in tcfg.get("modules", {}).keys():
+            res[f"{tid}_{mid}"] = evaluate_module(mid, tid)
+    return jsonify(res)
 
 
 @app.route("/healthz")

@@ -556,7 +556,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-xs font-bold text-[#0F172A] dark:text-white block">Modules Solved</span>
-                    <span className="text-[10px] text-slate-400">Command Line Lab</span>
+                    <span className="text-[10px] text-slate-400">Training Modules</span>
                   </div>
                 </div>
                 <span className="text-base font-black text-[#10B981]">{stats.modules_completed || 0}</span>

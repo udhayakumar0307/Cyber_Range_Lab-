@@ -16,6 +16,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+import { getRoleDisplayName } from '../../utils/roleMapping';
+
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,8 +58,11 @@ export const UserManagement: React.FC = () => {
   // Delete modal state
   const [userToDelete, setUserToDelete] = useState<PlatformUser | null>(null);
 
-  // Filtered dataset
+  // Filtered dataset (excluding internal platform SYSTEM_ADMIN accounts)
   const filteredUsers = users.filter((u) => {
+    const isInternalSystemAccount = (u.role || '').toUpperCase().includes('SYSTEM_ADMIN');
+    if (isInternalSystemAccount) return false;
+
     const matchesSearch =
       u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -172,6 +177,7 @@ export const UserManagement: React.FC = () => {
               className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
             >
               <option value="All">All Roles</option>
+              <option value="CIA">CIA</option>
               <option value="Admin">Admin</option>
               <option value="Instructor">Instructor</option>
               <option value="User">Regular User</option>
@@ -227,11 +233,15 @@ export const UserManagement: React.FC = () => {
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
-                  const roleBadgeStyles = {
-                    Admin: 'bg-blue-50 text-[#0052CC] border-blue-200',
-                    Instructor: 'bg-purple-50 text-[#6F42C1] border-purple-200',
-                    User: 'bg-slate-100 text-slate-700 border-slate-200',
-                  };
+                  const roleName = getRoleDisplayName(u.role);
+                  const isCIA = roleName === 'CIA' || (u.role || '').toUpperCase() === 'CIA';
+                  const roleBadgeStyle = isCIA
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : u.role === 'Admin'
+                    ? 'bg-blue-50 text-[#0052CC] border-blue-200'
+                    : u.role === 'Instructor'
+                    ? 'bg-[#6F42C1]/10 text-[#6F42C1] border-purple-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200';
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
@@ -251,11 +261,9 @@ export const UserManagement: React.FC = () => {
                       {/* Role */}
                       <td className="p-4">
                         <span
-                          className={`text-xs font-bold border px-2.5 py-1 rounded-full ${
-                            roleBadgeStyles[u.role]
-                          }`}
+                          className={`text-xs font-bold border px-2.5 py-1 rounded-full ${roleBadgeStyle}`}
                         >
-                          {u.role}
+                          {roleName}
                         </span>
                       </td>
 

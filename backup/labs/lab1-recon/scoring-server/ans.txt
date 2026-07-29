@@ -1,0 +1,95 @@
+============================================================
+NETWORK RECONNAISSANCE LAB - ANSWER KEY
+============================================================
+
+==========================
+MODULE 1 - Basic Network Scan
+==========================
+
+# Objective 1
+nmap 10.10.0.10
+
+# Objective 2
+nmap -sV 10.10.0.10
+
+# Objective 3
+cat recon_notes.txt
+
+Expected Flag:
+FLAG{network_module1_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 2 - Service Enumeration
+==========================
+
+# Objective 1
+nmap -sV 10.10.0.10
+
+# Objective 2
+nmap -sV -oN scan.txt 10.10.0.10
+
+# Objective 3
+grep FLAG scan.txt
+
+Expected Flag:
+FLAG{network_module2_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 3 - Hidden Administrative Endpoint
+==========================
+
+# Objective 1
+nmap -sV 10.10.0.10
+
+# Objective 2
+cat recon_notes.txt
+
+# Objective 3
+cat scan.txt
+
+Expected Flag:
+FLAG{network_module3_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 4 - Local Privilege Discovery
+==========================
+
+# Objective 1
+sudo -l
+
+# Objective 2
+sys-helper --status
+
+# Objective 3
+sys-helper --exec "/bin/sh"
+
+Expected Flag:
+FLAG{network_module4_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 5 - Capstone
+==========================
+
+# Objective 1
+sudo -l
+
+# Objective 2
+sys-helper --exec "/bin/sh"
+
+# Objective 3
+cat /root/flag.txt
+
+Expected Flag:
+FLAG{cll_module5_recon_student_xxxxxxxxx}
+
+============================================================
+END OF ANSWER KEY
+============================================================

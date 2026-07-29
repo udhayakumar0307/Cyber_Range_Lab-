@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user, get_current_admin_user, get_admin_org_id
 from app.core.config import settings
 from app.core.security import get_password_hash, create_access_token, verify_password
+from app.security import password_validator
 from app.models.user import User
 from app.models.admin_models import Organization, AdminProfile, BillingAddress, PurchasedLab, Invoice, Order
 from app.models.audit_log import AuditLog
@@ -127,6 +128,7 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
     db.add(billing)
 
     # 6. Create Admin User (hashed with bcrypt)
+    password_validator.validate_or_raise(data.password, email=data.email, username=data.admin_name)
     hashed_pw = get_password_hash(data.password)
     user = User(
         name=data.admin_name,
@@ -214,10 +216,15 @@ def login_admin(data: AdminLoginRequest, request: Request, db: Session = Depends
             # Reset after lockout period expires
             FAILED_LOGIN_ATTEMPTS.pop(rate_key, None)
 
-    user = db.query(User).filter(User.email == data.email).first()
+    email_clean = data.email.strip().lower() if data.email else ""
+    user = db.query(User).filter(User.email == email_clean).first()
 
-    # Invalid user or incorrect password or non-admin role
-    if not user or not verify_password(data.password, user.password_hash) or user.role.lower() != "admin":
+    # Enforce Enterprise Admin domain & role validation
+    from app.security.domain_validator import validate_admin_login_attempt
+    validate_admin_login_attempt(email_clean, user)
+
+    # Invalid user or incorrect password
+    if not user or not verify_password(data.password, user.password_hash):
         # Track failed attempt
         record = FAILED_LOGIN_ATTEMPTS.get(rate_key, {"attempts": 0, "lockout_until": None})
         attempts = record["attempts"] + 1
@@ -420,7 +427,9 @@ def get_admin_dashboard_stats(
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_logins = db.query(User).filter(User.last_login >= today_start).count()
     
-    completed_labs = db.query(UserLabProgress).filter(UserLabProgress.is_completed == True).count()
+    # Completion is tracked via status="COMPLETED" on UserLabProgress (no is_completed column exists).
+    # This matches the logic in progress_service.py — single source of truth.
+    completed_labs = db.query(UserLabProgress).filter(UserLabProgress.status == "COMPLETED").count()
     
     rev_query = db.query(func.sum(Payment.amount)).join(Order, Order.id == Payment.order_id)\
                   .filter(Order.organization_id == org_id, Payment.payment_status == "SUCCESS").scalar()
@@ -479,7 +488,8 @@ def get_admin_users(
     Fetch platform users directly from PostgreSQL users table for admin's organization.
     """
     from app.models.group import Group
-    q = db.query(User)
+    # Exclude internal platform system admin accounts from operational user management
+    q = db.query(User).filter(User.role.notin_(["SYSTEM_ADMIN", "sys_admin", "system_admin"]))
 
     if query:
         search_fmt = f"%{query}%"
@@ -522,6 +532,7 @@ def create_admin_user(
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists.")
 
+    password_validator.validate_or_raise(data.password, email=data.email, username=data.name)
     new_user = User(
         name=data.name,
         email=data.email,
@@ -833,7 +844,7 @@ def get_admin_running_sessions(
     for s in sessions:
         result.append({
             "id": f"sess-{s.id}",
-            "labId": s.lab_id or "command-line-lab",
+            "labId": s.lab_id or "",
             "labTitle": "Active Container Session",
             "userEmail": f"user_{s.user_id}@cyberrange.in",
             "ipAddress": "10.10.0.10",

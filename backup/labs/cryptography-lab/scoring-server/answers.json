@@ -1,0 +1,192 @@
+{
+  "module1": [
+    {
+      "objective_id": "m1_obj1",
+      "question": "Encode the word \"Cyber\" into Base64.",
+      "correct_answer": "Q3liZXI=",
+      "flag": "FLAG{Q3liZXI=}",
+      "validation_value": "Q3liZXI=",
+      "explanation": "Base64 encodes binary to text using 64 printable characters.",
+      "why_correct": "The ASCII string Cyber encodes to Q3liZXI= in Base64."
+    },
+    {
+      "objective_id": "m1_obj2",
+      "question": "Decode the following Base64 string:\nQ3liZXJSYW5nZQ==",
+      "correct_answer": "CyberRange",
+      "flag": "FLAG{CyberRange}",
+      "validation_value": "CyberRange",
+      "explanation": "Base64 decoding reverses the encoding back to ASCII text.",
+      "why_correct": "The base64 string decodes to CyberRange."
+    },
+    {
+      "objective_id": "m1_obj3",
+      "question": "Encode the word \"Hello\" into Hex.",
+      "correct_answer": "48656c6c6f",
+      "flag": "FLAG{48656c6c6f}",
+      "validation_value": "48656c6c6f",
+      "explanation": "Hexadecimal represents each byte with two characters (0-9, a-f).",
+      "why_correct": "The word Hello is 48656c6c6f in Hex."
+    },
+    {
+      "objective_id": "m1_obj4",
+      "question": "Decode the following Hex string and submit the output as the flag:\n57656c636f6d65",
+      "correct_answer": "Welcome",
+      "flag": "FLAG{Welcome}",
+      "validation_value": "Welcome",
+      "explanation": "Hex decoding converts the pairs of hexadecimal characters back to text.",
+      "why_correct": "Decoding 57656c636f6d65 produces Welcome."
+    }
+  ],
+  "module2": [
+    {
+      "objective_id": "m2_obj1",
+      "question": "Generate the MD5 hash of:\npassword",
+      "correct_answer": "5f4dcc3b5aa765d61d8327deb882cf99",
+      "flag": "FLAG{5f4dcc3b5aa765d61d8327deb882cf99}",
+      "validation_value": "5f4dcc3b5aa765d61d8327deb882cf99",
+      "explanation": "MD5 generates a 128-bit (32 character) hash.",
+      "why_correct": "The MD5 sum of password is 5f4dcc3b5aa765d61d8327deb882cf99"
+    },
+    {
+      "objective_id": "m2_obj2",
+      "question": "Generate the SHA1 hash of:\nadmin",
+      "correct_answer": "d033e22ae348aeb5660fc2140aec35850c4da997",
+      "flag": "FLAG{d033e22ae348aeb5660fc2140aec35850c4da997}",
+      "validation_value": "d033e22ae348aeb5660fc2140aec35850c4da997",
+      "explanation": "SHA1 generates a 160-bit (40 character) hash.",
+      "why_correct": "The SHA1 sum of admin is d033e22ae348aeb5660fc2140aec35850c4da997"
+    },
+    {
+      "objective_id": "m2_obj3",
+      "question": "Generate the SHA256 hash of:\nsecurity",
+      "correct_answer": "5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43",
+      "flag": "FLAG{5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43}",
+      "validation_value": "5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43",
+      "explanation": "SHA256 generates a 256-bit (64 character) hash.",
+      "why_correct": "The SHA256 sum is 5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43"
+    },
+    {
+      "objective_id": "m2_obj4",
+      "question": "Which hash algorithm produces a 32-character hexadecimal output? (Submit the name, e.g. SHA256)",
+      "correct_answer": "MD5",
+      "flag": "FLAG{MD5}",
+      "validation_value": "MD5",
+      "explanation": "Count the characters. 32 hex characters means 128 bits, which is MD5.",
+      "why_correct": "MD5 produces 32-character hex."
+    }
+  ],
+  "module3": [
+    {
+      "objective_id": "m3_obj1",
+      "question": "Generate the MD5 hash of:\nCyber",
+      "correct_answer": "046e43ea3926a2f12f416a870f995a62",
+      "flag": "FLAG{046e43ea3926a2f12f416a870f995a62}",
+      "validation_value": "046e43ea3926a2f12f416a870f995a62",
+      "explanation": "Use the MD5 operation on Cyber.",
+      "why_correct": "MD5(Cyber) = 046e43ea3926a2f12f416a870f995a62"
+    },
+    {
+      "objective_id": "m3_obj2",
+      "question": "Generate the SHA1 hash of:\nCyber",
+      "correct_answer": "985c6c249e7c55d4532add1d32d7d59dc17d60f8",
+      "flag": "FLAG{985c6c249e7c55d4532add1d32d7d59dc17d60f8}",
+      "validation_value": "985c6c249e7c55d4532add1d32d7d59dc17d60f8",
+      "explanation": "Use the SHA1 operation on Cyber.",
+      "why_correct": "SHA1(Cyber) = 985c6c249e7c55d4532add1d32d7d59dc17d60f8"
+    },
+    {
+      "objective_id": "m3_obj3",
+      "question": "Generate the SHA256 hash of:\nCyber",
+      "correct_answer": "f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936",
+      "flag": "FLAG{f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936}",
+      "validation_value": "f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936",
+      "explanation": "Use the SHA256 operation on Cyber.",
+      "why_correct": "SHA256(Cyber) = f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936"
+    },
+    {
+      "objective_id": "m3_obj4",
+      "question": "Generate the SHA512 hash of the following and submit the hash as the flag:\nCyberRange",
+      "correct_answer": "c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6",
+      "flag": "FLAG{c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6}",
+      "validation_value": "c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6",
+      "explanation": "Use the SHA512 operation on CyberRange.",
+      "why_correct": "SHA512(CyberRange) = c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6"
+    }
+  ],
+  "module4": [
+    {
+      "objective_id": "m4_obj1",
+      "question": "Encode the word into Base64:\nSecurity",
+      "correct_answer": "U2VjdXJpdHk=",
+      "flag": "FLAG{U2VjdXJpdHk=}",
+      "validation_value": "U2VjdXJpdHk=",
+      "explanation": "Use Base64 Encode.",
+      "why_correct": "Base64 of Security is U2VjdXJpdHk="
+    },
+    {
+      "objective_id": "m4_obj2",
+      "question": "Encode the word into Hex:\nHash",
+      "correct_answer": "48617368",
+      "flag": "FLAG{48617368}",
+      "validation_value": "48617368",
+      "explanation": "Use Hex Encode.",
+      "why_correct": "Hex of Hash is 48617368"
+    },
+    {
+      "objective_id": "m4_obj3",
+      "question": "Encode the word into Binary (space separated):\nKey",
+      "correct_answer": "01001011 01100101 01111001",
+      "flag": "FLAG{01001011 01100101 01111001}",
+      "validation_value": "01001011 01100101 01111001",
+      "explanation": "Use Binary Encode.",
+      "why_correct": "Binary of Key is 01001011 01100101 01111001"
+    },
+    {
+      "objective_id": "m4_obj4",
+      "question": "Generate the SHA256 hash of the following and submit it as the flag:\nCyber123",
+      "correct_answer": "185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22",
+      "flag": "FLAG{185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22}",
+      "validation_value": "185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22",
+      "explanation": "Use SHA256 Hash.",
+      "why_correct": "SHA256 of Cyber123 is 185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22"
+    }
+  ],
+  "module5": [
+    {
+      "objective_id": "m5_obj1",
+      "question": "Step 1: Decode the following Base64 string:\nSGFzaA==",
+      "correct_answer": "Hash",
+      "flag": "FLAG{Hash}",
+      "validation_value": "Hash",
+      "explanation": "Use Base64 Decode.",
+      "why_correct": "Decodes to Hash"
+    },
+    {
+      "objective_id": "m5_obj2",
+      "question": "Step 2: Convert the decoded word (\"Hash\") into Hex.",
+      "correct_answer": "48617368",
+      "flag": "FLAG{48617368}",
+      "validation_value": "48617368",
+      "explanation": "Use Hex Encode.",
+      "why_correct": "Hex of Hash is 48617368"
+    },
+    {
+      "objective_id": "m5_obj3",
+      "question": "Step 3: Generate the SHA256 hash of the Hex output (\"48617368\").",
+      "correct_answer": "2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0",
+      "flag": "FLAG{2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0}",
+      "validation_value": "2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0",
+      "explanation": "Use SHA256.",
+      "why_correct": "SHA256 of 48617368 is 2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0"
+    },
+    {
+      "objective_id": "m5_obj4",
+      "question": "Step 4: Decode this Base64 string to find the final flag: RkxBR3tDcnlwdG9fTWFzdGVyfQ==",
+      "correct_answer": "FLAG{Crypto_Master}",
+      "flag": "FLAG{Crypto_Master}",
+      "validation_value": "FLAG{Crypto_Master}",
+      "explanation": "Use Base64 Decode on the provided string.",
+      "why_correct": "The string decodes to FLAG{Crypto_Master}."
+    }
+  ]
+}

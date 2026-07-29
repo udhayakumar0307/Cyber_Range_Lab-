@@ -1,0 +1,9 @@
+{
+  "name": "OT & ICS Security Simulator Lab",
+  "category": "OT & Industrial Security",
+  "difficulty": "Intermediate",
+  "description": "SimulOT Operational Technology Cybersecurity Simulator. Master Modbus TCP, PLC process manipulation, HMI monitoring, PCAP packet analysis, and SCADA network traffic investigation across 5 interactive modules.",
+  "duration": "1.5",
+  "price": "19999",
+  "docker_image": "cyberrange/ot-security-lab:latest"
+}

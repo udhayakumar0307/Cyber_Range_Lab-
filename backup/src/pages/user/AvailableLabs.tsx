@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { cachedFetch } from '../../utils/apiCache';
 import { 
   Search, 
   Clock, 
@@ -15,7 +17,7 @@ import {
 interface Lab {
   id: string;
   title: string;
-  category: 'windows' | 'web' | 'linux' | 'ai';
+  category: string;
   categoryLabel: string;
   description: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
@@ -33,6 +35,7 @@ interface Lab {
 
 export const AvailableLabs: React.FC = () => {
   const navigate = useNavigate();
+  const { apiFetch } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
@@ -45,33 +48,78 @@ export const AvailableLabs: React.FC = () => {
   const [labs, setLabs] = useState<Lab[]>([]);
 
   useEffect(() => {
-    fetch('/api/v1/labs')
-      .then((response) => response.ok ? response.json() : [])
-      .then((items) => setLabs((Array.isArray(items) ? items : []).map((item: any) => ({
-        id: item?.id ?? '',
-        title: item?.title ?? item?.name ?? '',
-        category: 'linux', // presentation category; catalog categoryLabel remains database-backed
-        categoryLabel: item?.category ?? '',
-        description: item?.shortDescription ?? '',
-        difficulty: String(item?.difficulty ?? 'beginner').toLowerCase() as Lab['difficulty'],
-        totalChallenges: item?.modules?.length ?? 0,
-        solvedChallenges: 0,
-        durationHours: item?.durationHours ?? 0,
-        status: 'not_started',
-        tags: Array.isArray(item?.skillsCovered) ? item.skillsCovered : [],
-        objectives: [item?.fullDescription ?? item?.shortDescription ?? ''],
-        environmentType: item?.dockerImage ?? '',
-        prerequisites: (Array.isArray(item?.prerequisites) ? item.prerequisites : []).join(', ') || 'None'
-      }))))
-      .catch(() => setLabs([]));
-  }, []);
+    let cancelled = false;
+
+    // cachedFetch deduplicates in-flight requests and caches lab metadata for 5 minutes.
+    // Lab metadata (names, categories, modules) is static — safe to cache.
+    // User progress (solvedChallenges) is fetched server-side and included in the response.
+    cachedFetch<any[]>(apiFetch, '/api/v1/labs', { ttl: 300 })
+      .then((items) => {
+        if (cancelled) return;
+        const normalized = (Array.isArray(items) ? items : []).map((item: any) => {
+          const isRecon = item?.id === 'lab1-recon' || item?.id === 'recon-lab' || String(item?.category).toLowerCase().includes('recon');
+          const solved = item?.solvedChallenges ?? 0;
+          let total = item?.totalChallenges ?? item?.modules?.length ?? 0;
+          if (total === 0 || isRecon) {
+            total = Math.max(5, total);
+          }
+
+          let labStatus: Lab['status'] = 'not_started';
+          if (total > 0 && solved >= total) {
+            labStatus = 'completed';
+          } else if (solved > 0) {
+            labStatus = 'in_progress';
+          }
+
+          // Read localStorage once during data load, not on every render
+          const savedTimeStr = localStorage.getItem(`lab_timer_${item?.id}`);
+          const savedTime = savedTimeStr ? parseInt(savedTimeStr, 10) : null;
+          const initialRemaining = savedTime && !isNaN(savedTime) && savedTime > 0 ? savedTime : 5400;
+
+          const catRaw = String(item?.category ?? 'linux').toLowerCase();
+          let mappedCat = catRaw;
+          if (catRaw.includes('recon')) mappedCat = 'recon';
+          else if (catRaw.includes('cloud')) mappedCat = 'cloud';
+          else if (catRaw.includes('crypto')) mappedCat = 'crypto';
+          else if (catRaw.includes('linux')) mappedCat = 'linux';
+          else if (catRaw.includes('ot') || catRaw.includes('industrial')) mappedCat = 'ot';
+
+          return {
+            id: item?.id ?? '',
+            title: item?.title ?? item?.name ?? '',
+            category: mappedCat,
+            categoryLabel: item?.category ?? 'Network Reconnaissance',
+            description: item?.shortDescription ?? '',
+            difficulty: String(item?.difficulty ?? 'intermediate').toLowerCase() as Lab['difficulty'],
+            totalChallenges: total,
+            solvedChallenges: solved,
+            durationHours: typeof item?.durationHours === 'number' ? item.durationHours : 1.5,
+            status: labStatus,
+            timeRemaining: initialRemaining,
+            tags: Array.isArray(item?.skillsCovered) ? item.skillsCovered : [mappedCat],
+            objectives: [item?.fullDescription ?? item?.shortDescription ?? ''],
+            environmentType: item?.dockerImage ?? '',
+            prerequisites: (Array.isArray(item?.prerequisites) ? item.prerequisites : []).join(', ') || 'None',
+          };
+        });
+        setLabs(normalized);
+      })
+      .catch(() => {
+        if (!cancelled) setLabs([]);
+      });
+
+    return () => { cancelled = true; };
+  // apiFetch is stable (useCallback in AuthContext) — safe to include
+  }, [apiFetch]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setLabs((prevLabs) =>
         prevLabs.map((lab) => {
           if (lab.status === 'in_progress' && lab.timeRemaining && lab.timeRemaining > 0) {
-            return { ...lab, timeRemaining: lab.timeRemaining - 1 };
+            const nextTime = lab.timeRemaining - 1;
+            localStorage.setItem(`lab_timer_${lab.id}`, nextTime.toString());
+            return { ...lab, timeRemaining: nextTime };
           }
           if (lab.status === 'upcoming' && lab.timeToStart && lab.timeToStart > 0) {
             const nextTimeToStart = lab.timeToStart - 1;
@@ -127,10 +175,19 @@ export const AvailableLabs: React.FC = () => {
           setTimeout(() => {
             setIsDeploying(false);
             setSelectedDetailLab(null);
-            if (lab.id === 'command-line-lab') {
-              navigate('/labs/command-line-lab/session');
+            const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
+            const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
+            const isCloud = lab.id === 'cloud-security-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
+            if (isCll) {
+              navigate('/labs/command-line-lab/session/sess-cll-01');
+            } else if (isCrypto) {
+              navigate('/labs/cryptography-lab/session/sess-crypto-01');
+            } else if (isCloud) {
+              navigate('/labs/cloud-security-lab/session/sess-cloud-01');
             } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
               navigate('/labs/lab1-recon/session/sess-recon-01');
+            } else if (lab.id === 'puzzle-lab' || lab.id === 'puzzle') {
+              navigate('/labs/puzzle-lab');
             } else {
               navigate(`/labs/${lab.id}/session/sess-123`);
             }
@@ -143,12 +200,28 @@ export const AvailableLabs: React.FC = () => {
   };
 
   const filteredLabs = labs.filter((lab) => {
+    // Exclude puzzle-lab from student Available Labs catalog grid (student accesses Puzzle via sidebar)
+    if (lab.id === 'puzzle-lab' || lab.id === 'puzzle') {
+      return false;
+    }
+
+    const query = searchTerm.toLowerCase().trim();
     const matchesSearch = 
-      lab.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      lab.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      !query ||
+      lab.title.toLowerCase().includes(query) || 
+      lab.description.toLowerCase().includes(query) ||
+      lab.category.toLowerCase().includes(query) ||
+      lab.tags.some(tag => tag.toLowerCase().includes(query));
     
-    const matchesCategory = selectedCategory === 'all' || lab.category === selectedCategory;
+    const matchesCategory = 
+      selectedCategory === 'all' || 
+      lab.category === selectedCategory ||
+      (selectedCategory === 'recon' && lab.category.includes('recon')) ||
+      (selectedCategory === 'cloud' && lab.category.includes('cloud')) ||
+      (selectedCategory === 'crypto' && lab.category.includes('crypto')) ||
+      (selectedCategory === 'linux' && lab.category.includes('linux')) ||
+      (selectedCategory === 'ot' && (lab.category.includes('ot') || lab.category.includes('industrial')));
+
     const matchesDifficulty = selectedDifficulty === 'all' || lab.difficulty === selectedDifficulty;
     const matchesStatus = selectedStatus === 'all' || lab.status === selectedStatus;
 
@@ -178,7 +251,7 @@ export const AvailableLabs: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="relative">
+          <div className="relative lg:col-span-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
@@ -195,10 +268,11 @@ export const AvailableLabs: React.FC = () => {
             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#2563EB] transition-all"
           >
             <option value="all">All Domains</option>
-            <option value="windows">Windows Domain Security</option>
-            <option value="web">Web Application Security</option>
             <option value="linux">Linux Infrastructure</option>
-            <option value="ai">AI Model Safety</option>
+            <option value="cloud">Cloud &amp; Infrastructure Security</option>
+            <option value="crypto">Cryptography &amp; Security</option>
+            <option value="recon">Network Reconnaissance</option>
+            <option value="ot">OT &amp; Industrial Security</option>
           </select>
 
           <select
@@ -225,6 +299,25 @@ export const AvailableLabs: React.FC = () => {
             <option value="completed">Completed</option>
           </select>
         </div>
+
+        {/* Reset button row if filters active */}
+        {(searchTerm || selectedCategory !== 'all' || selectedDifficulty !== 'all' || selectedStatus !== 'all') && (
+          <div className="flex items-center justify-end pt-1">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('all');
+                setSelectedDifficulty('all');
+                setSelectedStatus('all');
+              }}
+              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-lg transition-all whitespace-nowrap cursor-pointer border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+              title="Reset all filters"
+            >
+              <X className="w-3 h-3" />
+              Reset Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Grid listing */}
@@ -299,8 +392,15 @@ export const AvailableLabs: React.FC = () => {
                     </div>
                     <button
                       onClick={() => {
-                        if (lab.id === 'command-line-lab') {
-                          navigate('/labs/command-line-lab/session');
+                        const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
+                        const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
+                        const isCloud = lab.id === 'cloud-security-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
+                        if (isCll) {
+                          navigate('/labs/command-line-lab/session/sess-cll-01');
+                        } else if (isCrypto) {
+                          navigate('/labs/cryptography-lab/session/sess-crypto-01');
+                        } else if (isCloud) {
+                          navigate('/labs/cloud-security-lab/session/sess-cloud-01');
                         } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
                           navigate('/labs/lab1-recon/session/sess-recon-01');
                         } else {

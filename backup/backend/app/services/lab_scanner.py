@@ -47,13 +47,50 @@ def scan_lab_directory(db: Session, labs_directory: str | None = None, notify: b
             lab.category = data["category"].strip()
             lab.difficulty = data["difficulty"].strip().title()
             lab.description = data["description"].strip()
-            lab.estimated_time = int(float(data["duration"]))
+            lab.estimated_time = round(float(data["duration"]) * 60)  # store as minutes
             lab.price_inr = float(data["price"])
             lab.docker_image = data["docker_image"].strip()
             lab.registry_path = str(directory.resolve())
             lab.status = "ACTIVE"
             result["added" if is_new else "updated"] += 1
             db.flush()
+
+            # Sync module_config.json into lab_modules if present
+            config_file = directory / "scoring-server" / "module_config.json"
+            if not config_file.exists():
+                config_file = directory / "module_config.json"
+            if config_file.exists():
+                try:
+                    from app.models.lab_module import LabModule
+                    cfg_data = json.loads(config_file.read_text(encoding="utf-8"))
+                    tracks_cfg = cfg_data.get("tracks", {})
+                    order_num = 1
+                    for track_id, track_info in tracks_cfg.items():
+                        mods = track_info.get("modules", {})
+                        for mod_id, mod_info in mods.items():
+                            mod_pk = f"{lab_id}_{track_id}_{mod_id}"
+                            existing_mod = db.query(LabModule).filter(LabModule.id == mod_pk).first()
+                            if not existing_mod:
+                                existing_mod = LabModule(
+                                    id=mod_pk,
+                                    lab_id=lab_id,
+                                    module_number=order_num,
+                                    title=mod_info.get("title", f"{track_id.title()} {mod_id.title()}"),
+                                    description=mod_info.get("mission", mod_info.get("story", "")),
+                                    points=mod_info.get("points", 200),
+                                    display_order=order_num,
+                                    track=track_id
+                                )
+                                db.add(existing_mod)
+                            else:
+                                existing_mod.title = mod_info.get("title", existing_mod.title)
+                                existing_mod.description = mod_info.get("mission", existing_mod.description)
+                                existing_mod.points = mod_info.get("points", existing_mod.points)
+                                existing_mod.track = track_id
+                            order_num += 1
+                except Exception as mod_exc:
+                    logger.warning("Error syncing lab_modules for %s: %s", lab_id, mod_exc)
+
             if is_new and notify:
                 students = db.query(User).filter(User.is_active.is_(True), User.role.in_(["user", "student"])).all()
                 notification_service.notify_users(db, students, "New Cyber Lab Available",

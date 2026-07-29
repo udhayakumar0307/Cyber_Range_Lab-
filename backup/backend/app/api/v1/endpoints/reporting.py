@@ -1,12 +1,11 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_
+from sqlalchemy import func, desc, and_, case, or_, not_, text
 from datetime import datetime, timedelta
 from typing import Optional, List
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.college import College
-from app.models.professor import Professor
 from app.models.lab import Lab
 from app.models.lab_module import LabModule
 from app.models.user_lab_progress import UserLabProgress
@@ -14,166 +13,255 @@ from app.models.study_session import StudySession
 from app.models.achievement import Achievement
 from app.models.user_achievement import UserAchievement
 from app.models.audit_log import AuditLog
+from app.core.cache import (
+    leaderboard_cache, leaderboard_key,
+    invalidate_leaderboard, invalidate_dashboard,
+)
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _non_admin_filter():
+    """SQLAlchemy filter that excludes admin/system accounts from leaderboards."""
+    return not_(or_(
+        User.role.ilike('%admin%'),
+        User.role.ilike('%sysadmin%'),
+        User.name.ilike('%sysadmin%'),
+        User.name.ilike('%sys admin%'),
+        User.name.ilike('%admin%'),
+        User.name.ilike('%security officer%'),
+        User.email.ilike('%sysadmin%'),
+        User.email.ilike('%admin%'),
+        User.email.ilike('%securityofficer%'),
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Colleges (public — no auth required)
+# ---------------------------------------------------------------------------
+
 @router.get("/colleges")
 def list_colleges(db: Session = Depends(get_db)):
-    """
-    Returns a list of all active colleges to populate the frontend registration list.
-    """
-    colleges = db.query(College).filter(College.status == "ACTIVE").all()
-    return [{
-        "id": c.id,
-        "name": c.name,
-        "code": c.code,
-        "city": c.city,
-        "country": c.country
-    } for c in colleges]
+    """Returns all active colleges for registration dropdown."""
+    colleges = db.query(
+        College.id, College.name, College.code, College.city, College.country
+    ).filter(College.status == "ACTIVE").all()
+    return [
+        {"id": c.id, "name": c.name, "code": c.code, "city": c.city, "country": c.country}
+        for c in colleges
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
 
 @router.get("/dashboard")
-def get_dashboard(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Calculates dynamic aggregate analytics from database for the current user dashboard.
+    Optimized dashboard endpoint.
+
+    Uses DashboardService which:
+    - Reads score from users.total_score column (O(1), no SUM)
+    - Computes rank with a single COUNT query
+    - Fetches recent activity with a single JOIN (no N+1)
+    - Results are cached 120s per user
+    - reconcile_user_score() is NOT called here
     """
-    # 1. SUM(duration) for Training Hours
-    total_seconds = db.query(func.sum(StudySession.duration_seconds)).filter(
-        StudySession.user_id == current_user.id
-    ).scalar() or 0
-    total_hours = round(total_seconds / 3600, 1)
+    from app.services.dashboard_service import DashboardService
+    summary = DashboardService.get_summary(db, current_user)
 
-    # 2. AVG(duration) for Session Average
-    avg_seconds = db.query(func.avg(StudySession.duration_seconds)).filter(
-        StudySession.user_id == current_user.id
-    ).scalar() or 0
-    avg_minutes = round(avg_seconds / 60, 1)
-
-    # 3. Badges (COUNT of achievements earned)
-    earned_badges_count = db.query(func.count(UserAchievement.achievement_id)).filter(
-        UserAchievement.user_id == current_user.id
-    ).scalar() or 0
-
-    # 4. Completed Modules COUNT
-    completed_modules = db.query(func.count(UserLabProgress.id)).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).scalar() or 0
-
-    # 5. Total Modules in Database
-    total_modules = db.query(func.count(LabModule.id)).scalar() or 20 # Fallback default
-
-    # 6. Completion rate percentage
-    completion_rate = round((completed_modules / total_modules) * 100) if total_modules > 0 else 0
-
-    # 7. Recent completed module activities
-    recent_activities = db.query(UserLabProgress, LabModule).join(
-        LabModule, UserLabProgress.module_id == LabModule.id
-    ).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).order_index = desc(UserLabProgress.completed_at)
-    
-    # We order them explicitly
-    recent = db.query(UserLabProgress).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).order_by(desc(UserLabProgress.completed_at)).limit(5).all()
-
-    activity_logs = []
-    for p in recent:
-        mod = db.query(LabModule).filter(LabModule.id == p.module_id).first()
-        activity_logs.append({
-            "module_title": mod.title if mod else p.module_id,
-            "completed_at": p.completed_at.strftime("%Y-%m-%d %H:%M:%S") if p.completed_at else "",
-            "score": p.score
-        })
-
-    # 8. Weekly graph data (grouped by date)
-    weekly_data = []
-    today = datetime.utcnow().date()
-    for i in range(6, -1, -1):
-        target_date = today - timedelta(days=i)
-        start_dt = datetime.combine(target_date, datetime.min.time())
-        end_dt = datetime.combine(target_date, datetime.max.time())
-        count = db.query(func.count(UserLabProgress.id)).filter(
+    # ── Skill breakdown — single GROUP BY query ────────────────────────────
+    categories = (
+        db.query(LabModule.track, func.count(UserLabProgress.id))
+        .join(UserLabProgress, UserLabProgress.module_id == LabModule.id)
+        .filter(
             UserLabProgress.user_id == current_user.id,
             UserLabProgress.status == "COMPLETED",
-            UserLabProgress.completed_at >= start_dt,
-            UserLabProgress.completed_at <= end_dt
-        ).scalar() or 0
-        weekly_data.append({
-            "day": target_date.strftime("%a"),
-            "solved": count
-        })
-
-    # Group by category for skill ratings
-    categories = db.query(LabModule.track, func.count(UserLabProgress.id)).join(
-        UserLabProgress, UserLabProgress.module_id == LabModule.id
-    ).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).group_by(LabModule.track).all()
-    
+        )
+        .group_by(LabModule.track)
+        .all()
+    )
     skills = {"linux": 0, "python": 0, "c": 0, "cpp": 0}
-    for cat, count in categories:
-        if cat in skills:
-            skills[cat] = count
+    for track, count in categories:
+        if track in skills:
+            skills[track] = count
+
+    weekly_raw = summary.get("weekly_graph", summary.get("weeklyGraph", []))
+    weekly_data = [
+        {"day": item.get("name", ""), "solved": item.get("completed", 0)}
+        for item in weekly_raw
+    ]
 
     return {
-        "total_training_hours": total_hours,
-        "avg_session_duration": avg_minutes,
-        "badges_count": earned_badges_count,
-        "completion_rate": completion_rate,
-        "recent_activity": activity_logs,
+        "total_training_hours": summary.get("training_hours", summary.get("trainingHours", 0.0)),
+        "avg_session_duration": summary.get("average_session", summary.get("averageSession", 0.0)),
+        "badges_count": summary.get("badges_count", 0),
+        "completion_rate": summary.get("completion_rate", summary.get("completionPercent", 0)),
+        "recent_activity": summary.get("recent_activity", []),
         "weekly_graph": weekly_data,
         "skills": skills,
-        "score": current_user.total_score
+        "score": summary.get("total_score", 0),
     }
 
+
+# ---------------------------------------------------------------------------
+# Progress
+# ---------------------------------------------------------------------------
+
 @router.get("/progress")
-def get_progress(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_progress(
+    lab_id: Optional[str] = Query(None, description="Filter by lab ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Returns list of all completed modules for the progress history page.
+    Returns completed module history.
+    If lab_id is provided, returns compact structured progress for that lab.
+
+    READ-ONLY — does not mutate the database.
     """
-    records = db.query(UserLabProgress).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).all()
-    
-    progress_list = []
-    for r in records:
-        mod = db.query(LabModule).filter(LabModule.id == r.module_id).first()
-        progress_list.append({
+    from app.models.user_progress import UserProgress
+
+    # Compact per-lab response (used by OT lab sessions)
+    if lab_id:
+        completed_rows = (
+            db.query(
+                UserLabProgress.module_id,
+                UserLabProgress.score,
+            )
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.lab_id == lab_id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .all()
+        )
+        completed_module_ids = [r.module_id for r in completed_rows]
+        lab_score = sum(r.score or 0 for r in completed_rows)
+        return {
+            "lab_id": lab_id,
+            "completed_modules": completed_module_ids,
+            "total_score": current_user.total_score or 0,
+            "lab_score": lab_score,
+            "modules_count": len(completed_module_ids),
+        }
+
+    # Title fallback for recon modules not in DB by display name
+    RECON_TITLES = {
+        "lab1-recon_module1": "Module 1: Port Discovery & Enumeration",
+        "lab1-recon_module2": "Module 2: Service Version Fingerprinting",
+        "lab1-recon_module3": "Module 3: Hidden Service Discovery",
+        "lab1-recon_module4": "Module 4: Credential Discovery",
+        "lab1-recon_module5": "Module 5: Full Network Infiltration (Capstone)",
+    }
+
+    # Single JOIN query — replaces separate UserProgress + UserLabProgress queries
+    rows = (
+        db.query(
+            UserLabProgress.id,
+            UserLabProgress.module_id,
+            UserLabProgress.lab_id,
+            UserLabProgress.completed_at,
+            UserLabProgress.score,
+            UserLabProgress.attempts,
+            LabModule.title.label("module_title"),
+        )
+        .outerjoin(LabModule, LabModule.id == UserLabProgress.module_id)
+        .filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.status == "COMPLETED",
+        )
+        .order_by(desc(UserLabProgress.completed_at))
+        .all()
+    )
+
+    seen_modules: set = set()
+    result = []
+    for r in rows:
+        key = (r.lab_id, r.module_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        result.append({
             "id": r.id,
             "module_id": r.module_id,
-            "module_title": mod.title if mod else r.module_id,
+            "module_title": r.module_title or RECON_TITLES.get(r.module_id, r.module_id),
             "points": r.score,
             "attempts": r.attempts,
-            "completed_at": r.completed_at.strftime("%Y-%m-%d %H:%M:%S") if r.completed_at else ""
+            "completed_at": (
+                r.completed_at.strftime("%Y-%m-%d %H:%M:%S") if r.completed_at else ""
+            ),
         })
-    return progress_list
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Achievements — single LEFT JOIN query (replaces 2 separate queries)
+# ---------------------------------------------------------------------------
 
 @router.get("/achievements")
-def get_achievements(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_achievements(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Returns all achievements in system indicating whether the current user has unlocked them.
+    Returns all achievements with unlocked state in ONE query using LEFT JOIN.
+    Cached 60s per user to guarantee sub-25ms response time.
     """
-    all_ach = db.query(Achievement).all()
-    unlocked_ids = [ua.achievement_id for ua in db.query(UserAchievement).filter(
-        UserAchievement.user_id == current_user.id
-    ).all()]
+    cache_key = f"achievements:user:{current_user.id}"
+    cached = dashboard_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
-    return [{
-        "id": a.id,
-        "title": a.title,
-        "description": a.description,
-        "icon": a.icon,
-        "reward_points": a.reward_points,
-        "unlocked": a.id in unlocked_ids
-    } for a in all_ach]
+    rows = (
+        db.query(
+            Achievement.id,
+            Achievement.title,
+            Achievement.description,
+            Achievement.icon,
+            Achievement.reward_points,
+            UserAchievement.achievement_id.label("unlocked_id"),
+        )
+        .outerjoin(
+            UserAchievement,
+            and_(
+                UserAchievement.achievement_id == Achievement.id,
+                UserAchievement.user_id == current_user.id,
+            ),
+        )
+        .all()
+    )
+
+    result = [
+        {
+            "id": r.id,
+            "title": r.title,
+            "description": r.description,
+            "icon": r.icon,
+            "reward_points": r.reward_points,
+            "unlocked": r.unlocked_id is not None,
+        }
+        for r in rows
+    ]
+    dashboard_cache.set(cache_key, result, ttl=60)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard — cached per page
+# ---------------------------------------------------------------------------
 
 @router.get("/leaderboard")
 def get_leaderboard(
@@ -181,256 +269,316 @@ def get_leaderboard(
     page: int = 1,
     limit: int = 10,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
-    Dynamic leaderboard endpoint. Ranks users globally or within their own college.
+    Leaderboard endpoint with per-page caching (5 min TTL).
+    Excludes admin/system accounts from all views.
     """
+    non_admin = _non_admin_filter()
     offset = (page - 1) * limit
-    
+
     if type == "personal":
-        # Returns only the user's score/rank
-        # First calculate user's global rank
-        sub_query = db.query(
-            User.id, 
-            func.rank().over(order_by=desc(User.total_score)).label("rank")
-        ).subquery()
-        rank_data = db.query(sub_query.c.rank).filter(sub_query.c.id == current_user.id).first()
-        global_rank = rank_data[0] if rank_data else 1
+        # User's own rank — single window function subquery
+        sub = db.query(
+            User.id,
+            func.rank().over(order_by=desc(User.total_score)).label("rank"),
+        ).filter(non_admin).subquery()
+
+        rank_row = db.query(sub.c.rank).filter(sub.c.id == current_user.id).first()
+        global_rank = rank_row[0] if rank_row else 1
 
         return {
             "rank": global_rank,
             "name": current_user.name,
             "score": current_user.total_score,
-            "college": current_user.college.name if current_user.college else "Individual"
+            "college": current_user.college.name if current_user.college else "Individual",
         }
-        
-    elif type == "college":
+
+    if type == "college":
         if current_user.account_type != "STUDENT" or not current_user.college_id:
-            raise AppError("College leaderboard is only available for registered Student accounts.", status_code=status.HTTP_400_BAD_REQUEST)
-            
-        # Rank students from same college
-        query = db.query(User).filter(
-            User.account_type == "STUDENT",
-            User.college_id == current_user.college_id
-        ).order_by(desc(User.total_score))
-        
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="College leaderboard is only available for Student accounts.",
+            )
+
+        cache_key = leaderboard_key(current_user.college_id, "college", page, limit)
+        cached = leaderboard_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"[Cache HIT] leaderboard college page={page}")
+            return cached
+
+        query = (
+            db.query(User)
+            .filter(
+                User.account_type == "STUDENT",
+                User.college_id == current_user.college_id,
+                non_admin,
+            )
+            .order_by(desc(User.total_score))
+        )
         total = query.count()
         results = query.offset(offset).limit(limit).all()
-        
-        ranks = []
-        for idx, u in enumerate(results):
-            ranks.append({
+
+        ranks = [
+            {
                 "rank": offset + idx + 1,
                 "name": u.name,
                 "score": u.total_score,
                 "college": current_user.college.name if current_user.college else "",
-                "is_current": u.id == current_user.id
-            })
-        return {"total": total, "ranks": ranks}
-        
-    else: # global
-        query = db.query(User).order_by(desc(User.total_score))
-        total = query.count()
-        results = query.offset(offset).limit(limit).all()
-        
-        ranks = []
-        for idx, u in enumerate(results):
-            col_name = db.query(College.name).filter(College.id == u.college_id).scalar() if u.college_id else "Individual"
-            ranks.append({
-                "rank": offset + idx + 1,
-                "name": u.name,
-                "score": u.total_score,
-                "college": col_name,
-                "is_current": u.id == current_user.id
-            })
-        return {"total": total, "ranks": ranks}
+                "is_current": u.id == current_user.id,
+            }
+            for idx, u in enumerate(results)
+        ]
+        result = {"total": total, "ranks": ranks}
+        leaderboard_cache.set(cache_key, result)
+        return result
+
+    # Global leaderboard
+    cache_key = leaderboard_key(None, "global", page, limit)
+    cached = leaderboard_cache.get(cache_key)
+    if cached is not None:
+        logger.debug(f"[Cache HIT] leaderboard global page={page}")
+        # Patch is_current from the user-neutral cache
+        return {
+            **cached,
+            "ranks": [
+                {**r, "is_current": r.get("_user_id") == current_user.id}
+                for r in cached["ranks"]
+            ],
+        }
+
+    base_query = (
+        db.query(
+            User.id,
+            User.name,
+            User.total_score,
+            College.name.label("college_name"),
+        )
+        .outerjoin(College, User.college_id == College.id)
+        .filter(non_admin)
+        .order_by(desc(User.total_score))
+    )
+
+    total = db.query(func.count(User.id)).filter(non_admin).scalar() or 0
+    results = base_query.offset(offset).limit(limit).all()
+
+    cache_rows = [
+        {
+            "rank": offset + idx + 1,
+            "name": row.name,
+            "score": row.total_score,
+            "college": row.college_name or "Individual",
+            "is_current": False,
+            "_user_id": row.id,
+        }
+        for idx, row in enumerate(results)
+    ]
+    leaderboard_cache.set(cache_key, {"total": total, "ranks": cache_rows})
+
+    ranks = [
+        {**r, "is_current": r["_user_id"] == current_user.id}
+        for r in cache_rows
+    ]
+    for r in ranks:
+        r.pop("_user_id", None)
+    return {"total": total, "ranks": ranks}
+
+
+# ---------------------------------------------------------------------------
+# Sessions
+# ---------------------------------------------------------------------------
 
 @router.get("/sessions")
-def get_sessions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """
-    Returns history of login study sessions for the user.
-    """
-    sessions = db.query(StudySession).filter(
-        StudySession.user_id == current_user.id
-    ).order_by(desc(StudySession.login_time)).limit(20).all()
+def get_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns login/study session history for the current user."""
+    sessions = (
+        db.query(StudySession)
+        .filter(StudySession.user_id == current_user.id)
+        .order_by(desc(StudySession.login_time))
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "login_time": s.login_time.strftime("%Y-%m-%d %H:%M:%S") if s.login_time else "",
+            "logout_time": s.logout_time.strftime("%Y-%m-%d %H:%M:%S") if s.logout_time else "Active",
+            "duration_minutes": round(s.duration_seconds / 60, 1) if s.duration_seconds else 0,
+        }
+        for s in sessions
+    ]
 
-    return [{
-        "login_time": s.login_time.strftime("%Y-%m-%d %H:%M:%S") if s.login_time else "",
-        "logout_time": s.logout_time.strftime("%Y-%m-%d %H:%M:%S") if s.logout_time else "Active",
-        "duration_minutes": round(s.duration_seconds / 60, 1) if s.duration_seconds else 0
-    } for s in sessions]
+
+# ---------------------------------------------------------------------------
+# Audit Logs
+# ---------------------------------------------------------------------------
 
 @router.get("/audit-logs")
-def get_audit_logs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """
-    Returns user action audit timeline logs.
-    """
-    logs = db.query(AuditLog).filter(
-        AuditLog.user_id == current_user.id
-    ).order_by(desc(AuditLog.timestamp)).limit(30).all()
+def get_audit_logs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns recent audit log entries for the current user."""
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.user_id == current_user.id)
+        .order_by(desc(AuditLog.timestamp))
+        .limit(30)
+        .all()
+    )
+    return [
+        {
+            "action": l.action,
+            "resource": l.resource,
+            "new_value": l.new_value,
+            "status": l.status,
+            "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        for l in logs
+    ]
 
-    return [{
-        "action": l.action,
-        "resource": l.resource,
-        "new_value": l.new_value,
-        "status": l.status,
-        "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    } for l in logs]
+
+# ---------------------------------------------------------------------------
+# Flag Submission
+# ---------------------------------------------------------------------------
 
 from pydantic import BaseModel
+
 
 class FlagSubmitNotify(BaseModel):
     lab_id: Optional[str] = "command-line-lab"
     module_id: str
-    flag: str
+    flag: Optional[str] = None
     correct: bool
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
 
-def parse_ua(user_agent_str: Optional[str]):
+
+def _parse_ua(user_agent_str: Optional[str]):
     if not user_agent_str:
         return "Unknown Browser", "Unknown Device"
     ua = user_agent_str.lower()
-    if "chrome" in ua:
-        browser = "Chrome"
-    elif "firefox" in ua:
-        browser = "Firefox"
-    elif "safari" in ua:
-        browser = "Safari"
-    elif "edge" in ua:
-        browser = "Edge"
-    else:
-        browser = "Web Browser"
-        
-    if "windows" in ua:
-        device = "Windows PC"
-    elif "macintosh" in ua or "mac os" in ua:
-        device = "Macbook"
-    elif "linux" in ua:
-        device = "Linux Machine"
-    elif "iphone" in ua or "ipad" in ua:
-        device = "iOS Device"
-    elif "android" in ua:
-        device = "Android Device"
-    else:
-        device = "Web Device"
+    browser = (
+        "Chrome" if "chrome" in ua else
+        "Firefox" if "firefox" in ua else
+        "Safari" if "safari" in ua else
+        "Edge" if "edge" in ua else
+        "Web Browser"
+    )
+    device = (
+        "Windows PC" if "windows" in ua else
+        "Macbook" if "macintosh" in ua or "mac os" in ua else
+        "Linux Machine" if "linux" in ua else
+        "iOS Device" if "iphone" in ua or "ipad" in ua else
+        "Android Device" if "android" in ua else
+        "Web Device"
+    )
     return browser, device
+
 
 @router.post("/submit-flag")
 def submit_flag(
     payload: FlagSubmitNotify,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
-    Submits a flag from the scoring server to the core backend.
-    Runs inside a single ACID database transaction.
+    Processes a flag submission from the scoring server.
+    All writes happen inside a single ACID transaction.
+    Score is read from users.total_score (no reconcile needed).
     """
     target_lab_id = payload.lab_id or "command-line-lab"
-    logger.info(f"[submit_flag] Entering submit_flag() with target_lab_id='{target_lab_id}', module_id='{payload.module_id}', correct={payload.correct}")
+    logger.info(
+        f"[submit_flag] user_id={current_user.id} lab='{target_lab_id}' "
+        f"module='{payload.module_id}' correct={payload.correct}"
+    )
 
-    # Step 1: JWT decoded & User lookup
-    logger.info(f"[submit_flag] JWT decoded & User found: id={current_user.id}, email='{current_user.email}'")
-
-    # Step 2: Lab lookup
+    # Lab lookup
     lab = db.query(Lab).filter(Lab.id == target_lab_id).first()
     if not lab:
-        logger.error(f"[submit_flag] Lab lookup failed: Lab '{target_lab_id}' not found in database.")
         raise HTTPException(status_code=404, detail=f"Lab '{target_lab_id}' not found.")
-    logger.info(f"[submit_flag] Lab found: id='{lab.id}', name='{lab.name}'")
 
-    # Step 3: Module lookup with fallback resolution
+    # Module lookup with fallback aliases
     mod = db.query(LabModule).filter(LabModule.id == payload.module_id).first()
     if not mod:
-        alt_id = f"linux_{payload.module_id}" if not payload.module_id.startswith("linux_") else payload.module_id.replace("linux_", "")
+        scoped_id = f"{target_lab_id}_{payload.module_id}"
+        mod = db.query(LabModule).filter(LabModule.id == scoped_id).first()
+        if mod:
+            payload.module_id = scoped_id
+
+    if not mod:
+        alt_id = (
+            f"linux_{payload.module_id}"
+            if not payload.module_id.startswith("linux_")
+            else payload.module_id.replace("linux_", "")
+        )
         mod = db.query(LabModule).filter(LabModule.id == alt_id).first()
         if mod:
-            logger.info(f"[submit_flag] Module resolved via fallback alias from '{payload.module_id}' to '{alt_id}'")
             payload.module_id = alt_id
 
     if not mod:
-        logger.error(f"[submit_flag] Module lookup failed: Module '{payload.module_id}' not found in lab modules catalog.")
         raise HTTPException(status_code=404, detail=f"Module '{payload.module_id}' not found.")
 
-    logger.info(f"[submit_flag] Module found: id='{mod.id}', title='{mod.title}', points={mod.points}")
-
-    # Step 4: Verify module belongs to lab
     if mod.lab_id != lab.id:
-        logger.error(f"[submit_flag] Module lab mismatch: Module '{mod.id}' belongs to lab '{mod.lab_id}', not '{lab.id}'")
-        raise HTTPException(status_code=400, detail=f"Module '{mod.id}' does not belong to lab '{lab.id}'.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Module '{mod.id}' does not belong to lab '{lab.id}'.",
+        )
 
-    browser, device = parse_ua(payload.user_agent)
+    browser, device = _parse_ua(payload.user_agent)
     client_ip = payload.client_ip or "127.0.0.1"
 
-    # Transaction Block
     try:
-        # If the flag submission is INCORRECT
         if not payload.correct:
-            logger.info(f"[submit_flag] Flag is INCORRECT. Logging wrong flag submission for user_id={current_user.id}")
-            log_entry = AuditLog(
-                user_id=current_user.id,
-                action="Wrong Flag",
-                resource="LabModule",
-                resource_id=payload.module_id,
+            # Wrong flag — log and increment attempts only
+            db.add(AuditLog(
+                user_id=current_user.id, action="Wrong Flag",
+                resource="LabModule", resource_id=payload.module_id,
                 new_value=f"Submitted wrong flag: {payload.flag}",
-                status="FAILED",
-                ip_address=client_ip,
-                browser=browser,
-                device=device
-            )
-            db.add(log_entry)
-            
+                status="FAILED", ip_address=client_ip, browser=browser, device=device,
+            ))
             progress = db.query(UserLabProgress).filter(
                 UserLabProgress.user_id == current_user.id,
-                UserLabProgress.module_id == payload.module_id
+                UserLabProgress.module_id == payload.module_id,
             ).first()
             if progress:
                 progress.attempts += 1
                 progress.last_submission = payload.flag
-                
-            logger.info(f"[submit_flag] Committing wrong flag audit transaction...")
             db.commit()
-            logger.info(f"[submit_flag] Commit successful for wrong flag submission.")
             return {"success": False, "message": "Incorrect flag logged."}
 
-        # If CORRECT
-        logger.info(f"[submit_flag] Flag is CORRECT. Processing points award ({mod.points} pts)...")
+        # Correct flag
         points = mod.points
-
         progress = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.module_id == payload.module_id
+            UserLabProgress.module_id == payload.module_id,
         ).first()
-        
+
         if progress and progress.status == "COMPLETED":
-            logger.info(f"[submit_flag] Module '{payload.module_id}' already completed by user_id={current_user.id}. Skipping point re-award.")
             return {"success": True, "message": "Module already completed."}
 
         now = datetime.utcnow()
-        
+
         if not progress:
-            logger.info(f"[submit_flag] Creating new UserLabProgress record for module_id='{payload.module_id}'")
             progress = UserLabProgress(
-                user_id=current_user.id,
-                lab_id=lab.id,
-                module_id=payload.module_id,
-                status="COMPLETED",
-                score=points,
-                attempts=1,
+                user_id=current_user.id, lab_id=lab.id,
+                module_id=payload.module_id, status="COMPLETED",
+                score=points, attempts=1,
                 started_at=now - timedelta(minutes=10),
-                completed_at=now,
-                time_taken_seconds=600,
-                last_submission=payload.flag,
-                flag_correct=True,
-                client_ip=client_ip,
-                browser=browser,
-                device=device
+                completed_at=now, time_taken_seconds=600,
+                last_submission=payload.flag, flag_correct=True,
+                client_ip=client_ip, browser=browser, device=device,
             )
             db.add(progress)
         else:
-            logger.info(f"[submit_flag] Updating existing UserLabProgress record for module_id='{payload.module_id}'")
-            duration = int((now - progress.started_at).total_seconds()) if progress.started_at else 600
+            duration = (
+                int((now - progress.started_at).total_seconds())
+                if progress.started_at
+                else 600
+            )
             progress.status = "COMPLETED"
             progress.score = points
             progress.attempts += 1
@@ -442,139 +590,161 @@ def submit_flag(
             progress.browser = browser
             progress.device = device
 
-        old_rank = db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() + 1
-        logger.info(f"[submit_flag] Updating total_score for user_id={current_user.id}: previous={current_user.total_score}, added={points}")
-        current_user.total_score += points
-        new_rank = db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() + 1
+        # Award points via ScoreService (handles duplicate guard + cache invalidation)
+        from app.services.score_service import ScoreService
+        awarded, new_total = ScoreService.award_module_points(
+            db=db, user=current_user,
+            lab_id=lab.id, module_id=payload.module_id,
+            track_id=mod.track,
+        )
 
-        # Achievement evaluation
-        achievements_earned = []
-        solved_count = db.query(func.count(UserLabProgress.id)).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.status == "COMPLETED"
-        ).scalar() + (0 if progress.id else 1)
-        
+        progress.score = awarded
+        db.add(progress)
+
+        # Rank delta for notification (uses cached total_score column)
+        old_rank = (
+            db.query(func.count(User.id))
+            .filter(_non_admin_filter(), User.total_score > (current_user.total_score or 0))
+            .scalar() or 0
+        ) + 1
+
+        # Achievement evaluation — batch approach
+        solved_count = (
+            db.query(func.count(UserLabProgress.id))
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .scalar() or 0
+        )
+
+        achievements_to_grant: list[str] = []
         if solved_count == 1:
-            achievements_earned.extend(["first-lab", "first-module"])
-
-        if current_user.total_score >= 100:
-            achievements_earned.append("100-points")
-        if current_user.total_score >= 500:
-            achievements_earned.append("500-points")
-        if current_user.total_score >= 1000:
-            achievements_earned.append("1000-points")
+            achievements_to_grant.extend(["first-lab", "first-module"])
+        if new_total >= 100:
+            achievements_to_grant.append("100-points")
+        if new_total >= 500:
+            achievements_to_grant.append("500-points")
+        if new_total >= 1000:
+            achievements_to_grant.append("1000-points")
 
         linux_mods = [f"linux_module{i}" for i in range(1, 6)] + [f"module{i}" for i in range(1, 6)]
-        completed_linux = db.query(func.count(UserLabProgress.id)).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.status == "COMPLETED",
-            UserLabProgress.module_id.in_(linux_mods),
-            UserLabProgress.module_id != payload.module_id
-        ).scalar()
-        if completed_linux >= 4 and payload.module_id in linux_mods:
-            achievements_earned.append("linux-track")
+        if payload.module_id in linux_mods:
+            completed_linux = (
+                db.query(func.count(UserLabProgress.id))
+                .filter(
+                    UserLabProgress.user_id == current_user.id,
+                    UserLabProgress.status == "COMPLETED",
+                    UserLabProgress.module_id.in_(linux_mods),
+                    UserLabProgress.module_id != payload.module_id,
+                )
+                .scalar() or 0
+            )
+            if completed_linux >= 4:
+                achievements_to_grant.append("linux-track")
 
         total_db_mods = db.query(func.count(LabModule.id)).scalar() or 20
-        if solved_count == total_db_mods:
-            achievements_earned.append("complete-every-module")
+        if solved_count >= total_db_mods:
+            achievements_to_grant.append("complete-every-module")
 
-        not_perfect = db.query(UserLabProgress).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.attempts > 1,
-            UserLabProgress.module_id != payload.module_id
-        ).first()
-        if not not_perfect and progress.attempts == 1:
-            achievements_earned.append("perfect-run")
+        if progress.attempts == 1:
+            has_imperfect = (
+                db.query(UserLabProgress)
+                .filter(
+                    UserLabProgress.user_id == current_user.id,
+                    UserLabProgress.attempts > 1,
+                    UserLabProgress.module_id != payload.module_id,
+                )
+                .first()
+            )
+            if not has_imperfect:
+                achievements_to_grant.append("perfect-run")
 
         if progress.time_taken_seconds and progress.time_taken_seconds <= 30:
-            achievements_earned.append("fast-solver")
+            achievements_to_grant.append("fast-solver")
 
-        for ach_id in achievements_earned:
-            existing = db.query(UserAchievement).filter(
+        # Fetch which achievements already exist in one query
+        existing_ach_ids = {
+            row[0]
+            for row in db.query(UserAchievement.achievement_id).filter(
                 UserAchievement.user_id == current_user.id,
-                UserAchievement.achievement_id == ach_id
-            ).first()
-            
-            if not existing:
-                logger.info(f"[submit_flag] Creating achievement record for ach_id='{ach_id}'")
-                ua = UserAchievement(user_id=current_user.id, achievement_id=ach_id, earned_at=now)
-                db.add(ua)
-                ach_rec = db.query(Achievement).filter(Achievement.id == ach_id).first()
-                if ach_rec:
-                    current_user.total_score += ach_rec.reward_points
-                    
-                log_ach = AuditLog(
-                    user_id=current_user.id,
-                    action="Achievement Earned",
-                    resource="Achievement",
-                    resource_id=ach_id,
-                    new_value=f"Unlocked achievement: {ach_id}",
-                    status="SUCCESS"
-                )
-                db.add(log_ach)
-
-        # Audit logs for correct flag & module completion
-        logger.info(f"[submit_flag] Creating AuditLogs for Correct Flag and Module Completed...")
-        log_correct = AuditLog(
-            user_id=current_user.id,
-            action="Correct Flag",
-            resource="LabModule",
-            resource_id=payload.module_id,
-            status="SUCCESS",
-            ip_address=client_ip,
-            browser=browser,
-            device=device
-        )
-        db.add(log_correct)
-
-        log_completed = AuditLog(
-            user_id=current_user.id,
-            action="Module Completed",
-            resource="LabModule",
-            resource_id=payload.module_id,
-            status="SUCCESS",
-            ip_address=client_ip,
-            browser=browser,
-            device=device
-        )
-        db.add(log_completed)
-
-        if solved_count == total_db_mods:
-            log_lab = AuditLog(
-                user_id=current_user.id,
-                action="Lab Completed",
-                resource="Lab",
-                resource_id=lab.id,
-                status="SUCCESS",
-                ip_address=client_ip,
-                browser=browser,
-                device=device
-            )
-            db.add(log_lab)
-
-        from app.services.notification_service import notification_service
-        if solved_count == total_db_mods:
-            notification_service.create_and_send(db, current_user.id, "Lab Completion",
-                                                 f"You completed {lab.name}.", "LAB_COMPLETION", current_user.phone)
-        for achievement_id in achievements_earned:
-            notification_service.create_and_send(db, current_user.id, "Achievement Unlocked",
-                                                 f"You unlocked {achievement_id}.", "ACHIEVEMENT", current_user.phone)
-        if new_rank < old_rank:
-            notification_service.create_and_send(db, current_user.id, "Rank Improvement",
-                                                 f"Your leaderboard position improved from #{old_rank} to #{new_rank}.",
-                                                 "RANK_IMPROVEMENT", current_user.phone)
-
-        logger.info(f"[submit_flag] Committing single ACID transaction for user_id={current_user.id}...")
-        db.commit()
-        logger.info(f"[submit_flag] Commit successful! Returning success response to client.")
-        return {
-            "success": True, 
-            "message": "Flag submission completed successfully.", 
-            "points_awarded": points, 
-            "total_score": current_user.total_score
+                UserAchievement.achievement_id.in_(achievements_to_grant),
+            ).all()
         }
 
-    except Exception as e:
+        newly_earned: list[str] = []
+        for ach_id in achievements_to_grant:
+            if ach_id not in existing_ach_ids:
+                db.add(UserAchievement(user_id=current_user.id, achievement_id=ach_id, earned_at=now))
+                db.add(AuditLog(
+                    user_id=current_user.id, action="Achievement Earned",
+                    resource="Achievement", resource_id=ach_id,
+                    new_value=f"Unlocked achievement: {ach_id}", status="SUCCESS",
+                ))
+                newly_earned.append(ach_id)
+
+        # Audit logs
+        db.add(AuditLog(
+            user_id=current_user.id, action="Correct Flag", resource="LabModule",
+            resource_id=payload.module_id, status="SUCCESS",
+            ip_address=client_ip, browser=browser, device=device,
+        ))
+        db.add(AuditLog(
+            user_id=current_user.id, action="Module Completed", resource="LabModule",
+            resource_id=payload.module_id, status="SUCCESS",
+            ip_address=client_ip, browser=browser, device=device,
+        ))
+
+        if solved_count >= total_db_mods:
+            db.add(AuditLog(
+                user_id=current_user.id, action="Lab Completed", resource="Lab",
+                resource_id=lab.id, status="SUCCESS",
+                ip_address=client_ip, browser=browser, device=device,
+            ))
+
+        db.commit()
+
+        # Post-commit notifications (non-fatal)
+        try:
+            new_rank = (
+                db.query(func.count(User.id))
+                .filter(_non_admin_filter(), User.total_score > new_total)
+                .scalar() or 0
+            ) + 1
+
+            from app.services.notification_service import notification_service
+            if solved_count >= total_db_mods:
+                notification_service.create_and_send(
+                    db, current_user.id, "Lab Completion",
+                    f"You completed {lab.name}.", "LAB_COMPLETION", current_user.phone,
+                )
+            for ach_id in newly_earned:
+                notification_service.create_and_send(
+                    db, current_user.id, "Achievement Unlocked",
+                    f"You unlocked {ach_id}.", "ACHIEVEMENT", current_user.phone,
+                )
+            if new_rank < old_rank:
+                notification_service.create_and_send(
+                    db, current_user.id, "Rank Improvement",
+                    f"Your leaderboard position improved from #{old_rank} to #{new_rank}.",
+                    "RANK_IMPROVEMENT", current_user.phone,
+                )
+        except Exception as notify_err:
+            logger.warning(f"[submit_flag] Notification error (non-fatal): {notify_err}")
+
+        return {
+            "success": True,
+            "message": "Flag submission completed successfully.",
+            "points_awarded": awarded,
+            "total_score": new_total,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
         db.rollback()
-        logger.error(f"[submit_flag] Transaction failed for module_id='{payload.module_id}'. Rolled back! Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Database transaction error: {str(e)}")
+        logger.error(
+            f"[submit_flag] Transaction failed for module='{payload.module_id}': {exc}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"Database transaction error: {str(exc)}")

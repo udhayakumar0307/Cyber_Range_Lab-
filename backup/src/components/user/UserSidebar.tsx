@@ -10,7 +10,8 @@ import {
   Shield,
   ChevronRight,
   LogOut,
-  Flag
+  Flag,
+  Puzzle
 } from 'lucide-react';
 
 interface UserSidebarProps {
@@ -34,6 +35,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Available Labs', path: '/labs', icon: FlaskConical },
+    { name: 'Puzzle', path: '/labs/puzzle-lab', icon: Puzzle },
     { name: 'CTF Competitions', path: '/ctf', icon: Flag },
     { name: 'Progress Tracking', path: '/progress', icon: Activity },
     { name: 'Leaderboards', path: '/leaderboards', icon: Trophy },

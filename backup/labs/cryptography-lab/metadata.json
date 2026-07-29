@@ -1,0 +1,9 @@
+{
+  "name": "Cryptography Lab",
+  "category": "Cryptography & Security",
+  "difficulty": "Beginner",
+  "description": "Master Encoding, Hashing, Message Digests, Caesar Cipher, ROT13, and XOR Encryption across 5 hands-on interactive modules.",
+  "duration": "4",
+  "price": "14999",
+  "docker_image": "cyberrange/cryptography-lab:latest"
+}

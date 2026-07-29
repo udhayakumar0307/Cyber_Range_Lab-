@@ -1,57 +1,97 @@
+"""
+Cyber Range — FastAPI Application Entry Point
+=============================================
+Production startup is intentionally minimal:
+
+  1. Load configuration
+  2. Initialize logging
+  3. Initialize database connection pool
+  4. Verify database connectivity
+  5. Register routes
+  6. Start FastAPI
+
+Schema creation, seeding, admin bootstrapping, lab scanning, and index
+creation are NOT performed at runtime. Run the dedicated scripts once:
+
+  python scripts/migrate.py        # create tables + apply indexes
+  python scripts/seed.py           # seed static data
+  python scripts/bootstrap_admin.py  # create/update admin users
+  python scripts/scan_labs.py      # sync lab filesystem metadata
+"""
+
 import logging
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.core.logging_config import setup_logging
-from app.startup.database_init import initialize_database
 from app.database.manager import db_manager
 from app.core.exceptions import AppError, app_exception_handler, global_exception_handler
 from app.api.v1.router import api_router
+from app.middleware.timing import TimingMiddleware
+import app.middleware.timing as _timing_mod
 
-# 1. Initialize centralized logging configuration
+# --- Initialize logging first (before any other imports that log) ---
 setup_logging()
 logger = logging.getLogger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Application startup logic
-    logger.info("Initializing application startup...")
+    """
+    Production lifespan: only initializes the DB connection pool.
+    No schema work, no seeding, no filesystem scanning.
+    """
+    logger.info("Starting Cyber Range API server...")
     try:
-        initialize_database()
-        from app.database.manager import db_manager
-        from app.services.lab_scanner import scan_lab_directory
-        with db_manager.transaction() as db:
-            scan_lab_directory(db, notify=True)
-        app.state.daily_notification_task = asyncio.create_task(
-            __import__("app.services.daily_notification_worker", fromlist=["daily_notification_loop"]).daily_notification_loop()
-        )
-        logger.info("Database initialization completed successfully during startup.")
-    except Exception as e:
-        logger.critical(f"Database initialization failed during startup: {e}", exc_info=True)
-        
+        db_manager.init_db()
+        logger.info("Database connection pool ready.")
+    except Exception as exc:
+        logger.critical(f"Database connection failed: {exc}", exc_info=True)
+        raise
+
+    # Start background notification worker (lightweight, async)
     try:
-        # Triggers SES service startup validation (checks credentials)
-        from app.services.ses_service import ses_service
-    except Exception as e:
-        logger.error(f"Failed to load SES service: {e}")
-        
+        from app.services.daily_notification_worker import daily_notification_loop
+        app.state.daily_notification_task = asyncio.create_task(daily_notification_loop())
+    except Exception as exc:
+        logger.warning(f"Daily notification worker failed to start: {exc}")
+
+    # Lazy-validate SES credentials without blocking startup
+    try:
+        from app.services.ses_service import ses_service  # noqa: F401
+    except Exception as exc:
+        logger.warning(f"SES service unavailable (email sending disabled): {exc}")
+
+    logger.info("Server startup complete.")
     yield
-    # Application shutdown logic
-    logger.info("Initializing application shutdown...")
+
+    # --- Shutdown ---
+    logger.info("Shutting down server...")
     task = getattr(app.state, "daily_notification_task", None)
     if task:
         task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     db_manager.shutdown()
-    logger.info("Application shutdown completed successfully.")
+    logger.info("Server shutdown complete.")
+
+
+# ---------------------------------------------------------------------------
+# FastAPI application
+# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Cyber Range Platform API",
     version="1.0.0",
-    lifespan=lifespan
+    description="Production-grade cybersecurity learning platform API.",
+    lifespan=lifespan,
 )
 
-# 2. Configure CORS middleware (allow_credentials must be True to accept cookies)
+# CORS — allow the Vite dev server and any configured frontend origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
@@ -60,23 +100,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Mount centralized exception handlers
+# Request timing middleware — adds X-Response-Time header, logs slow requests
+_timing_instance = TimingMiddleware(app)
+app.add_middleware(TimingMiddleware)
+_timing_mod.timing_middleware_instance = _timing_instance
+
+# Centralized exception handlers
 app.add_exception_handler(AppError, app_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 import os
 from fastapi.staticfiles import StaticFiles
 
-# 4. Mount versioned API routes & static uploads
 app.include_router(api_router, prefix="/api/v1")
 
+# Metrics endpoint (SYSTEM_ADMIN protected)
+from app.api.v1.endpoints.metrics import router as metrics_router
+app.include_router(metrics_router, prefix="/api/v1")
+
+# Lab-specific routers & backward compatible aliases
+from app.api.v1.endpoints import cll_api, crypto_api, auth
+app.include_router(cll_api.router, prefix="/api")
+app.include_router(crypto_api.router, prefix="/api")
+app.post("/api/auth/google", include_in_schema=False)(auth.google_auth)
+
+
+# Static file mounts
 uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
 os.makedirs(os.path.join(uploads_dir, "profile_photos"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
-# Support both GET /api/v1/health and GET /api/health for backward compatibility
-# Temporary comment to verify hot reload - updated
+cll_static_dir = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "labs", "command-line-lab", "scoring-server", "static")
+)
+if os.path.exists(cll_static_dir):
+    app.mount("/static", StaticFiles(directory=cll_static_dir), name="cll_static")
 
+
+# Backward-compatible health endpoint (supports both /api/v1/health and /api/health)
 @app.get("/api/health", include_in_schema=False)
 def global_health():
     from app.api.v1.endpoints.health import health_check

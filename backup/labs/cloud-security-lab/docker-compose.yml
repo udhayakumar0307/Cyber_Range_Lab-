@@ -45,7 +45,7 @@ services:
       cloud-security-net:
         ipv4_address: 10.20.0.99
     ports:
-      - "5000:5000"   # Web UI accessible from host browser
+      - "5002:5000"   # Web UI accessible from host browser
     environment:
       - STUDENT_ID=${STUDENT_ID:-student}
       - LAB_SEED=${LAB_SEED:-defaultseed}

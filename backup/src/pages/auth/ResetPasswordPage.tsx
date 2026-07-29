@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { PasswordStrengthMeter, evaluatePasswordPolicy } from '../../components/PasswordStrengthMeter';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -34,8 +35,11 @@ export const ResetPasswordPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('');
-    if (!hasMinLength || !hasNumber || !hasSpecial || !isMatching) return;
+    const policy = evaluatePasswordPolicy(newPassword);
+    if (!policy.isValid || newPassword !== confirmPassword) {
+      setErrorMsg('Password does not meet platform security policy or passwords do not match.');
+      return;
+    }
     if (!token) {
       setIsTokenExpired(true);
       return;
@@ -162,39 +166,7 @@ export const ResetPasswordPage: React.FC = () => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
-
-              {/* Dynamic Strength Meter Bar */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-slate-500">Password Complexity:</span>
-                  <span className="text-slate-800">{strengthInfo.label}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full transition-all duration-300 ${strengthInfo.color} ${strengthInfo.width}`}></div>
-                </div>
-              </div>
-
-              {/* Requirements Checklist */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  {hasMinLength ? <CheckCircle2 className="w-3.5 h-3.5 text-[#28A745]" /> : <XCircle className="w-3.5 h-3.5 text-slate-300" />}
-                  <span className={hasMinLength ? 'text-slate-800 font-bold' : 'text-slate-400'}>
-                    At least 8 characters long
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {hasNumber ? <CheckCircle2 className="w-3.5 h-3.5 text-[#28A745]" /> : <XCircle className="w-3.5 h-3.5 text-slate-300" />}
-                  <span className={hasNumber ? 'text-slate-800 font-bold' : 'text-slate-400'}>
-                    Includes at least 1 number (0-9)
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {hasSpecial ? <CheckCircle2 className="w-3.5 h-3.5 text-[#28A745]" /> : <XCircle className="w-3.5 h-3.5 text-slate-300" />}
-                  <span className={hasSpecial ? 'text-slate-800 font-bold' : 'text-slate-400'}>
-                    Includes special character (!@#$%^&*)
-                  </span>
-                </div>
+                <PasswordStrengthMeter password={newPassword} />
               </div>
 
               <div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -25,14 +25,17 @@ interface AdminLayoutProps {
   children?: React.ReactNode;
 }
 
-export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
+// OPTIMIZATION 3: React.memo prevents re-render when parent re-renders with same props.
+// The children prop changes only on actual route navigation — this is the desired behavior.
+export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  const getInitials = (name: string) => {
+  // useCallback: stable reference — avoids re-creating on every render
+  const getInitials = useCallback((name: string) => {
     if (!name) return 'AD';
     return name
       .split(' ')
@@ -40,16 +43,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
+
+  // useCallback: stable handler passed to AdminSidebar — prevents sidebar re-render
+  const handleSidebarClose = useCallback(() => setIsSidebarOpen(false), []);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-[#0F172A] dark:text-white flex transition-colors duration-200">
       {/* Sidebar Navigation */}
-      <AdminSidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+      <AdminSidebar
+        isOpen={isSidebarOpen}
+        onClose={handleSidebarClose}
       />
 
       {/* Backdrop for Mobile Sidebar */}
@@ -276,4 +282,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       </div>
     </div>
   );
-};
+});
+
+AdminLayout.displayName = 'AdminLayout';

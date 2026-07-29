@@ -409,7 +409,7 @@ export const LabMarketplace: React.FC = () => {
 
                     {isPurchased ? (
                       <button
-                        onClick={() => navigate(lab.id === 'lab1-recon' ? '/labs/lab1-recon/session' : '/labs/command-line-lab/session')}
+                        onClick={() => navigate(lab.id === 'lab1-recon' ? '/labs/lab1-recon/session' : `/labs/${lab.id}/session`)}
                         className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
                       >
                         <Play className="w-3.5 h-3.5 fill-white" />

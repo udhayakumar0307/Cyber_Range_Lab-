@@ -1,0 +1,9 @@
+{
+  "name": "Cloud Security Lab",
+  "category": "Cloud & Infrastructure Security",
+  "difficulty": "Advanced",
+  "description": "SecureGuard Red Team vs TechCorp Industries Cloud. Master S3 bucket enumeration, IAM privilege escalation, and Secrets Manager exploitation across 5 interactive stages.",
+  "duration": "4",
+  "price": "24999",
+  "docker_image": "cyberrange/cloud-security-lab:latest"
+}

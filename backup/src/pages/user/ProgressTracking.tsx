@@ -26,6 +26,8 @@ export const ProgressTracking: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [domains, setDomains] = useState<DomainProficiency[]>([]);
+
   const loadData = async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -33,9 +35,10 @@ export const ProgressTracking: React.FC = () => {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      const [dashRes, achRes] = await Promise.all([
+      const [dashRes, achRes, labsRes] = await Promise.all([
         fetch('/api/v1/reporting/dashboard', { headers }),
-        fetch('/api/v1/reporting/achievements', { headers })
+        fetch('/api/v1/reporting/achievements', { headers }),
+        fetch('/api/v1/labs', { headers })
       ]);
 
       if (dashRes.ok) {
@@ -46,7 +49,32 @@ export const ProgressTracking: React.FC = () => {
         const achs = await achRes.json();
         setAchievements(achs);
       }
-      if (!dashRes.ok && !achRes.ok) {
+      if (labsRes.ok) {
+        const labs = await labsRes.json();
+        
+        const colors = [
+          'bg-[#2563EB]', 'bg-purple-600', 'bg-emerald-500', 
+          'bg-amber-500', 'bg-rose-500', 'bg-cyan-500'
+        ];
+        
+        const mappedDomains = labs.map((lab: any, index: number) => {
+          const totalCount = lab.modules ? lab.modules.length : 0;
+          const solvedCount = lab.solvedChallenges || 0;
+          const scorePercentage = totalCount > 0 ? Math.min(Math.round((solvedCount / totalCount) * 100), 100) : 0;
+          
+          return {
+            domain: lab.title || lab.name,
+            scorePercentage,
+            solvedCount,
+            totalCount,
+            color: colors[index % colors.length]
+          };
+        });
+        
+        setDomains(mappedDomains);
+      }
+      
+      if (!dashRes.ok && !achRes.ok && !labsRes.ok) {
         setErrorMsg('Could not fetch telemetry data from backend API.');
       }
     } catch (err) {
@@ -69,42 +97,6 @@ export const ProgressTracking: React.FC = () => {
       </div>
     );
   }
-
-  const linuxCount = dashboard?.skills?.linux ?? 0;
-  const pythonCount = dashboard?.skills?.python ?? 0;
-  const cCount = dashboard?.skills?.c ?? 0;
-  const cppCount = dashboard?.skills?.cpp ?? 0;
-
-  const domains: DomainProficiency[] = [
-    { 
-      domain: 'Linux Infrastructure & Shells', 
-      scorePercentage: Math.min(Math.round((linuxCount / 5) * 100), 100), 
-      solvedCount: linuxCount, 
-      totalCount: 5,
-      color: 'bg-[#2563EB]' 
-    },
-    { 
-      domain: 'Python Security Automation', 
-      scorePercentage: Math.min(Math.round((pythonCount / 5) * 100), 100), 
-      solvedCount: pythonCount, 
-      totalCount: 5,
-      color: 'bg-purple-600' 
-    },
-    { 
-      domain: 'C Exploitations', 
-      scorePercentage: Math.min(Math.round((cCount / 5) * 100), 100), 
-      solvedCount: cCount, 
-      totalCount: 5,
-      color: 'bg-emerald-500' 
-    },
-    { 
-      domain: 'C++ Vulnerable Code mapping', 
-      scorePercentage: Math.min(Math.round((cppCount / 5) * 100), 100), 
-      solvedCount: cppCount, 
-      totalCount: 5,
-      color: 'bg-amber-500' 
-    }
-  ];
 
   const unlockedBadges = achievements ? achievements.filter(a => a.unlocked) : [];
   const weeklyGraph = dashboard?.weekly_graph || [];

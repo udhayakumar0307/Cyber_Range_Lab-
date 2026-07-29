@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -72,24 +72,32 @@ export const UserDashboard: React.FC = () => {
   const [recentActivities, setRecentActivities] = useState<DashboardActivity[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     const loadDashboard = async () => {
       try {
         const response = await apiFetch('/api/v1/user/dashboard');
-        if (!response.ok) return;
+        if (!response.ok || cancelled) return;
         const data: DashboardData = await response.json();
+        if (cancelled) return;
         setDashboard(data);
-        setLabs((data.assigned_labs ?? []).map((lab) => ({
-          id: lab.id ?? '', title: lab.title ?? '', category: lab.category ?? '',
-          status: lab.status ?? 'live', description: lab.description ?? '',
-          totalChallenges: lab.total_challenges ?? 0, solvedChallenges: lab.solved_challenges ?? 0,
-          tags: lab.tags ?? [], duration: `${lab.duration_hours ?? 0} hrs`
-        })));
+        setLabs((data.assigned_labs ?? [])
+          .filter((lab) => lab.id !== 'puzzle-lab' && lab.id !== 'puzzle')
+          .map((lab) => ({
+            id: lab.id ?? '', title: lab.title ?? '', category: lab.category ?? '',
+            status: lab.status ?? 'live', description: lab.description ?? '',
+            totalChallenges: lab.total_challenges ?? 0, solvedChallenges: lab.solved_challenges ?? 0,
+            tags: lab.tags ?? [], duration: `${lab.duration_hours ?? 0} hrs`
+          })));
         setRecentActivities(data.recent_activity ?? []);
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        if (!cancelled) {
+          console.error('Failed to load dashboard data:', error);
+        }
       }
     };
     loadDashboard();
+    return () => { cancelled = true; };
+  // apiFetch is stable (useCallback in AuthContext)
   }, [apiFetch]);
 
   const statistics = dashboard?.statistics;
@@ -248,7 +256,19 @@ export const UserDashboard: React.FC = () => {
                   <span className="font-bold text-[#64748B] dark:text-[#CBD5E1]">Duration: {lab.duration}</span>
                   {lab.status !== 'completed' ? (
                     <button 
-                      onClick={() => navigate('/labs')}
+                      onClick={() => {
+                        const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
+                        const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
+                        if (isCll) {
+                          navigate('/labs/command-line-lab/session');
+                        } else if (isCrypto) {
+                          navigate('/labs/cryptography-lab/session');
+                        } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
+                          navigate('/labs/lab1-recon/session');
+                        } else {
+                          navigate('/labs');
+                        }
+                      }}
                       className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-xs"
                     >
                       Continue <ArrowRight className="w-3.5 h-3.5" />

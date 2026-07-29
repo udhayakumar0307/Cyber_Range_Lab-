@@ -40,8 +40,13 @@ class Settings:
         self.SYSTEM_ADMIN_NAME = os.getenv("SYSTEM_ADMIN_NAME", "System Admin")
         self.SYSTEM_ADMIN_EMAIL = os.getenv("SYSTEM_ADMIN_EMAIL", "sysadmin@cyberrange.in")
         self.SYSTEM_ADMIN_PASSWORD = os.getenv("SYSTEM_ADMIN_PASSWORD", "sysadmin_password_2026")
-        self.ALLOWED_ADMIN_DOMAINS = [d.strip() for d in os.getenv("ALLOWED_ADMIN_DOMAINS", "cyberrange.in").split(",") if d.strip()]
-
+        self.ALLOWED_ADMIN_DOMAINS = [d.strip().lower() for d in os.getenv("ADMIN_ALLOWED_DOMAINS", os.getenv("ALLOWED_ADMIN_DOMAINS", "cyberrange.in")).split(",") if d.strip()]
+        self.ADMIN_ALLOWED_DOMAINS = self.ALLOWED_ADMIN_DOMAINS
+        self.STUDENT_ALLOWED_DOMAINS = [d.strip().lower() for d in os.getenv("STUDENT_ALLOWED_DOMAINS", "gmail.com,*.edu,*.ac.in,college.edu,example.ac.in").split(",") if d.strip()]
+        
+        # Google OAuth Credentials
+        self.GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+        self.GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
         
         # AWS / Amazon SES Configurations
         self.AWS_REGION = os.getenv("AWS_REGION")

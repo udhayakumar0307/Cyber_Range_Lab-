@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, User, Mail, Lock, Building, ArrowLeft } from 'lucide-react';
+import { PasswordStrengthMeter, evaluatePasswordPolicy } from '../../components/PasswordStrengthMeter';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -340,12 +341,13 @@ export const RegisterPage: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
                   />
                 </div>
+                <PasswordStrengthMeter password={password} email={email} username={fullName} />
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+                disabled={isLoading || !evaluatePasswordPolicy(password, email, fullName).isValid}
+                className="w-full py-3.5 bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>

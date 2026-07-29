@@ -4,6 +4,8 @@ from typing import Optional
 class UserLogin(BaseModel):
     email: str
     password: str
+    remember_me: Optional[bool] = False
+    portal: Optional[str] = "student"
 
 class UserResponse(BaseModel):
     id: int
@@ -11,6 +13,10 @@ class UserResponse(BaseModel):
     email: str
     role: Optional[str] = None
     account_type: Optional[str] = None
+    account_status: Optional[str] = "active"
+    email_verified: Optional[bool] = True
+    tenant_id: Optional[str] = "default"
+    is_internal: Optional[bool] = False
     college_id: Optional[int] = None
     department: Optional[str] = None
     year: Optional[int] = None
@@ -40,5 +46,19 @@ class ResetPasswordRequest(BaseModel):
 class OTPVerifyRequest(BaseModel):
     email: EmailStr
     otp_code: str
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
+class OAuthCallbackRequest(BaseModel):
+    code: str
+    state: Optional[str] = None
+    role: Optional[str] = "student"
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+    portal: Optional[str] = "student"
+
+
 
 

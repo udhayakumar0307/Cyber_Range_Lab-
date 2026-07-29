@@ -1,0 +1,95 @@
+# ============================================================
+# LAB: OT WATER TREATMENT PLANT ATTACK
+# AquaShield Security Assessment - ClearWater Municipal
+# ============================================================
+# Usage:
+#   docker-compose up --build -d
+#   Then: docker exec -it lab-ot-water-student bash
+# ============================================================
+
+networks:
+  ot-water-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+services:
+
+  # -- Vulnerable Services: PLC + SCADA + Wireshark -----------
+  plc:
+    build: ./vulnerable-services/plc
+    container_name: lab-ot-water-plc
+    hostname: plc-01
+    networks:
+      ot-water-net:
+        ipv4_address: 172.28.0.10
+    ports:
+      - "5020:502"
+    restart: unless-stopped
+
+  scada:
+    build: ./vulnerable-services/scada
+    container_name: lab-ot-water-scada
+    hostname: scada-server
+    networks:
+      ot-water-net:
+        ipv4_address: 172.28.0.20
+    ports:
+      - "3000:3000"
+    depends_on:
+      - plc
+    environment:
+      - PLC_HOST=172.28.0.10
+      - PLC_PORT=502
+    restart: unless-stopped
+
+  wireshark:
+    image: lscr.io/linuxserver/wireshark:latest
+    container_name: lab-ot-water-wireshark
+    network_mode: "service:plc"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    restart: unless-stopped
+
+  # -- Student Workspace --------------------------------------
+  student-env:
+    build: ./student-env
+    container_name: lab-ot-water-student
+    hostname: aquashield-kali
+    networks:
+      ot-water-net:
+        ipv4_address: 172.28.0.50
+    environment:
+      - TARGET_IP=172.28.0.10
+      - SCORING_URL=http://172.28.0.99:5000
+    volumes:
+      - ./modules:/modules:ro
+    depends_on:
+      - plc
+      - scoring-server
+    stdin_open: true
+    tty: true
+
+  # -- Scoring Server ------------------------------------------
+  scoring-server:
+    build: ./scoring-server
+    container_name: lab-ot-water-scoring
+    hostname: scoring
+    networks:
+      ot-water-net:
+        ipv4_address: 172.28.0.99
+    ports:
+      - "5000:5000"
+    volumes:
+      - scoring-data:/data
+      - ./modules:/app/static/modules:ro
+    restart: unless-stopped
+
+volumes:
+  scoring-data:

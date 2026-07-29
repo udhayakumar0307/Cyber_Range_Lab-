@@ -1,9 +1,9 @@
 {
   "name": "Command Line Lab",
-  "category": "Linux Infrastructure",
-  "difficulty": "Beginner",
-  "description": "Practice Linux terminal navigation, file inspection, privilege auditing, and command execution.",
-  "duration": "4",
-  "price": "9999",
+  "category": "Linux & Programming",
+  "difficulty": "Intermediate",
+  "description": "Master Linux navigation, file operations, Python, Java, and C programming fundamentals across 20 interactive modules with real-time scoring and terminal execution.",
+  "duration": "5",
+  "price": "19999",
   "docker_image": "cyberrange/command-line-lab:latest"
 }

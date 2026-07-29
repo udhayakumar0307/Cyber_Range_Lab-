@@ -203,19 +203,25 @@ def submit_flag():
         if not submitted_flag:
             return jsonify({"status": "error", "message": "submitted_flag required"}), 400
         
-        # Load seeded flags
-        flags = {}
-        if os.path.exists("flags.json"):
-            with open("flags.json", "r") as f:
-                flags = json.load(f)
-        
-        # Validate flag
-        expected_flag = flags.get(f"stage{module}")
+        # Load parsed ans.txt data
+        expected_flag = None
+        try:
+            from ans_parser import parse_ans_txt
+            ans_data = parse_ans_txt("ans.txt")
+            if module in ans_data and ans_data[module].get("objectives"):
+                expected_flag = ans_data[module]["objectives"][0].get("flag")
+        except Exception:
+            pass
+
         if not expected_flag:
-            # Fallback calculation
-            expected_flag = generate_flag(student_id, 2, module, LAB_SEED)
-            
-        is_correct = submitted_flag == expected_flag
+            # Fallback to seeded flags or generated calculation
+            flags = {}
+            if os.path.exists("flags.json"):
+                with open("flags.json", "r") as f:
+                    flags = json.load(f)
+            expected_flag = flags.get(f"stage{module}") or generate_flag(student_id, 2, module, LAB_SEED)
+
+        is_correct = (submitted_flag == expected_flag)
         
         submission = {
             "timestamp": datetime.now().isoformat(),
@@ -453,6 +459,17 @@ def terminal_run():
 @app.route('/modules/<filename>')
 def view_module(filename):
     return render_template('view_md.html', filename=filename)
+
+@app.route('/modules/raw/<filename>')
+def view_module_raw(filename):
+    """Serve raw markdown content for client-side rendering."""
+    from flask import Response
+    modules_dir = Path(__file__).parent.parent / 'modules'
+    safe_name = Path(filename).name  # Prevent path traversal
+    file_path = modules_dir / safe_name
+    if not file_path.exists() or not file_path.is_file():
+        return Response("# Module not found\n\nThe requested module guide does not exist.", status=404, mimetype='text/plain')
+    return Response(file_path.read_text(encoding='utf-8'), mimetype='text/plain')
 
 if __name__ == '__main__':
     load_leaderboard()

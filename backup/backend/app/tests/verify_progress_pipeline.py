@@ -13,19 +13,18 @@ from app.models.user import User
 from app.models.user_lab_progress import UserLabProgress
 from app.models.user_achievement import UserAchievement
 from app.models.audit_log import AuditLog
+from app.models.lab import Lab
 from app.core.security import create_access_token
-from app.tests.reset_cll_data import reset_cll_data
 
 def run_pipeline_verification():
-    print("==================================================")
-    print("STEP 1: RESETTING CLL TEST PROGRESS DATA")
-    print("==================================================")
-    reset_cll_data()
-
     client = TestClient(app)
     db = db_manager.get_session()
 
     try:
+        # Get active lab dynamically from DB
+        active_lab = db.query(Lab).first()
+        lab_id = active_lab.id if active_lab else "lab1-recon"
+
         # Get or create demo user
         user = db.query(User).filter(User.email == "student@cyberrange.io").first()
         if not user:
@@ -43,7 +42,7 @@ def run_pipeline_verification():
         print("==================================================")
 
         payload_m1 = {
-            "lab_id": "command-line-lab",
+            "lab_id": lab_id,
             "module_id": "module1",
             "flag": "FLAG{test_module1_correct_flag}",
             "correct": True,
@@ -90,7 +89,7 @@ def run_pipeline_verification():
         print("==================================================")
 
         payload_m2 = {
-            "lab_id": "command-line-lab",
+            "lab_id": lab_id,
             "module_id": "module2",
             "flag": "FLAG{test_module2_correct_flag}",
             "correct": True,

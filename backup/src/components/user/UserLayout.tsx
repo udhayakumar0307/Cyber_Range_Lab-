@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserSidebar } from './UserSidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +23,8 @@ interface UserLayoutProps {
   children?: React.ReactNode;
 }
 
-export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
+// OPTIMIZATION 3: React.memo prevents re-render when parent re-renders with same props.
+export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -33,7 +34,8 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(2);
 
-  const getInitials = (name: string) => {
+  // useCallback: stable reference — avoids re-creating on every render
+  const getInitials = useCallback((name: string) => {
     if (!name) return '';
     return name
       .split(' ')
@@ -41,14 +43,17 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
+
+  // useCallback: stable handler passed to UserSidebar — prevents sidebar re-render
+  const handleSidebarClose = useCallback(() => setIsSidebarOpen(false), []);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-[#0F172A] dark:text-white flex transition-colors duration-200">
       {/* Sidebar Navigation */}
-      <UserSidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+      <UserSidebar
+        isOpen={isSidebarOpen}
+        onClose={handleSidebarClose}
       />
 
       {/* Backdrop for Mobile Sidebar */}
@@ -267,4 +272,6 @@ export const UserLayout: React.FC<UserLayoutProps> = ({ children }) => {
       </div>
     </div>
   );
-};
+});
+
+UserLayout.displayName = 'UserLayout';

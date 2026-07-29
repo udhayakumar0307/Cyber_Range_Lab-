@@ -15,23 +15,4 @@ alias progress='python3 /opt/tools/terminal_helper.py progress'
 alias hint='python3 /opt/tools/hint_helper.py'
 alias submitflag='python3 /opt/tools/submit_flag.py'
 
-# Track-based command restrictions
-if [ "${CURRENT_TRACK:-linux}" = "python" ]; then
-    alias gcc="echo 'Error: gcc is only available in the C track.'"
-    alias g++="echo 'Error: g++ is only available in the C++ track.'"
-elif [ "${CURRENT_TRACK:-linux}" = "c" ]; then
-    alias python3="echo 'Error: python3 is only available in the Python track.'"
-    alias python="echo 'Error: python is only available in the Python track.'"
-    alias g++="echo 'Error: g++ is only available in the C++ track.'"
-elif [ "${CURRENT_TRACK:-linux}" = "cpp" ]; then
-    alias python3="echo 'Error: python3 is only available in the Python track.'"
-    alias python="echo 'Error: python is only available in the Python track.'"
-    alias gcc="echo 'Error: gcc is only available in the C track.'"
-elif [ "${CURRENT_TRACK:-linux}" = "linux" ]; then
-    alias python3="echo 'Error: python3 is only available in the Python track.'"
-    alias python="echo 'Error: python is only available in the Python track.'"
-    alias gcc="echo 'Error: gcc is only available in the C track.'"
-    alias g++="echo 'Error: g++ is only available in the C++ track.'"
-fi
-
 cat /opt/configs/banner.txt

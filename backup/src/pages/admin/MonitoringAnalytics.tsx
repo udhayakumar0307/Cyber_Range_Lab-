@@ -24,7 +24,20 @@ export const MonitoringAnalytics: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data.ranks)) {
-            setTopPerformers(data.ranks.map((r: any, idx: number) => ({
+            const filtered = data.ranks.filter((r: any) => {
+              const n = (r.name || '').toLowerCase();
+              const e = (r.email || '').toLowerCase();
+              return !(
+                n.includes('sysadmin') ||
+                n.includes('sys admin') ||
+                n.includes('security officer') ||
+                n === 'admin' ||
+                e.includes('sysadmin') ||
+                e.includes('securityofficer') ||
+                e.startsWith('admin@')
+              );
+            });
+            setTopPerformers(filtered.map((r: any, idx: number) => ({
               rank: idx + 1,
               name: r.name || r.email || `User #${r.user_id}`,
               group: r.college || 'Enterprise Cohort',

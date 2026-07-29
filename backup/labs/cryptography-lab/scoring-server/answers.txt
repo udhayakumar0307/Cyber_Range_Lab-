@@ -1,0 +1,314 @@
+================================================================================
+MODULE 1
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : m1_obj1
+Question     : Encode the word "Cyber" into Base64.
+Correct Ans  : Q3liZXI=
+Flag         : FLAG{Q3liZXI=}
+
+Step-by-Step Explanation:
+Base64 encodes binary to text using 64 printable characters.
+
+Why the Answer is Correct:
+The ASCII string Cyber encodes to Q3liZXI= in Base64.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : m1_obj2
+Question     : Decode the following Base64 string:
+Q3liZXJSYW5nZQ==
+Correct Ans  : CyberRange
+Flag         : FLAG{CyberRange}
+
+Step-by-Step Explanation:
+Base64 decoding reverses the encoding back to ASCII text.
+
+Why the Answer is Correct:
+The base64 string decodes to CyberRange.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : m1_obj3
+Question     : Encode the word "Hello" into Hex.
+Correct Ans  : 48656c6c6f
+Flag         : FLAG{48656c6c6f}
+
+Step-by-Step Explanation:
+Hexadecimal represents each byte with two characters (0-9, a-f).
+
+Why the Answer is Correct:
+The word Hello is 48656c6c6f in Hex.
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : m1_obj4
+Question     : Decode the following Hex string and submit the output as the flag:
+57656c636f6d65
+Correct Ans  : Welcome
+Flag         : FLAG{Welcome}
+
+Step-by-Step Explanation:
+Hex decoding converts the pairs of hexadecimal characters back to text.
+
+Why the Answer is Correct:
+Decoding 57656c636f6d65 produces Welcome.
+
+================================================================================
+MODULE 2
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : m2_obj1
+Question     : Generate the MD5 hash of:
+password
+Correct Ans  : 5f4dcc3b5aa765d61d8327deb882cf99
+Flag         : FLAG{5f4dcc3b5aa765d61d8327deb882cf99}
+
+Step-by-Step Explanation:
+MD5 generates a 128-bit (32 character) hash.
+
+Why the Answer is Correct:
+The MD5 sum of password is 5f4dcc3b5aa765d61d8327deb882cf99
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : m2_obj2
+Question     : Generate the SHA1 hash of:
+admin
+Correct Ans  : d033e22ae348aeb5660fc2140aec35850c4da997
+Flag         : FLAG{d033e22ae348aeb5660fc2140aec35850c4da997}
+
+Step-by-Step Explanation:
+SHA1 generates a 160-bit (40 character) hash.
+
+Why the Answer is Correct:
+The SHA1 sum of admin is d033e22ae348aeb5660fc2140aec35850c4da997
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : m2_obj3
+Question     : Generate the SHA256 hash of:
+security
+Correct Ans  : 5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43
+Flag         : FLAG{5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43}
+
+Step-by-Step Explanation:
+SHA256 generates a 256-bit (64 character) hash.
+
+Why the Answer is Correct:
+The SHA256 sum is 5d2d3ceb7abe552344276d47d36a8175b7aeb250a9bf0bf00e850cd23ecf2e43
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : m2_obj4
+Question     : Which hash algorithm produces a 32-character hexadecimal output? (Submit the name, e.g. SHA256)
+Correct Ans  : MD5
+Flag         : FLAG{MD5}
+
+Step-by-Step Explanation:
+Count the characters. 32 hex characters means 128 bits, which is MD5.
+
+Why the Answer is Correct:
+MD5 produces 32-character hex.
+
+================================================================================
+MODULE 3
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : m3_obj1
+Question     : Generate the MD5 hash of:
+Cyber
+Correct Ans  : 046e43ea3926a2f12f416a870f995a62
+Flag         : FLAG{046e43ea3926a2f12f416a870f995a62}
+
+Step-by-Step Explanation:
+Use the MD5 operation on Cyber.
+
+Why the Answer is Correct:
+MD5(Cyber) = 046e43ea3926a2f12f416a870f995a62
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : m3_obj2
+Question     : Generate the SHA1 hash of:
+Cyber
+Correct Ans  : 985c6c249e7c55d4532add1d32d7d59dc17d60f8
+Flag         : FLAG{985c6c249e7c55d4532add1d32d7d59dc17d60f8}
+
+Step-by-Step Explanation:
+Use the SHA1 operation on Cyber.
+
+Why the Answer is Correct:
+SHA1(Cyber) = 985c6c249e7c55d4532add1d32d7d59dc17d60f8
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : m3_obj3
+Question     : Generate the SHA256 hash of:
+Cyber
+Correct Ans  : f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936
+Flag         : FLAG{f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936}
+
+Step-by-Step Explanation:
+Use the SHA256 operation on Cyber.
+
+Why the Answer is Correct:
+SHA256(Cyber) = f729abbf1227241982861257964f79f3edde2a3a5d4bddc477ed478548166936
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : m3_obj4
+Question     : Generate the SHA512 hash of the following and submit the hash as the flag:
+CyberRange
+Correct Ans  : c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6
+Flag         : FLAG{c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6}
+
+Step-by-Step Explanation:
+Use the SHA512 operation on CyberRange.
+
+Why the Answer is Correct:
+SHA512(CyberRange) = c215468dff6653875cc7bce6950bd1bc5dbd4c46ed95f2270a1f215144c5b16d291cfa601d2f9d22334f14d93e56c41da7de84207fe9345415358dabae80e3e6
+
+================================================================================
+MODULE 4
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : m4_obj1
+Question     : Encode the word into Base64:
+Security
+Correct Ans  : U2VjdXJpdHk=
+Flag         : FLAG{U2VjdXJpdHk=}
+
+Step-by-Step Explanation:
+Use Base64 Encode.
+
+Why the Answer is Correct:
+Base64 of Security is U2VjdXJpdHk=
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : m4_obj2
+Question     : Encode the word into Hex:
+Hash
+Correct Ans  : 48617368
+Flag         : FLAG{48617368}
+
+Step-by-Step Explanation:
+Use Hex Encode.
+
+Why the Answer is Correct:
+Hex of Hash is 48617368
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : m4_obj3
+Question     : Encode the word into Binary (space separated):
+Key
+Correct Ans  : 01001011 01100101 01111001
+Flag         : FLAG{01001011 01100101 01111001}
+
+Step-by-Step Explanation:
+Use Binary Encode.
+
+Why the Answer is Correct:
+Binary of Key is 01001011 01100101 01111001
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : m4_obj4
+Question     : Generate the SHA256 hash of the following and submit it as the flag:
+Cyber123
+Correct Ans  : 185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22
+Flag         : FLAG{185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22}
+
+Step-by-Step Explanation:
+Use SHA256 Hash.
+
+Why the Answer is Correct:
+SHA256 of Cyber123 is 185160cde4162679eac934d1f307db6a3c4510e1bd9ba106f77cbd25852dcc22
+
+================================================================================
+MODULE 5
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : m5_obj1
+Question     : Step 1: Decode the following Base64 string:
+SGFzaA==
+Correct Ans  : Hash
+Flag         : FLAG{Hash}
+
+Step-by-Step Explanation:
+Use Base64 Decode.
+
+Why the Answer is Correct:
+Decodes to Hash
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : m5_obj2
+Question     : Step 2: Convert the decoded word ("Hash") into Hex.
+Correct Ans  : 48617368
+Flag         : FLAG{48617368}
+
+Step-by-Step Explanation:
+Use Hex Encode.
+
+Why the Answer is Correct:
+Hex of Hash is 48617368
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : m5_obj3
+Question     : Step 3: Generate the SHA256 hash of the Hex output ("48617368").
+Correct Ans  : 2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0
+Flag         : FLAG{2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0}
+
+Step-by-Step Explanation:
+Use SHA256.
+
+Why the Answer is Correct:
+SHA256 of 48617368 is 2769383ddbf93ea2296f8841d316d012bbca08a896ab165e06d40a936c5830f0
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : m5_obj4
+Question     : Step 4: Decode this Base64 string to find the final flag: RkxBR3tDcnlwdG9fTWFzdGVyfQ==
+Correct Ans  : FLAG{Crypto_Master}
+Flag         : FLAG{Crypto_Master}
+
+Step-by-Step Explanation:
+Use Base64 Decode on the provided string.
+
+Why the Answer is Correct:
+The string decodes to FLAG{Crypto_Master}.
+

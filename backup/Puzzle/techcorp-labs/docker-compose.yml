@@ -1,0 +1,1148 @@
+version: '3.8'
+
+services:
+  student0:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student0
+    hostname: techcorp-server
+    ports:
+      - "2220:2222"
+    volumes:
+      - student0_home:/home
+      - student0_opt:/opt
+      - student0_var:/var
+    environment:
+      - STUDENT_ID=0
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student1:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student1
+    hostname: techcorp-server
+    ports:
+      - "2221:2222"
+    volumes:
+      - student1_home:/home
+      - student1_opt:/opt
+      - student1_var:/var
+    environment:
+      - STUDENT_ID=1
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student2:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student2
+    hostname: techcorp-server
+    ports:
+      - "2222:2222"
+    volumes:
+      - student2_home:/home
+      - student2_opt:/opt
+      - student2_var:/var
+    environment:
+      - STUDENT_ID=2
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student3:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student3
+    hostname: techcorp-server
+    ports:
+      - "2223:2222"
+    volumes:
+      - student3_home:/home
+      - student3_opt:/opt
+      - student3_var:/var
+    environment:
+      - STUDENT_ID=3
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student4:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student4
+    hostname: techcorp-server
+    ports:
+      - "2224:2222"
+    volumes:
+      - student4_home:/home
+      - student4_opt:/opt
+      - student4_var:/var
+    environment:
+      - STUDENT_ID=4
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student5:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student5
+    hostname: techcorp-server
+    ports:
+      - "2225:2222"
+    volumes:
+      - student5_home:/home
+      - student5_opt:/opt
+      - student5_var:/var
+    environment:
+      - STUDENT_ID=5
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student6:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student6
+    hostname: techcorp-server
+    ports:
+      - "2226:2222"
+    volumes:
+      - student6_home:/home
+      - student6_opt:/opt
+      - student6_var:/var
+    environment:
+      - STUDENT_ID=6
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student7:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student7
+    hostname: techcorp-server
+    ports:
+      - "2227:2222"
+    volumes:
+      - student7_home:/home
+      - student7_opt:/opt
+      - student7_var:/var
+    environment:
+      - STUDENT_ID=7
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student8:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student8
+    hostname: techcorp-server
+    ports:
+      - "2228:2222"
+    volumes:
+      - student8_home:/home
+      - student8_opt:/opt
+      - student8_var:/var
+    environment:
+      - STUDENT_ID=8
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student9:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student9
+    hostname: techcorp-server
+    ports:
+      - "2229:2222"
+    volumes:
+      - student9_home:/home
+      - student9_opt:/opt
+      - student9_var:/var
+    environment:
+      - STUDENT_ID=9
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student10:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student10
+    hostname: techcorp-server
+    ports:
+      - "2230:2222"
+    volumes:
+      - student10_home:/home
+      - student10_opt:/opt
+      - student10_var:/var
+    environment:
+      - STUDENT_ID=10
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student11:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student11
+    hostname: techcorp-server
+    ports:
+      - "2231:2222"
+    volumes:
+      - student11_home:/home
+      - student11_opt:/opt
+      - student11_var:/var
+    environment:
+      - STUDENT_ID=11
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student12:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student12
+    hostname: techcorp-server
+    ports:
+      - "2232:2222"
+    volumes:
+      - student12_home:/home
+      - student12_opt:/opt
+      - student12_var:/var
+    environment:
+      - STUDENT_ID=12
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student13:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student13
+    hostname: techcorp-server
+    ports:
+      - "2233:2222"
+    volumes:
+      - student13_home:/home
+      - student13_opt:/opt
+      - student13_var:/var
+    environment:
+      - STUDENT_ID=13
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student14:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student14
+    hostname: techcorp-server
+    ports:
+      - "2234:2222"
+    volumes:
+      - student14_home:/home
+      - student14_opt:/opt
+      - student14_var:/var
+    environment:
+      - STUDENT_ID=14
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student15:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student15
+    hostname: techcorp-server
+    ports:
+      - "2235:2222"
+    volumes:
+      - student15_home:/home
+      - student15_opt:/opt
+      - student15_var:/var
+    environment:
+      - STUDENT_ID=15
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student16:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student16
+    hostname: techcorp-server
+    ports:
+      - "2236:2222"
+    volumes:
+      - student16_home:/home
+      - student16_opt:/opt
+      - student16_var:/var
+    environment:
+      - STUDENT_ID=16
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student17:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student17
+    hostname: techcorp-server
+    ports:
+      - "2237:2222"
+    volumes:
+      - student17_home:/home
+      - student17_opt:/opt
+      - student17_var:/var
+    environment:
+      - STUDENT_ID=17
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student18:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student18
+    hostname: techcorp-server
+    ports:
+      - "2238:2222"
+    volumes:
+      - student18_home:/home
+      - student18_opt:/opt
+      - student18_var:/var
+    environment:
+      - STUDENT_ID=18
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student19:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student19
+    hostname: techcorp-server
+    ports:
+      - "2239:2222"
+    volumes:
+      - student19_home:/home
+      - student19_opt:/opt
+      - student19_var:/var
+    environment:
+      - STUDENT_ID=19
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student20:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student20
+    hostname: techcorp-server
+    ports:
+      - "2240:2222"
+    volumes:
+      - student20_home:/home
+      - student20_opt:/opt
+      - student20_var:/var
+    environment:
+      - STUDENT_ID=20
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student21:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student21
+    hostname: techcorp-server
+    ports:
+      - "2241:2222"
+    volumes:
+      - student21_home:/home
+      - student21_opt:/opt
+      - student21_var:/var
+    environment:
+      - STUDENT_ID=21
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student22:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student22
+    hostname: techcorp-server
+    ports:
+      - "2242:2222"
+    volumes:
+      - student22_home:/home
+      - student22_opt:/opt
+      - student22_var:/var
+    environment:
+      - STUDENT_ID=22
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student23:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student23
+    hostname: techcorp-server
+    ports:
+      - "2243:2222"
+    volumes:
+      - student23_home:/home
+      - student23_opt:/opt
+      - student23_var:/var
+    environment:
+      - STUDENT_ID=23
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student24:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student24
+    hostname: techcorp-server
+    ports:
+      - "2244:2222"
+    volumes:
+      - student24_home:/home
+      - student24_opt:/opt
+      - student24_var:/var
+    environment:
+      - STUDENT_ID=24
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student25:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student25
+    hostname: techcorp-server
+    ports:
+      - "2245:2222"
+    volumes:
+      - student25_home:/home
+      - student25_opt:/opt
+      - student25_var:/var
+    environment:
+      - STUDENT_ID=25
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student26:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student26
+    hostname: techcorp-server
+    ports:
+      - "2246:2222"
+    volumes:
+      - student26_home:/home
+      - student26_opt:/opt
+      - student26_var:/var
+    environment:
+      - STUDENT_ID=26
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student27:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student27
+    hostname: techcorp-server
+    ports:
+      - "2247:2222"
+    volumes:
+      - student27_home:/home
+      - student27_opt:/opt
+      - student27_var:/var
+    environment:
+      - STUDENT_ID=27
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student28:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student28
+    hostname: techcorp-server
+    ports:
+      - "2248:2222"
+    volumes:
+      - student28_home:/home
+      - student28_opt:/opt
+      - student28_var:/var
+    environment:
+      - STUDENT_ID=28
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student29:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student29
+    hostname: techcorp-server
+    ports:
+      - "2249:2222"
+    volumes:
+      - student29_home:/home
+      - student29_opt:/opt
+      - student29_var:/var
+    environment:
+      - STUDENT_ID=29
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student30:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student30
+    hostname: techcorp-server
+    ports:
+      - "2250:2222"
+    volumes:
+      - student30_home:/home
+      - student30_opt:/opt
+      - student30_var:/var
+    environment:
+      - STUDENT_ID=30
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student31:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student31
+    hostname: techcorp-server
+    ports:
+      - "2251:2222"
+    volumes:
+      - student31_home:/home
+      - student31_opt:/opt
+      - student31_var:/var
+    environment:
+      - STUDENT_ID=31
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student32:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student32
+    hostname: techcorp-server
+    ports:
+      - "2252:2222"
+    volumes:
+      - student32_home:/home
+      - student32_opt:/opt
+      - student32_var:/var
+    environment:
+      - STUDENT_ID=32
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student33:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student33
+    hostname: techcorp-server
+    ports:
+      - "2253:2222"
+    volumes:
+      - student33_home:/home
+      - student33_opt:/opt
+      - student33_var:/var
+    environment:
+      - STUDENT_ID=33
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student34:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student34
+    hostname: techcorp-server
+    ports:
+      - "2254:2222"
+    volumes:
+      - student34_home:/home
+      - student34_opt:/opt
+      - student34_var:/var
+    environment:
+      - STUDENT_ID=34
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student35:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student35
+    hostname: techcorp-server
+    ports:
+      - "2255:2222"
+    volumes:
+      - student35_home:/home
+      - student35_opt:/opt
+      - student35_var:/var
+    environment:
+      - STUDENT_ID=35
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student36:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student36
+    hostname: techcorp-server
+    ports:
+      - "2256:2222"
+    volumes:
+      - student36_home:/home
+      - student36_opt:/opt
+      - student36_var:/var
+    environment:
+      - STUDENT_ID=36
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student37:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student37
+    hostname: techcorp-server
+    ports:
+      - "2257:2222"
+    volumes:
+      - student37_home:/home
+      - student37_opt:/opt
+      - student37_var:/var
+    environment:
+      - STUDENT_ID=37
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student38:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student38
+    hostname: techcorp-server
+    ports:
+      - "2258:2222"
+    volumes:
+      - student38_home:/home
+      - student38_opt:/opt
+      - student38_var:/var
+    environment:
+      - STUDENT_ID=38
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student39:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student39
+    hostname: techcorp-server
+    ports:
+      - "2259:2222"
+    volumes:
+      - student39_home:/home
+      - student39_opt:/opt
+      - student39_var:/var
+    environment:
+      - STUDENT_ID=39
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student40:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student40
+    hostname: techcorp-server
+    ports:
+      - "2260:2222"
+    volumes:
+      - student40_home:/home
+      - student40_opt:/opt
+      - student40_var:/var
+    environment:
+      - STUDENT_ID=40
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student41:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student41
+    hostname: techcorp-server
+    ports:
+      - "2261:2222"
+    volumes:
+      - student41_home:/home
+      - student41_opt:/opt
+      - student41_var:/var
+    environment:
+      - STUDENT_ID=41
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student42:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student42
+    hostname: techcorp-server
+    ports:
+      - "2262:2222"
+    volumes:
+      - student42_home:/home
+      - student42_opt:/opt
+      - student42_var:/var
+    environment:
+      - STUDENT_ID=42
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student43:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student43
+    hostname: techcorp-server
+    ports:
+      - "2263:2222"
+    volumes:
+      - student43_home:/home
+      - student43_opt:/opt
+      - student43_var:/var
+    environment:
+      - STUDENT_ID=43
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student44:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student44
+    hostname: techcorp-server
+    ports:
+      - "2264:2222"
+    volumes:
+      - student44_home:/home
+      - student44_opt:/opt
+      - student44_var:/var
+    environment:
+      - STUDENT_ID=44
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student45:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student45
+    hostname: techcorp-server
+    ports:
+      - "2265:2222"
+    volumes:
+      - student45_home:/home
+      - student45_opt:/opt
+      - student45_var:/var
+    environment:
+      - STUDENT_ID=45
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student46:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student46
+    hostname: techcorp-server
+    ports:
+      - "2266:2222"
+    volumes:
+      - student46_home:/home
+      - student46_opt:/opt
+      - student46_var:/var
+    environment:
+      - STUDENT_ID=46
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student47:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student47
+    hostname: techcorp-server
+    ports:
+      - "2267:2222"
+    volumes:
+      - student47_home:/home
+      - student47_opt:/opt
+      - student47_var:/var
+    environment:
+      - STUDENT_ID=47
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student48:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student48
+    hostname: techcorp-server
+    ports:
+      - "2268:2222"
+    volumes:
+      - student48_home:/home
+      - student48_opt:/opt
+      - student48_var:/var
+    environment:
+      - STUDENT_ID=48
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student49:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student49
+    hostname: techcorp-server
+    ports:
+      - "2269:2222"
+    volumes:
+      - student49_home:/home
+      - student49_opt:/opt
+      - student49_var:/var
+    environment:
+      - STUDENT_ID=49
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student50:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student50
+    hostname: techcorp-server
+    ports:
+      - "2270:2222"
+    volumes:
+      - student50_home:/home
+      - student50_opt:/opt
+      - student50_var:/var
+    environment:
+      - STUDENT_ID=50
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student51:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student51
+    hostname: techcorp-server
+    ports:
+      - "2271:2222"
+    volumes:
+      - student51_home:/home
+      - student51_opt:/opt
+      - student51_var:/var
+    environment:
+      - STUDENT_ID=51
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student52:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student52
+    hostname: techcorp-server
+    ports:
+      - "2272:2222"
+    volumes:
+      - student52_home:/home
+      - student52_opt:/opt
+      - student52_var:/var
+    environment:
+      - STUDENT_ID=52
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student53:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student53
+    hostname: techcorp-server
+    ports:
+      - "2273:2222"
+    volumes:
+      - student53_home:/home
+      - student53_opt:/opt
+      - student53_var:/var
+    environment:
+      - STUDENT_ID=53
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student54:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student54
+    hostname: techcorp-server
+    ports:
+      - "2274:2222"
+    volumes:
+      - student54_home:/home
+      - student54_opt:/opt
+      - student54_var:/var
+    environment:
+      - STUDENT_ID=54
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student55:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student55
+    hostname: techcorp-server
+    ports:
+      - "2275:2222"
+    volumes:
+      - student55_home:/home
+      - student55_opt:/opt
+      - student55_var:/var
+    environment:
+      - STUDENT_ID=55
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student56:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student56
+    hostname: techcorp-server
+    ports:
+      - "2276:2222"
+    volumes:
+      - student56_home:/home
+      - student56_opt:/opt
+      - student56_var:/var
+    environment:
+      - STUDENT_ID=56
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student57:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student57
+    hostname: techcorp-server
+    ports:
+      - "2277:2222"
+    volumes:
+      - student57_home:/home
+      - student57_opt:/opt
+      - student57_var:/var
+    environment:
+      - STUDENT_ID=57
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student58:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student58
+    hostname: techcorp-server
+    ports:
+      - "2278:2222"
+    volumes:
+      - student58_home:/home
+      - student58_opt:/opt
+      - student58_var:/var
+    environment:
+      - STUDENT_ID=58
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+  student59:
+    image: techcorp-sysadmin-labs:latest
+    container_name: student59
+    hostname: techcorp-server
+    ports:
+      - "2279:2222"
+    volumes:
+      - student59_home:/home
+      - student59_opt:/opt
+      - student59_var:/var
+    environment:
+      - STUDENT_ID=59
+    networks:
+      - techcorp-labs
+    restart: unless-stopped
+
+volumes:
+  student0_home:
+  student0_opt:
+  student0_var:
+  student1_home:
+  student1_opt:
+  student1_var:
+  student2_home:
+  student2_opt:
+  student2_var:
+  student3_home:
+  student3_opt:
+  student3_var:
+  student4_home:
+  student4_opt:
+  student4_var:
+  student5_home:
+  student5_opt:
+  student5_var:
+  student6_home:
+  student6_opt:
+  student6_var:
+  student7_home:
+  student7_opt:
+  student7_var:
+  student8_home:
+  student8_opt:
+  student8_var:
+  student9_home:
+  student9_opt:
+  student9_var:
+  student10_home:
+  student10_opt:
+  student10_var:
+  student11_home:
+  student11_opt:
+  student11_var:
+  student12_home:
+  student12_opt:
+  student12_var:
+  student13_home:
+  student13_opt:
+  student13_var:
+  student14_home:
+  student14_opt:
+  student14_var:
+  student15_home:
+  student15_opt:
+  student15_var:
+  student16_home:
+  student16_opt:
+  student16_var:
+  student17_home:
+  student17_opt:
+  student17_var:
+  student18_home:
+  student18_opt:
+  student18_var:
+  student19_home:
+  student19_opt:
+  student19_var:
+  student20_home:
+  student20_opt:
+  student20_var:
+  student21_home:
+  student21_opt:
+  student21_var:
+  student22_home:
+  student22_opt:
+  student22_var:
+  student23_home:
+  student23_opt:
+  student23_var:
+  student24_home:
+  student24_opt:
+  student24_var:
+  student25_home:
+  student25_opt:
+  student25_var:
+  student26_home:
+  student26_opt:
+  student26_var:
+  student27_home:
+  student27_opt:
+  student27_var:
+  student28_home:
+  student28_opt:
+  student28_var:
+  student29_home:
+  student29_opt:
+  student29_var:
+  student30_home:
+  student30_opt:
+  student30_var:
+  student31_home:
+  student31_opt:
+  student31_var:
+  student32_home:
+  student32_opt:
+  student32_var:
+  student33_home:
+  student33_opt:
+  student33_var:
+  student34_home:
+  student34_opt:
+  student34_var:
+  student35_home:
+  student35_opt:
+  student35_var:
+  student36_home:
+  student36_opt:
+  student36_var:
+  student37_home:
+  student37_opt:
+  student37_var:
+  student38_home:
+  student38_opt:
+  student38_var:
+  student39_home:
+  student39_opt:
+  student39_var:
+  student40_home:
+  student40_opt:
+  student40_var:
+  student41_home:
+  student41_opt:
+  student41_var:
+  student42_home:
+  student42_opt:
+  student42_var:
+  student43_home:
+  student43_opt:
+  student43_var:
+  student44_home:
+  student44_opt:
+  student44_var:
+  student45_home:
+  student45_opt:
+  student45_var:
+  student46_home:
+  student46_opt:
+  student46_var:
+  student47_home:
+  student47_opt:
+  student47_var:
+  student48_home:
+  student48_opt:
+  student48_var:
+  student49_home:
+  student49_opt:
+  student49_var:
+  student50_home:
+  student50_opt:
+  student50_var:
+  student51_home:
+  student51_opt:
+  student51_var:
+  student52_home:
+  student52_opt:
+  student52_var:
+  student53_home:
+  student53_opt:
+  student53_var:
+  student54_home:
+  student54_opt:
+  student54_var:
+  student55_home:
+  student55_opt:
+  student55_var:
+  student56_home:
+  student56_opt:
+  student56_var:
+  student57_home:
+  student57_opt:
+  student57_var:
+  student58_home:
+  student58_opt:
+  student58_var:
+  student59_home:
+  student59_opt:
+  student59_var:
+
+networks:
+  techcorp-labs:
+    driver: bridge

@@ -29,6 +29,20 @@ export const LeaderboardPortal: React.FC = () => {
 
   const limit = 10;
 
+  const isSystemAdminUser = (name?: string, email?: string) => {
+    const n = (name || '').toLowerCase().trim();
+    const e = (email || '').toLowerCase().trim();
+    return (
+      n.includes('sysadmin') ||
+      n.includes('sys admin') ||
+      n.includes('security officer') ||
+      n === 'admin' ||
+      e.includes('sysadmin') ||
+      e.includes('securityofficer') ||
+      e.startsWith('admin@')
+    );
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -265,18 +279,20 @@ export const LeaderboardPortal: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                    {collegeRanks.map((row) => (
+                    {collegeRanks.filter(row => !isSystemAdminUser(row.name, row.email)).map((row, idx) => {
+                      const displayRank = idx + 1 + (collegePage - 1) * limit;
+                      return (
                       <tr 
-                        key={row.rank} 
+                        key={row.rank || idx} 
                         className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 ${row.is_current ? 'bg-blue-50/40 dark:bg-blue-950/30 font-bold' : ''}`}
                       >
                         <td className="px-6 py-4 text-center font-extrabold text-slate-800 dark:text-slate-100">
-                          {row.rank === 1 ? (
+                          {displayRank === 1 ? (
                             <span className="inline-flex items-center gap-1 text-amber-500"><Crown className="w-3.5 h-3.5 fill-amber-500" /> 1</span>
-                          ) : row.rank === 2 ? (
+                          ) : displayRank === 2 ? (
                             <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500"><Medal className="w-3.5 h-3.5 fill-slate-300 dark:fill-slate-600" /> 2</span>
                           ) : (
-                            <span>{row.rank}</span>
+                            <span>{displayRank}</span>
                           )}
                         </td>
                         <td className="px-6 py-4 flex items-center gap-2.5">
@@ -291,7 +307,8 @@ export const LeaderboardPortal: React.FC = () => {
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{row.college}</td>
                         <td className="px-6 py-4 text-right font-extrabold text-[#2563EB] dark:text-blue-400">{row.score} pts</td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -344,18 +361,20 @@ export const LeaderboardPortal: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {globalRanks.map((row) => (
+                {globalRanks.filter(row => !isSystemAdminUser(row.name, row.email)).map((row, idx) => {
+                  const displayRank = idx + 1 + (globalPage - 1) * limit;
+                  return (
                   <tr 
-                    key={row.rank} 
+                    key={row.rank || idx} 
                     className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 ${row.is_current ? 'bg-blue-50/40 dark:bg-blue-950/30 font-bold' : ''}`}
                   >
                     <td className="px-6 py-4 text-center font-extrabold text-slate-800 dark:text-slate-100">
-                      {row.rank === 1 ? (
+                      {displayRank === 1 ? (
                         <span className="inline-flex items-center gap-1 text-amber-500"><Crown className="w-3.5 h-3.5 fill-amber-500" /> 1</span>
-                      ) : row.rank === 2 ? (
+                      ) : displayRank === 2 ? (
                         <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500"><Medal className="w-3.5 h-3.5 fill-slate-300 dark:fill-slate-600" /> 2</span>
                       ) : (
-                        <span>{row.rank}</span>
+                        <span>{displayRank}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 flex items-center gap-2.5">
@@ -370,7 +389,8 @@ export const LeaderboardPortal: React.FC = () => {
                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{row.college}</td>
                     <td className="px-6 py-4 text-right font-extrabold text-[#2563EB] dark:text-blue-400">{row.score} pts</td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>

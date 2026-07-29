@@ -1,0 +1,9 @@
+{
+  "name": "OT Water Treatment Facility Security Lab",
+  "category": "OT & Industrial Security",
+  "difficulty": "Intermediate",
+  "description": "Water Treatment Plant OT Security Lab. Conduct Modbus coil scanning, PLC register inspection, SCADA HMI telemetry analysis, and chemical dosing attack mitigation.",
+  "duration": "1.5",
+  "price": "19999",
+  "docker_image": "cyberrange/ot-water-treatment:latest"
+}

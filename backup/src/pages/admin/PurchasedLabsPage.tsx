@@ -43,10 +43,16 @@ export const PurchasedLabsPage: React.FC = () => {
   }, []);
 
   const handleLaunchLab = (labId: string) => {
-    if (labId === 'lab1-recon') {
+    const isCll = labId === 'command-line-lab' || labId.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
+    const isCrypto = labId === 'cryptography-lab' || labId.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
+    if (isCll) {
+      navigate('/labs/command-line-lab/session');
+    } else if (isCrypto) {
+      navigate('/labs/cryptography-lab/session');
+    } else if (labId === 'lab1-recon' || labId === 'recon-lab') {
       navigate('/labs/lab1-recon/session');
     } else {
-      navigate('/labs/command-line-lab/session');
+      navigate(`/labs/${labId}/session`);
     }
   };
 

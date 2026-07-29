@@ -27,7 +27,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       path.includes('/reset-password') ||
       path.includes('/verify-otp') ||
       path.includes('/onboarding') ||
-      path.includes('/adminform') ||
       path.includes('/admin/login') ||
       path.includes('/admin/register') ||
       path.includes('/admin/forgot-password')

@@ -2,13 +2,15 @@ import logging
 import secrets
 import hashlib
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Response, Request, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user
 from app.schemas.auth import (
     UserLogin, UserResponse, UserRegister, ForgotPasswordRequest,
-    ResetPasswordRequest, OTPVerifyRequest
+    ResetPasswordRequest, OTPVerifyRequest, RefreshTokenRequest, OAuthCallbackRequest,
+    GoogleAuthRequest
 )
+from app.services.google_auth_service import google_auth_service
 from app.services.user import user_service
 from app.core.security import create_access_token, get_password_hash
 from app.core.exceptions import AuthenticationError, AppError
@@ -19,40 +21,82 @@ from app.models.password_reset import PasswordReset
 from app.models.audit_log import AuditLog
 from app.services.ses_service import ses_service
 from app.services.notification_service import notification_service
+from app.security import (
+    login_protection, password_validator, token_manager,
+    create_refresh_token, oauth_manager, get_client_ip, get_user_agent
+)
+
+from app.security.domain_validator import (
+    validate_student_login_attempt,
+    validate_admin_login_attempt
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/login")
-def login(response: Response, login_data: UserLogin, db: Session = Depends(get_db)):
-    """
-    Handles authentication. Delivers tokens via HTTP response (dev LocalStorage)
-    or sets HttpOnly Secure Cookies (prod).
-    """
-    user = user_service.authenticate_user(db, login_data.email, login_data.password)
+def _execute_login(
+    request: Request,
+    response: Response,
+    login_data: UserLogin,
+    portal: str,
+    db: Session
+):
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    email_clean = login_data.email.strip().lower() if login_data.email else ""
+    logger.info(f"=> ENTERING LOGIN ENDPOINT for {email_clean} on portal '{portal}' from IP {client_ip}")
+
+    # Enforce brute force / login protection
+    login_protection.check_and_enforce_protection(email_clean, client_ip)
+
+    existing_user = db.query(User).filter(User.email == email_clean).first()
+
+    # Domain & Role Portal Validation BEFORE Password Inspection
+    if portal == "admin":
+        validate_admin_login_attempt(email_clean, existing_user)
+    else:
+        validate_student_login_attempt(email_clean, existing_user)
+
+    user = user_service.authenticate_user(db, email_clean, login_data.password)
     if not user:
-        # Log failed login attempt
-        existing_user = db.query(User).filter(User.email == login_data.email).first()
+        login_protection.record_failed_attempt(email_clean, client_ip)
         log_entry = AuditLog(
             user_id=existing_user.id if existing_user else None,
             action="Login",
             resource="User",
             status="FAILED",
-            new_value=f"Failed login attempt for email: {login_data.email}"
+            new_value=f"Failed login attempt for email: {email_clean} | Portal: {portal} | IP: {client_ip} | UA: {user_agent}"
         )
         db.add(log_entry)
         db.commit()
         raise AuthenticationError("Invalid Email or Password")
-        
+
+    # Double-check existing authenticated user record against portal requirements
+    if portal == "admin":
+        validate_admin_login_attempt(email_clean, user)
+    else:
+        validate_student_login_attempt(email_clean, user)
+
+    login_protection.record_successful_login(email_clean, client_ip)
     logger.info("User authenticated")
     role_name = user.role.lower() if user.role else "user"
-    token = create_access_token(data={
+    token_payload = {
         "sub": user.email,
         "user_id": user.id,
         "role": role_name,
-        "organization_id": user.organization or ""
-    })
+        "account_type": getattr(user, "account_type", "student"),
+        "is_internal": getattr(user, "is_internal", False),
+        "tenant_id": getattr(user, "tenant_id", "default"),
+        "portal_type": portal,
+        "organization_id": getattr(user, "organization", "") or ""
+    }
+    
+    token = create_access_token(data=token_payload)
+    refresh_token = create_refresh_token(data=token_payload, remember_me=login_data.remember_me)
+    token_manager.register_refresh_token(user.id, refresh_token, remember_me=login_data.remember_me)
+
+    user.last_login = datetime.utcnow()
     
     # Log successful login
     log_entry = AuditLog(
@@ -60,7 +104,8 @@ def login(response: Response, login_data: UserLogin, db: Session = Depends(get_d
         action="Login",
         resource="User",
         resource_id=str(user.id),
-        status="SUCCESS"
+        status="SUCCESS",
+        new_value=f"Login successful | Portal: {portal} | IP: {client_ip} | UA: {user_agent}"
     )
     db.add(log_entry)
     db.commit()
@@ -68,51 +113,221 @@ def login(response: Response, login_data: UserLogin, db: Session = Depends(get_d
     is_prod = settings.ENV == "production"
     
     if is_prod:
-        # Secure Cookie response for Production environments
         response.set_cookie(
             key="access_token",
             value=token,
             httponly=True,
             secure=True,
             samesite="lax",
-            max_age=1440 * 60  # 24 Hours
+            max_age=1440 * 60
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=(30 if login_data.remember_me else 7) * 24 * 3600
         )
         
     return {
         "success": True,
         "token": token,
+        "refresh_token": refresh_token,
         "role": role_name,
+        "account_type": getattr(user, "account_type", "student"),
+        "is_internal": getattr(user, "is_internal", False),
+        "portal_type": portal,
         "user": {
             "id": user.id,
             "name": user.name or "User",
             "email": user.email,
-            "role": role_name
+            "role": role_name,
+            "account_type": getattr(user, "account_type", "student"),
+            "is_internal": getattr(user, "is_internal", False)
         }
     }
 
+@router.post("/login")
+def login(request: Request, response: Response, login_data: UserLogin, db: Session = Depends(get_db)):
+    portal = getattr(login_data, "portal", None) or request.query_params.get("portal", "student")
+    return _execute_login(request, response, login_data, portal, db)
+
+@router.post("/student-login")
+def student_login(request: Request, response: Response, login_data: UserLogin, db: Session = Depends(get_db)):
+    return _execute_login(request, response, login_data, "student", db)
+
+@router.post("/admin-login")
+def admin_login(request: Request, response: Response, login_data: UserLogin, db: Session = Depends(get_db)):
+    return _execute_login(request, response, login_data, "admin", db)
+
+@router.post("/google")
+def google_auth(
+    request: Request,
+    response: Response,
+    body: GoogleAuthRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Google Identity Services OAuth Authentication Endpoint.
+    Verifies ID Token via Google public keys, enforces domain & portal security rules,
+    links existing accounts or auto-creates new users, and returns authenticated session tokens.
+    """
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    portal_clean = (body.portal or "student").lower()
+
+    logger.info(f"=> ENTERING GOOGLE OAUTH ENDPOINT for portal '{portal_clean}' from IP {client_ip}")
+
+    # 1. Verify ID Token server-side
+    google_info = google_auth_service.verify_google_id_token(body.credential)
+
+    # 2. Authenticate user, link account or auto-create, enforce domain isolation
+    user = google_auth_service.authenticate_or_create_google_user(db, google_info, portal=portal_clean)
+
+    role_name = user.role.lower() if user.role else "user"
+    token_payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "role": role_name,
+        "account_type": getattr(user, "account_type", "student"),
+        "is_internal": getattr(user, "is_internal", False),
+        "tenant_id": getattr(user, "tenant_id", "default"),
+        "portal_type": portal_clean,
+        "organization_id": getattr(user, "organization", "") or ""
+    }
+
+    token = create_access_token(data=token_payload)
+    refresh_token = create_refresh_token(data=token_payload, remember_me=True)
+    token_manager.register_refresh_token(user.id, refresh_token, remember_me=True)
+
+    # Log successful audit entry
+    log_entry = AuditLog(
+        user_id=user.id,
+        action="Google Login Success",
+        resource="User",
+        resource_id=str(user.id),
+        status="SUCCESS",
+        new_value=f"Google OAuth Login successful | Email: {user.email} | Portal: {portal_clean} | IP: {client_ip} | UA: {user_agent}"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    is_prod = settings.ENV == "production"
+    if is_prod:
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=1440 * 60
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 3600
+        )
+
+    return {
+        "success": True,
+        "token": token,
+        "access_token": token,
+        "refresh_token": refresh_token,
+        "role": role_name,
+        "account_type": getattr(user, "account_type", "student"),
+        "is_internal": getattr(user, "is_internal", False),
+        "portal_type": portal_clean,
+        "user": {
+            "id": user.id,
+            "name": user.name or "User",
+            "full_name": user.name or "User",
+            "email": user.email,
+            "role": role_name,
+            "account_type": getattr(user, "account_type", "student"),
+            "is_internal": getattr(user, "is_internal", False),
+            "google_id": getattr(user, "google_id", None),
+            "provider": getattr(user, "provider", "google"),
+            "profile_picture": getattr(user, "profile_photo", None)
+        }
+    }
+
+@router.post("/refresh")
+def refresh_token_endpoint(request: Request, response: Response, refresh_data: RefreshTokenRequest = None):
+    ref_token = None
+    if refresh_data and refresh_data.refresh_token:
+        ref_token = refresh_data.refresh_token
+    if not ref_token:
+        ref_token = request.cookies.get("refresh_token")
+    if not ref_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            ref_token = auth_header.split(" ")[1]
+
+    if not ref_token:
+        raise AuthenticationError("Refresh token missing")
+
+    rotated = token_manager.rotate_refresh_token(ref_token)
+    if not rotated:
+        raise AuthenticationError("Invalid or revoked refresh token")
+
+    if settings.ENV == "production":
+        response.set_cookie(
+            key="access_token",
+            value=rotated["access_token"],
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=1440 * 60
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=rotated["refresh_token"],
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=7 * 24 * 3600
+        )
+
+    return {
+        "success": True,
+        "token": rotated["access_token"],
+        "refresh_token": rotated["refresh_token"],
+        "role": rotated["role"]
+    }
+
 @router.post("/logout")
-def logout(response: Response, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """
-    Handles logging out by clearing cookies in production and writing audit log.
-    """
+def logout(request: Request, response: Response, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    
+    # Extract token and revoke it
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token_manager.revoke_token(auth_header.split(" ")[1], user_id=current_user.id)
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        token_manager.revoke_token(cookie_token, user_id=current_user.id)
+
     log_entry = AuditLog(
         user_id=current_user.id,
         action="Logout",
         resource="User",
         resource_id=str(current_user.id),
-        status="SUCCESS"
+        status="SUCCESS",
+        new_value=f"Logout successful | IP: {client_ip} | UA: {user_agent}"
     )
     db.add(log_entry)
     db.commit()
     
     is_prod = settings.ENV == "production"
     if is_prod:
-        response.delete_cookie(
-            key="access_token",
-            httponly=True,
-            secure=True,
-            samesite="lax"
-        )
+        response.delete_cookie(key="access_token", httponly=True, secure=True, samesite="lax")
+        response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="lax")
+
     return {
         "status": "ok",
         "message": "Logged out successfully"
@@ -142,6 +357,12 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
     """
     Registers a new user on AWS RDS, generates OTP, stores in DB, and sends via SES.
     """
+    password_validator.validate_or_raise(
+        register_data.password,
+        email=register_data.email,
+        username=register_data.name
+    )
+
     existing_user = db.query(User).filter(User.email == register_data.email).first()
     if existing_user:
         raise AppError("Email already registered", status_code=status.HTTP_400_BAD_REQUEST)
@@ -397,6 +618,7 @@ def reset_password(request_data: ResetPasswordRequest, db: Session = Depends(get
     Resets the user's password using a valid reset token.
     """
     logger.info("Password reset requested")
+    password_validator.validate_or_raise(request_data.new_password)
     
     # 1. Compute SHA-256 hash of the input token
     token_hash = hashlib.sha256(request_data.token.encode()).hexdigest()
@@ -464,3 +686,167 @@ def reset_password(request_data: ResetPasswordRequest, db: Session = Depends(get
     db.commit()
     logger.info(f"Password reset successful for user: {user.email}")
     return {"success": True, "message": "Password reset successfully."}
+
+# --------------------------
+# OAuth 2.0 Endpoints
+# --------------------------
+
+@router.get("/oauth/google")
+def get_google_auth_url(role: str = "student"):
+    url = oauth_manager.get_google_auth_url(role=role)
+    return {"url": url}
+
+@router.get("/oauth/github")
+def get_github_auth_url(role: str = "student"):
+    url = oauth_manager.get_github_auth_url(role=role)
+    return {"url": url}
+
+@router.post("/oauth/callback/google")
+def google_oauth_callback(
+    request: Request,
+    response: Response,
+    payload: OAuthCallbackRequest,
+    db: Session = Depends(get_db)
+):
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    
+    if payload.state:
+        state_data = oauth_manager.verify_state(payload.state)
+        if not state_data:
+            raise AppError("Invalid or expired OAuth state token.", status_code=status.HTTP_400_BAD_REQUEST)
+        target_role = state_data.get("role", payload.role or "student")
+    else:
+        target_role = payload.role or "student"
+
+    oauth_info = oauth_manager.exchange_google_code(payload.code)
+    email = oauth_info.get("email")
+    if not email:
+        raise AppError("Google account does not provide a valid email address.", status_code=status.HTTP_400_BAD_REQUEST)
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        # Create user via OAuth registration
+        role_str = "admin" if target_role and target_role.lower() in ("admin", "professor", "system_admin") else "user"
+        random_pw = secrets.token_urlsafe(24) + "A1!"
+        user = User(
+            name=oauth_info.get("name", "Google User"),
+            email=email,
+            password_hash=get_password_hash(random_pw),
+            role=role_str,
+            is_active=True,
+            profile_photo=oauth_info.get("picture")
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    role_name = user.role.lower() if user.role else "user"
+    token_payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "role": role_name,
+        "organization_id": user.organization or ""
+    }
+    token = create_access_token(data=token_payload)
+    refresh_token = create_refresh_token(data=token_payload)
+    token_manager.register_refresh_token(user.id, refresh_token)
+
+    log_entry = AuditLog(
+        user_id=user.id,
+        action="Google Login",
+        resource="User",
+        resource_id=str(user.id),
+        status="SUCCESS",
+        new_value=f"Google OAuth login successful | IP: {client_ip} | UA: {user_agent}"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    return {
+        "success": True,
+        "token": token,
+        "refresh_token": refresh_token,
+        "role": role_name,
+        "user": {
+            "id": user.id,
+            "name": user.name or "User",
+            "email": user.email,
+            "role": role_name
+        }
+    }
+
+@router.post("/oauth/callback/github")
+def github_oauth_callback(
+    request: Request,
+    response: Response,
+    payload: OAuthCallbackRequest,
+    db: Session = Depends(get_db)
+):
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    
+    if payload.state:
+        state_data = oauth_manager.verify_state(payload.state)
+        if not state_data:
+            raise AppError("Invalid or expired OAuth state token.", status_code=status.HTTP_400_BAD_REQUEST)
+        target_role = state_data.get("role", payload.role or "student")
+    else:
+        target_role = payload.role or "student"
+
+    oauth_info = oauth_manager.exchange_github_code(payload.code)
+    email = oauth_info.get("email")
+    if not email:
+        raise AppError("GitHub account does not provide a verified email address.", status_code=status.HTTP_400_BAD_REQUEST)
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        role_str = "admin" if target_role and target_role.lower() in ("admin", "professor", "system_admin") else "user"
+        random_pw = secrets.token_urlsafe(24) + "A1!"
+        user = User(
+            name=oauth_info.get("name", "GitHub User"),
+            email=email,
+            password_hash=get_password_hash(random_pw),
+            role=role_str,
+            is_active=True,
+            profile_photo=oauth_info.get("picture")
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    role_name = user.role.lower() if user.role else "user"
+    token_payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "role": role_name,
+        "organization_id": user.organization or ""
+    }
+    token = create_access_token(data=token_payload)
+    refresh_token = create_refresh_token(data=token_payload)
+    token_manager.register_refresh_token(user.id, refresh_token)
+
+    log_entry = AuditLog(
+        user_id=user.id,
+        action="GitHub Login",
+        resource="User",
+        resource_id=str(user.id),
+        status="SUCCESS",
+        new_value=f"GitHub OAuth login successful | IP: {client_ip} | UA: {user_agent}"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    return {
+        "success": True,
+        "token": token,
+        "refresh_token": refresh_token,
+        "role": role_name,
+        "user": {
+            "id": user.id,
+            "name": user.name or "User",
+            "email": user.email,
+            "role": role_name
+        }
+    }
+

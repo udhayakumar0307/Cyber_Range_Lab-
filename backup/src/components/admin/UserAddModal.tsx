@@ -122,6 +122,7 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
               >
                 <option value="User">Regular User</option>
                 <option value="Admin">Administrator</option>
+                <option value="CIA">CIA (Cyber Infrastructure Administrator)</option>
                 <option value="Instructor">Instructor</option>
               </select>
             </div>

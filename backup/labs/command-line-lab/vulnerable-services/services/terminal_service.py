@@ -23,7 +23,6 @@ import subprocess
 import termios
 import asyncio
 import time
-import urllib.parse
 
 import websockets
 
@@ -38,7 +37,7 @@ def set_winsize(fd, rows, cols):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
-def spawn_shell(track="linux"):
+def spawn_shell():
     pid, fd = pty.fork()
     if pid == 0:
         os.execvp(
@@ -46,7 +45,6 @@ def spawn_shell(track="linux"):
             [
                 "docker", "exec", "-it", "-u", "student",
                 "-e", "TERM=xterm-256color",
-                "-e", f"CURRENT_TRACK={track}",
                 STUDENT_CONTAINER, "/bin/bash", "-l",
             ],
         )
@@ -93,16 +91,7 @@ async def ws_to_pty(fd, ws, last_activity):
 
 
 async def handler(ws):
-    track = "linux"
-    try:
-        parsed = urllib.parse.urlparse(ws.path)
-        params = urllib.parse.parse_qs(parsed.query)
-        if "track" in params and params["track"]:
-            track = params["track"][0]
-    except Exception:
-        pass
-
-    pid, fd = spawn_shell(track)
+    pid, fd = spawn_shell()
     last_activity = [time.time()]
     set_winsize(fd, 32, 120)
     try:

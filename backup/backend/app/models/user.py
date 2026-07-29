@@ -22,7 +22,13 @@ class User(Base):
     college_id = Column(Integer, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     college = relationship("College", back_populates="users")
 
-    account_type = Column(String(50), default="INDIVIDUAL", nullable=False)
+    account_type = Column(String(50), default="student", nullable=False)
+    account_status = Column(String(50), default="active", nullable=False)
+    email_verified = Column(Boolean, default=True, nullable=False)
+    tenant_id = Column(String(100), default="default", nullable=True)
+    is_internal = Column(Boolean, default=False, nullable=False)
+    google_id = Column(String(255), nullable=True, index=True)
+    provider = Column(String(50), default="local", nullable=False)
     department = Column(String(100), nullable=True)
     year = Column(Integer, nullable=True)
     roll_number = Column(String(100), nullable=True)
@@ -56,4 +62,18 @@ class User(Base):
     appearance_settings = Column(String(1000), nullable=True)
     last_login = Column(DateTime, nullable=True)
 
+    @property
+    def full_name(self) -> str:
+        return self.name or ""
 
+    @full_name.setter
+    def full_name(self, value: str):
+        self.name = value
+
+    @property
+    def profile_picture(self) -> str:
+        return self.profile_photo or ""
+
+    @profile_picture.setter
+    def profile_picture(self, value: str):
+        self.profile_photo = value

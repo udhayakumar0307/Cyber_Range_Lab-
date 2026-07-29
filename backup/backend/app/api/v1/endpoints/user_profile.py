@@ -20,6 +20,7 @@ from app.models.lab_module import LabModule
 from app.models.professor_assignment import ProfessorAssignment
 from app.models.student_assignment import StudentAssignment
 from app.core.security import get_password_hash, verify_password
+from app.security import password_validator
 
 router = APIRouter()
 
@@ -30,29 +31,49 @@ router = APIRouter()
 
 @router.get("/dashboard")
 def get_dashboard(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Database-backed student dashboard; no catalog or activity data is synthesized here."""
+    """
+    Database-backed student dashboard.
+
+    Optimizations:
+    - No reconcile_user_score() call — reads users.total_score column directly (O(1))
+    - Rank: single COUNT query on indexed total_score column
+    - Progress stats: cached 60s via progress_service
+    - Recent activity: from DashboardService (cached 120s)
+    """
+    from app.services.dashboard_service import DashboardService
+    from app.services.progress_service import get_user_lab_statistics
+    from sqlalchemy import or_, not_
+
+    summary = DashboardService.get_summary(db, current_user)
+    stats = {
+        "lab_total_modules": summary.get("lab_total_modules", {}),
+        "lab_completed_modules": summary.get("lab_completed_modules", {}),
+        "completedLabs": summary.get("completed_labs", summary.get("completedLabs", 0)),
+        "totalLabs": summary.get("total_labs", summary.get("totalLabs", 0)),
+        "completionPercent": summary.get("completion_rate", summary.get("completionPercent", 0)),
+    }
+
     assignments = db.query(ProfessorAssignment, StudentAssignment, Lab).join(
         StudentAssignment, StudentAssignment.assignment_id == ProfessorAssignment.id
     ).join(Lab, Lab.id == ProfessorAssignment.lab_id).filter(
         StudentAssignment.student_id == current_user.id
     ).all()
 
-    assigned_labs = []
-    seen_lab_ids = set()
-    completed_labs = 0
+    seen_lab_ids: set = set()
+    unique_assignments = []
     for assignment, student_assignment, lab in assignments:
-        if lab.id in seen_lab_ids:
-            continue
-        seen_lab_ids.add(lab.id)
-        total_modules = db.query(func.count(LabModule.id)).filter(LabModule.lab_id == lab.id).scalar() or 0
-        solved_modules = db.query(func.count(func.distinct(UserLabProgress.module_id))).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == lab.id,
-            UserLabProgress.status == "COMPLETED"
-        ).scalar() or 0
-        is_completed = student_assignment.status.upper() == "COMPLETED" or (total_modules > 0 and solved_modules >= total_modules)
-        if is_completed:
-            completed_labs += 1
+        if lab.id not in seen_lab_ids:
+            seen_lab_ids.add(lab.id)
+            unique_assignments.append((assignment, student_assignment, lab))
+
+    assigned_labs = []
+    for assignment, student_assignment, lab in unique_assignments:
+        total_modules = stats["lab_total_modules"].get(lab.id, 0)
+        solved_modules = stats["lab_completed_modules"].get(lab.id, 0)
+        is_completed = (
+            student_assignment.status.upper() == "COMPLETED"
+            or (total_modules > 0 and solved_modules >= total_modules)
+        )
         assigned_labs.append({
             "id": lab.id,
             "title": lab.name,
@@ -65,23 +86,19 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
             "tags": [lab.category] if lab.category else [],
         })
 
-    total_assigned = len(assigned_labs)
-    completion_percentage = round((completed_labs / total_assigned) * 100) if total_assigned else 0
-    total_users = db.query(func.count(User.id)).scalar() or 0
-    rank = (db.query(func.count(User.id)).filter(User.total_score > current_user.total_score).scalar() or 0) + 1
-    activity_logs = db.query(AuditLog).filter(AuditLog.user_id == current_user.id).order_by(
-        AuditLog.timestamp.desc()
-    ).limit(10).all()
+    activity_logs = db.query(AuditLog).filter(
+        AuditLog.user_id == current_user.id
+    ).order_by(AuditLog.timestamp.desc()).limit(10).all()
 
     return {
         "user": {"name": current_user.name, "email": current_user.email},
         "statistics": {
-            "total_score": current_user.total_score or 0,
-            "rank": rank,
-            "total_users": total_users,
-            "completed_labs": completed_labs,
-            "assigned_labs": total_assigned,
-            "completion_percentage": completion_percentage,
+            "total_score": summary["total_score"],
+            "rank": summary["rank"],
+            "total_users": summary["total_users"],
+            "completed_labs": stats["completedLabs"],
+            "assigned_labs": stats["totalLabs"],
+            "completion_percentage": stats["completionPercent"],
         },
         "assigned_labs": assigned_labs,
         "recent_activity": [{
@@ -608,6 +625,7 @@ def change_password(
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect.")
 
+    password_validator.validate_or_raise(payload.new_password, email=current_user.email, username=current_user.name)
     current_user.password_hash = get_password_hash(payload.new_password)
     current_user.updated_at = datetime.utcnow()
 

@@ -19,6 +19,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     # 2. Try HttpOnly cookie (for production secure cookie storage)
     if not token:
         token = request.cookies.get("access_token")
+
+    # 3. Try URL Query Parameter (for embedded iframe views like /api/v1/cll/view?token=...)
+    if not token:
+        token = request.query_params.get("token")
         
     if not token:
         raise HTTPException(
@@ -26,6 +30,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             detail="Not authenticated"
         )
         
+    from app.security.token_manager import token_manager
+    if token_manager.is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked"
+        )
+
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(
@@ -51,6 +62,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         )
         
     return user
+
+def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
+    """Optional dependency that returns User if authenticated, else None."""
+    try:
+        return get_current_user(request, db)
+    except Exception:
+        return None
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Dependency that ensures current user is an admin or SYSTEM_ADMIN."""

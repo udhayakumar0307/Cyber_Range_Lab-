@@ -262,12 +262,6 @@ CyberRange
 │   ├── services/
 │   └── main.py
 │
-├── command-line-lab/
-│   ├── backend/
-│   ├── frontend/
-│   ├── docker/
-│   └── modules/
-│
 ├── public/
 │
 ├── src/

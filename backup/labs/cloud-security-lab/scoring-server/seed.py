@@ -59,6 +59,15 @@ def seed():
         json.dump(flags, f)
     print("Generated deterministic flags and saved to flags.json")
 
+    # Automatically synchronize ans.txt
+    try:
+        from ans_parser import sync_ans_txt
+        ans_path = Path(__file__).parent / "ans.txt"
+        sync_ans_txt(ans_path, flags)
+        print("Synchronized generated flags into ans.txt")
+    except Exception as e:
+        print(f"Warning syncing ans.txt: {e}")
+
     s3 = get_s3_client()
     iam = get_iam_client()
     lambda_client = get_lambda_client()
