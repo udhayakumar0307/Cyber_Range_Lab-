@@ -230,43 +230,43 @@ def get_achievements(
     db: Session = Depends(get_db),
 ):
     """
-    Returns only the authenticated user's achievements.
-    Returns [] if the user has no achievements.
-    Cached 60s per user.
+    Returns all achievements in the system, marked as unlocked/locked for the user.
     """
     cache_key = f"achievements:user:{current_user.id}"
     cached = dashboard_cache.get(cache_key)
     if cached is not None:
         return cached
 
-    rows = (
-        db.query(
-            UserAchievement.achievement_id,
-            UserAchievement.earned_at,
-            Achievement.title,
-            Achievement.description,
-            Achievement.icon,
-            Achievement.reward_points,
-        )
-        .outerjoin(Achievement, UserAchievement.achievement_id == Achievement.id)
+    # Get user's earned achievements
+    earned_rows = (
+        db.query(UserAchievement.achievement_id, UserAchievement.earned_at)
         .filter(UserAchievement.user_id == current_user.id)
         .all()
     )
+    earned_map = {r.achievement_id: r.earned_at for r in earned_rows}
 
-    result = [
-        {
-            "id": r.achievement_id,
-            "title": r.title or r.achievement_id.replace("-", " ").title(),
-            "description": r.description or "",
-            "icon": r.icon or "award",
-            "reward_points": r.reward_points or 0,
-            "unlocked": True,
-            "earned_at": r.earned_at.strftime("%Y-%m-%d %H:%M:%S") if r.earned_at else "",
-        }
-        for r in rows
-    ]
+    # Get all achievements
+    from app.models.achievement import Achievement
+    all_ach = db.query(Achievement).all()
+
+    result = []
+    for a in all_ach:
+        is_unlocked = a.id in earned_map
+        earned_at_str = earned_map[a.id].strftime("%Y-%m-%d %H:%M:%S") if (is_unlocked and earned_map[a.id]) else ""
+        
+        result.append({
+            "id": a.id,
+            "title": a.title or a.id.replace("-", " ").title(),
+            "description": a.description or "",
+            "icon": a.icon or "award",
+            "reward_points": a.reward_points or 0,
+            "unlocked": is_unlocked,
+            "earned_at": earned_at_str,
+        })
+        
     dashboard_cache.set(cache_key, result, ttl=60)
     return result
+
 
 
 # ---------------------------------------------------------------------------

@@ -16,12 +16,15 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        ws: false, // Prevents Vite from overriding WebSocket proxy handshakes with standard HTTP abort signals
+        ws: true, // Enable WebSocket proxying for terminal connections
       },
       // Proxy /static to FastAPI so xterm.js and xterm-addon-fit.js load correctly.
-      // FastAPI mounts labs/command-line-lab/scoring-server/static at /static.
-      // Without this proxy, Vite returns 404 for /static/vendor/xterm/xterm.js.
       '/static': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      // Proxy /uploads to FastAPI to serve uploaded assets (certificates, profile photos) correctly
+      '/uploads': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },

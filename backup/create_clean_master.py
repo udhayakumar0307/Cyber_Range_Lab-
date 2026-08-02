@@ -5,7 +5,7 @@ Only user-specific dynamic values are blanked: recipient name, lab title, date v
 """
 from PIL import Image, ImageDraw
 
-src = 'backend/app/assets/certificates/certificate_master_original.png'
+src = 'C:/Users/Udhayakumar/.gemini/antigravity-ide/brain/e0ae55f2-3f63-4c96-aefc-0b0fd774f7bc/media__1785699163093.png'
 dst = 'backend/app/assets/certificates/certificate_master.png'
 
 img = Image.open(src).convert('RGBA')
@@ -19,33 +19,34 @@ BLANK = (255, 255, 255, 255)  # white
 # Surgical blanking - ONLY wipe user-specific dynamic values, not static body text.
 # All measurements for 1400x990 master reference image.
 text_zones = [
-    # ── Certificate ID text (top right, right-aligned before ribbon) ──
-    # The original has a cert ID here, wipe it; we'll redraw our cert ID
-    (870, 28, 1285, 78),
+    # ── Recipient Name (centered at y=455) ──
+    (100, 420, 1300, 515),
 
-    # ── Recipient Name (large script font - the biggest dynamic element) ──
-    # "This is to certify that" stays (y~330-360), only wipe name area below it
-    (100, 358, 1260, 502),
+    # ── Lab Title (centered at y=605) ──
+    (100, 585, 1300, 690),
 
-    # ── Lab Title (bold blue text - the lab name) ──
-    # "has successfully completed the lab" stays above (~y=510-528)
-    # "and demonstrated..." stays below (~y=595-625)
-    # Only wipe the lab title value line
-    (90, 530, 1310, 578),
+    # ── Completion Date Value (inside circle at y=765) ──
+    (450, 745, 590, 785),
 
-    # ── Metrics Row: Wipe the entire icon+label+value zone ──
-    # Baked-in: calendar icon, COMPLETED ON label, date value, dividers, clock icon, DURATION, duration value, trophy, SCORE, score value
-    # Y range ~y=627 to y=702
-    (130, 625, 1300, 708),
-
-    # ── QR Code area (entire QR placeholder, preserving surrounding text) ──
-    (1080, 730, 1260, 905),
+    # ── Certificate ID Value (inside circle at y=765) ──
+    (830, 745, 985, 785),
 ]
 
-for (x1, y1, x2, y2) in text_zones:
-    draw.rectangle([x1, y1, x2, y2], fill=BLANK)
+w_scale = W / 1400.0
+h_scale = H / 990.0
 
-img.convert('RGB').save(dst)
+for (x1, y1, x2, y2) in text_zones:
+    scaled_zone = [
+        int(x1 * w_scale),
+        int(y1 * h_scale),
+        int(x2 * w_scale),
+        int(y2 * h_scale)
+    ]
+    draw.rectangle(scaled_zone, fill=BLANK)
+
+# Resize to standard 1400x990 canvas so coordinates in certificate_service align perfectly
+img_resized = img.resize((1400, 990), Image.Resampling.LANCZOS)
+img_resized.convert('RGB').save(dst)
 print(f'Surgical clean master saved: {dst}')
 
 check = Image.open(dst)

@@ -89,6 +89,35 @@ def _execute_login(
 
     existing_user = db.query(User).filter(User.email == email_clean).first()
 
+    if not existing_user and portal == "student":
+        from app.security.domain_validator import is_student_domain_allowed
+        if is_student_domain_allowed(email_clean):
+            # Personal email domains must not be auto-registered on login
+            domain = email_clean.split("@")[-1] if "@" in email_clean else ""
+            personal_patterns = ["gmail.com", "outlook.com", "yahoo.com", "proton.me", "icloud.com"]
+            from app.security.domain_validator import match_domain_pattern
+            if not match_domain_pattern(domain, personal_patterns):
+                hashed_pw = get_password_hash(login_data.password)
+                name_prefix = email_clean.split("@")[0]
+                default_name = " ".join([p.capitalize() for p in name_prefix.replace(".", " ").replace("_", " ").split()])
+                
+                new_student = User(
+                    name=default_name,
+                    email=email_clean,
+                    password_hash=hashed_pw,
+                    role="user",
+                    is_active=True,
+                    account_type="academic",
+                    email_verified=True,
+                    auth_type="SSO"
+                )
+                db.add(new_student)
+                db.commit()
+                db.refresh(new_student)
+                existing_user = new_student
+                logger.info(f"Auto-registered new student via Academic SSO: {email_clean}")
+
+
     # Domain & Role Portal Validation BEFORE Password Inspection
     is_system_admin = existing_user and getattr(existing_user, "role", "").upper() == "SYSTEM_ADMIN"
     is_academic_admin = existing_user and getattr(existing_user, "role", "").lower() == "admin" and getattr(existing_user, "account_type", "").lower() == "academic"
@@ -127,16 +156,16 @@ def _execute_login(
     else:
         validate_student_login_attempt(email_clean, user)
 
-    # Enforce email verification check for non-cyberrange accounts
+    # Implement Production MFA-OTP flow for Academic Admins
+    is_academic_admin_user = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
+
+    # Enforce email verification check for non-cyberrange accounts (except academic admins who verify via MFA login OTP)
     is_cyberrange_domain = email_clean.endswith("@cyberrange.in")
     email_verified_status = getattr(user, "email_verified", True)
     
-    if not is_cyberrange_domain and not email_verified_status:
+    if not is_cyberrange_domain and not email_verified_status and not is_academic_admin_user:
         logger.warning(f"[AuthLog] Login rejected for unverified academic account: {email_clean}")
         raise AuthenticationError("Please verify your institutional email before logging in.")
-
-    # Implement Production MFA-OTP flow for Academic Admins
-    is_academic_admin_user = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
     # Check if this request already includes the OTP verification code
     submitted_otp = getattr(login_data, "otp_code", None) or request.query_params.get("otp_code")
     
@@ -181,6 +210,10 @@ def _execute_login(
                 db.commit()
                 raise AuthenticationError("Verification code has expired. Please try logging in again.")
                 
+            # Mark email as verified and user as active upon successful verification
+            user.email_verified = True
+            user.is_active = True
+
             # Invalidate/delete the used OTP
             db.delete(otp_rec)
             db.commit()
@@ -635,6 +668,7 @@ def verify_otp(request_data: OTPVerifyRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request_data.email).first()
     if user:
         user.is_active = True
+        user.email_verified = True
         
     db.delete(otp_rec)
     

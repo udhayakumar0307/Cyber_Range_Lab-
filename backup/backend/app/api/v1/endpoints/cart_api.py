@@ -24,7 +24,8 @@ class UpdateCartItemRequest(BaseModel):
     license_duration_months: Optional[int] = None
 
 def get_or_create_user_cart(db: Session, user_id: int) -> Cart:
-    cart = db.query(Cart).filter(Cart.user_id == user_id).first()
+    from sqlalchemy.orm import joinedload
+    cart = db.query(Cart).options(joinedload(Cart.items)).filter(Cart.user_id == user_id).first()
     if not cart:
         cart = Cart(user_id=user_id)
         db.add(cart)

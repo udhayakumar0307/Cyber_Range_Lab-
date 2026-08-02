@@ -21,7 +21,7 @@
       "align": "center"
     },
     "completion_date": {
-      "x": 410,
+      "x": 520,
       "y": 765,
       "font": "PlusJakartaSans-Bold.ttf",
       "size": 20,
@@ -29,7 +29,7 @@
       "align": "center"
     },
     "certificate_id": {
-      "x": 688,
+      "x": 907,
       "y": 765,
       "font": "PlusJakartaSans-Bold.ttf",
       "size": 20,

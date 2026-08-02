@@ -12,9 +12,11 @@ from app.core.config import settings
 from app.core.security import get_password_hash, create_access_token, verify_password
 from app.security import password_validator
 from app.models.user import User
+from app.models.otp import OTPVerification
 from app.models.admin_models import Organization, AdminProfile, BillingAddress, PurchasedLab, Invoice, Order
 from app.models.audit_log import AuditLog
 from app.services.audit_service import log_audit_event
+from app.services.ses_service import ses_service
 
 
 logger = logging.getLogger(__name__)
@@ -164,6 +166,7 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
 
     # 7. For Academic Admins, generate & send secure 6-digit OTP code
     if not is_cyberrange:
+        from app.models.otp import OTPVerification
         otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
         otp_record = OTPVerification(
             email=email_clean,
@@ -448,6 +451,13 @@ def get_admin_dashboard_summary(
     from app.models.audit_log import AuditLog
     from app.database.manager import db_manager
 
+    org_id = get_admin_org_id(current_user, db)
+    cache_key = f"admin_dashboard_summary:{org_id}"
+    from app.core.cache import dashboard_cache
+    cached_summary = dashboard_cache.get(cache_key)
+    if cached_summary is not None:
+        return cached_summary
+
     # 1. DB Health status check
     db_connected = False
     try:
@@ -456,7 +466,6 @@ def get_admin_dashboard_summary(
         pass
 
     # 2. Purchased Labs Summary
-    org_id = get_admin_org_id(current_user, db)
     purchased_labs_count = db.query(PurchasedLab).filter(PurchasedLab.organization_id == org_id).count()
     seats_res = db.query(
         func.sum(PurchasedLab.total_seats),
@@ -468,10 +477,15 @@ def get_admin_dashboard_summary(
     seats_remaining = max(total_seats - seats_used, 0)
     utilization_pct = round((seats_used / total_seats) * 100) if total_seats > 0 else 0
 
-    # 3. Student details counts
-    # Return count directly from DB
-    total_students = db.query(func.count(User.id)).filter(User.role.ilike("%student%")).scalar() or 0
-    active_students = db.query(func.count(User.id)).filter(User.role.ilike("%student%"), User.is_active == True).scalar() or 0
+    # 3. Student details counts (Combined query to avoid N+1 / multiple scans)
+    from sqlalchemy import case
+    student_res = db.query(
+        func.count(User.id),
+        func.sum(case((User.is_active == True, 1), else_=0))
+    ).filter(User.role.ilike("%student%")).first()
+
+    total_students = student_res[0] or 0
+    active_students = int(student_res[1] or 0)
     inactive_students = total_students - active_students
 
     # 4. Group details counts
@@ -499,7 +513,6 @@ def get_admin_dashboard_summary(
     available_labs = db.query(func.count(Lab.id)).scalar() or 0
 
     # 7. Recent activity stream logs
-    # Return only necessary columns instead of SELECT *
     logs = db.query(AuditLog.action, AuditLog.performed_by, AuditLog.timestamp).order_by(AuditLog.timestamp.desc()).limit(10).all()
     recent_activity = []
     for l in logs:
@@ -509,7 +522,7 @@ def get_admin_dashboard_summary(
             "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S") if l.timestamp else "N/A"
         })
 
-    return {
+    summary_data = {
         "databaseConnected": db_connected,
         "purchasedLabs": {
             "total": purchased_labs_count,
@@ -534,8 +547,16 @@ def get_admin_dashboard_summary(
             "scheduled": scheduled_assignments,
             "completed": completed_assignments,
             "expired": expired_assignments
-        }
+        },
+        "marketplace": {
+            "activeLabs": active_labs,
+            "availableLabs": available_labs
+        },
+        "recentActivity": recent_activity
     }
+    
+    dashboard_cache.set(cache_key, summary_data, ttl=15)
+    return summary_data
 
 
 # ==========================================
@@ -577,7 +598,8 @@ def get_admin_users(
     from sqlalchemy import func
 
     # Exclude internal system admin & platform maintenance accounts from operational user management
-    q = db.query(User).filter(
+    from sqlalchemy.orm import joinedload
+    q = db.query(User).options(joinedload(User.group)).filter(
         not_(or_(
             User.role.ilike('%sysadmin%'),
             User.role.ilike('%system_admin%'),
@@ -1324,15 +1346,15 @@ def get_scheduled_assignments(
 ):
     from app.models.assignment import Assignment
     from app.models.lab import Lab
-    # Ensure assignments table exists
-    from app.models.base import Base
-    from app.database.manager import db_manager
-    Base.metadata.create_all(bind=db_manager.engine)
 
     assignments = db.query(Assignment).all()
+    lab_ids = {a.lab_id for a in assignments if a.lab_id}
+    labs = db.query(Lab.id, Lab.name).filter(Lab.id.in_(lab_ids)).all() if lab_ids else []
+    lab_names = {l.id: l.name for l in labs}
+
     result = []
     for a in assignments:
-        lab_title = db.query(Lab.name).filter(Lab.id == a.lab_id).scalar() or a.lab_id
+        lab_title = lab_names.get(a.lab_id) or a.lab_id
         
         # Calculate derived status
         now = datetime.utcnow()
@@ -1361,6 +1383,7 @@ def get_scheduled_assignments(
         })
     return result
 
+
 @router.post("/assignments")
 def create_scheduled_assignment(
     data: AssignLabRequest,
@@ -1368,10 +1391,6 @@ def create_scheduled_assignment(
     db: Session = Depends(get_db)
 ):
     from app.models.assignment import Assignment
-    # Check if DB table assignments exists, otherwise create it
-    from app.models.base import Base
-    from app.database.manager import db_manager
-    Base.metadata.create_all(bind=db_manager.engine)
 
     a = Assignment(
         lab_id=data.lab_id,

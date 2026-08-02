@@ -16,7 +16,8 @@ import {
   Calendar,
   Trophy,
   FlaskConical,
-  CreditCard
+  CreditCard,
+  BookOpen
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -44,6 +45,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Assignments', path: '/admin/allocations', icon: Layers },
     { name: 'Analytics', path: '/admin/monitoring', icon: Activity },
     { name: 'Reports', path: '/admin/reports', icon: CreditCard },
+    { name: 'Study Material', path: '/admin/study-material', icon: BookOpen },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

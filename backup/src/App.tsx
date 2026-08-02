@@ -70,6 +70,7 @@ const ProgressTracking     = lazy(() => import('./pages/user/ProgressTracking').
 const LeaderboardPortal    = lazy(() => import('./pages/user/LeaderboardPortal').then(m => ({ default: m.LeaderboardPortal })));
 const ProfilePage          = lazy(() => import('./pages/user/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SettingsPage         = lazy(() => import('./pages/user/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const StudyMaterial        = lazy(() => import('./pages/user/StudyMaterial').then(m => ({ default: m.StudyMaterial })));
 
 // ─── CTF Chunk ────────────────────────────────────────────────────────────────
 const CtfPortalPage        = lazy(() => import('./pages/user/CtfPortalPage').then(m => ({ default: m.CtfPortalPage })));
@@ -420,6 +421,16 @@ export function App() {
                 }
               />
 
+              {/* Study Material */}
+              <Route
+                path="/study-material"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><StudyMaterial /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Error Pages */}
               <Route path="/error" element={<ServerErrorPage />} />
               <Route path="/maintenance" element={<MaintenancePage />} />
@@ -556,6 +567,16 @@ export function App() {
                   <ProtectedRoute allowedRoles={['admin']}>
                     <ErrorBoundary>
                       <AdminLayout><ReportsPage /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/study-material"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><StudyMaterial /></AdminLayout>
                     </ErrorBoundary>
                   </ProtectedRoute>
                 }

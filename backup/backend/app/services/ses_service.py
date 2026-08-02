@@ -198,6 +198,9 @@ class SESService:
             
             if error_code == "MessageRejected":
                 if "not verified" in error_msg.lower():
+                    if settings.ENV == "development":
+                        logger.warning(f"[SES Sandbox Mode] Email {email} is not verified. Bypassing error since ENV=development. OTP code is: {otp}")
+                        return
                     raise RuntimeError(
                         "The recipient email address is not verified in the AWS SES sandbox. "
                         "Please use a verified test email address."
@@ -390,6 +393,9 @@ class SESService:
             
             if error_code == "MessageRejected":
                 if "not verified" in error_msg.lower():
+                    if settings.ENV == "development":
+                        logger.warning(f"[SES Sandbox Mode] Email {email} is not verified. Bypassing error since ENV=development. Reset URL is: {reset_url}")
+                        return "mock-message-id-sandbox"
                     raise RuntimeError(
                         "The recipient email address is not verified in the AWS SES sandbox. "
                         "Please use a verified test email address."

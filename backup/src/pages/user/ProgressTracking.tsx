@@ -288,14 +288,14 @@ export const ProgressTracking: React.FC = () => {
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800 my-4 max-h-[300px] overflow-y-auto pr-1">
-            {unlockedBadges.length > 0 ? (
-              unlockedBadges.map((badge, idx) => (
-                <div key={badge.id} className="py-4 flex items-center justify-between gap-3.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0">
+            {achievements && achievements.length > 0 ? (
+              achievements.map((badge, idx) => (
+                <div key={badge.id} className={`py-4 flex items-center justify-between gap-3.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 ${!badge.unlocked ? 'opacity-50' : ''}`}>
                   <div className="flex items-center gap-3.5">
                     <VectorBadge
                       title={badge.title}
                       points={badge.reward_points}
-                      variant={idx % 4 === 0 ? 'gold' : idx % 4 === 1 ? 'emerald' : idx % 4 === 2 ? 'blue' : 'purple'}
+                      variant={!badge.unlocked ? 'purple' : (idx % 4 === 0 ? 'gold' : idx % 4 === 1 ? 'emerald' : idx % 4 === 2 ? 'blue' : 'purple')}
                       size="sm"
                     />
                     <div>
@@ -310,20 +310,26 @@ export const ProgressTracking: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <a
-                    href={`/certificate/verify/CYR-2026-${badge.id.replace(/[^0-9]/g, '').padStart(6, '0') || '000001'}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Verify</span>
-                  </a>
+                  {badge.unlocked ? (
+                    <a
+                      href={`/certificate/verify/CYR-2026-${badge.id.replace(/[^0-9]/g, '').padStart(6, '0') || '000001'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Verify</span>
+                    </a>
+                  ) : (
+                    <span className="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-800">
+                      you need points to unlock the badge
+                    </span>
+                  )}
                 </div>
               ))
             ) : (
               <div className="py-8 text-center text-xs font-semibold text-slate-400 dark:text-slate-500">
-                No achievements unlocked yet. Start solving lab modules to unlock badges!
+                No achievements found.
               </div>
             )}
           </div>

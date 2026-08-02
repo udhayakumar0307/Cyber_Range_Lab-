@@ -33,7 +33,7 @@ interface UserLayoutProps {
 
 // OPTIMIZATION 3: React.memo prevents re-render when parent re-renders with same props.
 export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, apiFetch } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -50,7 +50,6 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
         setCartItemCount(0);
         return;
       }
-      const { apiFetch } = useAuth();
       const res = await apiFetch('/api/v1/cart');
       if (res.ok) {
         const data = await res.json();
@@ -59,7 +58,7 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
     } catch (e) {
       console.error(e);
     }
-  }, [user]);
+  }, [user, apiFetch]);
 
   useEffect(() => {
     fetchCartCount();

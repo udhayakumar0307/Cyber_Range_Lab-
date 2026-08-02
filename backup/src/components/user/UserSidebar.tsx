@@ -11,7 +11,8 @@ import {
   ChevronRight,
   LogOut,
   Flag,
-  Puzzle
+  Puzzle,
+  BookOpen
 } from 'lucide-react';
 
 interface UserSidebarProps {
@@ -40,6 +41,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
     { name: 'CTF Competitions', path: '/ctf', icon: Flag },
     { name: 'Progress Tracking', path: '/progress', icon: Activity },
     { name: 'Leaderboards', path: '/leaderboards', icon: Trophy },
+    { name: 'Study Material', path: '/study-material', icon: BookOpen },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
