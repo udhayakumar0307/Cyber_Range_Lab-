@@ -63,10 +63,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData);
     }
   }, []);
+  const API_BASE = import.meta.env.VITE_API_URL || "";
 
   const logout = useCallback(async () => {
     try {
-      await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+    await fetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch {
       // Logout errors are non-fatal — proceed with local cleanup
     }
