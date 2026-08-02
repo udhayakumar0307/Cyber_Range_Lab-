@@ -94,7 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(url, {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+
+    const response = await fetch(`${API_BASE}${url}`, {
       ...options,
       headers,
       credentials: 'include',
@@ -129,8 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     portal: 'student' | 'admin' = 'student',
     otpCode?: string
   ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
