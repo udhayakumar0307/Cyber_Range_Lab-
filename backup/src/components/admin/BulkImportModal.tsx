@@ -15,45 +15,46 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [hasFileUploaded, setHasFileUploaded] = useState(false);
-  const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importSummary, setImportSummary] = useState<any>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Mock parsed CSV rows
-  const [parsedRows] = useState<CsvImportUserRow[]>([
-    { fullName: 'Jordan Vance', email: 'jordan.vance@defense.org', role: 'User', groupName: 'SOC Analysts Batch B', isValid: true },
-    { fullName: 'Taylor Reed', email: 'taylor.reed@cybersec.io', role: 'User', groupName: 'Red Team Cohort 2026', isValid: true },
-    { fullName: 'Morgan Stanley', email: 'morgan.stanley@invalid-email-domain', role: 'User', groupName: 'Blue Team Defense Alpha', isValid: false, errorMessage: 'Invalid TLD domain syntax' },
-    { fullName: 'Sam Mercer', email: 'sam.mercer@enterprise.net', role: 'User', groupName: 'SOC Analysts Batch B', isValid: true },
-    { fullName: 'Chris Miller', email: 'chris.m@mitre.org', role: 'Instructor', groupName: 'Red Team Cohort 2026', isValid: true },
-  ]);
-
-  const handleSimulateUpload = () => {
-    setFileName('cyberrange_user_import_2026.csv');
-    setHasFileUploaded(true);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setUploadError(null);
+    }
   };
 
-  const validCount = parsedRows.filter((r) => r.isValid).length;
-  const invalidCount = parsedRows.filter((r) => !r.isValid).length;
+  const handleUploadSubmit = async () => {
+    if (!selectedFile) return;
+    setIsUploading(true);
+    setUploadError(null);
 
-  const handleConfirmImport = () => {
-    const validUsersToImport: PlatformUser[] = parsedRows
-      .filter((r) => r.isValid)
-      .map((r, idx) => ({
-        id: `imported-${Date.now()}-${idx}`,
-        fullName: r.fullName,
-        email: r.email,
-        role: r.role as any,
-        groupName: r.groupName,
-        groupId: 'grp-batch-b',
-        status: 'Active',
-        joinedDate: 'Just now',
-        lastActive: 'Never',
-        score: 0,
-        completedLabsCount: 0,
-      }));
+    const formData = new FormData();
+    formData.append('file', selectedFile);
 
-    onImportUsers(validUsersToImport);
-    onClose();
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/v1/admin/users/import', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to import users file');
+      }
+
+      setImportSummary(data);
+      onImportUsers([]); // Refresh parent list
+    } catch (err: any) {
+      setUploadError(err.message || 'An error occurred during file upload');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -83,97 +84,90 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-          {!hasFileUploaded ? (
+          {!importSummary ? (
             /* Upload Drop Area */
             <div className="space-y-4">
-              <div
-                onClick={handleSimulateUpload}
-                className="border-2 border-dashed border-slate-300 hover:border-[#0052CC] bg-slate-50/50 hover:bg-blue-50/40 rounded-2xl p-8 text-center cursor-pointer transition-all group"
-              >
+              <label className="border-2 border-dashed border-slate-300 hover:border-[#0052CC] bg-slate-50/50 hover:bg-blue-50/40 rounded-2xl p-8 text-center block cursor-pointer transition-all group">
+                <input 
+                  type="file" 
+                  accept=".csv, .xlsx"
+                  onChange={handleFileSelect}
+                  className="hidden" 
+                />
                 <div className="w-12 h-12 rounded-2xl bg-blue-100 text-[#0052CC] flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                   <UploadCloud className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-800">
-                  Click to Browse or Drop CSV File Here
+                  {selectedFile ? selectedFile.name : 'Click to Browse or Drop CSV / XLSX File Here'}
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Supports .csv files up to 10MB (Max 500 users per batch upload)
+                  Supports .csv and .xlsx files up to 10MB (Max 1000 users per batch)
                 </p>
-              </div>
+              </label>
+
+              {uploadError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" /> {uploadError}
+                </div>
+              )}
 
               <div className="flex items-center justify-between p-3 bg-slate-100/70 rounded-xl text-xs">
                 <span className="text-slate-600 font-medium">Need the standard import format template?</span>
-                <button
-                  type="button"
-                  onClick={() => alert('Downloading CSV Schema Template: full_name, email, role, group_name')}
-                  className="text-[#0052CC] font-bold hover:underline inline-flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download CSV Template
-                </button>
+                <div className="flex gap-2">
+                  <a
+                    href="/api/v1/admin/users/template?format=csv"
+                    download
+                    className="text-[#0052CC] font-bold hover:underline inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> CSV Template
+                  </a>
+                  <span>•</span>
+                  <a
+                    href="/api/v1/admin/users/template?format=xlsx"
+                    download
+                    className="text-[#0052CC] font-bold hover:underline inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Excel Template
+                  </a>
+                </div>
               </div>
             </div>
           ) : (
-            /* File Uploaded & Row Preview Matrix */
+            /* Upload Summary Matrix */
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#28A745]" />
-                  <span className="font-bold text-slate-800">{fileName}</span>
-                  <span className="text-slate-500">({parsedRows.length} total rows parsed)</span>
+                  <span className="font-bold text-slate-800">Import Batch Executed Successfully</span>
                 </div>
-                <button
-                  onClick={() => setHasFileUploaded(false)}
-                  className="text-slate-500 hover:text-slate-800 font-bold underline"
-                >
-                  Change File
-                </button>
               </div>
 
-              {/* Status Summary Pill */}
-              <div className="flex items-center gap-3 text-xs font-semibold">
-                <span className="bg-emerald-50 text-[#28A745] px-2.5 py-1 rounded-md border border-emerald-100">
-                  ✓ {validCount} Ready to Import
-                </span>
-                {invalidCount > 0 && (
-                  <span className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md border border-rose-100">
-                    ⚠ {invalidCount} Validation Error(s)
-                  </span>
-                )}
+              {/* Status Summary Pills */}
+              <div className="grid grid-cols-3 gap-3 text-xs text-center font-bold">
+                <div className="bg-emerald-50 text-[#28A745] p-3 rounded-xl border border-emerald-100">
+                  <span className="text-lg block">{importSummary.imported}</span>
+                  Users Provisioned
+                </div>
+                <div className="bg-amber-50 text-amber-600 p-3 rounded-xl border border-amber-100">
+                  <span className="text-lg block">{importSummary.duplicates}</span>
+                  Duplicates Skipped
+                </div>
+                <div className="bg-rose-50 text-rose-600 p-3 rounded-xl border border-rose-100">
+                  <span className="text-lg block">{importSummary.failed}</span>
+                  Failed Rows
+                </div>
               </div>
 
-              {/* Data Matrix Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-100 text-slate-600 font-bold">
-                    <tr>
-                      <th className="p-2.5">Row Status</th>
-                      <th className="p-2.5">Full Name</th>
-                      <th className="p-2.5">Email</th>
-                      <th className="p-2.5">Group Target</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {parsedRows.map((row, idx) => (
-                      <tr key={idx} className={row.isValid ? 'bg-white' : 'bg-rose-50/50'}>
-                        <td className="p-2.5 font-bold">
-                          {row.isValid ? (
-                            <span className="text-[#28A745] flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Valid
-                            </span>
-                          ) : (
-                            <span className="text-rose-600 flex items-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5" /> {row.errorMessage}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2.5 font-bold text-slate-800">{row.fullName}</td>
-                        <td className="p-2.5 text-slate-600">{row.email}</td>
-                        <td className="p-2.5 text-slate-700 font-medium">{row.groupName}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {importSummary.failed_details && importSummary.failed_details.length > 0 && (
+                <div className="border border-slate-200 rounded-xl p-3 text-xs space-y-2 max-h-40 overflow-y-auto">
+                  <h4 className="font-bold text-rose-600">Failed / Rejected Rows</h4>
+                  {importSummary.failed_details.map((f: any, i: number) => (
+                    <p key={i} className="text-slate-600">
+                      <strong>Row #{f.row} ({f.email}):</strong> {f.reason}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -184,16 +178,17 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition-colors"
           >
-            Cancel
+            {importSummary ? 'Close' : 'Cancel'}
           </button>
 
-          {hasFileUploaded && (
+          {!importSummary && selectedFile && (
             <button
-              onClick={handleConfirmImport}
-              className="px-5 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-xs inline-flex items-center gap-2"
+              onClick={handleUploadSubmit}
+              disabled={isUploading}
+              className="px-5 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition-colors shadow-xs inline-flex items-center gap-2"
             >
               <Users className="w-4 h-4" />
-              Import {validCount} Valid Account(s)
+              {isUploading ? 'Uploading & Provisioning...' : 'Upload & Import Batch'}
               <ArrowRight className="w-4 h-4" />
             </button>
           )}

@@ -100,6 +100,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Response Compression middleware for production optimization
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Request timing middleware — adds X-Response-Time header, logs slow requests
 _timing_instance = TimingMiddleware(app)
 app.add_middleware(TimingMiddleware)

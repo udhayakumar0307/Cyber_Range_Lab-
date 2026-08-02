@@ -99,8 +99,10 @@ class DatabaseManager:
                 self.current_url = target_url
 
                 dialect = self.engine.dialect.name
+                host = self.engine.url.host or "localhost"
+                database = self.engine.url.database or "default"
                 logger.info(
-                    f"Database connection established (dialect={dialect})."
+                    f"Database connection established [Dialect: {dialect} | Host: {host} | Database: {database}]."
                 )
                 return
 

@@ -89,6 +89,25 @@ def get_system_audit_dashboard(
     rev_result = db.query(func.sum(Payment.amount)).filter(Payment.payment_status == "SUCCESS").scalar()
     total_revenue = float(rev_result or 0.0)
 
+    # Time-scoped SaaS Revenue Metrics
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+    year_start = datetime(now.year, 1, 1)
+
+    monthly_rev = db.query(func.sum(Payment.amount)).filter(
+        Payment.payment_status == "SUCCESS",
+        Payment.created_at >= month_start
+    ).scalar() or 0.0
+
+    yearly_rev = db.query(func.sum(Payment.amount)).filter(
+        Payment.payment_status == "SUCCESS",
+        Payment.created_at >= year_start
+    ).scalar() or 0.0
+
+    total_seats_sold = db.query(func.sum(PurchasedLab.total_seats)).scalar() or 0
+    total_seats_allocated = db.query(func.sum(PurchasedLab.assigned_seats)).scalar() or 0
+    total_refunded_payments = db.query(Payment).filter(Payment.payment_status == "REFUNDED").count()
+
     total_running_containers = db.query(StudySession).filter(StudySession.logout_time.is_(None)).count()
     total_sessions = db.query(StudySession).count()
     total_active_users = db.query(User).filter(User.is_active == True).count()
@@ -185,6 +204,12 @@ def get_system_audit_dashboard(
             "total_groups": total_groups,
             "total_purchases": total_purchases,
             "total_revenue": total_revenue,
+            "monthly_revenue": float(monthly_rev),
+            "yearly_revenue": float(yearly_rev),
+            "total_seats_sold": int(total_seats_sold),
+            "total_seats_allocated": int(total_seats_allocated),
+            "total_seats_remaining": int(max(0, total_seats_sold - total_seats_allocated)),
+            "total_refunded_payments": total_refunded_payments,
             "total_running_containers": total_running_containers,
             "total_sessions": total_sessions,
             "total_active_users": total_active_users
@@ -290,6 +315,120 @@ def get_system_organizations(
             for o in items
         ]
     }
+
+class OrganizationCreateRequest(BaseModel):
+    name: str
+    institution_type: str = "Enterprise"
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    gst_number: Optional[str] = None
+
+@router.post("/organizations", status_code=status.HTTP_201_CREATED)
+def create_system_organization(
+    data: OrganizationCreateRequest,
+    request: Request,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    System Admin Endpoint: Create Organization.
+    """
+    org = Organization(
+        name=data.name,
+        institution_type=data.institution_type,
+        address=data.address,
+        city=data.city,
+        state=data.state,
+        gst_number=data.gst_number
+    )
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+
+    log_audit_event(
+        db=db,
+        action="Organization Created",
+        entity="Organization",
+        entity_id=str(org.id),
+        performed_by=current_admin.email,
+        performed_by_role=current_admin.role,
+        organization_id=org.id,
+        new_value=f"Created enterprise organization {org.name}",
+        request=request
+    )
+
+    return {"status": "success", "organization_id": org.id, "message": "Organization created successfully."}
+
+@router.post("/organizations/{org_id}/suspend")
+def suspend_system_organization(
+    org_id: int,
+    request: Request,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    System Admin Endpoint: Suspend Organization.
+    Deactivates all users associated with this organization.
+    """
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+    # Deactivate org admin users
+    org_users = db.query(User).join(AdminProfile, AdminProfile.user_id == User.id)\
+                  .filter(AdminProfile.organization_id == org_id).all()
+    for u in org_users:
+        u.is_active = False
+
+    log_audit_event(
+        db=db,
+        action="Organization Suspended",
+        entity="Organization",
+        entity_id=str(org.id),
+        performed_by=current_admin.email,
+        performed_by_role=current_admin.role,
+        organization_id=org.id,
+        new_value=f"Suspended organization {org.name} and deactivated {len(org_users)} users.",
+        request=request
+    )
+
+    db.commit()
+    return {"status": "success", "message": f"Organization {org.name} suspended successfully."}
+
+@router.post("/organizations/{org_id}/reactivate")
+def reactivate_system_organization(
+    org_id: int,
+    request: Request,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    System Admin Endpoint: Reactivate Organization.
+    """
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+    org_users = db.query(User).join(AdminProfile, AdminProfile.user_id == User.id)\
+                  .filter(AdminProfile.organization_id == org_id).all()
+    for u in org_users:
+        u.is_active = True
+
+    log_audit_event(
+        db=db,
+        action="Organization Reactivated",
+        entity="Organization",
+        entity_id=str(org.id),
+        performed_by=current_admin.email,
+        performed_by_role=current_admin.role,
+        organization_id=org.id,
+        new_value=f"Reactivated organization {org.name}.",
+        request=request
+    )
+
+    db.commit()
+    return {"status": "success", "message": f"Organization {org.name} reactivated successfully."}
 
 @router.get("/groups")
 def get_system_groups(

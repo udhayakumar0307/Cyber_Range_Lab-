@@ -6,6 +6,7 @@ class UserLogin(BaseModel):
     password: str
     remember_me: Optional[bool] = False
     portal: Optional[str] = "student"
+    otp_code: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -22,6 +23,7 @@ class UserResponse(BaseModel):
     year: Optional[int] = None
     roll_number: Optional[str] = None
     total_score: Optional[int] = None
+    auth_type: Optional[str] = None
 
     class Config:
         from_attributes = True

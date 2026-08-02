@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import type { PlatformUser } from '../../types/admin';
 import { UserAddModal } from '../../components/admin/UserAddModal';
 import { BulkImportModal } from '../../components/admin/BulkImportModal';
@@ -15,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { downloadAuthenticatedFile } from '../../utils/exportUtils';
 
 import { getRoleDisplayName } from '../../utils/roleMapping';
 
@@ -22,32 +24,61 @@ export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get('search') || searchParams.get('q') || '';
+
   // Filtering & Search state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
 
+  // Bulk Actions & Drawer State
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [drawerUser, setDrawerUser] = useState<PlatformUser | null>(null);
+
+  // Sync with URL search params changes (e.g. from top nav search)
   useEffect(() => {
-    const fetchUsers = async () => {
+    setSearchQuery(urlSearch);
+  }, [urlSearch]);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (val.trim()) {
+      setSearchParams({ search: val });
+    } else {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('search');
+      newParams.delete('q');
+      setSearchParams(newParams);
+    }
+  };
+
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchUsersAndGroups = async () => {
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch('/api/v1/admin/users', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setUsers(data);
-          }
+        const [uRes, gRes] = await Promise.all([
+          fetch('/api/v1/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+          fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        ]);
+        if (uRes.ok) {
+          const data = await uRes.json();
+          if (Array.isArray(data)) setUsers(data);
+        }
+        if (gRes.ok) {
+          const gData = await gRes.json();
+          if (Array.isArray(gData)) setAvailableGroups(gData);
         }
       } catch (err) {
-        console.error('Error fetching users:', err);
+        console.error('Error fetching users/groups:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchUsers();
+    fetchUsersAndGroups();
   }, []);
 
   // Modal visibility states
@@ -58,14 +89,27 @@ export const UserManagement: React.FC = () => {
   // Delete modal state
   const [userToDelete, setUserToDelete] = useState<PlatformUser | null>(null);
 
-  // Filtered dataset (excluding internal platform SYSTEM_ADMIN accounts)
+  // Filtered dataset (excluding internal platform SYSTEM_ADMIN / sysadmin accounts)
   const filteredUsers = users.filter((u) => {
-    const isInternalSystemAccount = (u.role || '').toUpperCase().includes('SYSTEM_ADMIN');
-    if (isInternalSystemAccount) return false;
+    const roleLower = (u.role || '').toLowerCase();
+    const nameLower = (u.fullName || '').toLowerCase();
+    const emailLower = (u.email || '').toLowerCase();
+    
+    const isSysAdmin = 
+      roleLower.includes('sysadmin') || 
+      roleLower.includes('system_admin') ||
+      nameLower.includes('sysadmin') ||
+      nameLower.includes('sys admin') ||
+      emailLower.includes('sysadmin');
 
-    const matchesSearch =
-      u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase());
+    if (isSysAdmin) return false;
+
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      u.fullName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.groupName || '').toLowerCase().includes(q) ||
+      (u.role || '').toLowerCase().includes(q);
     const matchesGroup = selectedGroup === 'All' || u.groupName === selectedGroup;
     const matchesRole = selectedRole === 'All' || u.role === selectedRole;
     const matchesStatus = selectedStatus === 'All' || u.status === selectedStatus;
@@ -106,176 +150,203 @@ export const UserManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Users className="w-7 h-7 text-[#0052CC]" />
-            User Management & Access Controls
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Provision platform users, organize training cohorts, and manage security role permissions.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsBulkModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-2"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#6F42C1]" />
-            Bulk CSV Import
-          </button>
-
-          <button
-            onClick={() => {
-              setUserToEdit(null);
-              setIsAddModalOpen(true);
-            }}
-            className="px-4 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-2"
-          >
-            <UserPlus className="w-4 h-4" />
-            Add User
-          </button>
-        </div>
-      </div>
-
-      {/* 5.1 Search & Filter Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search bar */}
-          <div className="md:col-span-5 relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Single Horizontal Row Toolbar */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row items-center gap-3">
+          {/* Search bar (~55-60% width) */}
+          <div className="relative w-full md:w-[58%]">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by user name or email address..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search student by Name, Roll Number, Email or Department..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
             />
           </div>
 
-          {/* Group Filter */}
-          <div className="md:col-span-3">
-            <select
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
-            >
-              <option value="All">All Groups</option>
-              <option value="Red Team Cohort 2026">Red Team Cohort 2026</option>
-              <option value="SOC Analysts Batch B">SOC Analysts Batch B</option>
-              <option value="Blue Team Defense Alpha">Blue Team Defense Alpha</option>
-            </select>
-          </div>
-
-          {/* Role Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
-            >
-              <option value="All">All Roles</option>
-              <option value="CIA">CIA</option>
-              <option value="Admin">Admin</option>
-              <option value="Instructor">Instructor</option>
-              <option value="User">Regular User</option>
-            </select>
-          </div>
-
           {/* Status Filter */}
-          <div className="md:col-span-2">
+          <div className="w-full md:w-[14%]">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
+              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
             >
               <option value="All">All Statuses</option>
-              <option value="Active">Active Only</option>
+              <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+
+          {/* Year Filter */}
+          <div className="w-full md:w-[14%]">
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+            >
+              <option value="All">All Years</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+
+          {/* Department Filter */}
+          <div className="w-full md:w-[14%]">
+            <select
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+            >
+              <option value="All">All Depts</option>
+              <option value="Cyber Security">Cyber Security</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Information Technology">Information Technology</option>
+              <option value="ECE">ECE</option>
+              <option value="EEE">EEE</option>
+              <option value="Mechanical">Mechanical</option>
+              <option value="Civil">Civil</option>
             </select>
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800 font-semibold">
-          <span>Showing {filteredUsers.length} of {users.length} registered platform users</span>
-          <button
-            onClick={() => alert('Exporting users roster report to CSV format...')}
-            className="text-[#0052CC] dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-          >
-            <Download className="w-3.5 h-3.5" /> Export Users CSV Report
-          </button>
+        {/* Action Buttons Toolbar Below */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Showing <strong className="text-slate-900 dark:text-slate-100">{filteredUsers.length}</strong> enrolled students
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Import Student CSV
+            </button>
+
+            <button
+              onClick={() => {
+                setUserToEdit(null);
+                setIsAddModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" /> Add Student
+            </button>
+
+            <button
+              onClick={() => {
+                if (selectedUserIds.length === 0) alert('Select at least one student first.');
+                else alert(`Assigning group cohort to ${selectedUserIds.length} students`);
+              }}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Assign Group
+            </button>
+
+            <button
+              onClick={() => {
+                if (selectedUserIds.length === 0) alert('Select students to delete.');
+                else {
+                  if (confirm(`Delete ${selectedUserIds.length} selected students? This action cannot be undone.`)) {
+                    setUsers(prev => prev.filter(u => !selectedUserIds.includes(String(u.id))));
+                    setSelectedUserIds([]);
+                  }
+                }
+              }}
+              className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition-colors cursor-pointer"
+            >
+              Delete Selected
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 5.2 Comprehensive User Data Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+          <table className="w-full text-left border-collapse">            <thead className="bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
               <tr>
-                <th className="p-4">User Metadata</th>
-                <th className="p-4">Role Permission</th>
-                <th className="p-4">Assigned Group</th>
-                <th className="p-4">Account Status</th>
-                <th className="p-4">Score & Labs</th>
+                <th className="p-4 w-10 text-center">
+                  <input 
+                    type="checkbox"
+                    checked={selectedUserIds.length === filteredUsers.length && filteredUsers.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedUserIds(filteredUsers.map(u => String(u.id)));
+                      else setSelectedUserIds([]);
+                    }}
+                    className="rounded border-slate-300"
+                  />
+                </th>
+                <th className="p-4">Student Name</th>
+                <th className="p-4">Roll Number</th>
+                <th className="p-4">Department</th>
+                <th className="p-4">Year</th>
+                <th className="p-4">Email</th>
+                <th className="p-4">Status</th>
                 <th className="p-4">Last Activity</th>
-                <th className="p-4 text-right">Actions</th>
+                <th className="p-4 text-right">View Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
-                    No matching users found for current filter selections.
+                  <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
+                    No matching students found for current filter selections.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
-                  const roleName = getRoleDisplayName(u.role);
-                  const isCIA = roleName === 'CIA' || (u.role || '').toUpperCase() === 'CIA';
-                  const roleBadgeStyle = isCIA
-                    ? 'bg-purple-50 text-purple-700 border-purple-200'
-                    : u.role === 'Admin'
-                    ? 'bg-blue-50 text-[#0052CC] border-blue-200'
-                    : u.role === 'Instructor'
-                    ? 'bg-[#6F42C1]/10 text-[#6F42C1] border-purple-200'
-                    : 'bg-slate-100 text-slate-700 border-slate-200';
-
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      {/* Name & Avatar */}
+                      <td className="p-4 text-center">
+                        <input 
+                          type="checkbox"
+                          checked={selectedUserIds.includes(String(u.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedUserIds(prev => [...prev, String(u.id)]);
+                            else setSelectedUserIds(prev => prev.filter(id => id !== String(u.id)));
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                      </td>
+
+                      {/* Student Name */}
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0">
                             {u.fullName.split(' ').map((n) => n[0]).join('')}
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-900 leading-tight">{u.fullName}</p>
-                            <p className="text-xs text-slate-500">{u.email}</p>
-                          </div>
+                          <span className="font-bold text-slate-900 leading-tight">{u.fullName}</span>
                         </div>
                       </td>
 
-                      {/* Role */}
-                      <td className="p-4">
-                        <span
-                          className={`text-xs font-bold border px-2.5 py-1 rounded-full ${roleBadgeStyle}`}
-                        >
-                          {roleName}
-                        </span>
+                      {/* Roll Number */}
+                      <td className="p-4 text-xs font-semibold text-slate-700">
+                        {u.rollNumber || '22BCS104'}
                       </td>
 
-                      {/* Group */}
+                      {/* Department */}
                       <td className="p-4 text-xs font-semibold text-slate-700">
-                        {u.groupName}
+                        {u.department || 'Cyber Security'}
+                      </td>
+
+                      {/* Year */}
+                      <td className="p-4 text-xs font-semibold text-slate-700">
+                        {u.year || 'III Year'}
+                      </td>
+
+                      {/* Email */}
+                      <td className="p-4 text-xs text-slate-600 font-medium">
+                        {u.email}
                       </td>
 
                       {/* Status Chip */}
                       <td className="p-4">
                         <span
-                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full ${
                             u.status === 'Active'
                               ? 'bg-emerald-50 text-[#28A745] border border-emerald-200'
                               : 'bg-slate-100 text-slate-500 border border-slate-200'
@@ -290,51 +361,19 @@ export const UserManagement: React.FC = () => {
                         </span>
                       </td>
 
-                      {/* Score & Labs */}
-                      <td className="p-4 text-xs">
-                        <div className="font-bold text-[#0052CC]">{u.score.toLocaleString()} pts</div>
-                        <div className="text-[11px] text-slate-500">{u.completedLabsCount} labs completed</div>
-                      </td>
-
-                      {/* Last Active */}
+                      {/* Last Activity */}
                       <td className="p-4 text-xs text-slate-500 font-medium">
-                        {u.lastActive}
+                        {u.lastActive || 'Today 10:30 AM'}
                       </td>
 
-                      {/* Action Dropdown Menu */}
+                      {/* View Details Button */}
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => {
-                              setUserToEdit(u);
-                              setIsAddModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-[#0052CC] hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit User"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleToggleStatus(u)}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              u.status === 'Active'
-                                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                                : 'text-slate-400 hover:text-[#28A745] hover:bg-emerald-50'
-                            }`}
-                            title={u.status === 'Active' ? 'Deactivate User' : 'Activate User'}
-                          >
-                            <UserCheck className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => setUserToDelete(u)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Delete User"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <Link
+                          to={`/admin/student-management/student/${u.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          View Details
+                        </Link>
                       </td>
                     </tr>
                   );

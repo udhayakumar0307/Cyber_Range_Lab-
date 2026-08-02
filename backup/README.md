@@ -372,6 +372,30 @@ This project is licensed under the MIT License.
 
 ---
 
+## 💳 Razorpay Configuration
+
+To enable production payments for enterprise lab licenses, configure your Razorpay credentials:
+
+### Backend (.env)
+```env
+RAZORPAY_KEY_ID=your_key_id
+RAZORPAY_KEY_SECRET=your_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+```
+
+### Frontend (.env)
+```env
+VITE_RAZORPAY_KEY_ID=your_key_id
+```
+
+### Obtaining Credentials from Razorpay Dashboard
+1. Log in to your [Razorpay Dashboard](https://dashboard.razorpay.com/).
+2. Navigate to **Settings** → **API Keys**.
+3. Click **Generate Key** to receive your `RAZORPAY_KEY_ID` (Key ID) and `RAZORPAY_KEY_SECRET` (Key Secret).
+4. Navigate to **Settings** → **Webhooks** and configure a webhook pointing to `https://your-domain.com/api/v1/payments/webhook` with event subscriptions `payment.captured`, `payment.failed`, `refund.processed`, and `subscription.charged`. Set your secret key as `RAZORPAY_WEBHOOK_SECRET`.
+
+---
+
 ## Developed for
 
 Cyber Range Platform for Cybersecurity Training, Practical Learning, CTF Competitions, and Virtual Lab Management.

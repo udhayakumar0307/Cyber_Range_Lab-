@@ -135,7 +135,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     // Forward xterm input to WebSocket
     term.onData((data) => {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: 'input', data }));
+        socketRef.current.send(data);
       }
     });
 
@@ -181,7 +181,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
           </div>
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 pl-2">
             <TerminalIcon className="w-3.5 h-3.5 text-blue-400" />
-            <span>Interactive PTY Shell ({labId} — Level {levelNum})</span>
+            <span>Puzzle Infrastructure Shell — Level {levelNum} (student{levelNum})</span>
           </div>
         </div>
 

@@ -50,6 +50,22 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing subject identity"
         )
+
+    # Local development bypass for @testcyberrange.in
+    from app.core.config import settings
+    if username.endswith("@testcyberrange.in") and settings.ENV == "development":
+        test_student = User(
+            id=-999,
+            name="CyberRange Test Student",
+            email=username,
+            role="student",
+            account_type="academic",
+            is_active=True,
+            email_verified=True,
+            department="Testing",
+            year=3
+        )
+        return test_student
         
     user = user_repository.get_by_email(db, username)
     if not user:

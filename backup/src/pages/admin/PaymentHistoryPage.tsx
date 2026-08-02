@@ -59,8 +59,37 @@ export const PaymentHistoryPage: React.FC = () => {
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDownloadInvoice = (invNum: string) => {
-    alert(`Downloading Invoice ${invNum}...`);
+  const handleDownloadInvoice = async (invId: number | string, invNum: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/payments/invoice/${invId}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        // Fallback endpoint
+        const res2 = await fetch(`/api/v1/payments/invoices/${invId}/download`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res2.ok) throw new Error('Failed to download invoice PDF.');
+        const blob2 = await res2.blob();
+        const url2 = URL.createObjectURL(blob2);
+        const a2 = document.createElement('a');
+        a2.href = url2;
+        a2.download = `${invNum.startsWith('INV-') ? invNum : 'INV-' + invNum}.pdf`;
+        a2.click();
+        URL.revokeObjectURL(url2);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${invNum.startsWith('INV-') ? invNum : 'INV-' + invNum}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Invoice download failed:', err);
+    }
   };
 
   return (
@@ -170,11 +199,11 @@ export const PaymentHistoryPage: React.FC = () => {
 
                     <td className="py-4 px-6 text-right">
                       <button
-                        onClick={() => handleDownloadInvoice(item.invoice_number)}
+                        onClick={() => handleDownloadInvoice(item.id, item.invoice_number)}
                         className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Download className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                        <span>Invoice</span>
+                        <span>Invoice PDF</span>
                       </button>
                     </td>
                   </tr>

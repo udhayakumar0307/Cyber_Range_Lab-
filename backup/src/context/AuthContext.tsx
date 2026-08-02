@@ -24,20 +24,22 @@ export interface User {
   profile_completed?: boolean;
   profile_photo?: string;
   total_score?: number;
+  phone?: string;
+  auth_type?: 'INDIVIDUAL' | 'SSO';
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean, portal?: 'student' | 'admin') => Promise<{ role: string; user?: any }>;
+  login: (email: string, password: string, rememberMe?: boolean, portal?: 'student' | 'admin', otpCode?: string) => Promise<{ role: string; user?: any; status?: string; message?: string }>;
   setSessionToken: (token: string, userData?: User) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   apiFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -124,13 +126,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     password: string,
     rememberMe: boolean = false,
-    portal: 'student' | 'admin' = 'student'
-  ): Promise<{ role: string; user: any }> => {
+    portal: 'student' | 'admin' = 'student',
+    otpCode?: string
+  ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, remember_me: rememberMe, portal }),
+      body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
     });
 
     if (!response.ok) {
@@ -140,6 +143,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const data = await response.json();
+    if (data.status === 'otp_required') {
+      return { role: '', user: null, status: 'otp_required', message: data.message };
+    }
     if (!data.success) {
       throw new Error(data.message || 'Invalid Email or Password');
     }
@@ -151,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUser(data.user);
-    return { role: data.role, user: data.user };
+    return { role: data.role, user: data.user, status: 'success' };
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -203,10 +209,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+

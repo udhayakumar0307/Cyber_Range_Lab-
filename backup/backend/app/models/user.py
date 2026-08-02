@@ -61,6 +61,7 @@ class User(Base):
     security_settings = Column(String(1000), nullable=True)
     appearance_settings = Column(String(1000), nullable=True)
     last_login = Column(DateTime, nullable=True)
+    auth_type = Column(String(50), default="INDIVIDUAL", nullable=False)
 
     @property
     def full_name(self) -> str:

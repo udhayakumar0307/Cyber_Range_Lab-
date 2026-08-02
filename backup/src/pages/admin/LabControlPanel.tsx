@@ -25,17 +25,21 @@ interface LabInstanceControl {
 
 export const LabControlPanel: React.FC = () => {
   const [instances, setInstances] = useState<LabInstanceControl[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSessions = async () => {
+    const fetchData = async () => {
       const token = localStorage.getItem('token');
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       try {
-        const res = await fetch('/api/v1/admin/sessions', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
+        const [sessRes, invRes] = await Promise.all([
+          fetch('/api/v1/admin/sessions', { headers }),
+          fetch('/api/v1/admin/inventory', { headers })
+        ]);
+
+        if (sessRes.ok) {
+          const data = await sessRes.json();
           if (Array.isArray(data)) {
             const mapped = data.map((s: any) => ({
               id: s.id,
@@ -50,13 +54,20 @@ export const LabControlPanel: React.FC = () => {
             setInstances(mapped);
           }
         }
+
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          if (invData && invData.labs) {
+            setInventory(invData.labs);
+          }
+        }
       } catch (err) {
-        console.error("Failed to fetch running sessions:", err);
+        console.error("Failed to fetch sessions/inventory:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchSessions();
+    fetchData();
   }, []);
 
   const [confirmDialog, setConfirmDialog] = useState<{

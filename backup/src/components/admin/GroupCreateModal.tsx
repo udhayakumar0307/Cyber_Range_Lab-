@@ -74,7 +74,7 @@ export const GroupCreateModal: React.FC<GroupCreateModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. SOC Analysts Batch C 2026"
+              placeholder="e.g. Cybersecurity Training Cohort 2026"
               className="w-full pl-3 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
             />
             {errors.name && <p className="text-rose-500 mt-1">{errors.name}</p>}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, Mail, ArrowRight, Eye, EyeOff, Building2 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 
 export const LoginPage: React.FC = () => {
@@ -32,7 +32,7 @@ export const LoginPage: React.FC = () => {
       if (role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'super_admin')) {
         navigate('/admin/dashboard');
       } else {
-        navigate('/labs');
+        navigate('/dashboard');
       }
     } catch (err: any) {
       console.error('[LoginPage] Login error:', err);
@@ -58,7 +58,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSsoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('Enterprise SSO is not configured for student accounts. Please use Standard Login or OAuth.');
+    setErrorMsg('Institutional SSO is currently unavailable. Please use your standard student login.');
   };
 
   const isEnterpriseRedirect = errorMsg.includes('Enterprise Portal') || errorMsg.includes('only for students');
@@ -241,25 +241,82 @@ export const LoginPage: React.FC = () => {
           )}
 
           {activeTab === 'sso' && (
-            <form onSubmit={handleSsoSubmit} className="space-y-4">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setErrorMsg('');
+              if (!ssoDomain.trim()) return;
+
+              // Check if user entered email or just domain
+              let testEmail = ssoDomain.trim();
+              if (!testEmail.includes('@')) {
+                // If they just typed college.edu, request complete email address
+                setErrorMsg('Please enter your full institutional email address.');
+                return;
+              }
+
+              // Validate domain is academic
+              const domain = testEmail.split('@')[1].toLowerCase();
+              const ssoSuffixes = ['.edu', '.ac.in', '.edu.in', '.ac.uk', '.edu.sg', '.ac.jp', '.edu.au'];
+              const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
+              const isTestDomain = domain === 'testcyberrange.in';
+              const isAcademic = ssoSuffixes.some(s => domain.endsWith(s) || domain.includes('college') || domain.includes('univ')) || (isDevMode && isTestDomain);
+              
+              if (!isAcademic) {
+                setErrorMsg('Only academic / college email addresses are allowed in this section.');
+                return;
+              }
+
+              if (!password.trim()) {
+                setErrorMsg('Please enter your account password to verify your identity.');
+                return;
+              }
+
+              setIsLoading(true);
+              try {
+                const { role } = await login(testEmail, password, rememberMe, 'student');
+                setIsLoading(false);
+                if (role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'super_admin')) {
+                  navigate('/admin/dashboard');
+                } else {
+                  navigate('/dashboard');
+                }
+              } catch (err: any) {
+                setIsLoading(false);
+                setErrorMsg(err.message || 'Invalid Email or Password.');
+              }
+            }} className="space-y-4">
               <div>
                 <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
-                  College / University Email Domain
+                  College / University Email Address
                 </label>
                 <div className="relative">
-                  <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
-                    type="text"
+                    type="email"
                     required
                     value={ssoDomain}
                     onChange={(e) => setSsoDomain(e.target.value)}
-                    placeholder="college.edu or name@college.ac.in"
+                    placeholder="student@college.edu"
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
-                <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-1">
-                  Redirects to your University SSO / Google Workspace login.
-                </p>
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
+                  />
+                </div>
               </div>
 
               <button
@@ -270,7 +327,7 @@ export const LoginPage: React.FC = () => {
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Connecting to Academic SSO...
+                    Authenticating via Academic SSO...
                   </>
                 ) : (
                   <>

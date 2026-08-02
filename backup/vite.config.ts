@@ -16,7 +16,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        ws: true,
+        ws: false, // Prevents Vite from overriding WebSocket proxy handshakes with standard HTTP abort signals
       },
       // Proxy /static to FastAPI so xterm.js and xterm-addon-fit.js load correctly.
       // FastAPI mounts labs/command-line-lab/scoring-server/static at /static.

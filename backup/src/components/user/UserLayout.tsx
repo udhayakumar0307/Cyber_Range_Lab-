@@ -1,8 +1,15 @@
-import React, { useState, useCallback, memo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { UserSidebar } from './UserSidebar';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { useTheme } from '../../context/ThemeContext';
+import { 
+  fetchNotifications, 
+  markNotificationAsRead, 
+  clearAllNotifications, 
+  setupNotificationWebSocket, 
+  type NotificationItem 
+} from '../../services/notificationService';
 import { 
   Bell, 
   Search, 
@@ -16,7 +23,8 @@ import {
   Sun,
   ShieldCheck,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  ShoppingCart
 } from 'lucide-react';
 
 interface UserLayoutProps {
@@ -32,7 +40,72 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(2);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [cartItemCount, setCartItemCount] = useState(0);
+
+  const fetchCartCount = useCallback(async () => {
+    try {
+      if (user?.auth_type === 'SSO') {
+        setCartItemCount(0);
+        return;
+      }
+      const { apiFetch } = useAuth();
+      const res = await apiFetch('/api/v1/cart');
+      if (res.ok) {
+        const data = await res.json();
+        setCartItemCount(data.item_count || 0);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchCartCount();
+    window.addEventListener('cart-updated', fetchCartCount);
+    return () => {
+      window.removeEventListener('cart-updated', fetchCartCount);
+    };
+  }, [fetchCartCount]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchNotifications({ limit: 10 });
+      setNotifications(data.items || []);
+      setUnreadCount(data.unread_count || 0);
+    } catch (e) {
+      console.error('Failed to load user notifications', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const cleanupWs = setupNotificationWebSocket((newNotif) => {
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+    return () => cleanupWs();
+  }, [loadNotifications]);
+
+  const handleNotificationClick = async (item: NotificationItem) => {
+    if (!item.read) {
+      await markNotificationAsRead(item.id);
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+    setIsNotificationMenuOpen(false);
+    if (item.action_url) {
+      navigate(item.action_url);
+    }
+  };
+
+  const handleClearAll = async () => {
+    await clearAllNotifications();
+    setNotifications([]);
+    setUnreadCount(0);
+    setIsNotificationMenuOpen(false);
+  };
 
   // useCallback: stable reference — avoids re-creating on every render
   const getInitials = useCallback((name: string) => {
@@ -47,6 +120,30 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
 
   // useCallback: stable handler passed to UserSidebar — prevents sidebar re-render
   const handleSidebarClose = useCallback(() => setIsSidebarOpen(false), []);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const globalSearchQuery = searchParams.get('search') || searchParams.get('q') || '';
+
+  const handleGlobalSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (location.pathname !== '/labs') {
+      if (val.trim()) {
+        navigate(`/labs?search=${encodeURIComponent(val)}`);
+      } else {
+        navigate('/labs');
+      }
+    } else {
+      if (val.trim()) {
+        setSearchParams({ search: val });
+      } else {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('search');
+        newParams.delete('q');
+        setSearchParams(newParams);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-[#0F172A] dark:text-white flex transition-colors duration-200">
@@ -83,8 +180,28 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
               <input 
                 type="text" 
                 placeholder="Search labs, challenges, docs..." 
-                className="w-full pl-9 pr-4 py-1.5 bg-slate-50 dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-lg text-sm text-[#0F172A] dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all"
+                value={globalSearchQuery}
+                onChange={handleGlobalSearchChange}
+                className="w-full pl-9 pr-8 py-1.5 bg-slate-50 dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-lg text-sm text-[#0F172A] dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all"
               />
+              {globalSearchQuery && (
+                <button
+                  onClick={() => {
+                    if (location.pathname === '/labs') {
+                      const newParams = new URLSearchParams(searchParams);
+                      newParams.delete('search');
+                      newParams.delete('q');
+                      setSearchParams(newParams);
+                    } else {
+                      navigate('/labs');
+                    }
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-0.5 rounded"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
 
@@ -98,6 +215,7 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
               <HelpCircle className="w-5 h-5" />
             </a>
 
+
             {/* Notifications Dropdown */}
             <div className="relative">
               <button 
@@ -109,33 +227,60 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
                 aria-label="View notifications"
               >
                 <Bell className="w-5 h-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#111827] rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-4 px-1 bg-rose-500 text-white text-[10px] font-extrabold border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
                 )}
               </button>
 
               {isNotificationMenuOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-4 py-2 border-b border-[#E2E8F0] dark:border-[#334155] flex items-center justify-between">
+                <div className="absolute right-0 mt-2 w-88 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 py-2.5 border-b border-[#E2E8F0] dark:border-[#334155] flex items-center justify-between">
                     <span className="font-bold text-sm text-[#0F172A] dark:text-white">Notifications</span>
-                    <button 
-                      onClick={() => setUnreadNotifications(0)}
-                      className="text-xs text-[#2563EB] hover:underline font-medium"
-                    >
-                      Clear all
-                    </button>
+                    {notifications.length > 0 && (
+                      <button 
+                        onClick={handleClearAll}
+                        className="text-xs text-[#2563EB] hover:underline font-bold cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <div className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer">
-                      <p className="text-xs font-semibold text-[#0F172A] dark:text-white">New Lab Challenge Assigned</p>
-                      <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5">"AI Prompt Injection Basics" has been allocated to your cohort.</p>
-                      <span className="text-[10px] text-slate-400 mt-1 inline-block">10 mins ago</span>
-                    </div>
-                    <div className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer">
-                      <p className="text-xs font-semibold text-[#0F172A] dark:text-white">Weekly Score Standings Ready</p>
-                      <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5">Your cohort's weekly standings have been updated on the leaderboard.</p>
-                      <span className="text-[10px] text-slate-400 mt-1 inline-block">2 hours ago</span>
-                    </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-xs text-slate-400 font-medium">
+                        No active notifications.
+                      </div>
+                    ) : (
+                      notifications.slice(0, 5).map((item) => (
+                        <div 
+                          key={item.id}
+                          onClick={() => handleNotificationClick(item)}
+                          className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors ${!item.read ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-bold text-[#0F172A] dark:text-white">{item.title}</p>
+                            {!item.read && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1"></span>}
+                          </div>
+                          <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5 line-clamp-2 leading-relaxed">{item.message}</p>
+                          <span className="text-[10px] text-slate-400 mt-1.5 inline-block font-medium">
+                            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="px-4 py-2 text-center border-t border-[#E2E8F0] dark:border-[#334155]">
+                    <button 
+                      onClick={() => {
+                        setIsNotificationMenuOpen(false);
+                        navigate('/notifications');
+                      }}
+                      className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer w-full text-center block"
+                    >
+                      View all alerts
+                    </button>
                   </div>
                 </div>
               )}

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 
 export const RootRedirect: React.FC = () => {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export const RootRedirect: React.FC = () => {
         if (user.role && user.role.toLowerCase() === 'admin') {
           navigate('/admin/dashboard', { replace: true });
         } else {
-          navigate('/labs', { replace: true });
+          navigate('/dashboard', { replace: true });
         }
       } else {
         navigate('/login', { replace: true });

@@ -15,8 +15,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { PurchasedLabsPage } from './PurchasedLabsPage';
+import { PaymentHistoryPage } from './PaymentHistoryPage';
+
 export const LabMarketplace: React.FC = () => {
   const navigate = useNavigate();
+  const [activeMarketTab, setActiveMarketTab] = useState<'browse' | 'purchased' | 'history'>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -59,39 +63,44 @@ export const LabMarketplace: React.FC = () => {
           if (purchasedRes.ok) {
             const purchasedData = await purchasedRes.json();
             if (Array.isArray(purchasedData)) {
-              setPurchasedLabIds(new Set(purchasedData.map((p: any) => p.lab_id)));
+              setPurchasedLabIds(new Set(purchasedData.map((item: any) => item.lab_id)));
             }
           }
         }
 
-        // Fetch labs catalog from PostgreSQL
+        // Fetch lab catalog
         const labsRes = await fetch('/api/v1/labs');
         if (labsRes.ok) {
           const labsData = await labsRes.json();
-          setLabs(Array.isArray(labsData) ? labsData : []);
+          setLabs(labsData || []);
         }
       } catch (err) {
-        console.error('Error fetching marketplace data:', err);
+        console.error('Error fetching cart/labs:', err);
       } finally {
         setLoadingLabs(false);
       }
     };
+
     fetchCartAndLabs();
   }, []);
 
   const syncLabRepository = async () => {
-    const token = localStorage.getItem('token');
     setSyncing(true);
+    const token = localStorage.getItem('token');
     try {
-      const response = await fetch('/api/v1/admin/labs/sync', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      if (!response.ok) throw new Error('sync failed');
-      const labsResponse = await fetch('/api/v1/labs');
-      if (labsResponse.ok) {
-        const labsData = await labsResponse.json();
-        setLabs(Array.isArray(labsData) ? labsData : []);
+      const res = await fetch('/api/v1/labs/scan', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const labsRes = await fetch('/api/v1/labs');
+        if (labsRes.ok) {
+          const labsData = await labsRes.json();
+          setLabs(labsData || []);
+        }
       }
-    } catch (error) {
-      console.error('Lab repository sync failed', error);
+    } catch (err) {
+      console.error('Error syncing lab repository:', err);
     } finally {
       setSyncing(false);
     }
@@ -103,11 +112,24 @@ export const LabMarketplace: React.FC = () => {
   const filteredLabs = (labs ?? []).filter((lab) => {
     const matchesSearch =
       (lab.title ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lab.category ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (lab.shortDescription ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (lab.skillsCovered ?? []).some((s) => (s ?? '').toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesDifficulty = selectedDifficulty === 'All' || lab.difficulty === selectedDifficulty;
-    const matchesCategory = selectedCategory === 'All' || lab.category === selectedCategory;
+    
+    let matchesCategory = selectedCategory === 'All';
+    if (!matchesCategory) {
+      const catLower = (selectedCategory ?? '').toLowerCase();
+      const labCatLower = (lab.category ?? '').toLowerCase();
+      const labIdLower = (lab.id ?? '').toLowerCase();
+
+      if (catLower === 'command line') {
+        matchesCategory = labIdLower.includes('command-line') || labIdLower.includes('cmd') || labCatLower.includes('command');
+      } else {
+        matchesCategory = labCatLower.includes(catLower) || labIdLower.includes(catLower);
+      }
+    }
 
     return matchesSearch && matchesDifficulty && matchesCategory;
   });
@@ -205,237 +227,248 @@ export const LabMarketplace: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <Store className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Enterprise Lab Marketplace</h1>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Browse, purchase, and deploy enterprise-grade hands-on cybersecurity training labs.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={syncLabRepository}
-            disabled={syncing}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 font-bold text-xs px-4 py-2.5 rounded-xl transition-all"
-          >
-            {syncing ? 'Syncing…' : 'Sync Lab Repository'}
-          </button>
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="relative bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-[#0052CC] dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Cart</span>
-            {cartItems.length > 0 && (
-              <span className="bg-[#0052CC] text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
-                {cartItems.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          <div className="md:col-span-5 relative">
+    <div className="space-y-5 animate-in fade-in duration-200">
+      {/* 1. TOP TOOLBAR: Search (~42%) | Category | Difficulty | Cart */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs">
+        <div className="flex flex-col md:flex-row items-center gap-3">
+          {/* Search bar (~42%) */}
+          <div className="relative w-full md:w-[42%]">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search labs by title, skill, or keyword..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 focus:border-[#0052CC]"
+              placeholder="Search Lab..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
             />
           </div>
 
-          <div className="md:col-span-7 flex flex-wrap items-center justify-end gap-2 text-xs font-semibold">
-            <span className="text-slate-500 dark:text-slate-400">Difficulty:</span>
-            {['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'].map((diff) => (
-              <button
-                key={diff}
-                onClick={() => setSelectedDifficulty(diff)}
-                className={`px-3 py-1.5 rounded-lg border transition-all ${
-                  selectedDifficulty === diff
-                    ? 'bg-[#0052CC] text-white border-[#0052CC]'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {diff}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Categories Bar */}
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-[10px] mr-1">Category:</span>
-            {['All', 'Web Security', 'Cloud Security', 'SOC & Forensics', 'Reverse Engineering'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-md transition-all font-medium ${
-                  selectedCategory === cat
-                    ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0052CC] dark:text-blue-400 font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Sort Catalog By:</span>
+          {/* Category Dropdown */}
+          <div className="w-full md:w-[22%]">
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="py-1 px-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
             >
-              <option value="popularity">Highest Rating & Popularity</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="difficulty">Difficulty Level</option>
+              <option value="All">All Categories</option>
+              <option value="Linux">Linux</option>
+              <option value="Recon">Recon</option>
+              <option value="Cloud">Cloud</option>
+              <option value="Puzzle">Puzzle</option>
+              <option value="OT">OT</option>
+              <option value="Command Line">Command Line</option>
             </select>
           </div>
+
+          {/* Difficulty Dropdown */}
+          <div className="w-full md:w-[22%]">
+            <select
+              value={selectedDifficulty}
+              onChange={(e) => setSelectedDifficulty(e.target.value)}
+              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+            >
+              <option value="All">All Difficulties</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+            </select>
+          </div>
+
+          {/* Cart Button */}
+          <div className="w-full md:w-[14%] flex justify-end">
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="w-full relative bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all inline-flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>Cart</span>
+              {cartItems.length > 0 && (
+                <span className="bg-white text-[#0052CC] text-[10px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center">
+                  {cartItems.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sortedLabs.length === 0 ? (
-          <div className="col-span-full py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
-            <Store className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No Security Labs Found</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">
-              Try adjusting your search criteria or clearing selected difficulty and category filters.
-            </p>
-          </div>
-        ) : (
-          sortedLabs.map((lab) => {
-            const isPurchased = lab.isPurchased || purchasedLabIds.has(lab.id);
-            const isInCart = cartItems.some((i) => i.lab_id === lab.id);
+      {/* 2. TABS NAVIGATION BELOW TOOLBAR */}
+      <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md">
+        <button
+          onClick={() => setActiveMarketTab('browse')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeMarketTab === 'browse'
+              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Browse Labs
+        </button>
+        <button
+          onClick={() => setActiveMarketTab('purchased')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeMarketTab === 'purchased'
+              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Purchased Labs ({purchasedLabIds.size})
+        </button>
+        <button
+          onClick={() => setActiveMarketTab('history')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeMarketTab === 'history'
+              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Purchase History
+        </button>
+      </div>
 
-            const difficultyBadgeColors: Record<string, string> = {
-              Beginner: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-              Intermediate: 'bg-blue-50 dark:bg-blue-950/40 text-[#0052CC] dark:text-blue-400 border-blue-200 dark:border-blue-800',
-              Advanced: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-              Expert: 'bg-purple-50 dark:bg-purple-950/40 text-[#6F42C1] dark:text-purple-400 border-purple-200 dark:border-purple-800',
-            };
+      {/* Tab 1: Browse Catalog */}
+      {activeMarketTab === 'browse' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sortedLabs.length === 0 ? (
+            <div className="col-span-full py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+              <Store className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No Security Labs Found</h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">
+                Try adjusting your search criteria or clearing selected difficulty and category filters.
+              </p>
+            </div>
+          ) : (
+            sortedLabs.map((lab) => {
+              const isPurchased = lab.isPurchased || purchasedLabIds.has(lab.id);
+              const isInCart = cartItems.some((i) => i.lab_id === lab.id);
 
-            return (
-              <div
-                key={lab.id}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
-              >
-                <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full truncate max-w-[180px]">
-                      {lab.category}
-                    </span>
-                    <span
-                      className={`text-[11px] font-bold border px-2.5 py-0.5 rounded-full ${
-                        difficultyBadgeColors[lab.difficulty ?? ''] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      {lab.difficulty}
-                    </span>
-                  </div>
+              const isPuzzle = lab.id.toLowerCase().includes('puzzle') || (lab.category ?? '').toLowerCase().includes('puzzle');
+              const isCommandLine = lab.id.toLowerCase().includes('command-line') || lab.id.toLowerCase().includes('cmd');
 
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0052CC] transition-colors line-clamp-1">
-                    {lab.title}
-                  </h3>
+              const durationText = isPuzzle ? 'Unlimited' : isCommandLine ? '6 Hours' : '1.5 Hours';
+              const isFree = isPuzzle;
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                    {lab.shortDescription}
-                  </p>
-                </div>
+              const difficultyBadgeColors: Record<string, string> = {
+                Beginner: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+                Intermediate: 'bg-blue-50 dark:bg-blue-950/40 text-[#0052CC] dark:text-blue-400 border-blue-200 dark:border-blue-800',
+                Advanced: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+              };
 
-                <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 flex-1 flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      {lab.durationHours} Hours
-                    </span>
-                    <span className="flex items-center gap-1 text-amber-500 font-bold">
-                      <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      {lab.rating} ({lab.reviewCount})
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5 text-slate-400" />
-                      {(lab.modules ?? []).length} Modules
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1">
-                    {(lab.skillsCovered ?? []).slice(0, 2).map((skill, idx) => (
+              return (
+                <div
+                  key={lab.id}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
+                >
+                  <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full truncate max-w-[180px]">
+                        {lab.category}
+                      </span>
                       <span
-                        key={idx}
-                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {(lab.skillsCovered ?? []).length > 2 && (
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold px-1">
-                        +{(lab.skillsCovered ?? []).length - 2} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
-                      Price / Seat
-                    </span>
-                    <span className="text-lg font-black text-slate-900 dark:text-white">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleOpenDetailModal(lab)}
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
-                    >
-                      View Details
-                    </button>
-
-                    {isPurchased ? (
-                      <button
-                        onClick={() => navigate(lab.id === 'lab1-recon' ? '/labs/lab1-recon/session' : `/labs/${lab.id}/session`)}
-                        className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-white" />
-                        Launch Lab
-                      </button>
-                    ) : (
-                      <button
-                        disabled={isInCart}
-                        onClick={() => handleAddToCart(lab)}
-                        className={`px-3 py-2 rounded-lg font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs ${
-                          isInCart
-                            ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                            : 'bg-[#0052CC] hover:bg-blue-700 text-white'
+                        className={`text-[11px] font-bold border px-2.5 py-0.5 rounded-full ${
+                          difficultyBadgeColors[lab.difficulty ?? ''] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                         }`}
                       >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>{isInCart ? 'In Cart' : 'Add to Cart'}</span>
+                        {lab.difficulty}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0052CC] transition-colors line-clamp-1">
+                      {lab.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      {lab.shortDescription}
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 flex-1 flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {durationText}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                        {(lab.modules ?? []).length || 5} Modules
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1">
+                      {(lab.skillsCovered ?? []).slice(0, 2).map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-medium"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
+                        Price / Seat
+                      </span>
+                      {isFree ? (
+                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">FREE</span>
+                      ) : (
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenDetailModal(lab)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
+                      >
+                        View Details
                       </button>
-                    )}
+
+                      {isPuzzle ? (
+                        <button
+                          onClick={() => {
+                            // Auto purchase puzzle lab if needed then navigate
+                            navigate('/labs/puzzle-lab');
+                          }}
+                          className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          Start Puzzle
+                        </button>
+                      ) : (
+                        <button
+                          disabled={isInCart}
+                          onClick={() => handleAddToCart(lab)}
+                          className={`px-3 py-2 rounded-lg font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs ${
+                            isInCart
+                              ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                              : 'bg-[#0052CC] hover:bg-blue-700 text-white cursor-pointer'
+                          }`}
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span>{isInCart ? 'In Cart' : 'Add to Cart'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Purchased Labs */}
+      {activeMarketTab === 'purchased' && (
+        <PurchasedLabsPage />
+      )}
+
+      {/* Tab 3: Purchase History */}
+      {activeMarketTab === 'history' && (
+        <PaymentHistoryPage />
+      )}
 
       <LabDetailModal
         lab={selectedModalLab}
@@ -448,9 +481,9 @@ export const LabMarketplace: React.FC = () => {
         onClose={() => setIsCartOpen(false)}
         cartItems={cartItems}
         onUpdateQuantity={handleUpdateQuantity}
-        onUpdateDuration={handleUpdateDuration}
+        onUpdateDuration={() => {}}
         onRemoveItem={handleRemoveCartItem}
-        onClearCart={handleClearCart}
+        onClearCart={() => setCartItems([])}
         onProceedToCheckout={handleProceedToCheckout}
       />
 

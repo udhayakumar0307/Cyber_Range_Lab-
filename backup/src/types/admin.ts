@@ -79,6 +79,7 @@ export interface LabPurchaseOrder {
 
 export interface UserGroup {
   id: string;
+  db_id?: number;
   name: string;
   description: string;
   memberCount: number;
@@ -98,6 +99,10 @@ export interface PlatformUser {
   score: number;
   completedLabsCount: number;
   avatarUrl?: string;
+  rollNumber?: string;
+  department?: string;
+  year?: string;
+  phone?: string;
 }
 
 export interface CsvImportUserRow {

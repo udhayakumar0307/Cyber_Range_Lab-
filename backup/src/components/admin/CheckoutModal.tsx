@@ -22,7 +22,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [institutionName, setInstitutionName] = useState('IIT Madras Cyber Center');
   const [gstNumber, setGstNumber] = useState('33AAATI1234F1Z9');
   const [address, setAddress] = useState('IIT Campus, Sardar Patel Road, Chennai');
-  const [gateway, setGateway] = useState<'razorpay' | 'mock'>('mock');
 
   const [orderResult, setOrderResult] = useState<any>(null);
 
@@ -35,7 +34,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/checkout/create-order', {
+      const res = await fetch('/api/v1/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,13 +47,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Failed to create order.');
+        throw new Error(data.detail || 'Failed to create Razorpay order.');
       }
 
       setOrderResult(data);
       setStep('payment');
     } catch (err: any) {
-      setError(err.message || 'Error processing order.');
+      setError(err.message || 'Error initializing checkout order.');
     } finally {
       setLoading(false);
     }
@@ -66,42 +65,83 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     const token = localStorage.getItem('token');
 
-    // Check if Razorpay SDK script is loaded in browser
-    if (gateway === 'razorpay' && (window as any).Razorpay) {
+    // Load Razorpay SDK dynamically if not yet available
+    if (!(window as any).Razorpay) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Failed to load Razorpay Checkout SDK script.'));
+        document.body.appendChild(script);
+      });
+    }
+
+    const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID || orderResult?.razorpay_key_id;
+    if (!razorpayKeyId || razorpayKeyId === 'rzp_live_key_id_placeholder') {
+      setError('Razorpay Key ID is not configured. Please set VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_ID in .env.');
+      setLoading(false);
+      return;
+    }
+
+    const rzpOrderId = orderResult?.razorpay_order_id;
+    console.log('[Razorpay Checkout Init]', {
+      db_order_id: orderResult?.order_id,
+      order_number: orderResult?.order_number,
+      razorpay_order_id: rzpOrderId,
+      amount_inr: cartSummary.grandTotal,
+      currency: 'INR'
+    });
+
+    if (!rzpOrderId || !rzpOrderId.startsWith('order_')) {
+      setError(`Invalid Razorpay Order ID '${rzpOrderId}'. Must be a valid server-created Razorpay order starting with 'order_'.`);
+      setLoading(false);
+      return;
+    }
+
+    // Launch Razorpay SDK Checkout Modal
+    if ((window as any).Razorpay) {
       try {
-        const options = {
-          key: 'rzp_test_mockkeyid', // Mock / test Razorpay key
-          amount: Math.round(cartSummary.grandTotal * 100),
+        const options: any = {
+          key: razorpayKeyId,
+          amount: orderResult.amount_paise || Math.round(cartSummary.grandTotal * 100),
           currency: 'INR',
           name: 'CyberRange Enterprise',
           description: `Lab License Purchase (${cartSummary.cartItems?.length || 1} labs)`,
-          order_id: orderResult.razorpay_order_id,
+          order_id: rzpOrderId,
           handler: async (response: any) => {
-            await finalizePaymentVerification(response.razorpay_payment_id, response.razorpay_signature, 'razorpay');
+            await finalizePaymentVerification(
+              response.razorpay_order_id || rzpOrderId,
+              response.razorpay_payment_id,
+              response.razorpay_signature
+            );
           },
           prefill: {
             name: institutionName,
             email: 'admin@cyberrange.in'
           },
-          theme: { color: '#2563EB' }
+          theme: { color: '#0052CC' }
         };
+
         const rzp = new (window as any).Razorpay(options);
         rzp.open();
         setLoading(false);
         return;
-      } catch (err) {
-        console.warn('Razorpay SDK fallback to mock mode:', err);
+      } catch (err: any) {
+        console.error('Razorpay SDK checkout error:', err);
+        setError(`Razorpay checkout initialization failed: ${err.message}`);
+        setLoading(false);
+        return;
       }
     }
 
-    // Fallback or explicit Mock Payment processing
-    await finalizePaymentVerification(`TXN-MOCK-${Date.now()}`, 'MOCK_SIG', 'mock');
+    setError('Razorpay SDK is not available. Please check internet connection.');
+    setLoading(false);
   };
 
-  const finalizePaymentVerification = async (txnId: string, sig: string, method: string) => {
+  const finalizePaymentVerification = async (rzpOrderId: string, txnId: string, sig: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/checkout/verify-payment', {
+      const res = await fetch('/api/v1/payments/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,22 +149,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         },
         body: JSON.stringify({
           order_id: orderResult.order_id,
+          razorpay_order_id: rzpOrderId,
           razorpay_payment_id: txnId,
-          razorpay_signature: sig,
-          gateway: method
+          razorpay_signature: sig
         })
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Payment verification failed.');
+        throw new Error(data.detail || 'Razorpay payment verification failed.');
       }
 
       setOrderResult({ ...orderResult, ...data });
       setStep('success');
       onPaymentSuccess(data);
+      try {
+        window.dispatchEvent(new CustomEvent('PURCHASED_LABS_UPDATED'));
+      } catch (e) {
+        console.error('Failed to dispatch PURCHASED_LABS_UPDATED event', e);
+      }
     } catch (err: any) {
-      setError(err.message || 'Payment verification failed.');
+      setError(err.message || 'Razorpay payment signature verification failed.');
     } finally {
       setLoading(false);
     }
@@ -232,41 +277,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             <div className="space-y-3">
-              <label
-                onClick={() => setGateway('razorpay')}
-                className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                  gateway === 'razorpay'
-                    ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/40 ring-2 ring-blue-500/20'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40'
-                }`}
-              >
+              <div className="p-4 rounded-xl border border-blue-600 bg-blue-50/50 dark:bg-blue-950/40 ring-2 ring-blue-500/20 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <CreditCard className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Razorpay Payment Gateway</p>
-                    <p className="text-[11px] text-slate-400">UPI, NetBanking, Corporate Cards, NEFT</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Razorpay Production Gateway</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">UPI, QR Code, NetBanking, Corporate Cards, Wallets, EMI</p>
                   </div>
                 </div>
-                <input type="radio" name="gateway" checked={gateway === 'razorpay'} readOnly />
-              </label>
-
-              <label
-                onClick={() => setGateway('mock')}
-                className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                  gateway === 'mock'
-                    ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/40 ring-2 ring-blue-500/20'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-emerald-600" />
-                  <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Mock Payment Sandbox (Local Development)</p>
-                    <p className="text-[11px] text-slate-400">Instant test fulfillment without real money charge</p>
-                  </div>
-                </div>
-                <input type="radio" name="gateway" checked={gateway === 'mock'} readOnly />
-              </label>
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+              </div>
             </div>
 
             <div className="pt-2 flex items-center justify-between">
@@ -321,13 +341,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             <div className="pt-2 flex justify-center gap-3">
               <button
-                onClick={() => {
-                  alert(`Downloading Invoice ${orderResult?.invoice_number}...`);
+                onClick={async () => {
+                  const token = localStorage.getItem('token');
+                  try {
+                    const invId = orderResult?.id || orderResult?.invoice_id || 1;
+                    const res = await fetch(`/api/v1/payments/invoice/${invId}/pdf`, {
+                      headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
+                    if (!res.ok) throw new Error('Download failed');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${orderResult?.invoice_number || 'Invoice'}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    console.error('Invoice download error:', err);
+                  }
                 }}
-                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl inline-flex items-center gap-2"
+                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl inline-flex items-center gap-2 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Invoice</span>
+                <span>Download PDF Invoice</span>
               </button>
 
               <button

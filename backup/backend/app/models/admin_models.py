@@ -62,6 +62,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String(100), unique=True, nullable=False, index=True)
+    razorpay_order_id = Column(String(150), unique=True, nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
     institution_name = Column(String(200), nullable=True)
@@ -70,6 +71,7 @@ class Order(Base):
     discount = Column(Float, nullable=False, default=0.0)
     grand_total = Column(Float, nullable=False, default=0.0)
     status = Column(String(50), default="PENDING")  # PENDING, COMPLETED, FAILED
+    payment_status = Column(String(50), default="PENDING")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
@@ -158,3 +160,14 @@ class Subscription(Base):
     status = Column(String(50), default="ACTIVE")
     start_date = Column(DateTime, default=datetime.utcnow)
     end_date = Column(DateTime, nullable=False)
+
+class OrganizationApiKey(Base):
+    __tablename__ = "organization_api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    api_key = Column(String(150), unique=True, nullable=False, index=True)
+    status = Column(String(50), default="ACTIVE")  # ACTIVE, DISABLED, REVOKED
+    created_at = Column(DateTime, default=datetime.utcnow)
+

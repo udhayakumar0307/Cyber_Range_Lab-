@@ -1,8 +1,15 @@
-import React, { useState, useCallback, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { useTheme } from '../../context/ThemeContext';
+import { 
+  fetchNotifications, 
+  markNotificationAsRead, 
+  clearAllNotifications, 
+  setupNotificationWebSocket, 
+  type NotificationItem 
+} from '../../services/notificationService';
 import { 
   Bell, 
   Search, 
@@ -47,8 +54,149 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
 
   // useCallback: stable handler passed to AdminSidebar — prevents sidebar re-render
   const handleSidebarClose = useCallback(() => setIsSidebarOpen(false), []);
-  const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchNotifications({ limit: 10 });
+      setNotifications(data.items || []);
+      setUnreadCount(data.unread_count || 0);
+    } catch (e) {
+      console.error('Failed to load notifications', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const cleanupWs = setupNotificationWebSocket((newNotif) => {
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+    return () => cleanupWs();
+  }, [loadNotifications]);
+
+  const handleNotificationClick = async (item: NotificationItem) => {
+    if (!item.read) {
+      await markNotificationAsRead(item.id);
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+    setIsNotificationMenuOpen(false);
+    if (item.action_url) {
+      navigate(item.action_url);
+    }
+  };
+
+  const handleClearAll = async () => {
+    await clearAllNotifications();
+    setNotifications([]);
+    setUnreadCount(0);
+    setIsNotificationMenuOpen(false);
+  };
+
+  const location = useLocation();
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Close popup on route location change
+  useEffect(() => {
+    setIsSearchOpen(false);
+    setSearchResults([]);
+  }, [location.pathname]);
+
+  // Outside click & Escape key listener
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+      } else if (e.key === 'ArrowDown' && isSearchOpen && searchResults.length > 0) {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % searchResults.length);
+      } else if (e.key === 'ArrowUp' && isSearchOpen && searchResults.length > 0) {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + searchResults.length) % searchResults.length);
+      } else if (e.key === 'Enter' && isSearchOpen && searchResults[selectedIndex]) {
+        e.preventDefault();
+        setIsSearchOpen(false);
+        navigate(searchResults[selectedIndex].link);
+      } else if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && document.activeElement?.tagName !== 'INPUT')) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Debounced API Search execution (350ms delay)
+  useEffect(() => {
+    const val = adminSearchQuery.trim();
+    if (val.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setIsSearchOpen(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/v1/admin/global-search?q=${encodeURIComponent(val)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setSearchResults(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error executing global search:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [adminSearchQuery]);
+
+  // Helper to highlight matching query text
+  const renderHighlightedText = (text: string, query: string) => {
+    if (!query.trim() || !text) return text;
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-amber-200 dark:bg-amber-900/60 text-slate-900 dark:text-amber-200 font-bold px-0.5 rounded">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-[#0F172A] dark:text-white flex transition-colors duration-200">
@@ -79,14 +227,71 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Quick Global Search Bar */}
-            <div className="relative hidden md:block w-72">
+            {/* Quick Global Search Bar with Debounced Popup */}
+            <div ref={searchRef} className="relative hidden md:block w-80">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input 
                 type="text" 
-                placeholder="Search labs, users, allocations..." 
-                className="w-full pl-9 pr-4 py-1.5 bg-slate-50 dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-lg text-sm text-[#0F172A] dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all"
+                placeholder="Global search (Ctrl + K)..." 
+                value={adminSearchQuery}
+                onFocus={() => {
+                  if (adminSearchQuery.trim().length >= 2) setIsSearchOpen(true);
+                }}
+                onChange={(e) => setAdminSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-12 py-1.5 bg-slate-50 dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-lg text-sm text-[#0F172A] dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all"
               />
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-bold text-slate-400 bg-slate-200 dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600">
+                ⌘K
+              </kbd>
+
+              {/* Categorized Dropdown Results & States */}
+              {isSearchOpen && adminSearchQuery.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-xl py-2 z-50 animate-in fade-in duration-150 max-h-96 overflow-y-auto">
+                  {isSearching ? (
+                    <div className="px-4 py-6 text-center text-xs text-slate-400 font-semibold flex items-center justify-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      Searching platform records...
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-slate-400 font-semibold">
+                      No platform results matching "{adminSearchQuery}"
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-3 py-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        Categorized Platform Matches
+                      </div>
+                      {searchResults.map((item, idx) => (
+                        <div
+                          key={`${item.category}-${item.id}-${idx}`}
+                          onClick={() => {
+                            setIsSearchOpen(false);
+                            navigate(item.link);
+                          }}
+                          onMouseEnter={() => setSelectedIndex(idx)}
+                          className={`px-3 py-2 cursor-pointer flex items-center justify-between transition-colors ${
+                            idx === selectedIndex
+                              ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                              {renderHighlightedText(item.title, adminSearchQuery)}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {renderHighlightedText(item.subtitle, adminSearchQuery)}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-[#0052CC] border border-blue-200 dark:border-blue-800 flex-shrink-0 ml-2">
+                            {item.category}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -109,36 +314,60 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
                 aria-label="View notifications"
               >
                 <Bell className="w-5 h-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-[#111827] rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-4 px-1 bg-rose-500 text-white text-[10px] font-extrabold border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
                 )}
               </button>
 
               {isNotificationMenuOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-lg py-2 z-50">
-                  <div className="px-4 py-2 border-b border-[#E2E8F0] dark:border-[#334155] flex items-center justify-between">
+                <div className="absolute right-0 mt-2 w-88 bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 py-2.5 border-b border-[#E2E8F0] dark:border-[#334155] flex items-center justify-between">
                     <span className="font-bold text-sm text-[#0F172A] dark:text-white">Admin Notifications</span>
-                    <button 
-                      onClick={() => setUnreadNotifications(0)}
-                      className="text-xs text-[#2563EB] hover:underline font-medium"
-                    >
-                      Clear all
-                    </button>
+                    {notifications.length > 0 && (
+                      <button 
+                        onClick={handleClearAll}
+                        className="text-xs text-[#2563EB] hover:underline font-bold cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <div className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer">
-                      <p className="text-xs font-semibold text-[#0F172A] dark:text-white">New User CSV Batch Imported</p>
-                      <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5">45 users successfully assigned to Group Cybersecurity Batch A.</p>
-                      <span className="text-[10px] text-slate-400 mt-1 inline-block">10 mins ago</span>
-                    </div>
-                    <div className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer">
-                      <p className="text-xs font-semibold text-[#0F172A] dark:text-white">Lab Purchase Completed</p>
-                      <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5">Purchased Enterprise 1-Year license for AWS Cloud Threat Analysis.</p>
-                      <span className="text-[10px] text-slate-400 mt-1 inline-block">1 hour ago</span>
-                    </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-xs text-slate-400 font-medium">
+                        No active notifications.
+                      </div>
+                    ) : (
+                      notifications.slice(0, 5).map((item) => (
+                        <div 
+                          key={item.id}
+                          onClick={() => handleNotificationClick(item)}
+                          className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors ${!item.read ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-bold text-[#0F172A] dark:text-white">{item.title}</p>
+                            {!item.read && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1"></span>}
+                          </div>
+                          <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5 line-clamp-2 leading-relaxed">{item.message}</p>
+                          <span className="text-[10px] text-slate-400 mt-1.5 inline-block font-medium">
+                            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                   <div className="px-4 py-2 text-center border-t border-[#E2E8F0] dark:border-[#334155]">
-                    <span className="text-xs font-semibold text-[#2563EB] cursor-pointer">View all alerts</span>
+                    <button 
+                      onClick={() => {
+                        setIsNotificationMenuOpen(false);
+                        navigate('/admin/notifications');
+                      }}
+                      className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer w-full text-center block"
+                    >
+                      View all alerts
+                    </button>
                   </div>
                 </div>
               )}

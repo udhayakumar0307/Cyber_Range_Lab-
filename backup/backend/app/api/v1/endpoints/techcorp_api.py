@@ -52,9 +52,9 @@ def find_free_port(db: Session) -> int:
 
 @router.post("/provision")
 def provision_container(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    lab = db.query(Lab).filter(Lab.id == "techcorp-sysadmin-labs", Lab.status == "ACTIVE").first()
+    lab = db.query(Lab).filter(Lab.id.in_(["puzzle-lab", "techcorp-sysadmin-labs"]), Lab.status == "ACTIVE").first()
     if not lab:
-        raise HTTPException(status_code=404, detail="TechCorp Sysadmin Labs is not enabled on this platform")
+        raise HTTPException(status_code=404, detail="Puzzle Lab is not enabled on this platform")
 
     client = docker.from_env()
     container_name = f"student-{current_user.id}-techcorp"
@@ -530,7 +530,10 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
                     except Exception:
                         pass
                         
+                last_active_update_ts = 0.0
+
                 async def read_from_websocket(proc, ws, db_sess, user_id):
+                    nonlocal last_active_update_ts
                     try:
                         async for message in ws.iter_text():
                             if message.startswith('{'):
@@ -546,16 +549,18 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
                             
                             proc.stdin.write(message.encode('utf-8'))
                             
-                            # Periodically update last_active_at (non-blocking)
-                            try:
-                                # Quick update logic
-                                db_sess.query(TechCorpSession).filter(
-                                    TechCorpSession.user_id == user_id,
-                                    TechCorpSession.is_active == True
-                                ).update({TechCorpSession.last_active_at: datetime.utcnow()})
-                                db_sess.commit()
-                            except Exception:
-                                pass
+                            # Throttle DB activity update to once per 30 seconds to prevent keystroke latency
+                            now_ts = datetime.utcnow().timestamp()
+                            if now_ts - last_active_update_ts > 30.0:
+                                last_active_update_ts = now_ts
+                                try:
+                                    db_sess.query(TechCorpSession).filter(
+                                        TechCorpSession.user_id == user_id,
+                                        TechCorpSession.is_active == True
+                                    ).update({TechCorpSession.last_active_at: datetime.utcnow()})
+                                    db_sess.commit()
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
                         

@@ -1,251 +1,837 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Layers, 
-  Eye, 
-  EyeOff, 
-  Calendar, 
-  CheckCircle2, 
-  Search, 
-  Save, 
-  RotateCcw
+  Folder,
+  User as UserIcon,
+  Calendar,
+  Clock,
+  Eye,
+  X,
+  BarChart2,
+  Plus
 } from 'lucide-react';
+import { usePurchasedLabs } from '../../services/purchasedLabsService';
 
 export const LabAllocation: React.FC = () => {
-  const [purchasedLabs, setPurchasedLabs] = useState<any[]>([]);
+  const { labs: purchasedLabs } = usePurchasedLabs();
+  const [assignmentTab, setAssignmentTab] = useState<'group' | 'individual'>('group');
+  
   const [groups, setGroups] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Search and Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDept, setSelectedDept] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
 
-  // Initial Allocations Grid state
-  const [allocations, setAllocations] = useState<Record<string, Record<string, { isVisible: boolean; startDate: string; endDate: string }>>>({});
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
-  const [searchGroupQuery, setSearchGroupQuery] = useState('');
-  const [isSavedToastVisible, setIsSavedToastVisible] = useState(false);
+  // Target item being acted upon
+  const [activeTargetGroup, setActiveTargetGroup] = useState<any>(null);
+  const [activeTargetStudent, setActiveTargetStudent] = useState<any>(null);
+  const [activeAssignment, setActiveAssignment] = useState<any>(null);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsError, setAnalyticsError] = useState<string>('');
+
+  // Form states
+  const [formLabId, setFormLabId] = useState('');
+  const [formStartDate, setFormStartDate] = useState('');
+  const [formStartTime, setFormStartTime] = useState('');
+  const [formEndDate, setFormEndDate] = useState('');
+  const [formEndTime, setFormEndTime] = useState('');
+  
+  const [extendEndDate, setExtendEndDate] = useState('');
+  const [extendEndTime, setExtendEndTime] = useState('');
+
+  const fetchRostersAndAssignments = async () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`
+    };
+    try {
+      const gRes = await fetch('/api/v1/admin/groups', { headers });
+      if (gRes.status === 401 || gRes.status === 403) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+      if (gRes.ok) setGroups(await gRes.json());
+
+      const sRes = await fetch('/api/v1/admin/users', { headers });
+      if (sRes.status === 401 || sRes.status === 403) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setStudents(Array.isArray(sData) ? sData : (sData.users || []));
+      }
+
+      const aRes = await fetch('/api/v1/admin/assignments', { headers });
+      if (aRes.status === 401 || aRes.status === 403) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+      if (aRes.ok) {
+        const aData = await aRes.json();
+        // FILTER OUT Completed or Expired assignments. Active Assignments list contains ONLY Scheduled/Running states
+        const activeOnly = (aData || []).filter((a: any) => {
+          const end = new Date(a.end_datetime);
+          const now = new Date();
+          return a.status !== 'Completed' && end >= now;
+        });
+        setAssignments(activeOnly);
+      }
+    } catch (err) {
+      console.error('Error fetching rosters:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      const token = localStorage.getItem('token');
-      try {
-        const labsRes = await fetch('/api/v1/labs');
-        if (labsRes.ok) {
-          const lData = await labsRes.json();
-          setPurchasedLabs(lData || []);
-        }
-
-        const groupsRes = await fetch('/api/v1/admin/groups', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (groupsRes.ok) {
-          const gData = await groupsRes.json();
-          setGroups(gData || []);
-        }
-      } catch (err) {
-        console.error('Error fetching allocations data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    fetchRostersAndAssignments();
   }, []);
 
-  const toggleVisibility = (groupId: string, labId: string) => {
-    setAllocations((prev) => {
-      const groupAlloc = prev[groupId] || {};
-      const currentLabAlloc = groupAlloc[labId] || { isVisible: false, startDate: '2026-07-15', endDate: '2026-08-31' };
-      return {
-        ...prev,
-        [groupId]: {
-          ...groupAlloc,
-          [labId]: {
-            ...currentLabAlloc,
-            isVisible: !currentLabAlloc.isVisible,
-          },
-        },
-      };
-    });
+  const openAssignModal = (g: any, s: any) => {
+    setActiveTargetGroup(g);
+    setActiveTargetStudent(s);
+    setFormLabId(purchasedLabs[0]?.lab_id || '');
+    setFormStartDate('');
+    setFormStartTime('');
+    setFormEndDate('');
+    setFormEndTime('');
+    setIsModalOpen(true);
   };
 
-  const handleBatchToggleGroup = (groupId: string, makeVisible: boolean) => {
-    setAllocations((prev) => {
-      const updatedGroup = { ...prev[groupId] };
-      purchasedLabs.forEach((lab) => {
-        updatedGroup[lab.id] = {
-          ...(updatedGroup[lab.id] || { startDate: '2026-07-15', endDate: '2026-08-31' }),
-          isVisible: makeVisible,
-        };
+  const handleModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formLabId || !formStartDate || !formStartTime || !formEndDate || !formEndTime) {
+      alert('All fields are required.');
+      return;
+    }
+
+    const startISO = `${formStartDate}T${formStartTime}:00`;
+    const endISO = `${formEndDate}T${formEndTime}:00`;
+
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const res = await fetch('/api/v1/admin/assignments', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          lab_id: formLabId,
+          group_id: activeTargetGroup ? (activeTargetGroup.db_id || Number(activeTargetGroup.id.replace('grp-', ''))) : null,
+          student_id: activeTargetStudent ? Number(activeTargetStudent.id) : null,
+          start_datetime: startISO,
+          end_datetime: endISO
+        })
       });
-      return { ...prev, [groupId]: updatedGroup };
-    });
+      if (res.ok) fetchRostersAndAssignments();
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Failed to submit assignment:', err);
+    }
   };
 
-  const handleSaveAllocations = () => {
-    setIsSavedToastVisible(true);
-    setTimeout(() => setIsSavedToastVisible(false), 2000);
+  const openExtendModal = (assign: any) => {
+    setActiveAssignment(assign);
+    setExtendEndDate(assign.end_datetime.split('T')[0]);
+    setExtendEndTime(new Date(assign.end_datetime).toTimeString().slice(0, 5));
+    setIsExtendModalOpen(true);
   };
 
-  const filteredGroups = groups.filter((g) =>
-    g.name.toLowerCase().includes(searchGroupQuery.toLowerCase())
+  const handleExtendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extendEndDate || !extendEndTime || !activeAssignment) return;
+
+    const newEndISO = `${extendEndDate}T${extendEndTime}:00`;
+    const currentEnd = new Date(activeAssignment.end_datetime);
+    const proposedEnd = new Date(newEndISO);
+    if (proposedEnd <= currentEnd) {
+      alert('New end date and time must be after the current end date and time.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/admin/assignments/${activeAssignment.id}/extend`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ end_datetime: newEndISO })
+      });
+      if (res.ok) {
+        fetchRostersAndAssignments();
+      }
+      setIsExtendModalOpen(false);
+    } catch (err) {
+      console.error('Failed to extend assignment:', err);
+    }
+  };
+
+  const handleEndAssignment = async (assign: any) => {
+    if (!window.confirm('Are you sure you want to end this assignment?')) return;
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    try {
+      const res = await fetch(`/api/v1/admin/assignments/${assign.id}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (res.ok) {
+        fetchRostersAndAssignments();
+      }
+    } catch (err) {
+      console.error('Failed to end assignment:', err);
+    }
+  };
+
+  const openAnalytics = async (assign: any) => {
+    setActiveAssignment(assign);
+    setAnalyticsData(null);
+    setAnalyticsError('');
+    setIsAnalyticsOpen(true);
+
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/admin/assignments/${assign.id}/analytics`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setAnalyticsData(data);
+      } else {
+        setAnalyticsError('No analytics available');
+      }
+    } catch (err) {
+      setAnalyticsError('No analytics available');
+    }
+  };
+
+  const getDerivedStatus = (assign: any) => {
+    const now = new Date();
+    const start = new Date(assign.start_datetime);
+    const end = new Date(assign.end_datetime);
+
+    if (assign.status === 'Completed') {
+      return { label: 'Completed', color: 'bg-slate-100 text-slate-700 border-slate-350 dark:bg-slate-800 dark:text-slate-300' };
+    }
+    if (now > end) {
+      return { label: 'Expired', color: 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-450' };
+    }
+    if (now < start) {
+      return { label: 'Scheduled', color: 'bg-blue-50 text-[#0052CC] border-blue-200 dark:bg-blue-950/40 dark:text-blue-400' };
+    }
+    if (now >= start && now <= end) {
+      return { label: 'Running', color: 'bg-emerald-50 text-emerald-600 border-emerald-250 dark:bg-emerald-950/40 dark:text-emerald-450' };
+    }
+    return { label: 'Completed', color: 'bg-slate-100 text-slate-700 border-slate-350 dark:bg-slate-800 dark:text-slate-300' };
+  };
+
+  const formatDate = (isoString: string) => {
+    const d = new Date(isoString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dateStr = `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    const hours = d.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    const timeStr = `${hour12.toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')} ${ampm}`;
+    return { dateStr, timeStr };
+  };
+
+  // Get dynamic unique departments from the student database records
+  const uniqueDepartments = Array.from(
+    new Set(students.map((s) => s.department).filter(Boolean))
   );
 
+  // Get dynamic unique years from the student database records
+  const uniqueYears = Array.from(
+    new Set(students.map((s) => s.year).filter(Boolean))
+  );
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedDept('');
+    setSelectedYear('');
+  };
+
+  // Client-side filtering logic for performance optimizations
+  const filteredStudents = students.filter((s) => {
+    const matchesSearch = 
+      !searchQuery || 
+      (s.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.rollNumber || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesDept = !selectedDept || s.department === selectedDept;
+    const matchesYear = !selectedYear || s.year === selectedYear;
+
+    return matchesSearch && matchesDept && matchesYear;
+  });
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Lab Access Allocation Matrix</h1>
+    <div className="space-y-6 animate-in fade-in duration-200 text-xs">
+      {/* Tabs Navigation & Search Bar combined in a neat visual style */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 w-full md:max-w-xs">
+          <button
+            onClick={() => setAssignmentTab('group')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              assignmentTab === 'group'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Group Assignments
+          </button>
+          <button
+            onClick={() => setAssignmentTab('individual')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              assignmentTab === 'individual'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Individual Assignments
+          </button>
+        </div>
+
+        {assignmentTab === 'individual' && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search students by name, email or roll number..."
+              className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none w-full sm:max-w-xs text-xs"
+            />
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-xs cursor-pointer"
+            >
+              <option value="">All Departments</option>
+              {uniqueDepartments.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none text-xs cursor-pointer"
+            >
+              <option value="">All Years</option>
+              {uniqueYears.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            {(searchQuery || selectedDept || selectedYear) && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 cursor-pointer text-xs"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Grant or revoke lab access permissions for user cohorts and student groups.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAllocations({})}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset Matrix
-          </button>
-          <button
-            onClick={handleSaveAllocations}
-            className="px-5 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-2 cursor-pointer"
-          >
-            <Save className="w-4 h-4" /> Save Allocations
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          <input
-            type="text"
-            value={searchGroupQuery}
-            onChange={(e) => setSearchGroupQuery(e.target.value)}
-            placeholder="Search group rows..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
-          />
+      {assignmentTab === 'individual' && (
+        <div className="text-slate-500 font-semibold px-1">
+          Students Found: {filteredStudents.length}
         </div>
+      )}
 
-        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          <span className="flex items-center gap-1 text-[#28A745] dark:text-emerald-400 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#28A745]"></span> Active & Visible
-          </span>
-          <span className="flex items-center gap-1 text-slate-400 dark:text-slate-500 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700"></span> Hidden to Group
-          </span>
-        </div>
-      </div>
+      {loading ? (
+        <div className="py-12 text-center text-slate-400 font-medium">Loading scheduled assignments...</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {assignmentTab === 'group' ? (
+            groups.length > 0 ? (
+              groups.map((g) => {
+                const currentId = String(g.db_id || g.id.replace('grp-', ''));
+                const groupAssigns = assignments.filter(a => String(a.group_id) === currentId);
 
-      {/* 2.6 Grid Matrix Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
-              <tr>
-                <th className="p-4 w-72">Training Cohort Group</th>
-                {purchasedLabs.map((lab) => (
-                  <th key={lab.id} className="p-4 text-center border-l border-slate-200 dark:border-slate-700 min-w-[240px]">
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] text-[#0052CC] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full mb-1">
-                        {lab.category} Lab
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100 text-center max-w-[200px] line-clamp-1">
-                        {lab.title}
-                      </span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-              {filteredGroups.length === 0 || purchasedLabs.length === 0 ? (
-                <tr>
-                  <td colSpan={Math.max(2, purchasedLabs.length + 1)} className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                    No purchased labs allocated to user cohorts. Purchase labs in the Marketplace to configure allocations.
-                  </td>
-                </tr>
-              ) : (
-                filteredGroups.map((g) => (
-                  <tr key={g.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
-                    {/* Row Label (Group) */}
-                    <td className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-extrabold text-slate-900 dark:text-slate-100">{g.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{g.memberCount || g.members || 0} Enrolled Users</p>
+                return (
+                  <div key={g.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-start justify-between gap-6 hover:shadow-sm transition-all">
+                    
+                    {/* LEFT COLUMN: Entity Details */}
+                    <div className="flex flex-col justify-between min-w-[240px] md:border-r border-slate-100 dark:border-slate-800 pr-6">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#0052CC] flex items-center justify-center font-bold">
+                          <Folder className="w-5 h-5" />
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleBatchToggleGroup(g.id, true)}
-                            className="text-[10px] font-bold text-[#0052CC] hover:underline px-1.5"
-                            title="Make all labs visible"
-                          >
-                            All On
-                          </button>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            onClick={() => handleBatchToggleGroup(g.id, false)}
-                            className="text-[10px] font-bold text-slate-400 hover:underline px-1.5"
-                            title="Hide all labs"
-                          >
-                            All Off
-                          </button>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">{g.name}</h4>
+                          <p className="text-slate-500 font-semibold mt-0.5">{g.memberCount} Students</p>
                         </div>
                       </div>
-                    </td>
+                      
+                      <button
+                        onClick={() => openAssignModal(g, null)}
+                        className="mt-6 px-3.5 py-1.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 text-[10px] w-full"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Assign Lab
+                      </button>
+                    </div>
 
-                    {/* Matrix Cells */}
-                    {purchasedLabs.map((lab) => {
-                      const alloc = allocations[g.id]?.[lab.id] || { isVisible: false, startDate: '2026-07-15', endDate: '2026-08-31' };
+                    {/* RIGHT COLUMN: Scrollable Assigned Labs list */}
+                    <div className="flex-1 max-h-[260px] overflow-y-auto pr-2 space-y-2">
+                      {groupAssigns.length > 0 ? (
+                        groupAssigns.map((assign) => {
+                          const status = getDerivedStatus(assign);
+                          return (
+                            <div key={assign.id} className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
+                              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div className="font-extrabold text-slate-800 dark:text-slate-200 truncate pr-2" title={assign.lab_title}>
+                                  {assign.lab_title}
+                                </div>
+                                <div className="font-semibold text-slate-500">
+                                  {formatDate(assign.start_datetime).dateStr} ➔ {formatDate(assign.end_datetime).dateStr}
+                                </div>
+                                <div>
+                                  <span className={`inline-block px-2 py-0.2 rounded-full text-[9px] font-bold border ${status.color}`}>
+                                    {status.label}
+                                  </span>
+                                </div>
+                              </div>
 
-                      return (
-                        <td key={lab.id} className="p-4 border-l border-slate-200 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <button
-                              onClick={() => toggleVisibility(g.id, lab.id)}
-                              className={`w-full py-2 px-3 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-2 ${
-                                alloc.isVisible
-                                  ? 'bg-emerald-50 text-[#28A745] border-emerald-300 shadow-xs'
-                                  : 'bg-slate-100/70 text-slate-400 border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              {alloc.isVisible ? (
-                                <>
-                                  <Eye className="w-4 h-4 text-[#28A745]" /> Visible to Group
-                                </>
-                              ) : (
-                                <>
-                                  <EyeOff className="w-4 h-4 text-slate-400" /> Hidden
-                                </>
-                              )}
-                            </button>
+                              <div className="flex items-center gap-1.5 min-w-[200px] justify-end">
+                                <button
+                                  onClick={() => {
+                                    setActiveAssignment(assign);
+                                    setIsDrawerOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 border rounded-lg hover:bg-slate-100 font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
+                                >
+                                  View Details
+                                </button>
+                                <button
+                                  onClick={() => openExtendModal(assign)}
+                                  className="px-2.5 py-1 border border-blue-200 bg-blue-50/20 text-[#0052CC] hover:bg-blue-50 font-bold rounded-lg"
+                                >
+                                  Extend
+                                </button>
+                                <button
+                                  onClick={() => handleEndAssignment(assign)}
+                                  className="px-2.5 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded-lg"
+                                >
+                                  End
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                          <p className="font-bold">No active assignments</p>
+                        </div>
+                      )}
+                    </div>
 
-                            {/* Access Window Preview */}
-                            {alloc.isVisible && (
-                              <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
-                                <Calendar className="w-3 h-3 text-[#0052CC]" /> {alloc.startDate} → {alloc.endDate}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-12 text-center text-slate-500 font-medium">No groups found</div>
+            )
+          ) : (
+            filteredStudents.length > 0 ? (
+              filteredStudents.map((s) => {
+                const currentId = String(s.id);
+                const studentAssigns = assignments.filter(a => String(a.student_id) === currentId);
+
+                return (
+                  <div key={s.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-start justify-between gap-6 hover:shadow-sm transition-all">
+                    
+                    {/* LEFT COLUMN: Student details */}
+                    <div className="flex flex-col justify-between min-w-[240px] md:w-1/4 md:border-r border-slate-100 dark:border-slate-800 pr-6">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#0052CC] flex items-center justify-center font-bold">
+                          <UserIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">{s.fullName || 'Student'}</h4>
+                          <p className="text-slate-500 font-semibold mt-0.5">{s.department || 'Cyber Security'} • {s.year || 'III Year'}</p>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => openAssignModal(null, s)}
+                        className="mt-6 px-3.5 py-1.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 text-[10px] w-full"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Assign Lab
+                      </button>
+                    </div>
+
+                    {/* RIGHT COLUMN: Scrollable Assigned Labs list */}
+                    <div className="flex-1 md:w-3/4 max-h-[260px] overflow-y-auto pr-2 space-y-2">
+                      {studentAssigns.length > 0 ? (
+                        studentAssigns.map((assign) => {
+                          const status = getDerivedStatus(assign);
+                          return (
+                            <div key={assign.id} className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px]">
+                              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <div className="font-extrabold text-slate-800 dark:text-slate-200 truncate pr-2" title={assign.lab_title}>
+                                  {assign.lab_title}
+                                </div>
+                                <div className="font-semibold text-slate-500">
+                                  {formatDate(assign.start_datetime).dateStr} ➔ {formatDate(assign.end_datetime).dateStr}
+                                </div>
+                                <div>
+                                  <span className={`inline-block px-2 py-0.2 rounded-full text-[9px] font-bold border ${status.color}`}>
+                                    {status.label}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 min-w-[200px] justify-end">
+                                <button
+                                  onClick={() => {
+                                    setActiveAssignment(assign);
+                                    setIsDrawerOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 border rounded-lg hover:bg-slate-100 font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
+                                >
+                                  View Details
+                                </button>
+                                <button
+                                  onClick={() => openExtendModal(assign)}
+                                  className="px-2.5 py-1 border border-blue-200 bg-blue-50/20 text-[#0052CC] hover:bg-blue-50 font-bold rounded-lg"
+                                >
+                                  Extend
+                                </button>
+                                <button
+                                  onClick={() => handleEndAssignment(assign)}
+                                  className="px-2.5 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded-lg"
+                                >
+                                  End
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                          <p className="font-bold">No active assignments</p>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-12 text-center text-slate-500 font-bold text-sm">
+                No students match the selected filters.
+              </div>
+            )
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Success Notification Toast */}
-      {isSavedToastVisible && (
-        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-bottom-5">
-          <CheckCircle2 className="w-5 h-5 text-[#28A745]" />
-          Allocations saved & visibility state synced with live environment!
+      {/* Side Drawer Details */}
+      {isDrawerOpen && activeAssignment && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs text-xs">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300 border-l border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b pb-4 border-slate-100 dark:border-slate-800">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Assignment Information</h3>
+                <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Lab Name</span>
+                  <span className="font-extrabold text-sm text-slate-800 dark:text-slate-200">{activeAssignment.lab_title}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Assigned Date</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {activeAssignment.created_at ? formatDate(activeAssignment.created_at).dateStr : '01 Aug 2026'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Start Date</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {formatDate(activeAssignment.start_datetime).dateStr} {formatDate(activeAssignment.start_datetime).timeStr}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">End Date</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {formatDate(activeAssignment.end_datetime).dateStr} {formatDate(activeAssignment.end_datetime).timeStr}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Current Status</span>
+                  <span className="font-bold text-slate-850 dark:text-slate-200">{activeAssignment.status}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Assigned By</span>
+                  <span className="font-bold text-slate-850 dark:text-slate-200">{activeAssignment.assigned_by || 'Admin'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setIsDrawerOpen(false)}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Extend End Date Modal */}
+      {isExtendModalOpen && activeAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs text-xs">
+          <form onSubmit={handleExtendSubmit} className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Extend Lab End Time</h2>
+              <button type="button" onClick={() => setIsExtendModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1">Current End Time</span>
+                <span className="font-bold text-slate-855 dark:text-slate-200">
+                  {formatDate(activeAssignment.end_datetime).dateStr} {formatDate(activeAssignment.end_datetime).timeStr}
+                </span>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">New End Date</label>
+                <input
+                  type="date"
+                  value={extendEndDate}
+                  onChange={(e) => setExtendEndDate(e.target.value)}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">New End Time</label>
+                <input
+                  type="time"
+                  value={extendEndTime}
+                  onChange={(e) => setExtendEndTime(e.target.value)}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 text-right flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExtendModalOpen(false)}
+                className="px-4 py-2 border rounded-xl font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Save Extension
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Analytics Summary Modal */}
+      {isAnalyticsOpen && activeAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs text-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Assignment Summary & Analytics</h2>
+              <button onClick={() => setIsAnalyticsOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">X</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {analyticsError ? (
+                <div className="py-6 text-center text-slate-400 font-bold text-sm">
+                  {analyticsError}
+                </div>
+              ) : analyticsData ? (
+                <>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Completion %</span>
+                      <span className="text-base font-black text-slate-850 dark:text-white">
+                        {analyticsData.completion_percentage}%
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Score</span>
+                      <span className="text-base font-black text-slate-850 dark:text-white">
+                        {analyticsData.average_score} / 100
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Time</span>
+                      <span className="text-base font-black text-slate-850 dark:text-white">
+                        {analyticsData.average_time}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Performance Metrics</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-semibold block">Completed Students</span>
+                        <strong className="text-emerald-600 text-sm">{analyticsData.completed_count} Students</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-semibold block">Failed / Incomplete</span>
+                        <strong className="text-rose-500 text-sm">{analyticsData.failed_count} Student</strong>
+                      </div>
+                    </div>
+                    <div className="pt-2">
+                      <span className="text-[10px] text-slate-555 font-semibold block">Top Performer</span>
+                      <strong className="text-slate-800 dark:text-slate-200">{analyticsData.top_performer}</strong>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="py-6 text-center text-slate-400 font-medium">Loading analytics...</div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 text-right">
+              <button
+                onClick={() => setIsAnalyticsOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl"
+              >
+                Close Analytics
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assignment Scheduling Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <form onSubmit={handleModalSubmit} className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                Schedule Lab Assignment
+              </h2>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">Select Lab</label>
+                <select
+                  value={formLabId}
+                  onChange={(e) => setFormLabId(e.target.value)}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-805 border rounded-lg font-semibold text-slate-800 dark:text-slate-105 focus:outline-none"
+                >
+                  <option value="">-- Select Purchased Lab --</option>
+                  {purchasedLabs.map(l => (
+                    <option key={l.lab_id} value={l.lab_id}>{l.lab_title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={formStartDate}
+                    onChange={(e) => setFormStartDate(e.target.value)}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-805 border rounded-lg text-slate-850 dark:text-slate-100 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={formStartTime}
+                    onChange={(e) => setFormStartTime(e.target.value)}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-805 border rounded-lg text-slate-850 dark:text-slate-100 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={formEndDate}
+                    onChange={(e) => setFormEndDate(e.target.value)}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={formEndTime}
+                    onChange={(e) => setFormEndTime(e.target.value)}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 border rounded-xl font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-xl cursor-pointer"
+              >
+                Assign Lab
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

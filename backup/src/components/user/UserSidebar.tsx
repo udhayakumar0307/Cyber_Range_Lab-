@@ -1,12 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { 
-  LayoutDashboard, 
-  FlaskConical, 
-  Activity, 
-  Trophy, 
-  Settings, 
+import { useAuth } from '../../context';
+import {
+  LayoutDashboard,
+  FlaskConical,
+  Activity,
+  Trophy,
+  Settings,
   Shield,
   ChevronRight,
   LogOut,
@@ -32,10 +32,11 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
       .slice(0, 2);
   };
 
+  const isSso = user?.auth_type === 'SSO';
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Available Labs', path: '/labs', icon: FlaskConical },
-    { name: 'Puzzle', path: '/labs/puzzle-lab', icon: Puzzle },
+    { name: isSso ? 'Assigned Labs' : 'Available Labs', path: '/labs', icon: FlaskConical },
+    { name: 'Puzzle', path: '/puzzle', icon: Puzzle },
     { name: 'CTF Competitions', path: '/ctf', icon: Flag },
     { name: 'Progress Tracking', path: '/progress', icon: Activity },
     { name: 'Leaderboards', path: '/leaderboards', icon: Trophy },
@@ -64,7 +65,7 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
           </div>
 
           {onClose && (
-            <button 
+            <button
               onClick={onClose}
               className="lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
             >
@@ -87,10 +88,9 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
                 to={item.path}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-blue-50 dark:bg-[#2563EB] text-[#2563EB] dark:text-white font-bold shadow-xs'
-                      : 'text-[#64748B] dark:text-[#CBD5E1] hover:bg-[#EFF6FF] dark:hover:bg-[#1E293B] hover:text-[#0F172A] dark:hover:text-white'
+                  `flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
+                    ? 'bg-blue-50 dark:bg-[#2563EB] text-[#2563EB] dark:text-white font-bold shadow-xs'
+                    : 'text-[#64748B] dark:text-[#CBD5E1] hover:bg-[#EFF6FF] dark:hover:bg-[#1E293B] hover:text-[#0F172A] dark:hover:text-white'
                   }`
                 }
               >
@@ -120,9 +120,9 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
               <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] truncate">{user?.email ?? ''}</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={logout}
-            title="Log out" 
+            title="Log out"
             className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
           >
             <LogOut className="w-4 h-4" />

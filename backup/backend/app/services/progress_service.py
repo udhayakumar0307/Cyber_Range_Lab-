@@ -65,10 +65,31 @@ def get_user_lab_statistics(db: Session, user_id: str, use_cache: bool = True) -
 
 def _compute(db: Session, user_id: str) -> dict:
     # ── Query 1: Active labs (excluding puzzle-lab from dashboard lab count) ──
+    # Restrict based on student auth_type: SSO counts only assigned, INDIVIDUAL counts all catalog marketplace labs
+    from app.models.assignment import Assignment
+    from app.models.user import User
+    
+    student = db.query(User).filter(User.id == int(user_id)).first()
+    student_group_id = getattr(student, "group_id", None) if student else None
+    student_auth_type = getattr(student, "auth_type", "INDIVIDUAL") if student else "INDIVIDUAL"
+    
     raw_active_labs = db.query(Lab).filter(Lab.status == "ACTIVE").all()
-    active_labs = [lab for lab in raw_active_labs if lab.id not in ("puzzle-lab", "puzzle")]
+    
+    if student_auth_type == "SSO":
+        assigned_query = db.query(Assignment).filter(
+            (Assignment.student_id == int(user_id)) |
+            (Assignment.group_id == student_group_id)
+        )
+        assigned_lab_ids = {a.lab_id for a in assigned_query.all() if a.lab_id}
+        active_labs = [lab for lab in raw_active_labs if lab.id in assigned_lab_ids and lab.id not in ("puzzle-lab", "puzzle")]
+    else:
+        # Personal users show ALL active non-puzzle marketplace labs as available count
+        active_labs = [lab for lab in raw_active_labs if lab.id not in ("puzzle-lab", "puzzle")]
+
     active_lab_ids = [lab.id for lab in active_labs]
-    total_labs = len(active_labs)
+    # For Individual personal user, denominator (total_labs) is always all 7 marketplace labs
+    # For SSO user, denominator (total_labs) is only assigned labs
+    total_labs = len(active_labs) if student_auth_type == "SSO" else len([lab for lab in raw_active_labs if lab.id not in ("puzzle-lab", "puzzle")])
 
     # ── Query 2: Module counts per lab (single GROUP BY) ──────────────────────
     lab_total_modules_rows = (
@@ -116,7 +137,8 @@ def _compute(db: Session, user_id: str) -> dict:
         lab_completed_modules[lid] += 1
     for row in lab_progress_distinct:
         if row.lab_id:
-            lab_completed_modules[row.lab_id] = max(lab_completed_modules[row.lab_id], row.cnt)
+            lid = track_to_lab.get(row.lab_id, row.lab_id)
+            lab_completed_modules[lid] = max(lab_completed_modules[lid], row.cnt)
 
     completed_modules_count = sum(lab_completed_modules.values())
 
@@ -126,9 +148,8 @@ def _compute(db: Session, user_id: str) -> dict:
         if lab_total_modules.get(lab_id, 0) > 0
         and lab_completed_modules.get(lab_id, 0) >= lab_total_modules.get(lab_id, 0)
     )
-    completion_percent = (
-        round((completed_modules_count / total_modules) * 100) if total_modules > 0 else 0
-    )
+    raw_pct = round((completed_labs_count / total_labs) * 100) if total_labs > 0 else 0
+    completion_percent = min(100, max(0, raw_pct))
 
     # ── Query 4 (consolidated): Training time + session stats + weekly graph ──
     # Sub-query 4a: time from UserLabProgress

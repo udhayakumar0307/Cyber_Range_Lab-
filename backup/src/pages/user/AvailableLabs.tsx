@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context';
+import { CertificateTemplate, CertificatePreviewWrapper } from '../../components/user/CertificateTemplate';
+import { VectorBadge } from '../../components/user/VectorBadge';
 import { cachedFetch } from '../../utils/apiCache';
 import { 
   Search, 
@@ -11,7 +13,10 @@ import {
   ArrowRight,
   Shield,
   Terminal,
-  X
+  X,
+  Share2,
+  Download,
+  Award
 } from 'lucide-react';
 
 interface Lab {
@@ -31,29 +36,34 @@ interface Lab {
   objectives: string[];
   environmentType: string;
   prerequisites: string;
+  priceInr?: number;
+  isFree?: boolean;
+  isPurchased?: boolean;
+  assignedBy?: string;
+  dueDate?: string;
 }
 
 export const AvailableLabs: React.FC = () => {
   const navigate = useNavigate();
-  const { apiFetch } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
-  const [selectedDetailLab, setSelectedDetailLab] = useState<Lab | null>(null);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deploymentStep, setDeploymentStep] = useState(0);
+  const { user, apiFetch } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlSearch = searchParams.get('search') || searchParams.get('q') || '';
+  const [searchTerm, setSearchTerm] = useState(urlSearch);
 
   const [labs, setLabs] = useState<Lab[]>([]);
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    // cachedFetch deduplicates in-flight requests and caches lab metadata for 5 minutes.
-    // Lab metadata (names, categories, modules) is static — safe to cache.
-    // User progress (solvedChallenges) is fetched server-side and included in the response.
-    cachedFetch<any[]>(apiFetch, '/api/v1/labs', { ttl: 300 })
+    // Fetch assigned student training labs directly from filtered API
+    apiFetch('/api/v1/labs')
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
       .then((items) => {
         if (cancelled) return;
         const normalized = (Array.isArray(items) ? items : []).map((item: any) => {
@@ -71,7 +81,6 @@ export const AvailableLabs: React.FC = () => {
             labStatus = 'in_progress';
           }
 
-          // Read localStorage once during data load, not on every render
           const savedTimeStr = localStorage.getItem(`lab_timer_${item?.id}`);
           const savedTime = savedTimeStr ? parseInt(savedTimeStr, 10) : null;
           const initialRemaining = savedTime && !isNaN(savedTime) && savedTime > 0 ? savedTime : 5400;
@@ -100,6 +109,11 @@ export const AvailableLabs: React.FC = () => {
             objectives: [item?.fullDescription ?? item?.shortDescription ?? ''],
             environmentType: item?.dockerImage ?? '',
             prerequisites: (Array.isArray(item?.prerequisites) ? item.prerequisites : []).join(', ') || 'None',
+            priceInr: item?.priceInr || 0,
+            isFree: item?.isFree !== undefined ? item.isFree : true,
+            isPurchased: item?.isPurchased !== undefined ? item.isPurchased : false,
+            assignedBy: item?.assignedBy || 'Professor Admin',
+            dueDate: item?.dueDate || 'Aug 30, 2026'
           };
         });
         setLabs(normalized);
@@ -109,8 +123,17 @@ export const AvailableLabs: React.FC = () => {
       });
 
     return () => { cancelled = true; };
-  // apiFetch is stable (useCallback in AuthContext) — safe to include
-  }, [apiFetch]);
+  }, [apiFetch, refreshTrigger]);
+
+  useEffect(() => {
+    const handleLabPurchased = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('lab-purchased', handleLabPurchased);
+    return () => {
+      window.removeEventListener('lab-purchased', handleLabPurchased);
+    };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -134,7 +157,7 @@ export const AvailableLabs: React.FC = () => {
             return { ...lab, timeToStart: nextTimeToStart };
           }
           return lab;
-        })
+          })
       );
     }, 1000);
 
@@ -154,54 +177,179 @@ export const AvailableLabs: React.FC = () => {
       case 'beginner':
         return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
       case 'intermediate':
-        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
+        return 'bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-400 border-blue-200 dark:border-blue-800';
       case 'advanced':
-        return 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800';
+        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
       case 'expert':
         return 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800';
       default:
-        return 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+        return 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700';
     }
   };
 
-  const handleDeployLab = (lab: Lab) => {
-    setIsDeploying(true);
-    setDeploymentStep(0);
+  // Sync searchTerm with URL search parameter changes
+  useEffect(() => {
+    setSearchTerm(urlSearch);
+  }, [urlSearch]);
 
-    const stepInterval = setInterval(() => {
-      setDeploymentStep((prev) => {
-        if (prev >= 3) {
-          clearInterval(stepInterval);
-          setTimeout(() => {
-            setIsDeploying(false);
-            setSelectedDetailLab(null);
-            const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
-            const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
-            const isCloud = lab.id === 'cloud-security-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
-            if (isCll) {
-              navigate('/labs/command-line-lab/session/sess-cll-01');
-            } else if (isCrypto) {
-              navigate('/labs/cryptography-lab/session/sess-crypto-01');
-            } else if (isCloud) {
-              navigate('/labs/cloud-security-lab/session/sess-cloud-01');
-            } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
-              navigate('/labs/lab1-recon/session/sess-recon-01');
-            } else if (lab.id === 'puzzle-lab' || lab.id === 'puzzle') {
-              navigate('/labs/puzzle-lab');
-            } else {
-              navigate(`/labs/${lab.id}/session/sess-123`);
-            }
-          }, 600);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 850);
+  const handleSearchChange = (val: string) => {
+    setSearchTerm(val);
+    if (val.trim()) {
+      setSearchParams({ search: val });
+    } else {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('search');
+      newParams.delete('q');
+      setSearchParams(newParams);
+    }
+  };
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  
+  const [selectedDetailLab, setSelectedDetailLab] = useState<Lab | null>(null);
+
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
+  const [activeStep, setActiveStep] = useState(0);
+
+  // Cart state for personal workspace: tracks which lab IDs are currently in cart
+  const [cartLabIds, setCartLabIds] = useState<Set<string>>(new Set());
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
+
+  const fetchCartState = useCallback(async () => {
+    if (user?.auth_type === 'SSO') return;
+    try {
+      const res = await apiFetch('/api/v1/cart');
+      if (res.ok) {
+        const data = await res.json();
+        const ids = new Set<string>((data.items || []).map((item: any) => item.lab_id as string));
+        setCartLabIds(ids);
+      }
+    } catch {
+      // ignore cart fetch errors
+    }
+  }, [apiFetch, user?.auth_type]);
+
+  // Load cart state on mount (personal workspace only)
+  useEffect(() => {
+    fetchCartState();
+  }, [fetchCartState]);
+
+  const steps = [
+    'Provisioning isolated sandbox cluster...',
+    'Mounting secure range network bridges...',
+    'Attaching scoring engine sensors...',
+    'Spawning victim targets and OT simulations...',
+    'Injecting objective validation keys...',
+    'Finalizing container deployment checks...'
+  ];
+
+  const handleDeployLab = (lab: Lab) => {
+    setSelectedDetailLab(lab);
+    setIsDeploying(true);
+    setTerminalLogs([]);
+    setActiveStep(0);
+
+    let stepIndex = 0;
+    const addLog = () => {
+      if (stepIndex < steps.length) {
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] ${steps[stepIndex]}`
+        ]);
+        setActiveStep(stepIndex + 1);
+        stepIndex++;
+        setTimeout(addLog, 1200);
+      } else {
+        setTerminalLogs((prev) => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] SUCCESS: Range environment is healthy.`,
+          `[${new Date().toLocaleTimeString()}] Redirecting user to virtual terminal console...`
+        ]);
+        setTimeout(() => {
+          setIsDeploying(false);
+          setSelectedDetailLab(null);
+          
+          setLabs(prevLabs =>
+            prevLabs.map(l => l.id === lab.id ? { ...l, status: 'in_progress' } : l)
+          );
+
+          const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
+          const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
+          const isCloud = lab.id === 'cloud-security-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
+          if (isCll) {
+            navigate('/labs/command-line-lab/session/sess-cll-01');
+          } else if (isCrypto) {
+            navigate('/labs/cryptography-lab/session/sess-crypto-01');
+          } else if (isCloud) {
+            navigate('/labs/cloud-security-lab/session/sess-cloud-01');
+          } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
+            navigate('/labs/lab1-recon/session/sess-recon-01');
+          } else {
+            navigate(`/labs/${lab.id}/session/sess-123`);
+          }
+        }, 1500);
+      }
+    };
+    setTimeout(addLog, 200);
+  };
+
+  const handleShareAchievement = async (labTitle: string, score: number) => {
+    const text = `I just completed the ${labTitle} practical challenge on CyberRange Platform! Final Score: ${score}%! #CyberRange #SecurityAnalytics`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'CyberRange Practical Training Completed',
+          text,
+          url: window.location.origin
+        });
+        return;
+      } catch (err) {
+        console.log('Share dismissed or cancelled:', err);
+      }
+    }
+  };
+
+  const handleDownloadAchievement = async (lab: Lab) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // Fetch user certificates to locate the displaying display_certificate_id for the current lab
+      const res = await fetch('/api/v1/reporting/certificates', { headers });
+      if (!res.ok) {
+        throw new Error('Failed to load certificates list.');
+      }
+      const certs = await res.json();
+      const labCert = certs.find((c: any) => c.lab_id === lab.id);
+      
+      if (!labCert || !labCert.png_url) {
+        throw new Error('No generated certificate found for this lab yet.');
+      }
+      
+      // Use helper tool to trigger authenticated blob download for PNG
+      const { downloadAuthenticatedFile } = await import('../../utils/exportUtils');
+      await downloadAuthenticatedFile(labCert.png_url, `${labCert.display_certificate_id || 'certificate'}.png`);
+    } catch (err: any) {
+      alert(`Certificate download failed.\nReason: ${err.message}`);
+    }
   };
 
   const filteredLabs = labs.filter((lab) => {
-    // Exclude puzzle-lab from student Available Labs catalog grid (student accesses Puzzle via sidebar)
-    if (lab.id === 'puzzle-lab' || lab.id === 'puzzle') {
+    const labId = (lab.id || '').toLowerCase();
+    const labTitle = (lab.title || '').toLowerCase();
+    if (
+      labId === 'puzzle-lab' || 
+      labId === 'puzzle' || 
+      labId === 'techcorp-sysadmin-labs' || 
+      labId === 'techcorp' ||
+      labTitle.includes('techcorp')
+    ) {
       return false;
     }
 
@@ -228,19 +376,25 @@ export const AvailableLabs: React.FC = () => {
     return matchesSearch && matchesCategory && matchesDifficulty && matchesStatus;
   });
 
+  const isSso = user?.auth_type === 'SSO';
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header title node */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Available Labs</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            {isSso ? 'Assigned Labs' : 'Available Labs'}
+          </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Access training scenarios allocated to your cybersecurity cohort.
+            {isSso ? 'Access training scenarios allocated to your cybersecurity cohort.' : 'Explore and enroll in hands-on cybersecurity laboratories.'}
           </p>
         </div>
-        <span className="self-start sm:self-center text-xs font-bold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-900">
-          {filteredLabs.length} {filteredLabs.length === 1 ? 'Lab' : 'Labs'} Available
-        </span>
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          <span className="text-xs font-bold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-900">
+            {filteredLabs.length} {filteredLabs.length === 1 ? 'Lab' : 'Labs'} {isSso ? 'Assigned' : 'Available'}
+          </span>
+        </div>
       </div>
 
       {/* Filter and Search controls toolbar */}
@@ -257,9 +411,18 @@ export const AvailableLabs: React.FC = () => {
               type="text"
               placeholder="Search by name, tag..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#2563EB] transition-all"
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#2563EB] transition-all"
             />
+            {searchTerm && (
+              <button
+                onClick={() => handleSearchChange('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-0.5 rounded"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           <select
@@ -305,7 +468,7 @@ export const AvailableLabs: React.FC = () => {
           <div className="flex items-center justify-end pt-1">
             <button
               onClick={() => {
-                setSearchTerm('');
+                handleSearchChange('');
                 setSelectedCategory('all');
                 setSelectedDifficulty('all');
                 setSelectedStatus('all');
@@ -324,8 +487,9 @@ export const AvailableLabs: React.FC = () => {
       {filteredLabs.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-12 px-6 text-center shadow-xs transition-colors">
           <HelpCircle className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No training labs match your filters.</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Try clearing your filters or search keywords.</p>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            {isSso ? 'No labs have been assigned yet by your instructor.' : 'No training labs match your filters.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -341,39 +505,42 @@ export const AvailableLabs: React.FC = () => {
               }`}
             >
               <div className="p-5 space-y-4">
+                {/* Header card metadata */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     {lab.categoryLabel}
                   </span>
-                  <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full ${getDifficultyStyles(lab.difficulty)}`}>
-                    {lab.difficulty.toUpperCase()}
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border capitalize ${getDifficultyStyles(lab.difficulty)}`}>
+                    {lab.difficulty}
                   </span>
                 </div>
 
-                <div>
-                  <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug">
+                <div className="space-y-1.5">
+                  <h3 className="font-extrabold text-slate-950 dark:text-white text-base leading-tight">
                     {lab.title}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed line-clamp-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
                     {lab.description}
                   </p>
                 </div>
 
-                {lab.status !== 'upcoming' && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                      <span>Challenges Progress</span>
-                      <span>{lab.solvedChallenges} / {lab.totalChallenges} Solved</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all ${lab.status === 'completed' ? 'bg-[#10B981]' : 'bg-[#2563EB]'}`}
-                        style={{ width: `${(lab.solvedChallenges / lab.totalChallenges) * 100}%` }}
-                      ></div>
-                    </div>
+                {/* Progress Indicators */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-400 dark:text-slate-500">Progress</span>
+                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                      {lab.solvedChallenges} / {lab.totalChallenges} Modules
+                    </span>
                   </div>
-                )}
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-[#2563EB] h-full transition-all duration-500"
+                      style={{ width: `${lab.totalChallenges > 0 ? (lab.solvedChallenges / lab.totalChallenges) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
 
+                {/* Tags metadata */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {lab.tags.map((tag, idx) => (
                     <span key={idx} className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
@@ -381,6 +548,13 @@ export const AvailableLabs: React.FC = () => {
                     </span>
                   ))}
                 </div>
+
+                {isSso && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                    <span>Assigned By: {lab.assignedBy}</span>
+                    <span>Due: {lab.dueDate}</span>
+                  </div>
+                )}
               </div>
 
               <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between gap-3">
@@ -441,13 +615,77 @@ export const AvailableLabs: React.FC = () => {
                 ) : (
                   <>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Duration: {lab.durationHours} hrs</span>
-                    <button
-                      onClick={() => setSelectedDetailLab(lab)}
-                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
-                    >
-                      <span>Start Lab</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    {/* Personal workspace: purchased → Launch Lab */}
+                    {!isSso && lab.isPurchased ? (
+                      <button
+                        onClick={() => handleDeployLab(lab)}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                      >
+                        <span>Launch Lab</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    ) : !isSso && !lab.isPurchased && lab.id === 'ot-security-lab' ? (
+                      /* OT lab: unpurchased → Add to Cart or Already in Cart */
+                      cartLabIds.has(lab.id) ? (
+                        <button
+                          onClick={() => navigate('/cart')}
+                          className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <span>In Cart →</span>
+                        </button>
+                      ) : (
+                        <button
+                          disabled={addingToCart === lab.id}
+                          onClick={async () => {
+                            setAddingToCart(lab.id);
+                            try {
+                              const res = await apiFetch('/api/v1/cart/items', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  lab_id: lab.id,
+                                  lab_title: lab.title,
+                                  price_inr: 4999.0,
+                                  quantity: 1
+                                })
+                              });
+                              if (res.status === 409) {
+                                // Already in cart — refresh state and navigate
+                                await fetchCartState();
+                                navigate('/cart');
+                              } else if (res.ok) {
+                                await fetchCartState();
+                                navigate('/cart');
+                              }
+                            } catch (e) {
+                              console.error(e);
+                            } finally {
+                              setAddingToCart(null);
+                            }
+                          }}
+                          className="bg-[#2563EB] hover:bg-blue-600 disabled:opacity-60 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                        >
+                          <span>{addingToCart === lab.id ? 'Adding...' : 'Add to Cart'}</span>
+                        </button>
+                      )
+                    ) : !isSso && !lab.isPurchased ? (
+                      /* Other unpurchased labs: not available for individual purchase */
+                      <button
+                        disabled
+                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 font-semibold text-xs px-3.5 py-1.5 rounded-lg cursor-not-allowed"
+                      >
+                        Not Available
+                      </button>
+                    ) : (
+                      /* SSO workspace: Launch Lab */
+                      <button
+                        onClick={() => handleDeployLab(lab)}
+                        className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                      >
+                        <span>{lab.solvedChallenges > 0 ? 'Continue Lab' : 'Launch Lab'}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -465,94 +703,74 @@ export const AvailableLabs: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-slate-400 border-b border-slate-800 pb-2 mb-3">
                     <Terminal className="w-4 h-4 text-emerald-500" />
-                    <span>CyberRange Deployment telemetry</span>
+                    <span>Scoring cluster deployment container logs</span>
                   </div>
-                  
-                  {deploymentStep >= 0 && (
-                    <p className="animate-in fade-in duration-300">
-                      <span className="text-blue-400">&gt;</span> Requesting auth credential token... [OK]
-                    </p>
-                  )}
-                  {deploymentStep >= 1 && (
-                    <p className="animate-in fade-in duration-300">
-                      <span className="text-blue-400">&gt;</span> Allocating cloud sandbox container nodes... [OK]
-                    </p>
-                  )}
-                  {deploymentStep >= 2 && (
-                    <p className="animate-in fade-in duration-300">
-                      <span className="text-blue-400">&gt;</span> Establishing secure port-forward bridges... [OK]
-                    </p>
-                  )}
-                  {deploymentStep >= 3 && (
-                    <p className="animate-in fade-in duration-300 text-emerald-300 font-bold">
-                      <span className="text-blue-400">&gt;</span> Mounting workspaces and targets... [OK]
-                    </p>
-                  )}
+
+                  <div className="space-y-1 overflow-y-auto max-h-[260px] scrollbar-thin">
+                    {terminalLogs.map((log, idx) => (
+                      <div key={idx} className="animate-in fade-in slide-in-from-bottom-1 duration-100">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-slate-800 pt-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-[11px] font-bold text-slate-400">
-                      {deploymentStep < 3 ? 'Spinning up container environment...' : 'Provisioning completed successfully!'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-500">Instance ID: cystar-db-{selectedDetailLab.id}</span>
+                <div className="border-t border-slate-900 pt-3 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Task: Provision Isolated Range</span>
+                  <span>Step {activeStep} of {steps.length}</span>
                 </div>
               </div>
             ) : (
               <>
-                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-2 py-0.5 rounded-full">
-                      {selectedDetailLab.categoryLabel}
-                    </span>
-                    <h3 className="font-black text-slate-900 dark:text-white text-base mt-1">{selectedDetailLab.title}</h3>
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[#2563EB]">
+                      <Award className="w-5 h-5" />
+                      <h2 className="font-extrabold text-slate-950 dark:text-white text-base">Certificate & Achievement</h2>
+                    </div>
+                    <button
+                      onClick={() => setSelectedDetailLab(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setSelectedDetailLab(null)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Review earned credentials and share performance.</p>
                 </div>
 
-                <div className="p-6 space-y-4 text-slate-800 dark:text-slate-200">
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Overview</span>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                      {selectedDetailLab.description}
-                    </p>
+                <div className="p-6 space-y-4 max-h-[420px] overflow-y-auto">
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Final Verification Score</span>
+                      <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">100% Passed</span>
+                    </div>
+                    <VectorBadge title={selectedDetailLab.title} points={100} variant="emerald" />
                   </div>
 
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Learning Objectives</span>
-                    <ul className="list-disc list-inside text-xs text-slate-600 dark:text-slate-300 mt-1.5 space-y-1">
-                      {selectedDetailLab.objectives.map((obj, idx) => (
-                        <li key={idx} className="leading-relaxed">
-                          {obj}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <CertificatePreviewWrapper
+                    recipientName={user?.name || user?.email.split('@')[0] || 'Student Specialist'}
+                    labTitle={selectedDetailLab.title}
+                    score={100}
+                    completedAt={new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    duration="1.5 Hours"
+                    certificateId={`CERT-${selectedDetailLab.id.toUpperCase()}-${user?.id || '001'}`}
+                  />
 
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Duration</span>
-                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{selectedDetailLab.durationHours} Hours Max</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Difficulty</span>
-                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block capitalize">{selectedDetailLab.difficulty}</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Points Target</span>
-                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{selectedDetailLab.totalChallenges * 25} points</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Platform</span>
-                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block truncate">{selectedDetailLab.environmentType}</span>
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <button
+                      onClick={() => handleShareAchievement(selectedDetailLab.title, 100)}
+                      className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span>Share Credential</span>
+                    </button>
+                    <button
+                      onClick={() => handleDownloadAchievement(selectedDetailLab)}
+                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Certificate</span>
+                    </button>
                   </div>
 
                   <div className="pt-1 flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -568,15 +786,13 @@ export const AvailableLabs: React.FC = () => {
                   >
                     Close
                   </button>
-                  {selectedDetailLab.status !== 'completed' && (
-                    <button
-                      onClick={() => handleDeployLab(selectedDetailLab)}
-                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-xs inline-flex items-center gap-1.5"
-                    >
-                      <Shield className="w-3.5 h-3.5" />
-                      <span>Spin Up Lab</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDeployLab(selectedDetailLab)}
+                    className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-xs inline-flex items-center gap-1.5"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Spin Up Lab</span>
+                  </button>
                 </div>
               </>
             )}

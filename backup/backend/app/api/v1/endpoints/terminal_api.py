@@ -160,7 +160,7 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
             "\r\n\x1b[1;31m[ERROR] Puzzle container could not be started.\x1b[0m\r\n"
             f"\x1b[33mContainer 'student{level}' is not available.\x1b[0m\r\n"
             f"\x1b[33mEnsure the Docker image '{PUZZLE_IMAGE}' is built:\x1b[0m\r\n"
-            "\x1b[36m  cd Puzzle/techcorp-labs && docker build -t techcorp-sysadmin-labs .\x1b[0m\r\n\r\n"
+            "\x1b[36m  cd labs/techcorp-labs && docker build -t techcorp-sysadmin-labs .\x1b[0m\r\n\r\n"
         )
         await websocket.send_text(error_msg)
         await websocket.close(code=1011, reason="Puzzle container unavailable")
@@ -228,9 +228,8 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
 
                 await asyncio.gather(read_pty(), write_pty())
 
-        else:
-            # Windows Execution Strategy with Asyncio Subprocess Streams
-            cmd = ["docker", "exec", "-i", "-e", "TERM=xterm-256color", container_name, "/bin/bash", "-i"]
+            user_name = f"level{level}"
+            cmd = ["docker", "exec", "-i", "-u", user_name, "-e", "TERM=xterm-256color", container_name, "bash", "-l"]
 
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -242,7 +241,7 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
             async def read_windows_proc():
                 while True:
                     try:
-                        data = await proc.stdout.read(1024)
+                        data = await proc.stdout.read(4096)
                         if not data:
                             break
                         await websocket.send_bytes(data)
@@ -266,15 +265,23 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
 
                         if data_to_write and proc.stdin:
                             proc.stdin.write(data_to_write.encode("utf-8"))
-                            await proc.stdin.drain()
                     except WebSocketDisconnect:
                         break
                     except Exception as e:
                         logger.debug(f"Windows proc write error: {e}")
                         break
 
-            # Send welcome prompt banner
-            banner = f"\r\n\x1b[1;32m[+] Real Linux Terminal Connected to {container_name}\x1b[0m\r\n\r\n"
+            # Send authentic TechCorp Ubuntu 22.04 LTS login banner & prompt
+            banner = (
+                f"\r\nWelcome to Ubuntu 22.04.5 LTS (GNU/Linux 6.6.87.2-microsoft-standard-WSL2 x86_64)\r\n\r\n"
+                f" * Documentation:  https://help.ubuntu.com\r\n"
+                f" * Management:     https://landscape.canonical.com\r\n"
+                f" * Support:        https://ubuntu.com/pro\r\n\r\n"
+                f"This system has been minimized by removing packages and content that are\r\n"
+                f"not required on a system that users do not log into.\r\n\r\n"
+                f"To restore this content, you can run the 'unminimize' command.\r\n\r\n"
+                f"\x1b[1;32m{user_name}@techcorp-server\x1b[0m:\x1b[1;34m~\x1b[0m$ "
+            )
             await websocket.send_text(banner)
 
             await asyncio.gather(read_windows_proc(), write_windows_proc())

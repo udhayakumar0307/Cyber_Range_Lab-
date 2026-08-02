@@ -54,6 +54,12 @@ def run_sqlite_column_migrations(engine):
         # users
         user_cols = [
             ("account_type", "VARCHAR(50) DEFAULT 'INDIVIDUAL'"),
+            ("account_status", "VARCHAR(50) DEFAULT 'active'"),
+            ("email_verified", "BOOLEAN DEFAULT 1"),
+            ("tenant_id", "VARCHAR(100) DEFAULT 'default'"),
+            ("is_internal", "BOOLEAN DEFAULT 0"),
+            ("google_id", "VARCHAR(255) NULL"),
+            ("provider", "VARCHAR(50) DEFAULT 'local'"),
             ("department", "VARCHAR(100) NULL"),
             ("year", "INTEGER NULL"),
             ("roll_number", "VARCHAR(100) NULL"),
@@ -144,6 +150,12 @@ def run_postgres_column_migrations(engine):
             conn.execute(text("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS account_type VARCHAR(50) DEFAULT 'INDIVIDUAL',
+                ADD COLUMN IF NOT EXISTS account_status VARCHAR(50) DEFAULT 'active',
+                ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'default',
+                ADD COLUMN IF NOT EXISTS is_internal BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) NULL,
+                ADD COLUMN IF NOT EXISTS provider VARCHAR(50) DEFAULT 'local',
                 ADD COLUMN IF NOT EXISTS department VARCHAR(100) NULL,
                 ADD COLUMN IF NOT EXISTS year INTEGER NULL,
                 ADD COLUMN IF NOT EXISTS roll_number VARCHAR(100) NULL,
@@ -227,6 +239,14 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  groups: column migrations applied")
 
+        if table_exists("orders"):
+            conn.execute(text("""
+                ALTER TABLE orders
+                ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(150) NULL,
+                ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'PENDING';
+            """))
+            logger.info("  orders: column migrations applied")
+
 
 def apply_indexes(engine):
     """Create performance indexes if they don't already exist."""
@@ -254,6 +274,9 @@ def apply_indexes(engine):
         ("ix_lm_lab_id", "lab_modules", "lab_id"),
         # score_events
         ("ix_se_user_module", "score_events", "user_id, module_id"),
+        # certificates
+        ("ix_cert_user_lab", "certificates", "user_id, lab_id"),
+        ("ix_cert_display_id", "certificates", "display_certificate_id"),
     ]
 
     inspector = inspect(engine)

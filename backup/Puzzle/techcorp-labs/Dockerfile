@@ -3,6 +3,11 @@ FROM ubuntu:22.04
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Re-enable man pages and documentation (unminimize preparation)
+RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes && \
+    rm -f /usr/bin/man && \
+    dpkg-divert --rename --remove /usr/bin/man || true
+
 # Install all necessary tools for the lab
 RUN apt-get update && apt-get install -y \
     openssh-server \
@@ -61,7 +66,6 @@ RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/s
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     echo "Port 2222" >> /etc/ssh/sshd_config && \
-    echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config && \
     echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config
 
 # Create necessary directories for labs
@@ -76,8 +80,7 @@ RUN mkdir -p /opt/labs \
 RUN groupadd -f admin \
     && groupadd -f techcorp \
     && groupadd -f developers \
-    && groupadd -f payments \
-    && groupadd -f junior_admins
+    && groupadd -f payments
 
 # Enable systemd
 RUN systemctl set-default multi-user.target && \
@@ -88,10 +91,15 @@ RUN systemctl set-default multi-user.target && \
 COPY provision.sh /opt/scripts/provision.sh
 RUN chmod +x /opt/scripts/provision.sh && /opt/scripts/provision.sh
 
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Expose SSH port
 EXPOSE 2222
 
 RUN echo "level0:starthere" | chpasswd
 
-# Start SSH daemon
+# Set entrypoint and start SSH daemon
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/usr/sbin/sshd", "-D"]

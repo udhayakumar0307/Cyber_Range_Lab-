@@ -11,6 +11,8 @@ services:
       - student0_home:/home
       - student0_opt:/opt
       - student0_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=0
     networks:
@@ -27,6 +29,8 @@ services:
       - student1_home:/home
       - student1_opt:/opt
       - student1_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=1
     networks:
@@ -43,6 +47,8 @@ services:
       - student2_home:/home
       - student2_opt:/opt
       - student2_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=2
     networks:
@@ -59,6 +65,8 @@ services:
       - student3_home:/home
       - student3_opt:/opt
       - student3_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=3
     networks:
@@ -75,6 +83,8 @@ services:
       - student4_home:/home
       - student4_opt:/opt
       - student4_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=4
     networks:
@@ -91,6 +101,8 @@ services:
       - student5_home:/home
       - student5_opt:/opt
       - student5_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=5
     networks:
@@ -107,6 +119,8 @@ services:
       - student6_home:/home
       - student6_opt:/opt
       - student6_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=6
     networks:
@@ -123,6 +137,8 @@ services:
       - student7_home:/home
       - student7_opt:/opt
       - student7_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=7
     networks:
@@ -139,6 +155,8 @@ services:
       - student8_home:/home
       - student8_opt:/opt
       - student8_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=8
     networks:
@@ -155,6 +173,8 @@ services:
       - student9_home:/home
       - student9_opt:/opt
       - student9_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=9
     networks:
@@ -171,6 +191,8 @@ services:
       - student10_home:/home
       - student10_opt:/opt
       - student10_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=10
     networks:
@@ -187,6 +209,8 @@ services:
       - student11_home:/home
       - student11_opt:/opt
       - student11_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=11
     networks:
@@ -203,6 +227,8 @@ services:
       - student12_home:/home
       - student12_opt:/opt
       - student12_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=12
     networks:
@@ -219,6 +245,8 @@ services:
       - student13_home:/home
       - student13_opt:/opt
       - student13_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=13
     networks:
@@ -235,6 +263,8 @@ services:
       - student14_home:/home
       - student14_opt:/opt
       - student14_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=14
     networks:
@@ -251,6 +281,8 @@ services:
       - student15_home:/home
       - student15_opt:/opt
       - student15_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=15
     networks:
@@ -267,6 +299,8 @@ services:
       - student16_home:/home
       - student16_opt:/opt
       - student16_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=16
     networks:
@@ -283,6 +317,8 @@ services:
       - student17_home:/home
       - student17_opt:/opt
       - student17_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=17
     networks:
@@ -299,6 +335,8 @@ services:
       - student18_home:/home
       - student18_opt:/opt
       - student18_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=18
     networks:
@@ -315,6 +353,8 @@ services:
       - student19_home:/home
       - student19_opt:/opt
       - student19_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=19
     networks:
@@ -331,6 +371,8 @@ services:
       - student20_home:/home
       - student20_opt:/opt
       - student20_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=20
     networks:
@@ -347,6 +389,8 @@ services:
       - student21_home:/home
       - student21_opt:/opt
       - student21_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=21
     networks:
@@ -363,6 +407,8 @@ services:
       - student22_home:/home
       - student22_opt:/opt
       - student22_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=22
     networks:
@@ -379,6 +425,8 @@ services:
       - student23_home:/home
       - student23_opt:/opt
       - student23_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=23
     networks:
@@ -395,6 +443,8 @@ services:
       - student24_home:/home
       - student24_opt:/opt
       - student24_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=24
     networks:
@@ -411,6 +461,8 @@ services:
       - student25_home:/home
       - student25_opt:/opt
       - student25_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=25
     networks:
@@ -427,6 +479,8 @@ services:
       - student26_home:/home
       - student26_opt:/opt
       - student26_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=26
     networks:
@@ -443,6 +497,8 @@ services:
       - student27_home:/home
       - student27_opt:/opt
       - student27_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=27
     networks:
@@ -459,6 +515,8 @@ services:
       - student28_home:/home
       - student28_opt:/opt
       - student28_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=28
     networks:
@@ -475,6 +533,8 @@ services:
       - student29_home:/home
       - student29_opt:/opt
       - student29_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=29
     networks:
@@ -491,6 +551,8 @@ services:
       - student30_home:/home
       - student30_opt:/opt
       - student30_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=30
     networks:
@@ -507,6 +569,8 @@ services:
       - student31_home:/home
       - student31_opt:/opt
       - student31_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=31
     networks:
@@ -523,6 +587,8 @@ services:
       - student32_home:/home
       - student32_opt:/opt
       - student32_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=32
     networks:
@@ -539,6 +605,8 @@ services:
       - student33_home:/home
       - student33_opt:/opt
       - student33_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=33
     networks:
@@ -555,6 +623,8 @@ services:
       - student34_home:/home
       - student34_opt:/opt
       - student34_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=34
     networks:
@@ -571,6 +641,8 @@ services:
       - student35_home:/home
       - student35_opt:/opt
       - student35_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=35
     networks:
@@ -587,6 +659,8 @@ services:
       - student36_home:/home
       - student36_opt:/opt
       - student36_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=36
     networks:
@@ -603,6 +677,8 @@ services:
       - student37_home:/home
       - student37_opt:/opt
       - student37_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=37
     networks:
@@ -619,6 +695,8 @@ services:
       - student38_home:/home
       - student38_opt:/opt
       - student38_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=38
     networks:
@@ -635,6 +713,8 @@ services:
       - student39_home:/home
       - student39_opt:/opt
       - student39_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=39
     networks:
@@ -651,6 +731,8 @@ services:
       - student40_home:/home
       - student40_opt:/opt
       - student40_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=40
     networks:
@@ -667,6 +749,8 @@ services:
       - student41_home:/home
       - student41_opt:/opt
       - student41_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=41
     networks:
@@ -683,6 +767,8 @@ services:
       - student42_home:/home
       - student42_opt:/opt
       - student42_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=42
     networks:
@@ -699,6 +785,8 @@ services:
       - student43_home:/home
       - student43_opt:/opt
       - student43_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=43
     networks:
@@ -715,6 +803,8 @@ services:
       - student44_home:/home
       - student44_opt:/opt
       - student44_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=44
     networks:
@@ -730,7 +820,9 @@ services:
     volumes:
       - student45_home:/home
       - student45_opt:/opt
-      - student45_var:/var
+      - student45_var:/var\
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=45
     networks:
@@ -747,6 +839,8 @@ services:
       - student46_home:/home
       - student46_opt:/opt
       - student46_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=46
     networks:
@@ -763,6 +857,8 @@ services:
       - student47_home:/home
       - student47_opt:/opt
       - student47_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=47
     networks:
@@ -779,6 +875,8 @@ services:
       - student48_home:/home
       - student48_opt:/opt
       - student48_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=48
     networks:
@@ -795,6 +893,8 @@ services:
       - student49_home:/home
       - student49_opt:/opt
       - student49_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=49
     networks:
@@ -811,6 +911,8 @@ services:
       - student50_home:/home
       - student50_opt:/opt
       - student50_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=50
     networks:
@@ -827,6 +929,8 @@ services:
       - student51_home:/home
       - student51_opt:/opt
       - student51_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=51
     networks:
@@ -843,6 +947,8 @@ services:
       - student52_home:/home
       - student52_opt:/opt
       - student52_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=52
     networks:
@@ -859,6 +965,8 @@ services:
       - student53_home:/home
       - student53_opt:/opt
       - student53_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=53
     networks:
@@ -875,6 +983,8 @@ services:
       - student54_home:/home
       - student54_opt:/opt
       - student54_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=54
     networks:
@@ -891,6 +1001,8 @@ services:
       - student55_home:/home
       - student55_opt:/opt
       - student55_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=55
     networks:
@@ -907,6 +1019,8 @@ services:
       - student56_home:/home
       - student56_opt:/opt
       - student56_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=56
     networks:
@@ -923,6 +1037,8 @@ services:
       - student57_home:/home
       - student57_opt:/opt
       - student57_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=57
     networks:
@@ -939,6 +1055,8 @@ services:
       - student58_home:/home
       - student58_opt:/opt
       - student58_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=58
     networks:
@@ -955,6 +1073,8 @@ services:
       - student59_home:/home
       - student59_opt:/opt
       - student59_var:/var
+    cap_add:
+      - SYS_ADMIN
     environment:
       - STUDENT_ID=59
     networks:

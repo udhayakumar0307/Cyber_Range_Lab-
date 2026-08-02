@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context';
 
 declare global {
   interface Window {
@@ -115,6 +115,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   }, [clientId, portal]);
 
   const handleCustomClick = () => {
+    if (!clientId || clientId.includes('exampleclientid') || clientId.startsWith('your-')) {
+      onError('Google Sign-In is not configured.');
+      return;
+    }
     if (window.google?.accounts?.id) {
       try {
         window.google.accounts.id.prompt((notification: any) => {
@@ -157,7 +161,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
               <path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.39l3.99-3.15z" />
               <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z" />
             </svg>
-            <span>{buttonText}</span>
+            <span>
+              {!clientId || clientId.includes('exampleclientid') || clientId.startsWith('your-')
+                ? 'Google Sign-In is not configured.'
+                : buttonText}
+            </span>
           </>
         )}
       </button>

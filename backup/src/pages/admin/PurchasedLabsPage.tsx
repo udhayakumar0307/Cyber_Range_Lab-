@@ -71,111 +71,50 @@ export const PurchasedLabsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <FlaskConical className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Purchased Lab Licenses</h1>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Manage your organization's active security lab licenses, student seat allocations, and renewals.
-          </p>
-        </div>
-
-        <button
-          onClick={() => navigate('/admin/labs')}
-          className="bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors inline-flex items-center gap-2 self-start sm:self-center cursor-pointer"
-        >
-          <span>Purchase More Labs</span>
-        </button>
-      </div>
-
-      {/* Grid List */}
+      {/* Grid List (3-col Desktop, 2-col Tablet, 1-col Mobile) */}
       {purchasedLabs.length === 0 ? (
         <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
           <FlaskConical className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-extrabold text-slate-700 dark:text-slate-200">No records available</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">No active lab licenses purchased yet for this organization.</p>
-          <button
-            onClick={() => navigate('/admin/labs')}
-            className="px-4 py-2 bg-[#0052CC] text-white text-xs font-bold rounded-xl shadow-xs"
-          >
-            Explore Lab Catalog
-          </button>
+          <h3 className="text-base font-extrabold text-slate-700 dark:text-slate-200">No active lab licenses purchased yet</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">Explore the lab catalog to add security labs to your organization portal.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {purchasedLabs.map((lab) => (
             <div
               key={lab.id}
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col justify-between"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
             >
-              {/* Top Banner */}
-              <div className="p-6 space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-black tracking-wider uppercase text-[#0052CC] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-800">
-                      {lab.status}
-                    </span>
-                    <h3 className="text-base font-black text-slate-900 dark:text-slate-100 mt-2">
-                      {lab.lab_title}
-                    </h3>
-                  </div>
-
-                  <button
-                    onClick={() => handleRenew(lab.lab_title)}
-                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    title="Renew License"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
+                    {lab.lab_id.includes('cloud') ? 'Cloud' : lab.lab_id.includes('ot') ? 'OT' : lab.lab_id.includes('recon') ? 'Recon' : lab.lab_id.includes('puzzle') ? 'Puzzle' : 'Linux'}
+                  </span>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#28A745] border border-emerald-200">
+                    {lab.status || 'Active'}
+                  </span>
                 </div>
 
-                {/* Metadata Details */}
-                <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div>
-                    <span className="text-slate-400 dark:text-slate-400 font-medium block">License Key</span>
-                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
-                      {lab.license_key}
-                    </span>
-                  </div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 line-clamp-1">
+                  {lab.lab_title}
+                </h3>
+              </div>
 
-                  <div>
-                    <span className="text-slate-400 dark:text-slate-400 font-medium block">Valid Until</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {lab.expiry_date}
-                    </span>
-                  </div>
+              <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-3 flex-1 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400 font-medium">Seats Allocated</span>
+                  <span className="font-bold">{lab.assigned_seats} / {lab.total_seats || 50} Seats</span>
                 </div>
-
-                {/* Progress Bar Seats */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-slate-600 dark:text-slate-400">Seat Utilization</span>
-                    <span className="text-slate-900 dark:text-slate-100">
-                      {lab.assigned_seats} / {lab.total_seats} Seats
-                    </span>
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#0052CC] rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (lab.assigned_seats / (lab.total_seats || 1)) * 100)}%` }}
-                    ></div>
-                  </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400 font-medium">Expiry Date</span>
+                  <span className="font-bold">{lab.expiry_date || '2027-01-15'}</span>
                 </div>
               </div>
 
-              {/* Footer Actions */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                  License Status: Active
-                </span>
-
+              <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
                 <button
                   onClick={() => handleLaunchLab(lab.lab_id)}
-                  className="px-4 py-2 bg-[#28A745] hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-white" />
                   <span>Launch Lab</span>

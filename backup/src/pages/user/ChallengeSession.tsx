@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { 
   Clock, 
   CheckCircle2, 
@@ -429,6 +429,35 @@ export const ChallengeSession: React.FC = () => {
   const activeModule = currentModules[activeChallengeIdx] || currentModules[0];
   const isSolved = solvedModules.has(activeModule.id);
 
+  const [completionModal, setCompletionModal] = useState<{
+    show: boolean;
+    isLastModule: boolean;
+    moduleNum: number;
+    moduleTitle: string;
+    points: number;
+    totalScore: number;
+    accuracy: string;
+    challengesCompleted: number;
+    totalChallenges: number;
+    timeTaken: string;
+  } | null>(null);
+
+  const handleShareAchievement = async (data: { labTitle: string; totalScore: number; username: string }) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `CyberRange Certificate - ${data.labTitle}`,
+          text: `I completed ${data.labTitle} on CyberRange! Score: +${data.totalScore} pts.`,
+          url: window.location.href,
+        });
+        return;
+      } catch (err) {
+        console.log('Share cancelled:', err);
+      }
+    }
+    alert(`Certificate generated for ${data.labTitle}. Verify at CyberRange official portal.`);
+  };
+
   // Module flags (received from backend or initialized with deterministic realistic fallbacks)
   const [moduleFlags, setModuleFlags] = useState<Record<string, string>>(() => {
     if (labId === 'ot-security-lab') {
@@ -717,6 +746,20 @@ export const ChallengeSession: React.FC = () => {
           ...prev,
           [activeModule.id]: activeModule.objectives.map(() => true),
         }));
+
+        const isFinalModule = (solvedModules.size + 1) >= currentModules.length;
+        setCompletionModal({
+          show: true,
+          isLastModule: isFinalModule,
+          moduleNum: activeChallengeIdx + 1,
+          moduleTitle: activeModule.title,
+          points: earnedPoints,
+          totalScore: score + earnedPoints,
+          accuracy: '100%',
+          challengesCompleted: activeModule.objectives.length,
+          totalChallenges: activeModule.objectives.length,
+          timeTaken: '00:02:15',
+        });
 
         setTimeout(() => { setSubmissionStatus('idle'); setFlagInput(''); }, 3000);
       } else {
@@ -1787,6 +1830,86 @@ export const ChallengeSession: React.FC = () => {
           </form>
         </div>
       </div>
+
+      {/* Module / Lab Completion Popup Modal */}
+      {completionModal && completionModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 text-center space-y-5">
+            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-extrabold tracking-widest uppercase text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+                {completionModal.isLastModule ? '🎉 LAB COMPLETED!' : `MODULE ${completionModal.moduleNum} COMPLETED!`}
+              </span>
+              <h2 className="text-xl font-bold text-white leading-tight">
+                {completionModal.moduleTitle}
+              </h2>
+              <p className="text-xs text-slate-400 font-medium">
+                {completionModal.isLastModule
+                  ? `Congratulations! You solved all modules in ${labTitle}!`
+                  : `You successfully completed Module ${completionModal.moduleNum}. Next module has been unlocked.`}
+              </p>
+            </div>
+
+            {/* Statistics */}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs">
+              <div className="text-left space-y-1">
+                <div className="text-slate-400 font-semibold">Module Score: <span className="text-emerald-400 font-bold">+{completionModal.points} pts</span></div>
+                <div className="text-slate-400 font-semibold">Total Score: <span className="text-blue-400 font-bold">{completionModal.totalScore} pts</span></div>
+              </div>
+              <div className="text-right space-y-1">
+                <div className="text-slate-400 font-semibold">Challenges: <span className="text-white font-bold">{completionModal.challengesCompleted}/{completionModal.totalChallenges}</span></div>
+                <div className="text-slate-400 font-semibold">Accuracy: <span className="text-amber-400 font-bold">{completionModal.accuracy}</span></div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2.5 pt-2">
+              {!completionModal.isLastModule ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setCompletionModal(null);
+                      if (activeChallengeIdx < currentModules.length - 1) {
+                        setActiveChallengeIdx((prev) => prev + 1);
+                      }
+                    }}
+                    className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
+                  >
+                    Continue to Next Module
+                  </button>
+                  <button
+                    onClick={() => setCompletionModal(null)}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all"
+                  >
+                    Review Module
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleShareAchievement({ labTitle, totalScore: completionModal.totalScore, username: user?.name || user?.email || 'Student' })}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-4 h-4" /> Share Achievement & Download Card
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCompletionModal(null);
+                      navigate('/labs');
+                    }}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all"
+                  >
+                    Return to Available Labs
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

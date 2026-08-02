@@ -26,15 +26,22 @@ export const LabSchedulerPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | ScheduleStatus>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [availableLabs, setAvailableLabs] = useState<any[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+
   useEffect(() => {
-    const fetchSchedules = async () => {
+    const fetchSchedulesAndOptions = async () => {
       const token = localStorage.getItem('token');
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       try {
-        const res = await fetch('/api/v1/admin/allocations', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
+        const [schRes, labsRes, grpRes] = await Promise.all([
+          fetch('/api/v1/admin/allocations', { headers }),
+          fetch('/api/v1/admin/purchased-labs', { headers }),
+          fetch('/api/v1/admin/groups', { headers })
+        ]);
+
+        if (schRes.ok) {
+          const data = await schRes.json();
           if (Array.isArray(data)) {
             const mapped = data.map((a: any) => ({
               id: a.id || `sch-${a.labId}`,
@@ -55,18 +62,28 @@ export const LabSchedulerPage: React.FC = () => {
             setSchedules(mapped);
           }
         }
+
+        if (labsRes.ok) {
+          const lData = await labsRes.json();
+          if (Array.isArray(lData)) setAvailableLabs(lData);
+        }
+
+        if (grpRes.ok) {
+          const gData = await grpRes.json();
+          if (Array.isArray(gData)) setAvailableGroups(gData);
+        }
       } catch (err) {
         console.error('Error fetching lab schedules:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchSchedules();
+    fetchSchedulesAndOptions();
   }, []);
 
   // New Schedule Form State
-  const [newLabTitle, setNewLabTitle] = useState('Enterprise Threat Hunting & Packet Analysis');
-  const [newGroupName, setNewGroupName] = useState('Cybersecurity Cohort Alpha (45 Users)');
+  const [newLabTitle, setNewLabTitle] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
   const [newStart, setNewStart] = useState('');
   const [newEnd, setNewEnd] = useState('');
   const [newAutoProvision, setNewAutoProvision] = useState(true);
@@ -217,8 +234,8 @@ export const LabSchedulerPage: React.FC = () => {
 
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Targeted Cohorts</p>
-              <p className="text-2xl font-black text-[#6F42C1] dark:text-purple-400 mt-1">3 Cohorts</p>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Targeted Training Groups</p>
+              <p className="text-2xl font-black text-[#6F42C1] dark:text-purple-400 mt-1">3 Training Groups</p>
             </div>
             <div className="p-3 bg-purple-50 dark:bg-purple-950/60 text-[#6F42C1] dark:text-purple-400 rounded-xl border border-purple-100 dark:border-purple-800">
               <Users className="w-6 h-6" />
@@ -291,7 +308,7 @@ export const LabSchedulerPage: React.FC = () => {
                 <thead className="bg-slate-100/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider">
                   <tr>
                     <th className="py-3.5 px-4">Lab Title</th>
-                    <th className="py-3.5 px-4">Target Cohort</th>
+                    <th className="py-3.5 px-4">Target Training Group</th>
                     <th className="py-3.5 px-4">Execution Window</th>
                     <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4">Instances</th>
@@ -463,39 +480,26 @@ export const LabSchedulerPage: React.FC = () => {
                     onChange={(e) => setNewLabTitle(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
                   >
-                    <option value="Enterprise Threat Hunting & Packet Analysis">
-                      Enterprise Threat Hunting & Packet Analysis
-                    </option>
-                    <option value="Active Directory Exploitation & Privilege Escalation">
-                      Active Directory Exploitation & Privilege Escalation
-                    </option>
-                    <option value="Kubernetes Container Security & Runtime Defense">
-                      Kubernetes Container Security & Runtime Defense
-                    </option>
-                    <option value="Web Application Vulnerability Scanning & XSS">
-                      Web Application Vulnerability Scanning & XSS
-                    </option>
+                    <option value="">Select Security Lab</option>
+                    {availableLabs.map((l) => (
+                      <option key={l.id} value={l.title}>{l.title}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Assign Target Student Cohort
+                    Assign Target Student Training Group
                   </label>
                   <select
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
                   >
-                    <option value="Cybersecurity Cohort Alpha (45 Users)">
-                      Cybersecurity Cohort Alpha (45 Users)
-                    </option>
-                    <option value="Red Team Batch B (30 Users)">
-                      Red Team Batch B (30 Users)
-                    </option>
-                    <option value="DevSecOps Engineers (20 Users)">
-                      DevSecOps Engineers (20 Users)
-                    </option>
+                    <option value="">Select Student Training Group</option>
+                    {availableGroups.map((g) => (
+                      <option key={g.id || g.name} value={g.name}>{g.name} ({g.memberCount || 0} Members)</option>
+                    ))}
                   </select>
                 </div>
 

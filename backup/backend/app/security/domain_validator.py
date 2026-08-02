@@ -121,9 +121,13 @@ def validate_student_login_attempt(email: str, user: Optional[object] = None) ->
 
     # 2. Database User Inspection (if user exists)
     if user is not None:
+        role = str(getattr(user, "role", "")).lower()
+        if role == "system_admin":
+            logger.info(f"Bypassing student login validation for System Admin user: {email_clean}")
+            return
+
         is_internal = getattr(user, "is_internal", False)
         account_type = str(getattr(user, "account_type", "")).lower()
-        role = str(getattr(user, "role", "")).lower()
         
         if is_internal or account_type == "internal" or role in INTERNAL_ADMIN_ROLES:
             logger.warning(f"Student Portal login rejected for internal user record: id={getattr(user, 'id', None)} email={email_clean} role={role}")
@@ -135,35 +139,38 @@ def validate_student_login_attempt(email: str, user: Optional[object] = None) ->
 
 def validate_admin_login_attempt(email: str, user: Optional[object] = None) -> None:
     """
-    Validates a login attempt at the Enterprise Admin Portal (http://localhost:5173/admin/login).
+    Validates a login attempt at the Academic Admin Portal.
     
     Allowed:
-    - Only @cyberrange.in internal accounts / CyberRange administrators
+    - @cyberrange.in internal accounts
+    - College/University domains (.ac.in, .edu, .edu.in, .ac.uk, .edu.sg, .ac.jp, .edu.au)
     
     Blocked:
-    - Gmail / College domains / Student domains / Personal emails
+    - Gmail / Yahoo / Outlook / Personal emails / other non-academic domains
     
     Returns 403 Forbidden with exact business error message if blocked.
     """
     email_clean = email.strip().lower() if email else ""
     
-    # 1. Domain Check
-    if not is_admin_domain(email_clean):
-        logger.warning(f"Enterprise Portal login blocked for non-admin domain: {email_clean}")
+    # 1. Suffix and Domain Check
+    email_domain = email_clean.split("@")[-1] if "@" in email_clean else ""
+    academic_suffixes = [".edu", ".ac.in", ".edu.in", ".ac.uk", ".edu.sg", ".ac.jp", ".edu.au"]
+    is_cyberrange = email_domain == "cyberrange.in"
+    is_academic = any(email_domain.endswith(suffix) or "college" in email_domain or "univ" in email_domain for suffix in academic_suffixes)
+
+    if not is_cyberrange and not is_academic:
+        logger.warning(f"Admin Portal login blocked for non-admin/non-academic domain: {email_clean}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This portal is available only for CyberRange administrators."
+            detail="Only CyberRange employees or verified academic institutions can access this portal."
         )
 
     # 2. Database User Inspection (if user exists)
     if user is not None:
-        is_internal = getattr(user, "is_internal", False)
-        account_type = str(getattr(user, "account_type", "")).lower()
         role = str(getattr(user, "role", "")).lower()
-        
-        if not is_internal and account_type != "internal" and role in STUDENT_ROLES:
-            logger.warning(f"Enterprise Portal login rejected for non-internal user: id={getattr(user, 'id', None)} email={email_clean}")
+        if role not in ["admin", "system_admin"]:
+            logger.warning(f"Admin Portal login rejected for non-admin user record: id={getattr(user, 'id', None)} email={email_clean} role={role}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="This portal is available only for CyberRange administrators."
+                detail="Only CyberRange employees or verified academic institutions can access this portal."
             )

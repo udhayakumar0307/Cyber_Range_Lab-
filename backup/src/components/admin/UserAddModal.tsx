@@ -22,9 +22,26 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   const [fullName, setFullName] = useState(userToEdit?.fullName || '');
   const [email, setEmail] = useState(userToEdit?.email || '');
   const [role, setRole] = useState<UserRole>(userToEdit?.role || 'User');
-  const [groupName, setGroupName] = useState(userToEdit?.groupName || 'Red Team Cohort 2026');
+  const [groupName, setGroupName] = useState(userToEdit?.groupName || 'Unassigned');
   const [status, setStatus] = useState<AccountStatus>(userToEdit?.status || 'Active');
+  const [groupsList, setGroupsList] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
+
+  React.useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setGroupsList(data);
+        }
+      } catch (err) {
+        console.error('Error fetching groups in modal:', err);
+      }
+    };
+    fetchGroups();
+  }, []);
 
   const validate = () => {
     const errs: { fullName?: string; email?: string } = {};
@@ -149,11 +166,10 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
               onChange={(e) => setGroupName(e.target.value)}
               className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
             >
-              <option value="Red Team Cohort 2026">Red Team Cohort 2026</option>
-              <option value="SOC Analysts Batch B">SOC Analysts Batch B</option>
-              <option value="Blue Team Defense Alpha">Blue Team Defense Alpha</option>
-              <option value="Executive Security Briefing">Executive Security Briefing</option>
               <option value="Unassigned">Unassigned</option>
+              {groupsList.map((g) => (
+                <option key={g.id || g.name} value={g.name}>{g.name}</option>
+              ))}
             </select>
           </div>
 

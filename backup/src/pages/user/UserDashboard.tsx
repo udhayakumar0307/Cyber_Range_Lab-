@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { 
   Trophy, 
   Flame, 
@@ -112,11 +112,20 @@ export const UserDashboard: React.FC = () => {
           <Trophy className="w-80 h-80 text-white" />
         </div>
         <div className="relative z-10 max-w-2xl space-y-3">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Welcome back, {dashboard?.user?.name ?? user?.name ?? ''}! 👋
-          </h1>
-          <p className="text-sm text-blue-100/90 leading-relaxed">
-            Continue your cybersecurity journey. Complete labs, earn points, and climb the leaderboard.
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              Welcome back, {dashboard?.user?.name ?? user?.name ?? ''}! 👋
+            </h1>
+            {user?.auth_type === 'SSO' && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-white/20 text-emerald-300 border border-white/10 uppercase tracking-wider self-start sm:self-center gap-1.5 animate-pulse">
+                🏫 Academic Account
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-blue-100/90 leading-relaxed font-bold">
+            {user?.auth_type === 'SSO' 
+              ? `${user?.email ? user.email.split('@')[1].toUpperCase() : 'Institution'} Academic Workspace`
+              : 'Personal Learning Account'}
           </p>
 
           {/* Experience Progress */}
@@ -189,126 +198,55 @@ export const UserDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Your Assigned Labs */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#0F172A] dark:text-white">Your Assigned Labs</h2>
-            <button 
-              onClick={() => navigate('/labs')}
-              className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1"
-            >
-              View All Labs <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+      {/* About CyberRange Platform informational section with 4 clean feature cards */}
+      <div className="bg-white dark:bg-[#1E293B] rounded-3xl border border-[#E2E8F0] dark:border-[#334155] p-6 sm:p-8 shadow-xs transition-colors">
+        <h2 className="text-lg sm:text-xl font-black text-[#0F172A] dark:text-white tracking-tight">
+          About CyberRange Platform
+        </h2>
+        <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#CBD5E1] leading-relaxed mt-2.5 max-w-4xl">
+          CyberRange is a practical cybersecurity learning platform that provides hands-on labs, OT/ICS simulations, puzzles, and Capture the Flag challenges. Students can practice real-world attack and defense scenarios while tracking their learning progress and improving cybersecurity skills.
+        </p>
+
+        {/* Feature Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+          {/* Card 1 */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 p-5 rounded-2xl transition-all hover:scale-[1.01]">
+            <h3 className="font-bold text-sm text-[#0F172A] dark:text-white">Hands-on Labs</h3>
+            <ul className="list-disc list-inside text-xs text-[#64748B] dark:text-[#CBD5E1] mt-3 space-y-1.5 leading-relaxed">
+              <li>Real-world cybersecurity scenarios</li>
+              <li>Guided practical exercises</li>
+            </ul>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {labs.map((lab) => (
-              <div 
-                key={lab.id}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-[#E2E8F0] dark:border-[#334155] p-5 shadow-xs flex flex-col justify-between space-y-4 transition-all"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB] bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-md">
-                      {lab.category}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      lab.status === 'live'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                    }`}>
-                      {lab.status.toUpperCase()}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-[#0F172A] dark:text-white text-sm leading-snug">{lab.title}</h3>
-                  <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] leading-relaxed line-clamp-3">{lab.description}</p>
-
-                    {lab.status !== 'completed' ? (
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex justify-between text-[10px] font-bold text-[#64748B] dark:text-[#CBD5E1]">
-                        <span>Progress</span>
-                        <span>{lab.solvedChallenges} / {lab.totalChallenges} Solved</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#2563EB] rounded-full" style={{ width: `${lab.totalChallenges ? ((lab.solvedChallenges ?? 0) / lab.totalChallenges) * 100 : 0}%` }}></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 pt-1">
-                      <Clock className="w-4 h-4" />
-                      <span>Completed</span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {lab.tags?.map((tag, idx) => (
-                      <span key={idx} className="text-[10px] font-bold text-[#64748B] dark:text-[#CBD5E1] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-[#E2E8F0] dark:border-[#334155] flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#64748B] dark:text-[#CBD5E1]">Duration: {lab.duration}</span>
-                  {lab.status !== 'completed' ? (
-                    <button 
-                      onClick={() => {
-                        const isCll = lab.id === 'command-line-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
-                        const isCrypto = lab.id === 'cryptography-lab' || lab.id.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
-                        if (isCll) {
-                          navigate('/labs/command-line-lab/session');
-                        } else if (isCrypto) {
-                          navigate('/labs/cryptography-lab/session');
-                        } else if (lab.id === 'lab1-recon' || lab.id === 'recon-lab') {
-                          navigate('/labs/lab1-recon/session');
-                        } else {
-                          navigate('/labs');
-                        }
-                      }}
-                      className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-xs"
-                    >
-                      Continue <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => navigate('/labs')}
-                      className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs px-4 py-1.5 rounded-lg border border-[#E2E8F0] dark:border-[#334155]"
-                    >
-                      View Details
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity Feed */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#0F172A] dark:text-white">Recent Activity</h2>
-            <button className="text-xs font-bold text-[#2563EB] hover:underline">View All →</button>
+          {/* Card 2 */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 p-5 rounded-2xl transition-all hover:scale-[1.01]">
+            <h3 className="font-bold text-sm text-[#0F172A] dark:text-white">OT / ICS Security</h3>
+            <ul className="list-disc list-inside text-xs text-[#64748B] dark:text-[#CBD5E1] mt-3 space-y-1.5 leading-relaxed">
+              <li>Industrial Control Systems</li>
+              <li>SCADA environments</li>
+              <li>PLC simulations</li>
+            </ul>
           </div>
 
-          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-[#E2E8F0] dark:border-[#334155] p-5 shadow-xs space-y-4 transition-colors">
-            {recentActivities.length === 0 ? (
-              <p className="text-xs text-[#64748B] dark:text-[#CBD5E1]">No recent activity.</p>
-            ) : recentActivities.map((act) => (
-              <div key={act.id} className="flex items-start gap-3 text-xs border-b border-[#E2E8F0] dark:border-[#334155] pb-3 last:border-0 last:pb-0">
-                <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-[#0F172A] dark:text-white">{act.action ?? ''}</p>
-                  <p className="text-[11px] text-[#64748B] dark:text-[#CBD5E1] mt-0.5">{act.description ?? ''}</p>
-                  <span className="text-[10px] text-slate-400 block mt-1">{activityTime(act.timestamp)}</span>
-                </div>
-              </div>
-            ))}
+          {/* Card 3 */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 p-5 rounded-2xl transition-all hover:scale-[1.01]">
+            <h3 className="font-bold text-sm text-[#0F172A] dark:text-white">CTF & Puzzle Challenges</h3>
+            <ul className="list-disc list-inside text-xs text-[#64748B] dark:text-[#CBD5E1] mt-3 space-y-1.5 leading-relaxed">
+              <li>Skill-based exercises</li>
+              <li>Flag submissions</li>
+              <li>Progressive difficulty</li>
+            </ul>
+          </div>
+
+          {/* Card 4 */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 p-5 rounded-2xl transition-all hover:scale-[1.01]">
+            <h3 className="font-bold text-sm text-[#0F172A] dark:text-white">Progress Tracking</h3>
+            <ul className="list-disc list-inside text-xs text-[#64748B] dark:text-[#CBD5E1] mt-3 space-y-1.5 leading-relaxed">
+              <li>Scores</li>
+              <li>Badges</li>
+              <li>Achievements</li>
+              <li>Leaderboards</li>
+            </ul>
           </div>
         </div>
       </div>

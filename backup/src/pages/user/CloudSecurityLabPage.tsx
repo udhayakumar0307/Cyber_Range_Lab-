@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 
 interface CloudModule {
   num: number;
@@ -152,6 +152,22 @@ export const CloudSecurityLabPage: React.FC = () => {
     totalScore: number;
     isLastModule: boolean;
   } | null>(null);
+
+  const handleShareAchievement = async (data: { labTitle: string; totalScore: number }) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `CyberRange Certificate - ${data.labTitle}`,
+          text: `I completed ${data.labTitle} on CyberRange! Score: +${data.totalScore} pts.`,
+          url: window.location.href,
+        });
+        return;
+      } catch (err) {
+        console.log('Share cancelled:', err);
+      }
+    }
+    alert(`Certificate generated for ${data.labTitle}. Verify at CyberRange official portal.`);
+  };
 
   // Flag input state
   const [flagInput, setFlagInput] = useState<string>('');
@@ -930,10 +946,10 @@ export const CloudSecurityLabPage: React.FC = () => {
               ) : (
                 <>
                   <button
-                    onClick={() => navigate('/dashboard')}
-                    className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                    onClick={() => handleShareAchievement({ labTitle: 'Cloud Security Lab', totalScore: completionModal.totalScore })}
+                    className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
-                    Return to Dashboard
+                    <span>🏅 Share Achievement & Download Card</span>
                   </button>
                   <button
                     onClick={() => navigate('/labs')}

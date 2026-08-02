@@ -86,9 +86,67 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
             "tags": [lab.category] if lab.category else [],
         })
 
-    activity_logs = db.query(AuditLog).filter(
-        AuditLog.user_id == current_user.id
-    ).order_by(AuditLog.timestamp.desc()).limit(10).all()
+    # If user has no specific professor assignments, show active platform security labs
+    if not assigned_labs:
+        active_labs = db.query(Lab).filter(Lab.status == "ACTIVE").all()
+        for lab in active_labs:
+            if lab.id in ("puzzle-lab", "puzzle"):
+                continue
+            total_modules = stats["lab_total_modules"].get(lab.id, 5)
+            solved_modules = stats["lab_completed_modules"].get(lab.id, 0)
+            is_completed = (total_modules > 0 and solved_modules >= total_modules)
+            assigned_labs.append({
+                "id": lab.id,
+                "title": lab.name,
+                "category": lab.category,
+                "description": lab.description,
+                "status": "completed" if is_completed else "live",
+                "total_challenges": total_modules,
+                "solved_challenges": min(solved_modules, total_modules),
+                "duration_hours": round(lab.estimated_time / 60, 1) if lab.estimated_time else 1.5,
+                "tags": [lab.category] if lab.category else [],
+            })
+
+    # Use projection SELECT to only return required fields from AuditLog
+    query = db.query(AuditLog.id, AuditLog.action, AuditLog.new_value, AuditLog.resource, AuditLog.entity, AuditLog.timestamp, AuditLog.status, AuditLog.resource_id).filter(AuditLog.user_id == current_user.id)
+    # For student dashboard, exclude any admin portal login events or administrative actions
+    query = query.filter(
+        not_(AuditLog.new_value.ilike('%Portal: admin%')),
+        not_(AuditLog.action.ilike('Admin%'))
+    )
+    activity_logs = query.order_by(AuditLog.timestamp.desc()).limit(15).all()
+
+    formatted_activities = []
+    for log in activity_logs:
+        action_text = log.action or "Activity"
+        desc_text = log.new_value or log.resource or log.entity or ""
+
+        if log.action == "Login":
+            action_text = "Student Portal Login"
+            desc_text = "Logged into Student Portal successfully"
+        elif log.action == "Wrong Flag":
+            action_text = "Challenge Attempt"
+            desc_text = f"Attempted challenge submission ({log.resource_id or 'lab module'})"
+        elif log.action in ("Submit Flag", "Completed Module", "Module Completed"):
+            action_text = "Module Completed"
+            desc_text = log.new_value or f"Successfully completed {log.resource_id or 'module'}"
+        elif log.action == "Profile Created":
+            action_text = "Account Created"
+            desc_text = "Student profile created"
+        elif log.action == "Photo Uploaded":
+            action_text = "Profile Updated"
+            desc_text = "Updated profile picture"
+        elif log.action == "Photo Deleted":
+            action_text = "Profile Updated"
+            desc_text = "Removed profile picture"
+
+        formatted_activities.append({
+            "id": log.id,
+            "action": action_text,
+            "description": desc_text,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            "status": log.status or "SUCCESS",
+        })
 
     return {
         "user": {"name": current_user.name, "email": current_user.email},
@@ -101,13 +159,7 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
             "completion_percentage": stats["completionPercent"],
         },
         "assigned_labs": assigned_labs,
-        "recent_activity": [{
-            "id": log.id,
-            "action": log.action,
-            "description": log.new_value or log.resource or log.entity or "",
-            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
-            "status": log.status,
-        } for log in activity_logs],
+        "recent_activity": formatted_activities[:10],
     }
 
 class ProfileUpdate(BaseModel):

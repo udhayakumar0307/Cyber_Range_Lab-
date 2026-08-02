@@ -237,6 +237,15 @@ class GoogleAuthService:
                 detail="Account is deactivated or suspended."
             )
 
+        # Determine student auth_type: SSO if institutional domain, otherwise INDIVIDUAL
+        from app.security.domain_validator import extract_domain, match_domain_pattern
+        domain = extract_domain(email)
+        is_sso = False
+        if domain:
+            sso_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
+            is_sso = match_domain_pattern(domain, sso_patterns) or user.provider == "google"
+        
+        user.auth_type = "SSO" if is_sso else "INDIVIDUAL"
         user.last_login = datetime.utcnow()
         db.commit()
         db.refresh(user)

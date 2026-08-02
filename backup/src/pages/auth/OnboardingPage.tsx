@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, User, GraduationCap, Briefcase, Camera, Trash2, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 
 export const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();

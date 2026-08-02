@@ -16,7 +16,7 @@
 
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './context';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -34,12 +34,14 @@ const ResetPasswordPage    = lazy(() => import('./pages/auth/ResetPasswordPage')
 const RegisterPage         = lazy(() => import('./pages/auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const AdminRegisterPage    = lazy(() => import('./pages/auth/AdminRegisterPage').then(m => ({ default: m.AdminRegisterPage })));
 const OnboardingPage       = lazy(() => import('./pages/auth/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const VerificationPage     = lazy(() => import('./pages/shared/VerificationPage').then(m => ({ default: m.VerificationPage })));
 
 // ─── Admin Chunk ──────────────────────────────────────────────────────────────
 const AdminDashboard       = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const LabMarketplace       = lazy(() => import('./pages/admin/LabMarketplace').then(m => ({ default: m.LabMarketplace })));
 const LabPurchaseConfirmation = lazy(() => import('./pages/admin/LabPurchaseConfirmation').then(m => ({ default: m.LabPurchaseConfirmation })));
 const UserManagement       = lazy(() => import('./pages/admin/UserManagement').then(m => ({ default: m.UserManagement })));
+const StudentDetailsPage   = lazy(() => import('./pages/admin/StudentDetailsPage').then(m => ({ default: m.StudentDetailsPage })));
 const GroupManagement      = lazy(() => import('./pages/admin/GroupManagement').then(m => ({ default: m.GroupManagement })));
 const LabAllocation        = lazy(() => import('./pages/admin/LabAllocation').then(m => ({ default: m.LabAllocation })));
 const LabControlPanel      = lazy(() => import('./pages/admin/LabControlPanel').then(m => ({ default: m.LabControlPanel })));
@@ -52,15 +54,18 @@ const SystemPortal         = lazy(() => import('./pages/admin/SystemPortal').the
 const AdminProfilePage     = lazy(() => import('./pages/admin/AdminProfilePage').then(m => ({ default: m.AdminProfilePage })));
 const PaymentHistoryPage   = lazy(() => import('./pages/admin/PaymentHistoryPage').then(m => ({ default: m.PaymentHistoryPage })));
 const PurchasedLabsPage    = lazy(() => import('./pages/admin/PurchasedLabsPage').then(m => ({ default: m.PurchasedLabsPage })));
+const ReportsPage          = lazy(() => import('./pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 // ─── User Chunk ───────────────────────────────────────────────────────────────
 const UserDashboard        = lazy(() => import('./pages/user/UserDashboard').then(m => ({ default: m.UserDashboard })));
 const AvailableLabs        = lazy(() => import('./pages/user/AvailableLabs').then(m => ({ default: m.AvailableLabs })));
+const CartPage             = lazy(() => import('./pages/user/CartPage').then(m => ({ default: m.CartPage })));
 const ChallengeSession     = lazy(() => import('./pages/user/ChallengeSession').then(m => ({ default: m.ChallengeSession })));
 const CommandLineLabPage    = lazy(() => import('./pages/user/CommandLineLabPage').then(m => ({ default: m.CommandLineLabPage })));
 const CryptographyLabPage   = lazy(() => import('./pages/user/CryptographyLabPage').then(m => ({ default: m.CryptographyLabPage })));
 const CloudSecurityLabPage  = lazy(() => import('./pages/user/CloudSecurityLabPage').then(m => ({ default: m.CloudSecurityLabPage })));
 const PuzzleLabPage         = lazy(() => import('./pages/user/PuzzleLabPage').then(m => ({ default: m.PuzzleLabPage })));
+const TechCorpLabSession    = lazy(() => import('./pages/user/TechCorpLabSession').then(m => ({ default: m.TechCorpLabSession })));
 const ProgressTracking     = lazy(() => import('./pages/user/ProgressTracking').then(m => ({ default: m.ProgressTracking })));
 const LeaderboardPortal    = lazy(() => import('./pages/user/LeaderboardPortal').then(m => ({ default: m.LeaderboardPortal })));
 const ProfilePage          = lazy(() => import('./pages/user/ProfilePage').then(m => ({ default: m.ProfilePage })));
@@ -77,6 +82,7 @@ const NotFoundPage         = lazy(() => import('./pages/shared/NotFoundPage').th
 const ServerErrorPage      = lazy(() => import('./pages/shared/ServerErrorPage').then(m => ({ default: m.ServerErrorPage })));
 const MaintenancePage      = lazy(() => import('./pages/shared/MaintenancePage').then(m => ({ default: m.MaintenancePage })));
 const UnauthorizedPage     = lazy(() => import('./pages/shared/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })));
+const NotificationCenterPage = lazy(() => import('./pages/shared/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export function App() {
@@ -93,6 +99,10 @@ export function App() {
             <Routes>
               {/* Root Gateway */}
               <Route path="/" element={<RootRedirect />} />
+
+              {/* ── Public Verification Portal ───────────────────────────── */}
+              <Route path="/certificate/verify/:certificateId" element={<VerificationPage />} />
+              <Route path="/verify/:certificateId" element={<VerificationPage />} />
 
               {/* ── Auth Flow ─────────────────────────────────────────────── */}
               <Route path="/login" element={<LoginPage />} />
@@ -122,12 +132,28 @@ export function App() {
                 }
               />
 
-              {/* ── User Portal ───────────────────────────────────────────── */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserLayout><UserDashboard /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><NotificationCenterPage /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/notifications"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminLayout><NotificationCenterPage /></AdminLayout>
                   </ProtectedRoute>
                 }
               />
@@ -145,6 +171,14 @@ export function App() {
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserLayout><AvailableLabs /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><CartPage /></UserLayout>
                   </ProtectedRoute>
                 }
               />
@@ -229,17 +263,18 @@ export function App() {
                 }
               />
 
-              {/* Puzzle Lab */}
+              {/* TechCorp Lab Session */}
               <Route
-                path="/labs/puzzle-lab"
+                path="/labs/techcorp/session"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
-                    <PuzzleLabPage />
+                    <TechCorpLabSession />
                   </ProtectedRoute>
                 }
               />
+              {/* Puzzle Lab Session */}
               <Route
-                path="/labs/puzzle-lab/session"
+                path="/puzzle"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <PuzzleLabPage />
@@ -248,12 +283,34 @@ export function App() {
               />
               <Route
                 path="/labs/puzzle"
+                element={<Navigate to="/puzzle" replace />}
+              />
+              <Route
+                path="/labs/puzzle-lab"
+                element={<Navigate to="/puzzle" replace />}
+              />
+              <Route
+                path="/labs/puzzle-lab/session"
+                element={<Navigate to="/puzzle" replace />}
+              />
+              {/* Dynamic Lab Challenge Session */}
+              <Route
+                path="/labs/:labSlug/session"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
-                    <PuzzleLabPage />
+                    <ChallengeSession />
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/labs/:labSlug/session/:sessionId"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <ChallengeSession />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/labs/lab1-recon/session"
                 element={
@@ -434,6 +491,16 @@ export function App() {
                 }
               />
               <Route
+                path="/admin/student-management/student/:studentId"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><StudentDetailsPage /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/groups"
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
@@ -479,6 +546,16 @@ export function App() {
                   <ProtectedRoute allowedRoles={['admin']}>
                     <ErrorBoundary>
                       <AdminLayout><MonitoringAnalytics /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/reports"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><ReportsPage /></AdminLayout>
                     </ErrorBoundary>
                   </ProtectedRoute>
                 }

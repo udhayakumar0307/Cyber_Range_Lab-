@@ -15,15 +15,15 @@ class Settings:
         backend_env = os.path.join(self.backend_dir, ".env")
         root_env = os.path.join(self.root_dir, ".env")
         
+        # Load backend .env first
         if os.path.exists(backend_env):
-            load_dotenv(backend_env, override=True)
-            logger.info(f"Configuration reloaded from {backend_env}")
-        elif os.path.exists(root_env):
+            load_dotenv(backend_env)
+            logger.info(f"Loaded configuration from {backend_env}")
+
+        # Load root .env (root workspace .env provides primary credentials)
+        if os.path.exists(root_env):
             load_dotenv(root_env, override=True)
-            logger.info(f"Configuration reloaded from {root_env}")
-        else:
-            load_dotenv(override=True)
-            logger.warning(".env file not found. Reading from current process environment.")
+            logger.info(f"Loaded configuration from root {root_env}")
             
         self.ENV = os.getenv("ENV", "development")
         self.FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -47,6 +47,15 @@ class Settings:
         # Google OAuth Credentials
         self.GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
         self.GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+        
+        # Razorpay Production Credentials
+        self.RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+        self.RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+        self.RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+        self.ENABLE_GST = os.getenv("ENABLE_GST", "true").lower() in ("true", "1", "yes")
+
+        if not self.RAZORPAY_KEY_ID or not self.RAZORPAY_KEY_SECRET:
+            logger.warning("[Startup Warning] Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are missing in .env! Production checkout initialization will require valid credentials.")
         
         # AWS / Amazon SES Configurations
         self.AWS_REGION = os.getenv("AWS_REGION")
@@ -84,9 +93,13 @@ class Settings:
                 self.DATABASE_URL = f"postgresql://{db_user_fb}:{db_password_fb}@{db_host_fb}:{db_port_fb}/{db_name_fb}"
                 logger.info(f"Database URL built from DB_* components: {db_host_fb}:{db_port_fb}/{db_name_fb}")
             else:
-                # Default SQLite database fallback for development
-                self.DATABASE_URL = "sqlite:///./cyberrange.db"
-                logger.warning("No database URL or components specified. Falling back to default SQLite database.")
+                # Prevent silent fallback to local SQLite database in production mode
+                if self.ENV == "development" and os.getenv("ALLOW_SQLITE_DEV", "false").lower() in ("true", "1"):
+                    self.DATABASE_URL = "sqlite:///./cyberrange.db"
+                    logger.warning("Explicit development mode: using SQLite database fallback.")
+                else:
+                    logger.critical("PostgreSQL configuration missing. Set DATABASE_URL or DATABASE_HOST/DATABASE_USER/DATABASE_NAME in .env!")
+                    raise RuntimeError("PostgreSQL configuration missing.")
 
     def get_database_url(self) -> str:
         return self.DATABASE_URL

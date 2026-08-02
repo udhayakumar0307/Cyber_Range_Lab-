@@ -82,6 +82,26 @@ def _build_labs_metadata(db: Session) -> list:
         if cap:
             lab_modules = lab_modules[:cap]
 
+        # Standardize durations per specification
+        is_puzzle = "puzzle" in lab.id.lower() or (lab.category and "puzzle" in lab.category.lower())
+        is_command_line = "command-line" in lab.id.lower() or "cmd" in lab.id.lower()
+        
+        if is_puzzle:
+            duration_str = "Unlimited"
+            duration_val = 0
+            price_val = 0
+            is_free = True
+        elif is_command_line:
+            duration_str = "6 Hours"
+            duration_val = 6.0
+            price_val = lab.price_inr
+            is_free = False
+        else:
+            duration_str = "1.5 Hours"
+            duration_val = 1.5
+            price_val = lab.price_inr
+            is_free = False
+
         result.append({
             "id": lab.id,
             "title": lab.name,
@@ -90,8 +110,10 @@ def _build_labs_metadata(db: Session) -> list:
             "difficulty": lab.difficulty,
             "shortDescription": lab.description or f"Hands-on {lab.name} challenge.",
             "fullDescription": lab.description or f"Complete practical cybersecurity lab covering {lab.category}.",
-            "priceInr": lab.price_inr,
-            "durationHours": round(lab.estimated_time / 60, 1) if lab.estimated_time else 1.5,
+            "priceInr": price_val,
+            "isFree": is_free,
+            "durationHours": duration_val,
+            "durationDisplay": duration_str,
             "rating": lab.rating,
             "reviewCount": lab.review_count,
             "skillsCovered": [lab.category],
@@ -134,13 +156,50 @@ def get_labs(
             for lab in labs_metadata
         ]
 
+    # Check student user type
+    user_auth_type = getattr(current_user, "auth_type", "INDIVIDUAL")
+
+    if user_auth_type == "SSO":
+        # Fetch assigned lab IDs for currently logged-in student (individual or group assignments)
+        from app.models.assignment import Assignment
+        student_group_id = getattr(current_user, "group_id", None)
+        
+        assigned_query = db.query(Assignment).filter(
+            (Assignment.student_id == current_user.id) |
+            (Assignment.group_id == student_group_id)
+        )
+        assigned_lab_ids = {a.lab_id for a in assigned_query.all() if a.lab_id}
+
+        # Filter metadata list to only contain assigned labs
+        active_labs_metadata = [
+            lab for lab in labs_metadata if lab["id"] in assigned_lab_ids
+        ]
+    else:
+        # Individual / personal user: has access to all catalog marketplace labs
+        # We check purchased status against purchased_labs database
+        from app.models.admin_models import PurchasedLab
+        purchased = db.query(PurchasedLab).filter(
+            PurchasedLab.user_id == current_user.id,
+            PurchasedLab.status == "ACTIVE"
+        ).all()
+        purchased_lab_ids = {p.lab_id for p in purchased}
+
+        active_labs_metadata = []
+        for lab in labs_metadata:
+            # Overwrite isPurchased value dynamically
+            is_purchased = lab["id"] in purchased_lab_ids or lab.get("isFree", True)
+            active_labs_metadata.append({
+                **lab,
+                "isPurchased": is_purchased
+            })
+
     # User progress — reuses progress_service cache (shared with dashboard)
     from app.services.progress_service import get_user_lab_statistics
     stats = get_user_lab_statistics(db, str(current_user.id))
     lab_completed = stats["lab_completed_modules"]
 
     result = []
-    for lab in labs_metadata:
+    for lab in active_labs_metadata:
         cap = _MODULE_CAP.get(lab["id"])
         solved = lab_completed.get(lab["id"], 0)
         if cap:

@@ -32,4 +32,6 @@ TRACK_TO_LAB: dict = {
     "crypto": "cryptography-lab",
     "recon":  "lab1-recon",
     "cloud":  "cloud-security-lab",
+    "techcorp-sysadmin-labs": "puzzle-lab",
+    "puzzle": "puzzle-lab",
 }

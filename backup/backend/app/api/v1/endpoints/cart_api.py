@@ -75,28 +75,36 @@ def add_item_to_cart(
     db: Session = Depends(get_db)
 ):
     """
-    Adds a lab item to the user's cart or updates quantity if already present.
+    Adds a lab item to the user's cart.
+    Duplicate lab purchases are blocked — a student may only add a lab once (quantity capped at 1).
+    Returns 409 Conflict if the lab is already in the cart.
     """
     cart = get_or_create_user_cart(db, current_user.id)
     
-    # Check if item already in cart
-    existing_item = db.query(CartItem).filter(CartItem.cart_id == cart.id, CartItem.lab_id == data.lab_id).first()
+    # Block duplicate: if this lab is already in cart, reject with 409
+    existing_item = db.query(CartItem).filter(
+        CartItem.cart_id == cart.id,
+        CartItem.lab_id == data.lab_id
+    ).first()
     if existing_item:
-        existing_item.quantity += data.quantity
-        existing_item.license_duration_months = data.license_duration_months
-    else:
-        new_item = CartItem(
-            cart_id=cart.id,
-            lab_id=data.lab_id,
-            lab_title=data.lab_title,
-            lab_image=data.lab_image,
-            price_inr=data.price_inr,
-            quantity=data.quantity,
-            license_duration_months=data.license_duration_months
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"'{data.lab_title}' is already in your cart. Each lab can only be added once."
         )
-        db.add(new_item)
 
+    # Always enforce quantity = 1 per lab
+    new_item = CartItem(
+        cart_id=cart.id,
+        lab_id=data.lab_id,
+        lab_title=data.lab_title,
+        lab_image=data.lab_image,
+        price_inr=data.price_inr,
+        quantity=1,
+        license_duration_months=data.license_duration_months
+    )
+    db.add(new_item)
     db.commit()
+    logger.info(f"[Cart] User {current_user.email} added lab '{data.lab_id}' to cart.")
     return {"status": "success", "message": f"Added '{data.lab_title}' to cart."}
 
 @router.put("/items/{item_id}")

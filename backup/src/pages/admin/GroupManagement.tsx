@@ -29,25 +29,26 @@ export const GroupManagement: React.FC = () => {
   const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<UserGroup | null>(null);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchGroups = async () => {
-      const token = localStorage.getItem('token');
-      try {
-        const res = await fetch('/api/v1/admin/groups', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setGroups(data);
-          }
+  const fetchGroups = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/v1/admin/groups', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setGroups(data);
         }
-      } catch (err) {
-        console.error('Error fetching groups:', err);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching groups:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchGroups();
   }, []);
 
@@ -55,23 +56,60 @@ export const GroupManagement: React.FC = () => {
 
   const filteredGroups = groups.filter(
     (g) =>
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (g.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSaveGroup = (groupData: Partial<UserGroup>) => {
-    if (groupToEdit) {
-      setGroups((prev) =>
-        prev.map((g) => (g.id === groupToEdit.id ? ({ ...g, ...groupData } as UserGroup) : g))
-      );
-    } else {
-      setGroups((prev) => [groupData as UserGroup, ...prev]);
+  const handleSaveGroup = async (groupData: Partial<UserGroup>) => {
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
+    try {
+      if (groupToEdit) {
+        // Edit group
+        const res = await fetch(`/api/v1/admin/groups/${groupToEdit.db_id || groupToEdit.id.replace('grp-', '')}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name: groupData.name,
+            description: groupData.description
+          })
+        });
+        if (res.ok) fetchGroups();
+      } else {
+        // Create new group
+        const res = await fetch('/api/v1/admin/groups', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: groupData.name,
+            description: groupData.description
+          })
+        });
+        if (res.ok) fetchGroups();
+      }
+    } catch (err) {
+      console.error('Failed to save group:', err);
     }
   };
 
-  const handleConfirmDelete = () => {
-    if (groupToDelete) {
-      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete.id));
+  const handleConfirmDelete = async () => {
+    if (!groupToDelete) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        fetchGroups();
+      }
+    } catch (err) {
+      console.error('Failed to delete group:', err);
+    } finally {
       setGroupToDelete(null);
     }
   };
@@ -83,10 +121,10 @@ export const GroupManagement: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <UsersRound className="w-5 h-5 text-[#0052CC] dark:text-blue-400" />
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Group Cohort Management</h1>
+            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Training Group Management</h1>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Organize users into training cohorts and manage lab allocations per group.
+            Organize users into training groups and manage lab allocations per group.
           </p>
         </div>
 
@@ -110,7 +148,7 @@ export const GroupManagement: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search group cohorts by name or description..."
+            placeholder="Search training groups by name or description..."
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
           />
         </div>
@@ -201,7 +239,10 @@ export const GroupManagement: React.FC = () => {
       <GroupMembersModal
         group={selectedGroupForMembers}
         isOpen={isMembersModalOpen}
-        onClose={() => setIsMembersModalOpen(false)}
+        onClose={() => {
+          setIsMembersModalOpen(false);
+          fetchGroups();
+        }}
       />
 
       {/* Delete Confirmation Modal */}

@@ -47,13 +47,56 @@ def _execute_login(
     email_clean = login_data.email.strip().lower() if login_data.email else ""
     logger.info(f"=> ENTERING LOGIN ENDPOINT for {email_clean} on portal '{portal}' from IP {client_ip}")
 
+    # Local Development & QA Testing Bypass for @testcyberrange.in
+    is_qa_bypass = email_clean.endswith("@testcyberrange.in") and settings.ENV == "development"
+    if is_qa_bypass:
+        logger.info(f"[AuthLog] Bypassing auth checks for test student: {email_clean}")
+        # Generate temporary JWT/session
+        token_payload = {
+            "sub": email_clean,
+            "user_id": -999, # Dummy ID matching deps.py
+            "role": "student",
+            "account_type": "academic",
+            "is_internal": False,
+            "tenant_id": "default",
+            "portal_type": portal,
+            "organization_id": "CyberRange QA"
+        }
+        token = create_access_token(data=token_payload)
+        refresh_token = create_refresh_token(data=token_payload, remember_me=login_data.remember_me)
+        return {
+            "success": True,
+            "token": token,
+            "refresh_token": refresh_token,
+            "role": "student",
+            "account_type": "academic",
+            "is_internal": False,
+            "portal_type": portal,
+            "user": {
+                "id": -999,
+                "name": "CyberRange Test Student",
+                "email": email_clean,
+                "phone": "Testing",
+                "role": "student",
+                "account_type": "academic",
+                "is_internal": False,
+                "auth_type": "SSO"
+            }
+        }
+
     # Enforce brute force / login protection
     login_protection.check_and_enforce_protection(email_clean, client_ip)
 
     existing_user = db.query(User).filter(User.email == email_clean).first()
 
     # Domain & Role Portal Validation BEFORE Password Inspection
-    if portal == "admin":
+    is_system_admin = existing_user and getattr(existing_user, "role", "").upper() == "SYSTEM_ADMIN"
+    is_academic_admin = existing_user and getattr(existing_user, "role", "").lower() == "admin" and getattr(existing_user, "account_type", "").lower() == "academic"
+    logger.info(f"[AuthLog] Login request email: {email_clean} | env_admin_email: {settings.SYSTEM_ADMIN_EMAIL} | is_system_admin: {is_system_admin} | is_academic_admin: {is_academic_admin}")
+
+    if is_system_admin or is_academic_admin:
+        logger.info(f"[AuthLog] Bypassing portal validations for admin: {email_clean}")
+    elif portal == "admin":
         validate_admin_login_attempt(email_clean, existing_user)
     else:
         validate_student_login_attempt(email_clean, existing_user)
@@ -73,13 +116,92 @@ def _execute_login(
         raise AuthenticationError("Invalid Email or Password")
 
     # Double-check existing authenticated user record against portal requirements
-    if portal == "admin":
+    is_authenticated_sys_admin = getattr(user, "role", "").upper() == "SYSTEM_ADMIN"
+    is_authenticated_academic_admin = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
+    logger.info(f"[AuthLog] User Authenticated successfully | role: {getattr(user, 'role', 'user')} | is_system_admin: {is_authenticated_sys_admin} | is_academic_admin: {is_authenticated_academic_admin}")
+    
+    if is_authenticated_sys_admin or is_authenticated_academic_admin:
+        logger.info(f"[AuthLog] Bypassing secondary portal validations for admin user: {email_clean}")
+    elif portal == "admin":
         validate_admin_login_attempt(email_clean, user)
     else:
         validate_student_login_attempt(email_clean, user)
 
+    # Enforce email verification check for non-cyberrange accounts
+    is_cyberrange_domain = email_clean.endswith("@cyberrange.in")
+    email_verified_status = getattr(user, "email_verified", True)
+    
+    if not is_cyberrange_domain and not email_verified_status:
+        logger.warning(f"[AuthLog] Login rejected for unverified academic account: {email_clean}")
+        raise AuthenticationError("Please verify your institutional email before logging in.")
+
+    # Implement Production MFA-OTP flow for Academic Admins
+    is_academic_admin_user = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
+    # Check if this request already includes the OTP verification code
+    submitted_otp = getattr(login_data, "otp_code", None) or request.query_params.get("otp_code")
+    
+    if is_academic_admin_user and not is_cyberrange_domain:
+        if not submitted_otp:
+            # Generate new login OTP
+            otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
+            # Delete previous active login OTPs for this email to invalidate them
+            db.query(OTPVerification).filter(OTPVerification.email == email_clean).delete()
+            
+            otp_record = OTPVerification(
+                email=email_clean,
+                otp_code=otp_code,
+                expires_at=datetime.utcnow() + timedelta(minutes=5)
+            )
+            db.add(otp_record)
+            db.commit()
+            
+            try:
+                ses_service.send_otp_email(email_clean, otp_code)
+                logger.info(f"[AuthLog] Login OTP sent to academic admin: {email_clean}")
+            except Exception as e:
+                logger.error(f"[AuthLog] Failed to send login OTP email: {e}")
+                raise AppError("Failed to deliver verification code. Please try again.", status_code=500)
+                
+            return {
+                "status": "otp_required",
+                "message": "A security verification code has been sent to your institutional email.",
+                "email": email_clean
+            }
+        else:
+            # Verify the submitted OTP
+            otp_rec = db.query(OTPVerification).filter(
+                OTPVerification.email == email_clean,
+                OTPVerification.otp_code == submitted_otp
+            ).first()
+            
+            if not otp_rec:
+                raise AuthenticationError("Invalid login verification code.")
+            if otp_rec.expires_at < datetime.utcnow():
+                db.delete(otp_rec)
+                db.commit()
+                raise AuthenticationError("Verification code has expired. Please try logging in again.")
+                
+            # Invalidate/delete the used OTP
+            db.delete(otp_rec)
+            db.commit()
+
     login_protection.record_successful_login(email_clean, client_ip)
     logger.info("User authenticated")
+    
+    # Resolve student auth_type: SSO if institutional domain or academic account, otherwise INDIVIDUAL
+    # Institutional domains match *.edu, *.ac.in, *.edu.in, college or university domains
+    from app.security.domain_validator import extract_domain, match_domain_pattern
+    domain = extract_domain(email_clean)
+    is_sso = False
+    if domain:
+        sso_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
+        is_sso = match_domain_pattern(domain, sso_patterns) or user.provider == "google" or getattr(user, "account_type", "").lower() == "academic"
+    else:
+        is_sso = getattr(user, "account_type", "").lower() == "academic"
+    
+    user.auth_type = "SSO" if is_sso else "INDIVIDUAL"
+    db.commit()
+
     role_name = user.role.lower() if user.role else "user"
     token_payload = {
         "sub": user.email,
@@ -142,9 +264,11 @@ def _execute_login(
             "id": user.id,
             "name": user.name or "User",
             "email": user.email,
+            "phone": getattr(user, "phone", None),
             "role": role_name,
             "account_type": getattr(user, "account_type", "student"),
-            "is_internal": getattr(user, "is_internal", False)
+            "is_internal": getattr(user, "is_internal", False),
+            "auth_type": getattr(user, "auth_type", "INDIVIDUAL")
         }
     }
 
@@ -246,12 +370,14 @@ def google_auth(
             "name": user.name or "User",
             "full_name": user.name or "User",
             "email": user.email,
+            "phone": getattr(user, "phone", None),
             "role": role_name,
             "account_type": getattr(user, "account_type", "student"),
             "is_internal": getattr(user, "is_internal", False),
             "google_id": getattr(user, "google_id", None),
             "provider": getattr(user, "provider", "google"),
-            "profile_picture": getattr(user, "profile_photo", None)
+            "profile_picture": getattr(user, "profile_photo", None),
+            "auth_type": getattr(user, "auth_type", "INDIVIDUAL")
         }
     }
 
@@ -349,13 +475,15 @@ def get_me(current_user: User = Depends(get_current_user)):
         department=current_user.department,
         year=current_user.year,
         roll_number=current_user.roll_number,
-        total_score=current_user.total_score
+        total_score=current_user.total_score,
+        auth_type=getattr(current_user, "auth_type", "INDIVIDUAL")
     )
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 def register(register_data: UserRegister, db: Session = Depends(get_db)):
     """
     Registers a new user on AWS RDS, generates OTP, stores in DB, and sends via SES.
+    Academic / College Student registration requires academic domain verification.
     """
     password_validator.validate_or_raise(
         register_data.password,
@@ -366,20 +494,37 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == register_data.email).first()
     if existing_user:
         raise AppError("Email already registered", status_code=status.HTTP_400_BAD_REQUEST)
+
+    # 1. Domain Validation for College Students
+    if register_data.account_type == "STUDENT":
+        from app.security.domain_validator import extract_domain, match_domain_pattern
+        domain = extract_domain(register_data.email)
+        academic_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
+        personal_patterns = ["gmail.com", "outlook.com", "yahoo.com", "proton.me", "icloud.com"]
         
+        # Reject gmail/outlook if the user selected College Student
+        if match_domain_pattern(domain, personal_patterns):
+            raise AppError("Personal email addresses cannot be used for College Student registration.", status_code=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate that domain is academic
+        if not match_domain_pattern(domain, academic_patterns):
+            raise AppError("Please use a valid academic email address (e.g. .edu, .ac.in, .edu.in).", status_code=status.HTTP_400_BAD_REQUEST)
+
     # Generate OTP
     otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
     logger.info("OTP generated")
 
     # Add User to session
     hashed_pw = get_password_hash(register_data.password)
+    user_account_type = "academic" if register_data.account_type == "STUDENT" else "INDIVIDUAL"
+    
     user = User(
         name=register_data.name,
         email=register_data.email,
         password_hash=hashed_pw,
         role="user",
         is_active=True,  # Active by default to support backward compatible login tests
-        account_type=register_data.account_type,
+        account_type=user_account_type,
         college_id=register_data.college_id if register_data.account_type == "STUDENT" else None,
         department=register_data.department if register_data.account_type == "STUDENT" else None,
         year=register_data.year if register_data.account_type == "STUDENT" else None,

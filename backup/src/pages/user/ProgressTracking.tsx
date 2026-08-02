@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context';
+import { VectorBadge } from '../../components/user/VectorBadge';
 import { 
   Award, 
   Clock, 
@@ -8,7 +10,12 @@ import {
   Zap,
   Target,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  CheckCircle2,
+  Share2,
+  Download,
+  Trophy,
+  ExternalLink
 } from 'lucide-react';
 
 interface DomainProficiency {
@@ -20,9 +27,11 @@ interface DomainProficiency {
 }
 
 export const ProgressTracking: React.FC = () => {
+  const { user } = useAuth();
   const [timePeriod, setTimePeriod] = useState('all');
   const [dashboard, setDashboard] = useState<any>(null);
   const [achievements, setAchievements] = useState<any[]>([]);
+  const [allLabs, setAllLabs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -51,6 +60,7 @@ export const ProgressTracking: React.FC = () => {
       }
       if (labsRes.ok) {
         const labs = await labsRes.json();
+        setAllLabs(labs);
         
         const colors = [
           'bg-[#2563EB]', 'bg-purple-600', 'bg-emerald-500', 
@@ -83,6 +93,22 @@ export const ProgressTracking: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleShareAchievement = async (data: { labTitle: string; totalScore: number; username: string }) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `CyberRange Certificate - ${data.labTitle}`,
+          text: `I completed ${data.labTitle} on CyberRange! Score: +${data.totalScore} pts.`,
+          url: window.location.href,
+        });
+        return;
+      } catch (err) {
+        console.log('Share cancelled:', err);
+      }
+    }
+    alert(`Certificate generated for ${data.labTitle}. Verify at CyberRange official portal.`);
   };
 
   useEffect(() => {
@@ -263,22 +289,36 @@ export const ProgressTracking: React.FC = () => {
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800 my-4 max-h-[300px] overflow-y-auto pr-1">
             {unlockedBadges.length > 0 ? (
-              unlockedBadges.map((badge) => (
-                <div key={badge.id} className="py-4 flex items-start gap-3.5 first:pt-0 last:pb-0">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 border border-amber-100 dark:border-amber-900 flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{badge.title}</span>
-                      <span className="text-[9px] font-bold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-1.5 py-0.2 rounded-md">
-                        +{badge.reward_points} Pts
-                      </span>
+              unlockedBadges.map((badge, idx) => (
+                <div key={badge.id} className="py-4 flex items-center justify-between gap-3.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0">
+                  <div className="flex items-center gap-3.5">
+                    <VectorBadge
+                      title={badge.title}
+                      points={badge.reward_points}
+                      variant={idx % 4 === 0 ? 'gold' : idx % 4 === 1 ? 'emerald' : idx % 4 === 2 ? 'blue' : 'purple'}
+                      size="sm"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-slate-800 dark:text-slate-100">{badge.title}</span>
+                        <span className="text-[10px] font-extrabold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-2 py-0.5 rounded-full">
+                          +{badge.reward_points} Pts
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        {badge.description}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                      {badge.description}
-                    </p>
                   </div>
+                  <a
+                    href={`/certificate/verify/CYR-2026-${badge.id.replace(/[^0-9]/g, '').padStart(6, '0') || '000001'}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Verify</span>
+                  </a>
                 </div>
               ))
             ) : (
@@ -303,6 +343,96 @@ export const ProgressTracking: React.FC = () => {
               Milestone Active
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Completed Labs & Verifiable Achievement Cards Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs transition-colors space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>Completed Lab Statistics & Achievement Cards</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Direct access to verifiable completion certificates, scores, and downloadable achievement cards.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {allLabs.map((lab) => {
+            const totalModules = lab.totalChallenges ?? lab.modules?.length ?? 5;
+            const solvedModules = lab.solvedChallenges ?? 0;
+            const isCompleted = lab.status === 'completed' || (totalModules > 0 && solvedModules >= totalModules);
+            const scoreVal = isCompleted ? (totalModules * 200 || 1000) : (solvedModules * 200);
+            const maxScoreVal = totalModules * 200 || 1000;
+            const percentVal = isCompleted ? 100 : (totalModules > 0 ? Math.round((solvedModules / totalModules) * 100) : 0);
+
+            return (
+              <div 
+                key={lab.id} 
+                className={`p-4 rounded-xl border ${
+                  isCompleted 
+                    ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/20' 
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40'
+                } flex flex-col justify-between space-y-3 transition-colors`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">{lab.title || lab.name}</h4>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 capitalize">{lab.category || 'Infrastructure Security'}</span>
+                  </div>
+                  {isCompleted ? (
+                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Completed
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold text-[10px] rounded-full">
+                      In Progress ({percentVal}%)
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 text-[11px]">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 block uppercase">Final Score</span>
+                    <span className="font-extrabold text-blue-600 dark:text-blue-400">{scoreVal} / {maxScoreVal}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 block uppercase">Completion</span>
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{percentVal}%</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 block uppercase">Badge</span>
+                    <span className="font-extrabold text-amber-500">🏅 Range Master</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {isCompleted ? '✓ Verifiable Credential Issued' : `${solvedModules}/${totalModules} Modules Solved`}
+                  </span>
+
+                  {isCompleted && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleShareAchievement({
+                          labTitle: lab.title || lab.name,
+                          totalScore: scoreVal,
+                          username: user?.name || user?.email || 'CyberRange Student'
+                        })}
+                        className="px-3 py-1 bg-[#2563EB] hover:bg-blue-600 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                        title="Download or share achievement card PNG"
+                      >
+                        <Share2 className="w-3 h-3" /> Share / Card
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

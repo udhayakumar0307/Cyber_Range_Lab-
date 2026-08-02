@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 import { 
   LayoutDashboard, 
   Store, 
@@ -38,16 +38,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   };
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Lab Marketplace', path: '/admin/labs', icon: Store, badge: 'New' },
-    { name: 'Purchased Labs', path: '/admin/purchased-labs', icon: FlaskConical },
-    { name: 'Payment History', path: '/admin/payments', icon: CreditCard },
-    { name: 'Lab Scheduler', path: '/admin/scheduler', icon: Calendar },
-    { name: 'CTF Event Hub', path: '/admin/ctf', icon: Trophy, badge: 'CTF' },
-    { name: 'User Management', path: '/admin/users', icon: Users },
-    { name: 'Group Management', path: '/admin/groups', icon: UsersRound },
-    { name: 'Lab Allocations', path: '/admin/allocations', icon: Layers },
-    { name: 'Lab Control Panel', path: '/admin/labs/control', icon: Sliders },
-    { name: 'Monitoring & Analytics', path: '/admin/monitoring', icon: Activity, pulse: true },
+    { name: 'Lab Marketplace', path: '/admin/labs', icon: Store },
+    { name: 'Student Management', path: '/admin/users', icon: Users },
+    { name: 'Groups', path: '/admin/groups', icon: UsersRound },
+    { name: 'Assignments', path: '/admin/allocations', icon: Layers },
+    { name: 'Analytics', path: '/admin/monitoring', icon: Activity },
+    { name: 'Reports', path: '/admin/reports', icon: CreditCard },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 
@@ -95,15 +91,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                   <span>{item.name}</span>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  {item.pulse && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  )}
-                  {item.badge && (
-                    <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-950/60 text-[#6F42C1] dark:text-purple-300 px-2 py-0.5 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
+                 <div className="flex items-center gap-1">
                   <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 dark:text-slate-500" />
                 </div>
               </NavLink>
