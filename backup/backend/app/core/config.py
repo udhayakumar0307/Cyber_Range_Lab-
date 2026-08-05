@@ -24,6 +24,32 @@ class Settings:
         if os.path.exists(root_env):
             load_dotenv(root_env, override=True)
             logger.info(f"Loaded configuration from root {root_env}")
+
+        # Query AWS Secrets Manager if configured
+        secret_name = os.getenv("AWS_SECRET_NAME")
+        if secret_name:
+            try:
+                import boto3
+                import json
+                region_name = os.getenv("AWS_REGION", "us-east-1")
+                session = boto3.session.Session(
+                    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+                )
+                client = session.client(
+                    service_name='secretsmanager',
+                    region_name=region_name
+                )
+                secret_response = client.get_secret_value(SecretId=secret_name)
+                if 'SecretString' in secret_response:
+                    secret_data = json.loads(secret_response['SecretString'])
+                    for k, v in secret_data.items():
+                        os.environ[k] = str(v)
+                    logger.info(f"Successfully loaded configurations from AWS Secrets Manager: {secret_name}")
+            except ImportError:
+                logger.warning("boto3 package not found. Skipping AWS Secrets Manager fetch.")
+            except Exception as e:
+                logger.error(f"Failed to fetch credentials from AWS Secrets Manager: {e}")
             
         self.ENV = os.getenv("ENV", "development")
         self.FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")

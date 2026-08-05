@@ -47,7 +47,7 @@ def create_checkout_order(
     if not cart or not cart.items:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Shopping cart is empty.")
 
-    subtotal = sum(item.price_inr * item.quantity for item in cart.items)
+    subtotal = sum(item.price_inr for item in cart.items)
     discount = 0.0
     if data.discount_code and data.discount_code.upper() in ["ASTRA10", "CYBER10"]:
         discount = round(subtotal * 0.10, 2)
@@ -82,9 +82,10 @@ def create_checkout_order(
             order_id=order.id,
             lab_id=item.lab_id,
             lab_title=item.lab_title,
-            seats=item.quantity,
-            duration_months=item.license_duration_months,
-            price=item.price_inr
+            seats=1,
+            duration_months=12,
+            price=item.price_inr,
+            hours_purchased=item.hours_purchased or 40
         )
         db.add(order_item)
 
@@ -239,8 +240,9 @@ def verify_payment(
         order.organization_id = resolved_org_id
 
     for item in order.items:
-        expiry = datetime.utcnow() + timedelta(days=item.duration_months * 30)
+        expiry = datetime.utcnow() + timedelta(days=365) # 1 Year expiry default
         license_key = f"LIC-{item.lab_id.upper()}-{secrets.token_hex(6).upper()}"
+        hours = item.hours_purchased or 40
 
         purchased_lab = PurchasedLab(
             user_id=current_user.id,
@@ -248,23 +250,16 @@ def verify_payment(
             lab_id=item.lab_id,
             lab_title=item.lab_title,
             license_key=license_key,
-            total_seats=item.seats,
+            total_seats=999, # Deprecate seat constraints
             assigned_seats=0,
             status="ACTIVE",
-            expiry_date=expiry
+            expiry_date=expiry,
+            hours_purchased=hours,
+            hours_remaining=hours,
+            hours_used=0
         )
         db.add(purchased_lab)
         db.flush()
-
-        for idx in range(item.seats):
-            seat_key = f"KEY-{item.lab_id.upper()}-SEAT{idx+1}-{secrets.token_hex(4).upper()}"
-            lic = License(
-                purchased_lab_id=purchased_lab.id,
-                license_key=seat_key,
-                status="AVAILABLE",
-                expiry_date=expiry
-            )
-            db.add(lic)
 
     # 5. Clear Cart
     cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
@@ -549,6 +544,9 @@ def get_purchased_labs(
             "license_key": lab.license_key,
             "total_seats": lab.total_seats,
             "assigned_seats": lab.assigned_seats,
+            "hours_purchased": lab.hours_purchased or 0,
+            "hours_remaining": lab.hours_remaining or 0,
+            "hours_used": (lab.hours_purchased or 0) - (lab.hours_remaining or 0),
             "status": lab.status,
             "purchased_date": lab.purchased_date.strftime("%Y-%m-%d") if lab.purchased_date else "",
             "expiry_date": lab.expiry_date.strftime("%Y-%m-%d") if lab.expiry_date else ""

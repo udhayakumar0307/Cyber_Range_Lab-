@@ -32,8 +32,11 @@ class UserRegister(BaseModel):
     name: str
     email: EmailStr
     password: str
+    phone: Optional[str] = None
     account_type: Optional[str] = "INDIVIDUAL" # STUDENT or INDIVIDUAL
+    primary_affiliation_type: Optional[str] = "college"  # 'college' or 'organization'
     college_id: Optional[int] = None
+    organization_name: Optional[str] = None
     department: Optional[str] = None
     year: Optional[int] = None
     roll_number: Optional[str] = None

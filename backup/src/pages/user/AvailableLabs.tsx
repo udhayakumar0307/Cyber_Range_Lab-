@@ -16,7 +16,8 @@ import {
   X,
   Share2,
   Download,
-  Award
+  Award,
+  ShoppingCart
 } from 'lucide-react';
 
 interface Lab {
@@ -50,6 +51,36 @@ export const AvailableLabs: React.FC = () => {
 
   const urlSearch = searchParams.get('search') || searchParams.get('q') || '';
   const [searchTerm, setSearchTerm] = useState(urlSearch);
+
+  // Tabs Switcher & Rentals
+  const [activeTab, setActiveTab] = useState<'all' | 'purchased'>('all');
+  const [rentals, setRentals] = useState<any[]>([]);
+  const [rentalsLoading, setRentalsLoading] = useState(false);
+
+  const fetchPurchasedRentals = async () => {
+    setRentalsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/v1/user/rentals', { headers });
+      if (res.ok) {
+        setRentals(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch purchased rentals:', err);
+    } finally {
+      setRentalsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'purchased') {
+      fetchPurchasedRentals();
+    }
+  }, [activeTab]);
 
   const [labs, setLabs] = useState<Lab[]>([]);
 
@@ -397,8 +428,34 @@ export const AvailableLabs: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Search controls toolbar */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4 transition-colors">
+      {/* Tabs Switcher */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-2 py-3 text-sm font-extrabold transition-all relative cursor-pointer ${
+            activeTab === 'all'
+              ? 'text-[#2563EB] dark:text-blue-400 border-b-2 border-[#2563EB] -mb-[2px]'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+          }`}
+        >
+          All Labs
+        </button>
+        <button
+          onClick={() => setActiveTab('purchased')}
+          className={`px-2 py-3 text-sm font-extrabold transition-all relative cursor-pointer ${
+            activeTab === 'purchased'
+              ? 'text-[#2563EB] dark:text-blue-400 border-b-2 border-[#2563EB] -mb-[2px]'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+          }`}
+        >
+          My Purchased Labs
+        </button>
+      </div>
+
+      {activeTab === 'all' ? (
+        <>
+          {/* Filter and Search controls toolbar */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4 transition-colors">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
           <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           <span>Filter Allocated Catalog</span>
@@ -624,14 +681,15 @@ export const AvailableLabs: React.FC = () => {
                         <span>Launch Lab</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
-                    ) : !isSso && !lab.isPurchased && lab.id === 'ot-security-lab' ? (
-                      /* OT lab: unpurchased → Add to Cart or Already in Cart */
+                    ) : !isSso && !lab.isPurchased ? (
+                      /* Non-SSO unpurchased lab: Add to Cart for any lab */
                       cartLabIds.has(lab.id) ? (
                         <button
                           onClick={() => navigate('/cart')}
                           className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
                         >
-                          <span>In Cart →</span>
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span>In Cart</span>
                         </button>
                       ) : (
                         <button
@@ -645,17 +703,15 @@ export const AvailableLabs: React.FC = () => {
                                 body: JSON.stringify({
                                   lab_id: lab.id,
                                   lab_title: lab.title,
-                                  price_inr: 4999.0,
+                                  price_inr: lab.priceInr ?? 4999.0,
                                   quantity: 1
                                 })
                               });
                               if (res.status === 409) {
-                                // Already in cart — refresh state and navigate
                                 await fetchCartState();
                                 navigate('/cart');
                               } else if (res.ok) {
                                 await fetchCartState();
-                                navigate('/cart');
                               }
                             } catch (e) {
                               console.error(e);
@@ -665,17 +721,10 @@ export const AvailableLabs: React.FC = () => {
                           }}
                           className="bg-[#2563EB] hover:bg-blue-600 disabled:opacity-60 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 shadow-xs"
                         >
+                          <ShoppingCart className="w-3.5 h-3.5" />
                           <span>{addingToCart === lab.id ? 'Adding...' : 'Add to Cart'}</span>
                         </button>
                       )
-                    ) : !isSso && !lab.isPurchased ? (
-                      /* Other unpurchased labs: not available for individual purchase */
-                      <button
-                        disabled
-                        className="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 font-semibold text-xs px-3.5 py-1.5 rounded-lg cursor-not-allowed"
-                      >
-                        Not Available
-                      </button>
                     ) : (
                       /* SSO workspace: Launch Lab */
                       <button
@@ -691,6 +740,97 @@ export const AvailableLabs: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+        </>
+      ) : (
+        /* My Purchased Labs Switch view */
+        <div className="space-y-6">
+          {rentalsLoading ? (
+            <div className="py-12 text-center text-slate-500 font-semibold">Loading purchased sandbox hour balances...</div>
+          ) : rentals.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center space-y-4 shadow-xs">
+              <HelpCircle className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">No Purchased Labs</h3>
+                <p className="text-xs text-slate-500 mt-1">Rent practical labs from the "All Labs" tab to begin training.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab('all')}
+                className="px-4 py-2 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Browse Catalog
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-2 duration-200">
+              {rentals.map((lab) => {
+                const hasHours = lab.hours_remaining > 0;
+                return (
+                  <div 
+                    key={lab.id} 
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative overflow-hidden group"
+                  >
+                    {/* Header status */}
+                    <div className="flex justify-between items-center mb-3">
+                      <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${hasHours ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900' : 'text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-900'} uppercase tracking-wider`}>
+                        {hasHours ? 'Active' : 'Expired'}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        License ID: #{lab.id}
+                      </span>
+                    </div>
+
+                    {/* Lab Title */}
+                    <div className="mb-4">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-[#2563EB] transition-colors leading-tight">
+                        {lab.lab_name}
+                      </h3>
+                    </div>
+
+                    {/* Hours Breakdown */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl p-3.5 mb-4 text-center border border-slate-100 dark:border-slate-800/60">
+                      <div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Purchased</div>
+                        <div className="text-sm font-black text-slate-800 dark:text-white mt-0.5">{lab.hours_purchased}h</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Used</div>
+                        <div className="text-sm font-black text-slate-600 dark:text-slate-400 mt-0.5">{lab.hours_used}h</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Remaining</div>
+                        <div className={`text-sm font-black mt-0.5 ${hasHours ? 'text-emerald-500' : 'text-rose-500'}`}>{lab.hours_remaining}h</div>
+                      </div>
+                    </div>
+
+                    {/* Date Limit */}
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-5">
+                      <span className="flex items-center gap-1.5">📅 Expiry:</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">{lab.expires_at}</span>
+                    </div>
+
+                    {/* Action button */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Workspace</span>
+                      <button
+                        onClick={() => handleDeployLab(lab)}
+                        disabled={!hasHours}
+                        className={`px-4 py-2 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 shadow-xs ${
+                          hasHours 
+                            ? 'bg-[#2563EB] hover:bg-blue-600 text-white cursor-pointer' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <span>Launch</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

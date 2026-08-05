@@ -90,3 +90,127 @@ async def daily_notification_loop() -> None:
         next_run = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
         await asyncio.sleep(max(1, (next_run - now).total_seconds()))
         await run_daily_notifications()
+
+
+async def check_assignment_reminders() -> None:
+    from app.models.assignment import Assignment
+    from app.models.notification import Notification
+    from app.models.user import User
+    from app.services.ses_service import ses_service
+    from sqlalchemy import not_, or_, func
+
+    db = db_manager.get_session()
+    try:
+        now = datetime.now()
+        active_assigns = db.query(Assignment).filter(
+            or_(Assignment.status != "Completed", Assignment.status.is_(None))
+        ).all()
+
+        for a in active_assigns:
+            users = []
+            if a.group_id:
+                users = db.query(User).filter(
+                    User.group_id == a.group_id,
+                    User.is_active.is_(True),
+                    not_(or_(func.lower(User.role) == "super_admin", func.lower(User.role) == "system_admin", func.lower(User.role) == "sysadmin"))
+                ).all()
+            elif a.student_id:
+                u = db.query(User).filter(User.id == a.student_id, User.is_active.is_(True)).first()
+                if u:
+                    users = [u]
+
+            for user in users:
+                diff_minutes = (a.start_datetime - now).total_seconds() / 60.0
+
+                # 1. 15-minute start reminder
+                if 13.0 <= diff_minutes <= 17.0:
+                    already_sent = False
+                    existing = db.query(Notification).filter(
+                        Notification.user_id == user.id,
+                        Notification.type == "LAB_REMINDER_15M"
+                    ).all()
+                    for e in existing:
+                        if e.meta_data and e.meta_data.get("assignment_id") == a.id:
+                            already_sent = True
+                            break
+                    
+                    if not already_sent:
+                        date_str = a.start_datetime.strftime("%Y-%m-%d")
+                        time_str = a.start_datetime.strftime("%I:%M %p")
+                        duration_str = f"{int((a.end_datetime - a.start_datetime).total_seconds() / 60)} mins"
+                        
+                        try:
+                            ses_service.send_lab_reminder_email(
+                                email=user.email,
+                                lab_name=a.lab_id,
+                                date=date_str,
+                                time=time_str,
+                                duration=duration_str
+                            )
+                        except Exception as ses_err:
+                            logger.error(f"SES 15m reminder failed: {ses_err}")
+                        
+                        n = Notification(
+                            user_id=user.id,
+                            recipient_role=user.role,
+                            title="Lab Starting Soon",
+                            message=f"Your assigned lab '{a.lab_id}' starts in 15 minutes.",
+                            type="LAB_REMINDER_15M",
+                            priority="HIGH",
+                            meta_data={"assignment_id": a.id}
+                        )
+                        db.add(n)
+                        db.commit()
+
+                # 2. Lab Starting Alert
+                elif -1.0 <= diff_minutes <= 2.0:
+                    already_sent = False
+                    existing = db.query(Notification).filter(
+                        Notification.user_id == user.id,
+                        Notification.type == "LAB_REMINDER_START"
+                    ).all()
+                    for e in existing:
+                        if e.meta_data and e.meta_data.get("assignment_id") == a.id:
+                            already_sent = True
+                            break
+                    
+                    if not already_sent:
+                        date_str = a.start_datetime.strftime("%Y-%m-%d")
+                        time_str = a.start_datetime.strftime("%I:%M %p")
+                        duration_str = f"{int((a.end_datetime - a.start_datetime).total_seconds() / 60)} mins"
+                        
+                        try:
+                            ses_service.send_lab_assigned_email(
+                                email=user.email,
+                                lab_name=a.lab_id,
+                                date=date_str,
+                                time=time_str,
+                                duration=duration_str
+                            )
+                        except Exception as ses_err:
+                            logger.error(f"SES start reminder failed: {ses_err}")
+                        
+                        n = Notification(
+                            user_id=user.id,
+                            recipient_role=user.role,
+                            title="Lab Assessment Active",
+                            message=f"Your assigned lab '{a.lab_id}' has started.",
+                            type="LAB_REMINDER_START",
+                            priority="HIGH",
+                            meta_data={"assignment_id": a.id}
+                        )
+                        db.add(n)
+                        db.commit()
+
+    except Exception:
+        db.rollback()
+        logger.exception("check_assignment_reminders failed")
+    finally:
+        db.close()
+
+
+async def assignment_reminder_loop() -> None:
+    """Runs every 60 seconds to check for upcoming or starting lab assignments."""
+    while True:
+        await check_assignment_reminders()
+        await asyncio.sleep(60)

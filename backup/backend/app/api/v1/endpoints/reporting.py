@@ -946,20 +946,82 @@ def get_analytics_groups(
     """
     from app.models.group import Group
     from app.models.assignment import Assignment
+    from app.models.user_affiliation import UserAffiliation as UA
+    from sqlalchemy import not_, or_
+    from datetime import datetime
+
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
+
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
 
     groups = db.query(Group).all()
     res = []
+    now = datetime.now()
     for g in groups:
         db_id = g.id
-        assign_count = db.query(Assignment).filter(
-            Assignment.group_id == db_id
-        ).count()
-        if assign_count > 0:
+        assignments = db.query(Assignment).filter(
+            Assignment.group_id == db_id,
+            Assignment.deleted_at.is_(None)
+        ).all()
+        
+        active_assign_count = 0
+        for a in assignments:
+            derived_status = "Scheduled"
+            if a.status == "Completed":
+                derived_status = "Completed"
+            elif a.paused_at is not None:
+                derived_status = "Paused"
+            elif a.start_datetime <= now <= a.end_datetime:
+                derived_status = "Running"
+            elif now > a.end_datetime:
+                derived_status = "Completed"
+            else:
+                derived_status = "Scheduled"
+            
+            if derived_status == "Running":
+                active_assign_count += 1
+
+        if len(assignments) > 0:
+            member_q = db.query(User).filter(
+                User.group_id == g.id,
+                not_(or_(
+                    User.role.ilike('%sysadmin%'),
+                    User.role.ilike('%system_admin%'),
+                    User.name.ilike('%sysadmin%'),
+                    User.name.ilike('%sys admin%'),
+                    User.email.ilike('%sysadmin%'),
+                ))
+            )
+            if not is_super_admin and valid_user_ids is not None:
+                member_q = member_q.filter(User.id.in_(valid_user_ids))
+            
+            member_count = member_q.count()
+            
             res.append({
                 "id": g.id,
                 "name": g.name,
-                "memberCount": db.query(User).filter(User.group_id == g.id).count(),
-                "activeLabsCount": assign_count
+                "memberCount": member_count,
+                "activeLabsCount": active_assign_count
             })
     return res
 
@@ -980,12 +1042,54 @@ def get_analytics_group_details(
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    members = db.query(User).filter(User.group_id == group_id).all()
+    from app.models.user_affiliation import UserAffiliation as UA
+    from sqlalchemy import not_, or_
+    from datetime import datetime
+
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
+
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+    member_q = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+            User.name.ilike('%sysadmin%'),
+            User.name.ilike('%sys admin%'),
+            User.email.ilike('%sysadmin%'),
+        ))
+    )
+    if not is_super_admin and valid_user_ids is not None:
+        member_q = member_q.filter(User.id.in_(valid_user_ids))
+
+    members = member_q.all()
     member_ids = [m.id for m in members]
     member_count = len(members)
 
     assignments = db.query(Assignment).filter(
-        Assignment.group_id == group_id
+        Assignment.group_id == group_id,
+        Assignment.deleted_at.is_(None)
     ).all()
     assigned_labs_count = len(assignments)
 
@@ -995,33 +1099,75 @@ def get_analytics_group_details(
     valid_scores_count = 0
     
     labs_list = []
+    now = datetime.now()
     for a in assignments:
         lab_title = db.query(Lab.name).filter(Lab.id == a.lab_id).scalar() or a.lab_id
         
+        derived_status = "Scheduled"
+        if a.status == "Completed":
+            derived_status = "Completed"
+        elif a.paused_at is not None:
+            derived_status = "Paused"
+        elif a.start_datetime <= now <= a.end_datetime:
+            derived_status = "Running"
+        elif now > a.end_datetime:
+            derived_status = "Completed"
+        else:
+            derived_status = "Scheduled"
+
+        from app.models.lab_module import LabModule
+        total_modules = db.query(LabModule).filter(LabModule.lab_id == a.lab_id).count()
+        if total_modules == 0:
+            total_modules = 5
+
         # Calculate stats for this lab in group
         if member_count > 0:
-            progress_records = db.query(UserLabProgress).filter(
-                UserLabProgress.user_id.in_(member_ids),
-                UserLabProgress.lab_id == a.lab_id
-            ).all()
-            completed_cnt = sum(1 for p in progress_records if p.status == "COMPLETED")
-            completion_pct = round((completed_cnt / member_count) * 100) if member_count > 0 else 0
+            member_completion_sum = 0
+            member_score_sum = 0
+            total_seconds = 0
             
-            scores = [p.score for p in progress_records if p.score is not None]
-            avg_score = round(sum(scores) / len(scores)) if scores else 0
-            if scores:
-                total_score += sum(scores)
-                valid_scores_count += len(scores)
+            for m_id in member_ids:
+                ulp_completed = db.query(UserLabProgress).filter(
+                    UserLabProgress.user_id == m_id,
+                    UserLabProgress.lab_id == a.lab_id,
+                    UserLabProgress.status == "COMPLETED"
+                ).count()
+                
+                ulp_score = db.query(func.sum(UserLabProgress.score)).filter(
+                    UserLabProgress.user_id == m_id,
+                    UserLabProgress.lab_id == a.lab_id
+                ).scalar() or 0
+                
+                ulp_seconds = db.query(func.sum(UserLabProgress.time_taken_seconds)).filter(
+                    UserLabProgress.user_id == m_id,
+                    UserLabProgress.lab_id == a.lab_id
+                ).scalar() or 0
+                
+                member_completion_sum += (ulp_completed / total_modules) * 100
+                member_score_sum += ulp_score
+                total_seconds += ulp_seconds
+
+            completion_pct = round(member_completion_sum / member_count)
+            avg_score = round(member_score_sum / member_count)
+            
             total_completion += completion_pct
+            total_score += avg_score
+            valid_scores_count += 1
+            
+            avg_seconds = total_seconds / member_count
+            hours = int(avg_seconds // 3600)
+            minutes = int((avg_seconds % 3600) // 60)
+            avg_time_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
         else:
             completion_pct = 0
             avg_score = 0
+            avg_time_str = "0m"
 
         labs_list.append({
             "assignment_id": a.id,
             "lab_id": a.lab_id,
             "lab_title": lab_title,
-            "status": a.status,
+            "status": derived_status,
             "student_count": member_count,
             "completion_percentage": completion_pct,
             "average_score": avg_score
@@ -1037,7 +1183,7 @@ def get_analytics_group_details(
         "assigned_labs_count": assigned_labs_count,
         "overall_completion": overall_completion,
         "average_score": overall_avg_score,
-        "average_time": "4h 18m",
+        "average_time": avg_time_str if assigned_labs_count > 0 else "0m",
         "labs": labs_list
     }
 
@@ -1102,17 +1248,13 @@ def get_student_lab_breakdown(
     completed_cnt = 0
     total_time_seconds = 0
 
-    # Skill categories tracker
+    # Skill categories tracker matching frontend RadarChart subjects
     track_scores = {
-        "Web Security": 0,
-        "Linux": 0,
-        "Networking": 0,
-        "Forensics": 0,
-        "Cryptography": 0,
-        "Reverse Engineering": 0,
-        "Cloud": 0,
-        "API Security": 0,
-        "Container Security": 0
+        "Reconnaissance": 0,
+        "Exploitation": 0,
+        "Analysis": 0,
+        "Configuration": 0,
+        "Defense": 0
     }
     track_counts = {k: 0 for k in track_scores.keys()}
 
@@ -1133,13 +1275,21 @@ def get_student_lab_breakdown(
         if p and p.time_taken_seconds:
             total_time_seconds += p.time_taken_seconds
 
-        # Map lab modules to radar skill tracks dynamically
-        track_map = {
-            "web": "Web Security", "linux": "Linux", "network": "Networking",
-            "forensics": "Forensics", "crypto": "Cryptography", "reversing": "Reverse Engineering",
-            "cloud": "Cloud", "api": "API Security", "container": "Container Security"
-        }
-        mapped_track = track_map.get((m.track or "").lower(), "Linux")
+        # Classify module track/category into 5 standard radar domains
+        cat = (m.track or m.category or "").lower()
+        if "recon" in cat or "info" in cat:
+            mapped_track = "Reconnaissance"
+        elif "exploit" in cat or "offensive" in cat or "attack" in cat or "web" in cat:
+            mapped_track = "Exploitation"
+        elif "analysis" in cat or "forensics" in cat or "crypto" in cat:
+            mapped_track = "Analysis"
+        elif "config" in cat or "linux" in cat or "network" in cat:
+            mapped_track = "Configuration"
+        elif "defense" in cat or "hardening" in cat or "secure" in cat:
+            mapped_track = "Defense"
+        else:
+            mapped_track = "Analysis"
+
         track_scores[mapped_track] += score
         track_counts[mapped_track] += 1
 
@@ -1154,12 +1304,23 @@ def get_student_lab_breakdown(
 
     completion_percentage = round((completed_cnt / len(modules)) * 100) if modules else 0
 
-    # Format spider data
+    # Format spider data - scale based on max score possible (e.g. count * 100)
     spider_chart = []
     for track, score_sum in track_scores.items():
         count = track_counts[track]
-        avg = round(score_sum / count) if count > 0 else 0
-        spider_chart.append({"subject": track, "score": avg, "fullMark": 100})
+        # Calculate proficiency percentage (out of max 100 per module)
+        avg = round((score_sum / (count * 100)) * 100) if count > 0 else 0
+        # If no modules belong to this category, assign a default baseline based on student's overall progress
+        if count == 0:
+            avg = max(10, int(completion_percentage * 0.4))
+        spider_chart.append({"subject": track, "score": min(100, avg), "fullMark": 100})
+
+    # Format total time to hours and minutes
+    hours = total_time_seconds // 3600
+    minutes = (total_time_seconds % 3600) // 60
+    time_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+    if total_time_seconds == 0:
+        time_str = "0m"
 
     return {
         "student": {
@@ -1170,7 +1331,7 @@ def get_student_lab_breakdown(
         "lab_title": lab_title,
         "overall_score": total_score,
         "completion_percentage": completion_percentage,
-        "total_time_taken": f"{round(total_time_seconds / 60)} min",
+        "total_time_taken": time_str,
         "modules": module_stats,
         "spider_chart": spider_chart
     }
@@ -1191,15 +1352,64 @@ def export_group_lab_csv(
     from app.models.group import Group
     from app.models.lab_module import LabModule
     from app.models.lab import Lab
-
+    from app.models.assignment import Assignment
+    from app.models.user_affiliation import UserAffiliation as UA
+    from sqlalchemy import not_, or_
+    
     g = db.query(Group).filter(Group.id == group_id).first()
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
 
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+        raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
+
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+    member_q = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+            User.name.ilike('%sysadmin%'),
+            User.name.ilike('%sys admin%'),
+            User.email.ilike('%sysadmin%'),
+        ))
+    )
+    if not is_super_admin and valid_user_ids is not None:
+        member_q = member_q.filter(User.id.in_(valid_user_ids))
+        
+    students = member_q.all()
+
+    # Find the corresponding assignment to get the start_datetime
+    a = db.query(Assignment).filter(
+        Assignment.group_id == group_id,
+        Assignment.lab_id == lab_id,
+        Assignment.deleted_at.is_(None)
+    ).first()
+    start_dt = a.start_datetime if a else datetime.min
+
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     lab_title = lab.name if lab else lab_id
 
-    students = db.query(User).filter(User.group_id == group_id).all()
     modules = db.query(LabModule).filter(LabModule.lab_id == lab_id).all()
     module_ids = [m.id for m in modules]
 
@@ -1218,7 +1428,8 @@ def export_group_lab_csv(
     for s in students:
         progress_records = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == s.id,
-            UserLabProgress.lab_id == lab_id
+            UserLabProgress.lab_id == lab_id,
+            UserLabProgress.started_at >= start_dt
         ).all()
 
         status = "Not Started"
@@ -1309,9 +1520,19 @@ def export_student_lab_pdf(
     from app.models.lab import Lab
     from app.models.lab_module import LabModule
 
+    from app.models.assignment import Assignment
+
     student = db.query(User).filter(User.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    # Find the corresponding assignment to get the start_datetime
+    a = db.query(Assignment).filter(
+        Assignment.lab_id == lab_id,
+        (Assignment.student_id == student_id) | (Assignment.group_id == student.group_id),
+        Assignment.deleted_at.is_(None)
+    ).first()
+    start_dt = a.start_datetime if a else datetime.min
 
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     lab_title = lab.name if lab else lab_id.replace("-", " ").title()
@@ -1319,7 +1540,8 @@ def export_student_lab_pdf(
     modules = db.query(LabModule).filter(LabModule.lab_id == lab_id).all()
     progress_records = db.query(UserLabProgress).filter(
         UserLabProgress.user_id == student_id,
-        UserLabProgress.lab_id == lab_id
+        UserLabProgress.lab_id == lab_id,
+        UserLabProgress.started_at >= start_dt
     ).all()
 
     overall_score = sum(p.score or 0 for p in progress_records)
@@ -1367,7 +1589,7 @@ def export_student_lab_pdf(
          Paragraph("<b>Lab Assigned:</b>", body_style), Paragraph(lab_title, body_style)],
         [Paragraph("<b>Department:</b>", body_style), Paragraph(student.department or "Cyber Security", body_style),
          Paragraph("<b>Overall Score:</b>", body_style), Paragraph(str(overall_score), body_style)],
-        [Paragraph("<b>Academic Year:</b>", body_style), Paragraph(student.year or "III Year", body_style),
+        [Paragraph("<b>Academic Year:</b>", body_style), Paragraph(str(student.year) if student.year else "III Year", body_style),
          Paragraph("<b>Completion %:</b>", body_style), Paragraph(f"{completion_pct}%", body_style)]
     ]
     t_meta = Table(meta_data, colWidths=[100, 160, 100, 160])
@@ -1391,8 +1613,8 @@ def export_student_lab_pdf(
     for m in modules:
         mp = next((p for p in progress_records if p.module_id == m.id), None)
         status = mp.status if mp else "Not Started"
-        score = mp.score or 0
-        attempts = mp.attempts or 0
+        score = mp.score or 0 if mp else 0
+        attempts = mp.attempts or 0 if mp else 0
         time_taken = f"{round((mp.time_taken_seconds or 0)/60)} min" if (mp and mp.time_taken_seconds) else "N/A"
         mod_data.append([
             Paragraph(m.title, body_style),
@@ -1564,7 +1786,7 @@ def get_historical_reports(
     from sqlalchemy import or_, and_
 
     query = db.query(Assignment).filter(
-        Assignment.status.in_(["Completed", "Ended", "Expired"])
+        Assignment.status.in_(["Completed", "Ended", "Expired", "Running", "Assigned"])
     )
 
     if lab:
@@ -1598,12 +1820,54 @@ def get_historical_reports(
             
             if search and not (g.name.lower().find(search.lower()) != -1 or a.lab_id.lower().find(search.lower()) != -1):
                 continue
+            
+            # Organization/Affiliation Filtering and system admins exclusion
+            from app.models.user_affiliation import UserAffiliation as UA
+            from sqlalchemy import not_
+            
+            is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+            valid_user_ids = None
+            if not is_super_admin:
+                admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+                admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+                raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+                admin_org_ids = []
+                if raw_org_ids:
+                    from app.models.admin_models import Organization
+                    approved_orgs = db.query(Organization.id).filter(
+                        Organization.id.in_(raw_org_ids),
+                        Organization.status.in_(["APPROVED", "ACTIVE"])
+                    ).all()
+                    admin_org_ids = [o[0] for o in approved_orgs]
 
-            students = db.query(User).filter(User.group_id == a.group_id).all()
+                filter_conds = []
+                if admin_col_ids:
+                    filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+                if admin_org_ids:
+                    filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+                if filter_conds:
+                    valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+            member_q = db.query(User).filter(
+                User.group_id == a.group_id,
+                not_(or_(
+                    User.role.ilike('%sysadmin%'),
+                    User.role.ilike('%system_admin%'),
+                    User.name.ilike('%sysadmin%'),
+                    User.name.ilike('%sys admin%'),
+                    User.email.ilike('%sysadmin%'),
+                ))
+            )
+            if not is_super_admin and valid_user_ids is not None:
+                member_q = member_q.filter(User.id.in_(valid_user_ids))
+                
+            students = member_q.all()
+
             if department:
                 students = [s for s in students if s.department == department]
             if year:
-                students = [s for s in students if s.year == year]
+                students = [s for s in students if str(s.year) == year or s.year == year]
 
             if not students and (department or year):
                 continue
@@ -1611,10 +1875,11 @@ def get_historical_reports(
             student_ids = [s.id for s in students]
             student_count = len(students)
 
-            # Compute stats
+            # Compute stats scoped by start_datetime
             progress_records = db.query(UserLabProgress).filter(
                 UserLabProgress.user_id.in_(student_ids),
-                UserLabProgress.lab_id == a.lab_id
+                UserLabProgress.lab_id == a.lab_id,
+                UserLabProgress.started_at >= a.start_datetime
             ).all() if student_ids else []
 
             completed_cnt = sum(1 for p in progress_records if p.status == "COMPLETED")
@@ -1641,7 +1906,47 @@ def get_historical_reports(
             if a.student_id:
                 student_ids = [a.student_id]
             elif a.group_id:
-                student_ids = [u.id for u in db.query(User.id).filter(User.group_id == a.group_id).all()]
+                from app.models.user_affiliation import UserAffiliation as UA
+                from sqlalchemy import not_
+                
+                is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+                valid_user_ids = None
+                if not is_super_admin:
+                    admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+                    admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+                    raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+                    admin_org_ids = []
+                    if raw_org_ids:
+                        from app.models.admin_models import Organization
+                        approved_orgs = db.query(Organization.id).filter(
+                            Organization.id.in_(raw_org_ids),
+                            Organization.status.in_(["APPROVED", "ACTIVE"])
+                        ).all()
+                        admin_org_ids = [o[0] for o in approved_orgs]
+
+                    filter_conds = []
+                    if admin_col_ids:
+                        filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+                    if admin_org_ids:
+                        filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+                    if filter_conds:
+                        valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+                member_q = db.query(User.id).filter(
+                    User.group_id == a.group_id,
+                    not_(or_(
+                        User.role.ilike('%sysadmin%'),
+                        User.role.ilike('%system_admin%'),
+                        User.name.ilike('%sysadmin%'),
+                        User.name.ilike('%sys admin%'),
+                        User.email.ilike('%sysadmin%'),
+                    ))
+                )
+                if not is_super_admin and valid_user_ids is not None:
+                    member_q = member_q.filter(User.id.in_(valid_user_ids))
+                    
+                student_ids = [u[0] for u in member_q.all()]
             else:
                 continue
 
@@ -1657,12 +1962,13 @@ def get_historical_reports(
                     continue
                 if department and s.department != department:
                     continue
-                if year and s.year != year:
+                if year and str(s.year) != year and s.year != year:
                     continue
 
                 progress_records = db.query(UserLabProgress).filter(
                     UserLabProgress.user_id == s.id,
-                    UserLabProgress.lab_id == a.lab_id
+                    UserLabProgress.lab_id == a.lab_id,
+                    UserLabProgress.started_at >= a.start_datetime
                 ).all()
 
                 final_score = sum(p.score or 0 for p in progress_records)
@@ -1708,7 +2014,47 @@ def get_historical_report_details(
     if a.student_id:
         students = db.query(User).filter(User.id == a.student_id).all()
     elif a.group_id:
-        students = db.query(User).filter(User.group_id == a.group_id).all()
+        from app.models.user_affiliation import UserAffiliation as UA
+        from sqlalchemy import not_, or_
+        
+        is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+        valid_user_ids = None
+        if not is_super_admin:
+            admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+            admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+            raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+            admin_org_ids = []
+            if raw_org_ids:
+                from app.models.admin_models import Organization
+                approved_orgs = db.query(Organization.id).filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"])
+                ).all()
+                admin_org_ids = [o[0] for o in approved_orgs]
+
+            filter_conds = []
+            if admin_col_ids:
+                filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+            if admin_org_ids:
+                filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+            if filter_conds:
+                valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+        member_q = db.query(User).filter(
+            User.group_id == a.group_id,
+            not_(or_(
+                User.role.ilike('%sysadmin%'),
+                User.role.ilike('%system_admin%'),
+                User.name.ilike('%sysadmin%'),
+                User.name.ilike('%sys admin%'),
+                User.email.ilike('%sysadmin%'),
+            ))
+        )
+        if not is_super_admin and valid_user_ids is not None:
+            member_q = member_q.filter(User.id.in_(valid_user_ids))
+            
+        students = member_q.all()
     else:
         students = []
 
@@ -1716,7 +2062,8 @@ def get_historical_report_details(
     for s in students:
         progress_records = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == s.id,
-            UserLabProgress.lab_id == a.lab_id
+            UserLabProgress.lab_id == a.lab_id,
+            UserLabProgress.started_at >= a.start_datetime
         ).all()
 
         final_score = sum(p.score or 0 for p in progress_records)
@@ -1770,12 +2117,53 @@ def download_group_report_archive(
 
         lab_title = db.query(Lab.name).filter(Lab.id == a.lab_id).scalar() or a.lab_id
 
+        from app.models.user_affiliation import UserAffiliation as UA
+        from sqlalchemy import not_, or_
+        
+        is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+        valid_user_ids = None
+        if not is_super_admin:
+            admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+            admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+            raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+            admin_org_ids = []
+            if raw_org_ids:
+                from app.models.admin_models import Organization
+                approved_orgs = db.query(Organization.id).filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"])
+                ).all()
+                admin_org_ids = [o[0] for o in approved_orgs]
+
+            filter_conds = []
+            if admin_col_ids:
+                filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+            if admin_org_ids:
+                filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+            if filter_conds:
+                valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+        member_q = db.query(User).filter(
+            User.group_id == a.group_id,
+            not_(or_(
+                User.role.ilike('%sysadmin%'),
+                User.role.ilike('%system_admin%'),
+                User.name.ilike('%sysadmin%'),
+                User.name.ilike('%sys admin%'),
+                User.email.ilike('%sysadmin%'),
+            ))
+        )
+        if not is_super_admin and valid_user_ids is not None:
+            member_q = member_q.filter(User.id.in_(valid_user_ids))
+            
+        students = member_q.all() if a.group_id else []
+
         if format == "csv":
             import csv
             from io import StringIO
             from fastapi.responses import StreamingResponse
 
-            students = db.query(User).filter(User.group_id == a.group_id).all() if a.group_id else []
             output = StringIO()
             writer = csv.writer(output)
 
@@ -1783,7 +2171,8 @@ def download_group_report_archive(
             for s in students:
                 progress_records = db.query(UserLabProgress).filter(
                     UserLabProgress.user_id == s.id,
-                    UserLabProgress.lab_id == a.lab_id
+                    UserLabProgress.lab_id == a.lab_id,
+                    UserLabProgress.started_at >= a.start_datetime
                 ).all()
 
                 final_score = sum(p.score or 0 for p in progress_records)
@@ -1793,7 +2182,7 @@ def download_group_report_archive(
                 writer.writerow([
                     s.name or s.email.split("@")[0],
                     s.department or "Cyber Security",
-                    s.year or "III Year",
+                    str(s.year) if s.year else "III Year",
                     lab_title,
                     final_score,
                     time_taken
@@ -1814,7 +2203,6 @@ def download_group_report_archive(
             from reportlab.lib import colors
             from io import BytesIO
 
-            students = db.query(User).filter(User.group_id == a.group_id).all() if a.group_id else []
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
             story = []
@@ -1835,7 +2223,8 @@ def download_group_report_archive(
             for s in students:
                 progress_records = db.query(UserLabProgress).filter(
                     UserLabProgress.user_id == s.id,
-                    UserLabProgress.lab_id == a.lab_id
+                    UserLabProgress.lab_id == a.lab_id,
+                    UserLabProgress.started_at >= a.start_datetime
                 ).all()
 
                 final_score = sum(p.score or 0 for p in progress_records)
@@ -1845,7 +2234,7 @@ def download_group_report_archive(
                 table_data.append([
                     Paragraph(s.name or s.email.split("@")[0], body_style),
                     Paragraph(s.department or "Cyber Security", body_style),
-                    Paragraph(s.year or "III Year", body_style),
+                    Paragraph(str(s.year) if s.year else "III Year", body_style),
                     Paragraph(str(final_score), body_style),
                     Paragraph(time_taken, body_style)
                 ])

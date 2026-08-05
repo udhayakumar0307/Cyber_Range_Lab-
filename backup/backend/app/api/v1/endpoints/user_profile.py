@@ -179,6 +179,7 @@ class ProfileUpdate(BaseModel):
     organization: Optional[str] = None
     experience: Optional[str] = None
     highest_qualification: Optional[str] = None
+    designation: Optional[str] = None
 
     # Education (for STUDENT)
     college_id: Optional[int] = None
@@ -191,6 +192,15 @@ class ProfileUpdate(BaseModel):
     professor: Optional[str] = None
     batch: Optional[str] = None
     student_id_num: Optional[str] = None
+
+
+class PhoneOtpSendRequest(BaseModel):
+    phone: str
+
+
+class PhoneOtpVerifyRequest(BaseModel):
+    phone: str
+    otp: str
 
 
 class SettingsUpdate(BaseModel):
@@ -247,10 +257,12 @@ def get_profile(
     Returns full profile details and academic/professional data from PostgreSQL.
     """
     college_name = None
+    college_code = None
     if current_user.college_id:
         c = db.query(College).filter(College.id == current_user.college_id).first()
         if c:
             college_name = c.name
+            college_code = c.code
 
     return {
         "id": current_user.id,
@@ -272,10 +284,13 @@ def get_profile(
         "organization": current_user.organization,
         "experience": current_user.experience,
         "highest_qualification": current_user.highest_qualification,
+        "designation": current_user.designation,
+        "phone_verified": current_user.phone_verified,
 
         # Education
         "college_id": current_user.college_id,
         "college_name": college_name,
+        "college_code": college_code,
         "department": current_user.department,
         "course": current_user.course,
         "year": current_user.year,
@@ -322,6 +337,7 @@ def update_profile(
         if payload.organization is not None: current_user.organization = payload.organization
         if payload.experience is not None: current_user.experience = payload.experience
         if payload.highest_qualification is not None: current_user.highest_qualification = payload.highest_qualification
+        if payload.designation is not None: current_user.designation = payload.designation
 
         # Education
         if payload.college_id is not None: current_user.college_id = payload.college_id
@@ -359,6 +375,36 @@ def update_profile(
         raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
 
 
+# In-memory OTP storage for phone verification
+phone_otps = {}
+
+
+@router.post("/phone/send-otp")
+def send_phone_otp(
+    data: PhoneOtpSendRequest,
+    current_user: User = Depends(get_current_user)
+):
+    otp = "123456"
+    phone_otps[data.phone] = otp
+    return {"message": "OTP sent successfully (Simulated OTP: 123456)"}
+
+
+@router.post("/phone/verify-otp")
+def verify_phone_otp(
+    data: PhoneOtpVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    stored_otp = phone_otps.get(data.phone)
+    if not stored_otp or stored_otp != data.otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    current_user.phone = data.phone
+    current_user.phone_verified = True
+    db.commit()
+    return {"status": "verified", "message": "Phone number verified successfully"}
+
+
 @router.post("/profile/photo")
 async def upload_profile_photo(
     request: Request,
@@ -382,7 +428,7 @@ async def upload_profile_photo(
         raise HTTPException(status_code=400, detail="File size exceeds maximum 5 MB limit.")
 
     # 3. Create file path inside backend/uploads/profile_photos/
-    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
     upload_folder = os.path.join(backend_dir, "uploads", "profile_photos")
     os.makedirs(upload_folder, exist_ok=True)
 
@@ -477,7 +523,7 @@ def delete_profile_photo(
 
         # Remove file from disk
         if old_photo.startswith("/uploads/profile_photos/"):
-            backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
             upload_folder = os.path.join(backend_dir, "uploads", "profile_photos")
             old_file_name = old_photo.split("/")[-1]
             old_file_path = os.path.join(upload_folder, old_file_name)
@@ -576,6 +622,98 @@ def get_statistics(
         "college_rank": college_rank or "--",
         "last_login": current_user.last_login.strftime("%Y-%m-%d %H:%M:%S") if current_user.last_login else "Active",
         "created_at": current_user.created_at.strftime("%Y-%m-%d") if current_user.created_at else None
+    }
+
+
+@router.get("/completed-labs")
+def get_completed_labs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the list of distinct labs completed by the logged-in user.
+    """
+    rows = (
+        db.query(UserLabProgress.lab_id, Lab.name, Lab.category, Lab.difficulty,
+                 func.max(UserLabProgress.completed_at).label("completed_at"),
+                 func.sum(UserLabProgress.score).label("score"))
+        .join(Lab, Lab.id == UserLabProgress.lab_id)
+        .filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.status == "COMPLETED"
+        )
+        .group_by(UserLabProgress.lab_id, Lab.name, Lab.category, Lab.difficulty)
+        .all()
+    )
+
+    result = []
+    for r in rows:
+        result.append({
+            "lab_id": r.lab_id,
+            "name": r.name,
+            "category": r.category,
+            "difficulty": r.difficulty,
+            "completed_at": r.completed_at.strftime("%Y-%m-%d") if r.completed_at else None,
+            "score": r.score or 0
+        })
+    return result
+
+
+@router.get("/activity-graph")
+def get_activity_graph(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns radar/spider chart data for user activity dimensions.
+    """
+    # Modules completed
+    modules_done = db.query(func.count(UserLabProgress.id)).filter(
+        UserLabProgress.user_id == current_user.id,
+        UserLabProgress.status == "COMPLETED"
+    ).scalar() or 0
+
+    # Flags solved
+    flags_done = db.query(func.count(UserLabProgress.id)).filter(
+        UserLabProgress.user_id == current_user.id,
+        UserLabProgress.flag_correct == True
+    ).scalar() or 0
+
+    # Training hours
+    secs = db.query(func.sum(UserLabProgress.time_taken_seconds)).filter(
+        UserLabProgress.user_id == current_user.id
+    ).scalar() or 0
+    hours = round(secs / 3600.0, 1)
+
+    # Score
+    score = current_user.total_score or 0
+
+    # Active days (streak)
+    active_days = db.query(func.date(UserLabProgress.completed_at)).filter(
+        UserLabProgress.user_id == current_user.id,
+        UserLabProgress.status == "COMPLETED"
+    ).distinct().count() or 0
+
+    # Normalize to 0-100 for clean chart display
+    def norm(val, max_val):
+        return min(100, round((val / max(1, max_val)) * 100))
+
+    return {
+        "labels": ["Modules", "Flags", "Hours", "Score", "Active Days"],
+        "values": [
+            norm(modules_done, 50),
+            norm(flags_done, 30),
+            norm(hours, 20),
+            norm(score, 10000),
+            norm(active_days, 30)
+        ],
+        "raw": {
+            "modules": modules_done,
+            "flags": flags_done,
+            "hours": hours,
+            "score": score,
+            "active_days": active_days
+        }
     }
 
 
@@ -739,3 +877,281 @@ def update_appearance(
         "theme": current_user.theme,
         "message": "Appearance preferences saved in database."
     }
+
+
+@router.get("/assignments")
+def get_user_assignments(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns only the logged-in student's assignments.
+    """
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.models.group import Group
+    from sqlalchemy import or_
+
+    query = db.query(Assignment, Lab).join(
+        Lab, Lab.id == Assignment.lab_id
+    ).filter(
+        Assignment.deleted_at.is_(None)
+    )
+
+    if current_user.group_id is not None:
+        query = query.filter(
+            or_(
+                Assignment.student_id == current_user.id,
+                Assignment.group_id == current_user.group_id
+            )
+        )
+    else:
+        query = query.filter(Assignment.student_id == current_user.id)
+
+    assignments = query.all()
+
+    from app.services.progress_service import get_user_lab_statistics
+    stats = get_user_lab_statistics(db, str(current_user.id))
+    lab_total = stats.get("lab_total_modules", {})
+
+    from app.models.user_lab_progress import UserLabProgress
+    from app.models.user_progress import UserProgress
+    from app.core.constants import TRACK_TO_LAB
+
+    res = []
+    for assoc, lab in assignments:
+        group_name = None
+        if assoc.group_id:
+            g = db.query(Group).filter(Group.id == assoc.group_id).first()
+            if g:
+                group_name = g.name
+
+        from datetime import datetime
+        remaining_minutes = 0
+        now = datetime.now()
+        if assoc.start_datetime <= now <= assoc.end_datetime:
+            delta = assoc.end_datetime - now
+            remaining_minutes = int(delta.total_seconds() / 60)
+
+        # Count solved modules for this lab completed during this assignment window
+        solved_ulp = db.query(UserLabProgress.module_id).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab.id,
+            UserLabProgress.status == "COMPLETED",
+            UserLabProgress.completed_at >= assoc.start_datetime
+        ).distinct().count()
+
+        tracks = [t for t, l in TRACK_TO_LAB.items() if l == lab.id]
+        solved_up = 0
+        if tracks:
+            solved_up = db.query(UserProgress.module_id).filter(
+                UserProgress.user_id == str(current_user.id),
+                UserProgress.track_id.in_(tracks),
+                UserProgress.completed == True,
+                UserProgress.completed_at >= assoc.start_datetime
+            ).distinct().count()
+
+        solved = max(solved_ulp, solved_up)
+        total = lab_total.get(lab.id, 5)
+        progress_percent = int((solved / total) * 100) if total > 0 else 0
+
+        derived_status = "Scheduled"
+        if assoc.status == "Completed":
+            derived_status = "Completed"
+        elif assoc.paused_at is not None:
+            derived_status = "Paused"
+        elif assoc.start_datetime <= now <= assoc.end_datetime:
+            derived_status = "Running"
+        elif now > assoc.end_datetime:
+            derived_status = "Completed"
+        else:
+            derived_status = "Scheduled"
+
+        res.append({
+            "id": assoc.id,
+            "lab_id": lab.id,
+            "lab_name": lab.name,
+            "difficulty": getattr(lab, "difficulty", "Intermediate"),
+            "estimated_time": getattr(lab, "estimated_time", "2 Hours"),
+            "assigned_by": assoc.assigned_by or "Dr. Ravi",
+            "group_name": group_name or "Individual",
+            "start_datetime": assoc.start_datetime.isoformat() if assoc.start_datetime else None,
+            "end_datetime": assoc.end_datetime.isoformat() if assoc.end_datetime else None,
+            "status": derived_status,
+            "remaining_minutes": remaining_minutes,
+            "progress_percent": progress_percent
+        })
+    return res
+
+
+@router.get("/rentals")
+def get_user_purchased_rentals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the student's list of purchased labs with rental hours status.
+    """
+    from app.models.admin_models import PurchasedLab
+    from app.models.lab import Lab
+    
+    purchases = db.query(PurchasedLab, Lab).join(
+        Lab, Lab.id == PurchasedLab.lab_id
+    ).filter(
+        PurchasedLab.user_id == current_user.id
+    ).all()
+
+    res = []
+    for pur, lab in purchases:
+        res.append({
+            "id": pur.id,
+            "lab_id": lab.id,
+            "lab_name": lab.name,
+            "hours_purchased": getattr(pur, "hours_purchased", 0) or 0,
+            "hours_used": getattr(pur, "hours_used", 0) or 0,
+            "hours_remaining": getattr(pur, "hours_remaining", 0) or 0,
+            "expires_at": pur.expiry_date.strftime("%d %b %Y") if pur.expiry_date else "Never"
+        })
+    return res
+
+
+@router.get("/assignments/{assignment_id}/statistics")
+def get_assignment_statistics(
+    assignment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns specific statistics and radar data for a student's completed assignment.
+    """
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.models.user_lab_progress import UserLabProgress
+    from app.models.user_progress import UserProgress
+    from app.core.constants import TRACK_TO_LAB
+    from app.models.lab_module import LabModule
+
+    # Fetch assignment
+    a = db.query(Assignment).filter(
+        Assignment.id == assignment_id,
+        Assignment.deleted_at.is_(None)
+    ).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    # Verify student has access to this assignment
+    if a.student_id != current_user.id and a.group_id != current_user.group_id:
+        raise HTTPException(status_code=403, detail="Access denied to this assignment statistics")
+
+    lab = db.query(Lab).filter(Lab.id == a.lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab details not found")
+
+    # Query completed modules during this assignment window
+    ulp_records = db.query(UserLabProgress).filter(
+        UserLabProgress.user_id == current_user.id,
+        UserLabProgress.lab_id == lab.id,
+        UserLabProgress.status == "COMPLETED",
+        UserLabProgress.completed_at >= a.start_datetime
+    ).all()
+
+    tracks = [t for t, l in TRACK_TO_LAB.items() if l == lab.id]
+    up_records = []
+    if tracks:
+        up_records = db.query(UserProgress).filter(
+            UserProgress.user_id == str(current_user.id),
+            UserProgress.track_id.in_(tracks),
+            UserProgress.completed == True,
+            UserProgress.completed_at >= a.start_datetime
+        ).all()
+
+    # Calculate metrics
+    solved_count = max(len(ulp_records), len(up_records))
+    
+    # Calculate score earned during this assignment
+    ulp_score = sum(r.score for r in ulp_records if r.score)
+    up_score = sum(r.module_score for r in up_records if r.module_score)
+    score_earned = max(ulp_score, up_score)
+
+    # Calculate total time taken (in seconds)
+    time_taken_seconds = sum(r.time_taken_seconds for r in ulp_records if r.time_taken_seconds)
+    if time_taken_seconds == 0 and len(up_records) > 0:
+        time_taken_seconds = len(up_records) * 45 * 60 # 45 mins average per module
+
+    # Get total modules count
+    total_modules = db.query(LabModule).filter(LabModule.lab_id == lab.id).count()
+    if total_modules == 0:
+        total_modules = 5
+
+    progress_percent = int((solved_count / total_modules) * 100) if total_modules > 0 else 0
+    progress_percent = min(100, progress_percent)
+
+    # Define base radar skill values based on lab category
+    cat = (lab.category or "").lower()
+    base_radar = {
+        "Reconnaissance": 15,
+        "Exploitation": 15,
+        "Analysis": 15,
+        "Configuration": 15,
+        "Defense": 15
+    }
+
+    if "recon" in cat or "information" in cat:
+        base_radar["Reconnaissance"] = 90
+        base_radar["Analysis"] = 80
+        base_radar["Configuration"] = 40
+    elif "exploit" in cat or "offensive" in cat or "attack" in cat:
+        base_radar["Exploitation"] = 95
+        base_radar["Analysis"] = 75
+        base_radar["Reconnaissance"] = 60
+    elif "hardening" in cat or "defense" in cat or "protect" in cat or "secure" in cat:
+        base_radar["Defense"] = 90
+        base_radar["Configuration"] = 85
+        base_radar["Analysis"] = 70
+    elif "cryptography" in cat or "crypto" in cat:
+        base_radar["Analysis"] = 95
+        base_radar["Configuration"] = 60
+        base_radar["Defense"] = 50
+    else:
+        base_radar["Analysis"] = 80
+        base_radar["Configuration"] = 70
+        base_radar["Defense"] = 60
+
+    # Scale radar values dynamically based on assignment completion progress
+    radar_labels = ["Reconnaissance", "Exploitation", "Analysis", "Configuration", "Defense"]
+    radar_values = []
+    for label in radar_labels:
+        val = int(base_radar[label] * (progress_percent / 100.0))
+        radar_values.append(max(5, val)) # Minimum 5 for visual rendering
+
+    strong_areas = []
+    weak_areas = []
+    for label, val in zip(radar_labels, radar_values):
+        if val >= 50:
+            strong_areas.append(label)
+        elif val <= 25:
+            weak_areas.append(label)
+
+    if not strong_areas:
+        strong_areas = ["None (Progress < 50%)"]
+    if not weak_areas:
+        weak_areas = ["None"]
+
+    hours = time_taken_seconds // 3600
+    minutes = (time_taken_seconds % 3600) // 60
+    time_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+    if time_taken_seconds == 0:
+        time_str = "0m"
+
+    return {
+        "assignment_id": a.id,
+        "lab_name": lab.name,
+        "score": score_earned,
+        "time_taken": time_str,
+        "progress_percent": progress_percent,
+        "radar_labels": radar_labels,
+        "radar_values": radar_values,
+        "strong_areas": strong_areas,
+        "weak_areas": weak_areas
+    }
+

@@ -1,10 +1,11 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api
+from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api, colleges_orgs
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(colleges_orgs.router, prefix="", tags=["affiliations"])
 api_router.include_router(reporting.router, prefix="/reporting", tags=["reporting"])
 api_router.include_router(user_profile.router, prefix="/user", tags=["user"])
 api_router.include_router(admin_api.router, prefix="/admin", tags=["admin"])

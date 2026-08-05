@@ -91,30 +91,6 @@ export const LoginPage: React.FC = () => {
 
         {/* Glassmorphic Auth Card */}
         <div className="bg-white dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] rounded-3xl p-8 sm:p-10 shadow-xl space-y-6 transition-colors">
-          {/* Tab Switcher */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl text-xs font-bold relative">
-            <button
-              onClick={() => setActiveTab('standard')}
-              className={`py-2.5 rounded-xl transition-all ${
-                activeTab === 'standard'
-                  ? 'bg-white dark:bg-slate-900 text-[#2563EB] dark:text-white shadow-xs'
-                  : 'text-[#64748B] dark:text-[#CBD5E1] hover:text-[#0F172A]'
-              }`}
-            >
-              Student Login
-            </button>
-            <button
-              onClick={() => setActiveTab('sso')}
-              className={`py-2.5 rounded-xl transition-all ${
-                activeTab === 'sso'
-                  ? 'bg-white dark:bg-slate-900 text-[#2563EB] dark:text-white shadow-xs'
-                  : 'text-[#64748B] dark:text-[#CBD5E1] hover:text-[#0F172A]'
-              }`}
-            >
-              Academic SSO
-            </button>
-          </div>
-
           {errorMsg && (
             <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-300 rounded-2xl text-xs font-semibold text-center space-y-2">
               <div>{errorMsg}</div>
@@ -132,211 +108,111 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'standard' && (
-            <form onSubmit={handleStandardSubmit} className="space-y-4">
-              <div>
-                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
-                  Student / Personal Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="student@college.edu or analyst@gmail.com"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
-                  />
-                </div>
-                <p className="text-[11px] text-[#64748B] dark:text-slate-400 mt-1">
-                  Supports Gmail, College & University Email IDs (*.edu, *.ac.in)
-                </p>
+          <form onSubmit={handleStandardSubmit} className="space-y-4">
+            <div>
+              <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
+                Student Email Address
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="student@college.edu or analyst@gmail.com"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
+                />
               </div>
+              <p className="text-[11px] text-[#64748B] dark:text-slate-400 mt-1">
+                Supports all personal, institutional, and organization email domains.
+              </p>
+            </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-xs text-[#0F172A] dark:text-white">Account Password</label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs font-bold text-[#2563EB] hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-xs text-[#0F172A] dark:text-white">Account Password</label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-bold text-[#2563EB] hover:underline"
+                >
+                  Forgot password?
+                </Link>
               </div>
-
-              {/* Remember Me Option */}
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Remember me</span>
-                </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Authenticating Student Portal...
-                  </>
-                ) : (
-                  <>
-                    Sign In to Student Portal <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+            {/* Remember Me Option */}
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Remember me</span>
+              </label>
+            </div>
 
-              {/* OAuth Providers Divider */}
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white dark:bg-[#1E293B] px-3 text-slate-400 font-semibold">Or continue with Google</span>
-                </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Authenticating Student Portal...
+                </>
+              ) : (
+                <>
+                  Sign In to Student Portal <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+            {/* OAuth Providers Divider */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
               </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-[#1E293B] px-3 text-slate-400 font-semibold">Or continue with Google</span>
+              </div>
+            </div>
 
-              {/* Google Identity Services Button */}
-              <GoogleSignInButton
-                portal="student"
-                buttonText="Continue with Google"
-                onSuccess={(data) => {
-                  if (data.role && (data.role.toLowerCase() === 'admin' || data.role.toLowerCase() === 'super_admin')) {
-                    navigate('/admin/dashboard');
-                  } else {
-                    navigate('/labs');
-                  }
-                }}
-                onError={(err) => setErrorMsg(err)}
-              />
-            </form>
-          )}
-
-          {activeTab === 'sso' && (
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setErrorMsg('');
-              if (!ssoDomain.trim()) return;
-
-              // Check if user entered email or just domain
-              let testEmail = ssoDomain.trim();
-              if (!testEmail.includes('@')) {
-                // If they just typed college.edu, request complete email address
-                setErrorMsg('Please enter your full institutional email address.');
-                return;
-              }
-
-              // Validate domain is academic
-              const domain = testEmail.split('@')[1].toLowerCase();
-              const ssoSuffixes = ['.edu', '.ac.in', '.edu.in', '.ac.uk', '.edu.sg', '.ac.jp', '.edu.au'];
-              const isDevMode = import.meta.env.DEV || import.meta.env.MODE === 'development';
-              const isTestDomain = domain === 'testcyberrange.in';
-              const isAcademic = ssoSuffixes.some(s => domain.endsWith(s) || domain.includes('college') || domain.includes('univ')) || (isDevMode && isTestDomain);
-              
-              if (!isAcademic) {
-                setErrorMsg('Only academic / college email addresses are allowed in this section.');
-                return;
-              }
-
-              if (!password.trim()) {
-                setErrorMsg('Please enter your account password to verify your identity.');
-                return;
-              }
-
-              setIsLoading(true);
-              try {
-                const { role } = await login(testEmail, password, rememberMe, 'student');
-                setIsLoading(false);
-                if (role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'super_admin')) {
+            {/* Google Identity Services Button */}
+            <GoogleSignInButton
+              portal="student"
+              buttonText="Continue with Google"
+              onSuccess={(data) => {
+                if (data.role && (data.role.toLowerCase() === 'admin' || data.role.toLowerCase() === 'super_admin')) {
                   navigate('/admin/dashboard');
                 } else {
-                  navigate('/dashboard');
+                  navigate('/labs');
                 }
-              } catch (err: any) {
-                setIsLoading(false);
-                setErrorMsg(err.message || 'Invalid Email or Password.');
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
-                  College / University Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={ssoDomain}
-                    onChange={(e) => setSsoDomain(e.target.value)}
-                    placeholder="student@college.edu"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs text-[#0F172A] dark:text-white block mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#2563EB]"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Authenticating via Academic SSO...
-                  </>
-                ) : (
-                  <>
-                    Continue with Academic SSO <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+              }}
+              onError={(err) => setErrorMsg(err)}
+            />
+          </form>
 
           <div className="text-center pt-3 border-t border-[#E2E8F0] dark:border-[#334155]">
             <p className="text-xs text-[#64748B] dark:text-[#CBD5E1] font-medium">

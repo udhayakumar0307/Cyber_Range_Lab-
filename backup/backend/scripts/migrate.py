@@ -89,6 +89,8 @@ def run_sqlite_column_migrations(engine):
             ("security_settings", "TEXT NULL"),
             ("appearance_settings", "TEXT NULL"),
             ("last_login", "TIMESTAMP NULL"),
+            ("phone_verified", "BOOLEAN DEFAULT 0"),
+            ("designation", "VARCHAR(100) NULL"),
         ]
         for col, definition in user_cols:
             add_col_if_missing("users", col, definition)
@@ -97,15 +99,28 @@ def run_sqlite_column_migrations(engine):
         college_cols = [
             ("code", "VARCHAR(50) NULL"),
             ("city", "VARCHAR(100) NULL"),
+            ("district", "VARCHAR(100) NULL"),
+            ("state", "VARCHAR(100) NULL"),
             ("country", "VARCHAR(100) NULL"),
+            ("contact_number", "VARCHAR(100) NULL"),
+            ("email", "VARCHAR(150) NULL"),
+            ("website", "VARCHAR(200) NULL"),
+            ("logo_url", "VARCHAR(500) NULL"),
             ("status", "VARCHAR(50) DEFAULT 'ACTIVE'"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         ]
         for col, definition in college_cols:
             add_col_if_missing("colleges", col, definition)
 
         # lab_modules
         add_col_if_missing("lab_modules", "track", "VARCHAR(100) DEFAULT 'linux'")
+
+        # organizations
+        add_col_if_missing("organizations", "status", "VARCHAR(50) DEFAULT 'ACTIVE'")
+
+        # assignments
+        add_col_if_missing("assignments", "reminder_intervals", "VARCHAR(100) DEFAULT '24h,1h,15m'")
 
         # audit_logs
         audit_cols = [
@@ -135,6 +150,11 @@ def run_sqlite_column_migrations(engine):
 
         # groups
         add_col_if_missing("groups", "organization_id", "VARCHAR(100) NULL")
+
+        # purchased_labs
+        add_col_if_missing("purchased_labs", "hours_purchased", "INTEGER DEFAULT 0")
+        add_col_if_missing("purchased_labs", "hours_used", "INTEGER DEFAULT 0")
+        add_col_if_missing("purchased_labs", "hours_remaining", "INTEGER DEFAULT 0")
 
 
 def run_postgres_column_migrations(engine):
@@ -184,7 +204,9 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS notification_settings TEXT NULL,
                 ADD COLUMN IF NOT EXISTS security_settings TEXT NULL,
                 ADD COLUMN IF NOT EXISTS appearance_settings TEXT NULL,
-                ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL;
+                ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL,
+                ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS designation VARCHAR(100) NULL;
             """))
             logger.info("  users: column migrations applied")
 
@@ -193,11 +215,29 @@ def run_postgres_column_migrations(engine):
                 ALTER TABLE colleges
                 ADD COLUMN IF NOT EXISTS code VARCHAR(50) NULL,
                 ADD COLUMN IF NOT EXISTS city VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS district VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS state VARCHAR(100) NULL,
                 ADD COLUMN IF NOT EXISTS country VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS contact_number VARCHAR(250) NULL,
+                ADD COLUMN IF NOT EXISTS email VARCHAR(250) NULL,
+                ADD COLUMN IF NOT EXISTS website VARCHAR(200) NULL,
+                ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500) NULL,
                 ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE',
-                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
             """))
-            logger.info("  colleges: column migrations applied")
+            # Alter existing columns to match wider VARCHAR requirements
+            try:
+                conn.execute(text("""
+                    ALTER TABLE colleges 
+                    ALTER COLUMN name TYPE VARCHAR(500),
+                    ALTER COLUMN address TYPE VARCHAR(1000),
+                    ALTER COLUMN contact_number TYPE VARCHAR(250),
+                    ALTER COLUMN email TYPE VARCHAR(250);
+                """))
+            except Exception as alt_err:
+                logger.warning(f"Could not alter colleges column sizes: {alt_err}")
+            logger.info("  colleges: column migrations and type resizes applied")
 
         if table_exists("lab_modules"):
             conn.execute(text("""
@@ -205,6 +245,20 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS track VARCHAR(100) DEFAULT 'linux';
             """))
             logger.info("  lab_modules: column migrations applied")
+
+        if table_exists("organizations"):
+            conn.execute(text("""
+                ALTER TABLE organizations
+                ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE';
+            """))
+            logger.info("  organizations: column migrations applied")
+
+        if table_exists("assignments"):
+            conn.execute(text("""
+                ALTER TABLE assignments
+                ADD COLUMN IF NOT EXISTS reminder_intervals VARCHAR(100) DEFAULT '24h,1h,15m';
+            """))
+            logger.info("  assignments: column migrations applied")
 
         if table_exists("audit_logs"):
             conn.execute(text("""
@@ -246,6 +300,15 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'PENDING';
             """))
             logger.info("  orders: column migrations applied")
+
+        if table_exists("purchased_labs"):
+            conn.execute(text("""
+                ALTER TABLE purchased_labs
+                ADD COLUMN IF NOT EXISTS hours_purchased INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS hours_used INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS hours_remaining INTEGER DEFAULT 0;
+            """))
+            logger.info("  purchased_labs: column migrations applied")
 
 
 def apply_indexes(engine):
@@ -330,8 +393,219 @@ def main():
     logger.info("Applying performance indexes...")
     apply_indexes(engine)
 
+    # 4. Migrate existing data to user_affiliations
+    migrate_existing_data(engine)
+
+    # Reset colleges sequence for PostgreSQL to prevent sequence mismatch errors
+    if dialect == "postgresql":
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            try:
+                conn.execute(text("SELECT setval('colleges_id_seq', COALESCE((SELECT MAX(id)+1 FROM colleges), 1), false);"))
+                logger.info("Reset colleges primary key sequence.")
+            except Exception as seq_err:
+                logger.warning(f"Could not reset colleges sequence: {seq_err}")
+
+    # 5. Seed colleges from CSV datasets
+    seed_colleges(engine)
+
     engine.dispose()
     logger.info("Migration complete.")
+
+
+def migrate_existing_data(engine):
+    """Maps existing users/admins to user_affiliations table."""
+    logger.info("Migrating existing data to user_affiliations...")
+    from sqlalchemy.orm import Session
+    from app.models.user import User
+    from app.models.user_affiliation import UserAffiliation
+    from app.models.admin_models import Organization, AdminProfile
+
+    session = Session(bind=engine)
+    try:
+        users = session.query(User).all()
+        for u in users:
+            existing_affs = session.query(UserAffiliation).filter(UserAffiliation.user_id == u.id).all()
+            if existing_affs:
+                continue
+
+            primary_set = False
+
+            # 1. Admin Organization ID mapping from profiles
+            if u.role in ("admin", "SYSTEM_ADMIN", "super_admin"):
+                profile = session.query(AdminProfile).filter(AdminProfile.user_id == u.id).first()
+                if profile and profile.organization_id:
+                    aff = UserAffiliation(
+                        user_id=u.id,
+                        affiliation_type="organization",
+                        organization_id=profile.organization_id,
+                        is_primary=True
+                    )
+                    session.add(aff)
+                    primary_set = True
+            
+            # 2. College ID mapping
+            if u.college_id:
+                aff = UserAffiliation(
+                    user_id=u.id,
+                    affiliation_type="college",
+                    college_id=u.college_id,
+                    is_primary=not primary_set
+                )
+                session.add(aff)
+                primary_set = True
+
+            # 3. Organization text string mapping
+            if hasattr(u, "organization") and u.organization:
+                org = session.query(Organization).filter(Organization.name.ilike(u.organization.strip())).first()
+                if not org:
+                    org = Organization(name=u.organization.strip(), institution_type="Company", status="APPROVED")
+                    session.add(org)
+                    session.flush()
+                
+                aff = UserAffiliation(
+                    user_id=u.id,
+                    affiliation_type="organization",
+                    organization_id=org.id,
+                    is_primary=not primary_set
+                )
+                session.add(aff)
+
+        session.commit()
+        logger.info("Data migration completed successfully.")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error during data migration: {e}")
+    finally:
+        session.close()
+
+
+def seed_colleges(engine):
+    """
+    Scans the backend/data/seed/ directory, parses college CSV files,
+    and seeds/updates the colleges table in the database.
+    """
+    logger.info("Scanning for college CSV datasets in data/seed/...")
+    import csv
+    import glob
+    from sqlalchemy.orm import Session
+    from app.models.college import College
+
+    session = Session(bind=engine)
+    
+    seed_dir = os.path.join(BACKEND_DIR, "data", "seed")
+    csv_files = glob.glob(os.path.join(seed_dir, "*.csv"))
+    
+    if not csv_files:
+        logger.info("No CSV files found in data/seed/")
+        session.close()
+        return
+
+    imported = 0
+    updated = 0
+    skipped = 0
+    failed = 0
+
+    # Cache existing colleges in a dict for O(1) lookups and single DB round-trip
+    existing_colleges = {c.name: c for c in session.query(College).all()}
+    base_count = len(existing_colleges)
+
+    for csv_file in csv_files:
+        logger.info(f"Processing CSV dataset: {os.path.basename(csv_file)}")
+        try:
+            with open(csv_file, mode="r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for idx, row in enumerate(reader, start=1):
+                    name = (row.get("College Name") or row.get("college_name") or row.get("Name") or "").strip()
+                    address = (row.get("Address") or row.get("address") or "").strip()
+                    state = (row.get("State") or row.get("state") or "Tamil Nadu").strip()
+                    contact_number = (row.get("Contact No(s)") or row.get("Contact Number") or row.get("contact_number") or "").strip()
+                    email = (row.get("E-Mail ID") or row.get("Email") or row.get("email") or "").strip()
+                    website = (row.get("Weblink") or row.get("Website") or row.get("website") or "").strip()
+                    city = (row.get("City") or row.get("city") or "").strip()
+                    district = (row.get("District") or row.get("district") or "").strip()
+                    country = (row.get("Country") or row.get("country") or "India").strip()
+
+                    if not name:
+                        skipped += 1
+                        continue
+
+                    # Try to extract city from address if empty
+                    if not city and address:
+                        parts = [p.strip() for p in address.split(",") if p.strip()]
+                        if len(parts) >= 2:
+                            city = parts[-2]
+
+                    # Find existing college
+                    college = existing_colleges.get(name)
+                    
+                    if college:
+                        # Update changed fields
+                        changed = False
+                        if college.address != address:
+                            college.address = address
+                            changed = True
+                        if college.state != state:
+                            college.state = state
+                            changed = True
+                        if college.contact_number != contact_number:
+                            college.contact_number = contact_number
+                            changed = True
+                        if college.email != email:
+                            college.email = email
+                            changed = True
+                        if college.website != website:
+                            college.website = website
+                            changed = True
+                        if city and college.city != city:
+                            college.city = city
+                            changed = True
+                        if district and college.district != district:
+                            college.district = district
+                            changed = True
+                        
+                        if changed:
+                            updated += 1
+                        else:
+                            skipped += 1
+                    else:
+                        # Generate unique college code
+                        code = f"TNC{base_count + imported + 1:04d}"
+                        
+                        college = College(
+                            name=name,
+                            code=code,
+                            address=address,
+                            state=state,
+                            contact_number=contact_number,
+                            email=email,
+                            website=website,
+                            city=city,
+                            district=district,
+                            country=country,
+                            status="ACTIVE"
+                        )
+                        session.add(college)
+                        # Add to cached dictionary in case of CSV duplicates
+                        existing_colleges[name] = college
+                        imported += 1
+                        
+                    if idx % 100 == 0:
+                        session.flush()
+
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            logger.error(f"Error importing {csv_file}: {exc}")
+            failed += 1
+
+    session.close()
+    logger.info("========================================")
+    logger.info("SEED DATABASE REPORT:")
+    logger.info(f"  Imported: {imported}")
+    logger.info(f"  Updated:  {updated}")
+    logger.info(f"  Skipped:  {skipped}")
+    logger.info(f"  Failed:   {failed}")
+    logger.info("========================================")
 
 
 if __name__ == "__main__":

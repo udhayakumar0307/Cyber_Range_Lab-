@@ -18,4 +18,5 @@ class Lab(Base):
     review_count = Column(Integer, default=120, nullable=True)
     docker_image = Column(String(500), nullable=True)
     registry_path = Column(String(500), nullable=True, unique=True)
+    price_per_hour = Column(Float, default=100.0, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

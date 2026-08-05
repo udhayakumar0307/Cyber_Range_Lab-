@@ -15,13 +15,10 @@ class AddToCartRequest(BaseModel):
     lab_id: str
     lab_title: str
     lab_image: Optional[str] = None
-    price_inr: float
-    quantity: int = 1  # Student seats
-    license_duration_months: int = 12
+    hours_purchased: int = 40
 
 class UpdateCartItemRequest(BaseModel):
-    quantity: Optional[int] = None
-    license_duration_months: Optional[int] = None
+    hours_purchased: Optional[int] = None
 
 def get_or_create_user_cart(db: Session, user_id: int) -> Cart:
     from sqlalchemy.orm import joinedload
@@ -38,21 +35,39 @@ def get_cart(current_user: User = Depends(get_current_user), db: Session = Depen
     """
     Returns the user's current active shopping cart.
     """
+    from app.models.lab import Lab
     cart = get_or_create_user_cart(db, current_user.id)
     items = []
     subtotal = 0.0
 
     for item in cart.items:
-        item_total = item.price_inr * item.quantity
+        hours = item.hours_purchased or 40
+        
+        # Calculate hourly rate based on difficulty
+        lab_obj = db.query(Lab).filter(Lab.id == item.lab_id).first()
+        difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
+        if "beginner" in difficulty:
+            rate = 100.0
+        elif "intermediate" in difficulty:
+            rate = 200.0
+        elif "advanced" in difficulty or "adv" in difficulty:
+            rate = 300.0
+        else:
+            rate = 100.0
+
+        item.price_inr = rate * hours
+        item.hours_purchased = hours
+        db.commit()
+
+        item_total = item.price_inr
         subtotal += item_total
         items.append({
             "id": item.id,
             "lab_id": item.lab_id,
             "lab_title": item.lab_title,
             "lab_image": item.lab_image or "",
-            "price_inr": item.price_inr,
-            "quantity": item.quantity,
-            "license_duration_months": item.license_duration_months,
+            "price_inr": rate, # Per-hour rate
+            "hours_purchased": hours,
             "item_total": item_total
         })
 
@@ -77,12 +92,11 @@ def add_item_to_cart(
 ):
     """
     Adds a lab item to the user's cart.
-    Duplicate lab purchases are blocked — a student may only add a lab once (quantity capped at 1).
-    Returns 409 Conflict if the lab is already in the cart.
     """
+    from app.models.lab import Lab
     cart = get_or_create_user_cart(db, current_user.id)
     
-    # Block duplicate: if this lab is already in cart, reject with 409
+    # Block duplicate
     existing_item = db.query(CartItem).filter(
         CartItem.cart_id == cart.id,
         CartItem.lab_id == data.lab_id
@@ -90,22 +104,35 @@ def add_item_to_cart(
     if existing_item:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"'{data.lab_title}' is already in your cart. Each lab can only be added once."
+            detail=f"'{data.lab_title}' is already in your cart."
         )
 
-    # Always enforce quantity = 1 per lab
+    # Get difficulty and calculate price
+    lab_obj = db.query(Lab).filter(Lab.id == data.lab_id).first()
+    difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
+    if "beginner" in difficulty:
+        rate = 100.0
+    elif "intermediate" in difficulty:
+        rate = 200.0
+    elif "advanced" in difficulty or "adv" in difficulty:
+        rate = 300.0
+    else:
+        rate = 100.0
+
+    hours = data.hours_purchased or 40
     new_item = CartItem(
         cart_id=cart.id,
         lab_id=data.lab_id,
         lab_title=data.lab_title,
         lab_image=data.lab_image,
-        price_inr=data.price_inr,
+        price_inr=rate * hours,
         quantity=1,
-        license_duration_months=data.license_duration_months
+        license_duration_months=12,
+        hours_purchased=hours
     )
     db.add(new_item)
     db.commit()
-    logger.info(f"[Cart] User {current_user.email} added lab '{data.lab_id}' to cart.")
+    logger.info(f"[Cart] User {current_user.email} added lab '{data.lab_id}' for {hours} hours.")
     return {"status": "success", "message": f"Added '{data.lab_title}' to cart."}
 
 @router.put("/items/{item_id}")
@@ -116,17 +143,28 @@ def update_cart_item(
     db: Session = Depends(get_db)
 ):
     """
-    Updates seat quantity or duration for a specific cart item.
+    Updates hours purchased for a specific cart item.
     """
+    from app.models.lab import Lab
     cart = get_or_create_user_cart(db, current_user.id)
     item = db.query(CartItem).filter(CartItem.id == item_id, CartItem.cart_id == cart.id).first()
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found.")
 
-    if data.quantity is not None and data.quantity > 0:
-        item.quantity = data.quantity
-    if data.license_duration_months is not None:
-        item.license_duration_months = data.license_duration_months
+    if data.hours_purchased is not None and data.hours_purchased > 0:
+        item.hours_purchased = data.hours_purchased
+        # Recalculate price
+        lab_obj = db.query(Lab).filter(Lab.id == item.lab_id).first()
+        difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
+        if "beginner" in difficulty:
+            rate = 100.0
+        elif "intermediate" in difficulty:
+            rate = 200.0
+        elif "advanced" in difficulty or "adv" in difficulty:
+            rate = 300.0
+        else:
+            rate = 100.0
+        item.price_inr = rate * data.hours_purchased
 
     db.commit()
     return {"status": "success", "message": "Cart item updated."}

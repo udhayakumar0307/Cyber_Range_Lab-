@@ -22,6 +22,11 @@ class User(Base):
     college_id = Column(Integer, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     college = relationship("College", back_populates="users")
 
+    affiliations = relationship("UserAffiliation", back_populates="user", cascade="all, delete-orphan")
+
+    phone_verified = Column(Boolean, default=False, nullable=False)
+    designation = Column(String(100), nullable=True)
+
     account_type = Column(String(50), default="student", nullable=False)
     account_status = Column(String(50), default="active", nullable=False)
     email_verified = Column(Boolean, default=True, nullable=False)

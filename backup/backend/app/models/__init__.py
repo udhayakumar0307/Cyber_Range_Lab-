@@ -20,6 +20,11 @@ from app.models.audit_log import AuditLog
 from app.models.score_event import ScoreEvent
 from app.models.notification import Notification, NotificationPreference
 from app.models.certificate import Certificate
+from app.models.user_affiliation import UserAffiliation
+from app.models.admin_models import (
+    Organization, AdminProfile, Cart, CartItem, Order, OrderItem,
+    Payment, Invoice, PurchasedLab, License, BillingAddress, Subscription
+)
 
 __all__ = [
     "Base",
@@ -27,6 +32,7 @@ __all__ = [
     "College",
     "Group",
     "User",
+    "UserAffiliation",
     "Assignment",
     "OTPVerification",
     "PasswordReset",

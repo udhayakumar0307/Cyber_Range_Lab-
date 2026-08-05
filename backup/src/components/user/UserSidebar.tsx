@@ -4,15 +4,15 @@ import { useAuth } from '../../context';
 import {
   LayoutDashboard,
   FlaskConical,
-  Activity,
-  Trophy,
   Settings,
   Shield,
   ChevronRight,
   LogOut,
   Flag,
   Puzzle,
-  BookOpen
+  BookOpen,
+  Layers,
+  BarChart2
 } from 'lucide-react';
 
 interface UserSidebarProps {
@@ -33,14 +33,13 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
       .slice(0, 2);
   };
 
-  const isSso = user?.auth_type === 'SSO';
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: isSso ? 'Assigned Labs' : 'Available Labs', path: '/labs', icon: FlaskConical },
+    { name: 'Available Labs', path: '/labs', icon: FlaskConical },
+    { name: 'Assignments', path: '/assigned-labs', icon: Layers },
     { name: 'Puzzle', path: '/puzzle', icon: Puzzle },
     { name: 'CTF Competitions', path: '/ctf', icon: Flag },
-    { name: 'Progress Tracking', path: '/progress', icon: Activity },
-    { name: 'Leaderboards', path: '/leaderboards', icon: Trophy },
+    { name: 'My Statistics', path: '/statistics', icon: BarChart2 },
     { name: 'Study Material', path: '/study-material', icon: BookOpen },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];

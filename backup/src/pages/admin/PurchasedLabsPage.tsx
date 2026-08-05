@@ -9,6 +9,9 @@ interface PurchasedLabRecord {
   license_key: string;
   total_seats: number;
   assigned_seats: number;
+  hours_purchased?: number;
+  hours_remaining?: number;
+  hours_used?: number;
   status: string;
   purchased_date: string;
   expiry_date: string;
@@ -102,8 +105,16 @@ export const PurchasedLabsPage: React.FC = () => {
 
               <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-3 flex-1 text-xs">
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                  <span className="text-slate-400 font-medium">Seats Allocated</span>
-                  <span className="font-bold">{lab.assigned_seats} / {lab.total_seats || 50} Seats</span>
+                  <span className="text-slate-400 font-medium">Hours Purchased</span>
+                  <span className="font-bold">{lab.hours_purchased ?? 0} hrs</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400 font-medium">Hours Remaining</span>
+                  <span className="font-bold text-emerald-600">{lab.hours_remaining ?? 0} hrs</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400 font-medium">Hours Used</span>
+                  <span className="font-bold text-amber-500">{lab.hours_used ?? 0} hrs</span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
                   <span className="text-slate-400 font-medium">Expiry Date</span>

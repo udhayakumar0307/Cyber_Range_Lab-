@@ -326,19 +326,11 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
                     </button>
 
                     <button
-                      onClick={() => { setIsUserDropdownOpen(false); navigate('/profile#statistics'); }}
+                      onClick={() => { setIsUserDropdownOpen(false); navigate('/statistics'); }}
                       className="w-full px-4 py-2 flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
                     >
                       <BarChart2 className="w-4 h-4 text-slate-400" />
                       <span>My Statistics</span>
-                    </button>
-
-                    <button
-                      onClick={() => { setIsUserDropdownOpen(false); navigate('/progress'); }}
-                      className="w-full px-4 py-2 flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
-                    >
-                      <Award className="w-4 h-4 text-slate-400" />
-                      <span>My Achievements</span>
                     </button>
 
                     <button

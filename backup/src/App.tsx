@@ -71,6 +71,9 @@ const LeaderboardPortal    = lazy(() => import('./pages/user/LeaderboardPortal')
 const ProfilePage          = lazy(() => import('./pages/user/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SettingsPage         = lazy(() => import('./pages/user/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const StudyMaterial        = lazy(() => import('./pages/user/StudyMaterial').then(m => ({ default: m.StudyMaterial })));
+const AssignedLabsPage     = lazy(() => import('./pages/user/AssignedLabsPage').then(m => ({ default: m.AssignedLabsPage })));
+const MyLabsPage           = lazy(() => import('./pages/user/MyLabsPage').then(m => ({ default: m.MyLabsPage })));
+const StatisticsPage       = lazy(() => import('./pages/user/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
 
 // ─── CTF Chunk ────────────────────────────────────────────────────────────────
 const CtfPortalPage        = lazy(() => import('./pages/user/CtfPortalPage').then(m => ({ default: m.CtfPortalPage })));
@@ -164,6 +167,22 @@ export function App() {
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserLayout><AvailableLabs /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/assigned-labs"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><AssignedLabsPage /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-labs"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><MyLabsPage /></UserLayout>
                   </ProtectedRoute>
                 }
               />
@@ -407,6 +426,16 @@ export function App() {
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserLayout><ProfilePage /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* My Statistics */}
+              <Route
+                path="/statistics"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <UserLayout><StatisticsPage /></UserLayout>
                   </ProtectedRoute>
                 }
               />

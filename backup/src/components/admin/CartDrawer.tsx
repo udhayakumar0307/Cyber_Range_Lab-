@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, Trash2, ArrowRight, ShieldCheck, Tag, Plus, Minus } from 'lucide-react';
+import { X, ShoppingCart, Trash2, ArrowRight, Tag, Plus, Minus, Clock } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   cartItems: CartItem[];
-  onUpdateQuantity: (id: number | string, qty: number) => void;
-  onUpdateDuration: (id: number | string, months: number) => void;
+  onUpdateHours: (id: number | string, hours: number) => void;
+  onUpdateQuantity?: (id: number | string, qty: number) => void;   // Legacy compat
+  onUpdateDuration?: (id: number | string, months: number) => void; // Legacy compat
   onRemoveItem: (id: number | string) => void;
   onClearCart: () => void;
   onProceedToCheckout: (cartSummary: any) => void;
@@ -17,8 +18,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
   cartItems,
-  onUpdateQuantity,
-  onUpdateDuration,
+  onUpdateHours,
   onRemoveItem,
   onClearCart,
   onProceedToCheckout
@@ -30,7 +30,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   if (!isOpen) return null;
 
   const safeCartItems = cartItems ?? [];
-  const subtotal = safeCartItems.reduce((acc, item) => acc + (item.price_inr ?? 0) * (item.quantity ?? 0), 0);
+  // item_total already contains price_inr * hours_purchased (computed by backend)
+  const subtotal = safeCartItems.reduce((acc, item) => acc + (item.item_total ?? (item.price_inr ?? 0) * (item.hours_purchased ?? 40)), 0);
   const tax = Math.round((subtotal - discountAmount) * 0.18);
   const grandTotal = subtotal - discountAmount + tax;
 
@@ -44,6 +45,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       alert('Invalid Promo Code. Try "ASTRA10" for 10% off.');
     }
   };
+
+  const HOUR_STEPS = [5, 10, 20, 40, 60, 80, 100, 150, 200];
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
@@ -78,71 +81,79 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <p className="text-xs text-slate-400">Browse the Lab Marketplace to add cybersecurity training labs.</p>
               </div>
             ) : (
-              safeCartItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">{item.lab_title}</h4>
-                      <p className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 mt-1">
-                        ₹{(item.price_inr ?? 0).toLocaleString()} / seat
-                      </p>
+              safeCartItems.map((item) => {
+                const hours = item.hours_purchased ?? 40;
+                const rate = item.price_inr ?? 0;
+                const total = rate * hours;
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">{item.lab_title}</h4>
+                        <p className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 mt-1">
+                          ₹{rate.toLocaleString()} / hr
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => onRemoveItem(item.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                        title="Remove Lab"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => onRemoveItem(item.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
-                      title="Remove Lab"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Quantity (Seats) & Duration Selectors */}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    {/* Hours Selector */}
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Student Seats</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Hours to Purchase
+                      </span>
                       <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1">
                         <button
-                          onClick={() => onUpdateQuantity(item.id, Math.max(1, (item.quantity ?? 0) - 1))}
+                          onClick={() => onUpdateHours(item.id, Math.max(5, hours - 5))}
                           className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex-1 text-center">{item.quantity ?? 0}</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex-1 text-center">{hours} hrs</span>
                         <button
-                          onClick={() => onUpdateQuantity(item.id, (item.quantity ?? 0) + 1)}
+                          onClick={() => onUpdateHours(item.id, hours + 5)}
                           className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      {/* Quick-select preset hours */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {HOUR_STEPS.map(h => (
+                          <button
+                            key={h}
+                            onClick={() => onUpdateHours(item.id, h)}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors ${
+                              hours === h
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400'
+                            }`}
+                          >
+                            {h}hr
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">License Duration</span>
-                      <select
-                        value={item.license_duration_months ?? 12}
-                        onChange={(e) => onUpdateDuration(item.id, Number(e.target.value))}
-                        className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none"
-                      >
-                        <option value={6}>6 Months</option>
-                        <option value={12}>12 Months (1 Year)</option>
-                        <option value={24}>24 Months (2 Years)</option>
-                      </select>
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 text-[11px]">Lab Subtotal:</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white">
+                        ₹{total.toLocaleString()}
+                      </span>
                     </div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 text-[11px]">Lab Subtotal:</span>
-                    <span className="font-extrabold text-slate-900 dark:text-white">
-                      ₹{((item.price_inr ?? 0) * (item.quantity ?? 0)).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

@@ -149,31 +149,37 @@ export const LabMarketplace: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const getHourlyRate = (difficulty?: string) => {
+    const d = (difficulty ?? '').toLowerCase();
+    if (d.includes('advanced') || d.includes('expert')) return 300;
+    if (d.includes('intermediate')) return 200;
+    return 100; // Beginner default
+  };
+
   const handleAddToCart = async (lab: SecurityLab) => {
     const existingIndex = cartItems.findIndex((i) => i.lab_id === lab.id);
-    let updated: CartItem[] = [];
     if (existingIndex >= 0) {
-      updated = cartItems.map((item, idx) =>
-        idx === existingIndex ? { ...item, quantity: (item.quantity ?? 0) + 1 } : item
-      );
-    } else {
-      const newItem: CartItem = {
-        id: Date.now(),
-        lab_id: lab.id,
-        lab_title: lab.title ?? '',
-        price_inr: lab.priceInr ?? 0,
-        quantity: 1,
-        license_duration_months: 12
-      };
-      updated = [...cartItems, newItem];
+      // Already in cart - just open it
+      setIsCartOpen(true);
+      return;
     }
-    setCartItems(updated);
+    const hourlyRate = getHourlyRate(lab.difficulty);
+    const DEFAULT_HOURS = 40;
+    const newItem: CartItem = {
+      id: Date.now(),
+      lab_id: lab.id,
+      lab_title: lab.title ?? '',
+      price_inr: hourlyRate,
+      hours_purchased: DEFAULT_HOURS,
+      item_total: hourlyRate * DEFAULT_HOURS,
+    };
+    setCartItems(prev => [...prev, newItem]);
     setIsCartOpen(true);
 
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        await fetch('/api/v1/cart/items', {
+        const res = await fetch('/api/v1/cart/items', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -182,33 +188,72 @@ export const LabMarketplace: React.FC = () => {
           body: JSON.stringify({
             lab_id: lab.id,
             lab_title: lab.title ?? '',
-            price_inr: lab.priceInr ?? 0,
-            quantity: 1,
-            license_duration_months: 12
+            hours_purchased: DEFAULT_HOURS
           })
         });
+        if (res.ok) {
+          // Refresh cart from server to get server-computed price
+          const cartRes = await fetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
+          if (cartRes.ok) {
+            const data = await cartRes.json();
+            setCartItems(Array.isArray(data?.items) ? data.items : []);
+          }
+        }
       } catch (err) {
         console.error('Error syncing cart with API:', err);
       }
     }
   };
 
-  const handleUpdateQuantity = (id: number | string, qty: number) => {
-    setCartItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: qty } : item)));
+  const handleUpdateHours = async (id: number | string, hours: number) => {
+    setCartItems((prev) => prev.map((item) => {
+      if (item.id === id) {
+        const rate = item.price_inr ?? 0;
+        return { ...item, hours_purchased: hours, item_total: rate * hours };
+      }
+      return item;
+    }));
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await fetch(`/api/v1/cart/items/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ hours_purchased: hours })
+        });
+        // Refresh from server for recomputed totals
+        const cartRes = await fetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
+        if (cartRes.ok) {
+          const data = await cartRes.json();
+          setCartItems(Array.isArray(data?.items) ? data.items : []);
+        }
+      } catch (err) {
+        console.error('Error updating cart hours:', err);
+      }
+    }
   };
 
-  const handleUpdateDuration = (id: number | string, months: number) => {
-    setCartItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, license_duration_months: months } : item))
-    );
-  };
-
-  const handleRemoveCartItem = (id: number | string) => {
+  const handleRemoveCartItem = async (id: number | string) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await fetch(`/api/v1/cart/items/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) { /* ignore */ }
+    }
   };
 
-  const handleClearCart = () => {
+  const handleClearCart = async () => {
     setCartItems([]);
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await fetch('/api/v1/cart', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      } catch (err) { /* ignore */ }
+    }
   };
 
   const handleProceedToCheckout = (summary: any) => {
@@ -409,12 +454,12 @@ export const LabMarketplace: React.FC = () => {
                   <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
-                        Price / Seat
+                        Price / Hour
                       </span>
                       {isFree ? (
                         <span className="text-base font-black text-emerald-600 dark:text-emerald-400">FREE</span>
                       ) : (
-                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab.difficulty).toLocaleString('en-IN')}</span>
                       )}
                     </div>
 
@@ -480,10 +525,9 @@ export const LabMarketplace: React.FC = () => {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onUpdateDuration={() => {}}
+        onUpdateHours={handleUpdateHours}
         onRemoveItem={handleRemoveCartItem}
-        onClearCart={() => setCartItems([])}
+        onClearCart={handleClearCart}
         onProceedToCheckout={handleProceedToCheckout}
       />
 

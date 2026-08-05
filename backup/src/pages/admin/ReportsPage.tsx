@@ -238,13 +238,7 @@ export const ReportsPage: React.FC = () => {
             ))}
           </select>
 
-          <input
-            type="text"
-            value={selectedLab}
-            onChange={(e) => setSelectedLab(e.target.value)}
-            placeholder="Lab ID (e.g. lab-hardening)"
-            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none"
-          />
+
 
           <div className="flex items-center gap-2">
             <span className="text-slate-400 font-bold uppercase text-[9px]">From:</span>
@@ -315,18 +309,6 @@ export const ReportsPage: React.FC = () => {
                               className="px-2.5 py-1 border rounded-lg hover:bg-slate-100 font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 cursor-pointer"
                             >
                               View Report
-                            </button>
-                            <button
-                              onClick={() => handleDownloadGroupReport(r.assignment_id, 'pdf')}
-                              className="px-2.5 py-1 bg-blue-50 text-[#0052CC] hover:bg-blue-100 font-bold rounded-lg cursor-pointer"
-                            >
-                              PDF
-                            </button>
-                            <button
-                              onClick={() => handleDownloadGroupReport(r.assignment_id, 'csv')}
-                              className="px-2.5 py-1 bg-emerald-50 text-emerald-650 hover:bg-emerald-100 font-bold rounded-lg cursor-pointer"
-                            >
-                              CSV
                             </button>
                           </td>
                         </tr>
@@ -436,7 +418,6 @@ export const ReportsPage: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800 border-b text-[10px] font-bold text-slate-400 uppercase">
                     <th className="p-3">Student Name</th>
-                    <th className="p-3 text-center">Module Scores</th>
                     <th className="p-3 text-center">Final Score</th>
                     <th className="p-3 text-center">Completion Time</th>
                     <th className="p-3 text-center">Attempts</th>
@@ -446,7 +427,6 @@ export const ReportsPage: React.FC = () => {
                   {viewReportData.students?.map((s: any) => (
                     <tr key={s.id}>
                       <td className="p-3 font-bold text-slate-850 dark:text-slate-100">{s.fullName}</td>
-                      <td className="p-3 text-center text-slate-500">{s.module_scores}</td>
                       <td className="p-3 text-center font-bold text-slate-900 dark:text-white">{s.final_score}</td>
                       <td className="p-3 text-center text-slate-500">{s.completion_time}</td>
                       <td className="p-3 text-center text-slate-500">{s.attempts}</td>

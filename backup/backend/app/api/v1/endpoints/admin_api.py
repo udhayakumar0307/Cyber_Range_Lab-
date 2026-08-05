@@ -53,6 +53,11 @@ class AdminRegisterRequest(BaseModel):
     pincode: str
     gst_number: Optional[str] = None
     institution_type: str
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    role_text: Optional[str] = None
+    primary_affiliation_type: Optional[str] = "college"  # 'college' or 'organization'
+    college_id: Optional[int] = None
 
 class AdminLoginRequest(BaseModel):
     email: EmailStr
@@ -74,26 +79,13 @@ class AdminProfileUpdateRequest(BaseModel):
 @router.post("/register")
 def register_admin(data: AdminRegisterRequest, request: Request, db: Session = Depends(get_db)):
     """
-    Registers a new Admin user.
-    - @cyberrange.in accounts: Direct activation, no verification required.
-    - Academic suffixes (*.edu, *.ac.in, etc.): Enforces academic domain and OTP verification flow.
+    Registers a new Admin user. Allows any domain, and associates with College or Organization.
     """
-    resolved_org_name = data.organization_name or data.org_name or "CyberRange Organization"
     email_clean = data.email.strip().lower()
-
-    # 1. Inspect domain suffix
     email_domain = email_clean.split("@")[-1] if "@" in email_clean else ""
-    academic_suffixes = [".edu", ".ac.in", ".edu.in", ".ac.uk", ".edu.sg", ".ac.jp", ".edu.au"]
     is_cyberrange = email_domain == "cyberrange.in"
-    is_academic = any(email_domain.endswith(suffix) or "college" in email_domain or "univ" in email_domain for suffix in academic_suffixes)
 
-    if not is_cyberrange and not is_academic:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only institutional email addresses are allowed for Academic Admin accounts."
-        )
-
-    # 2. Check duplicate user
+    # Check duplicate user
     existing_user = db.query(User).filter(User.email == email_clean).first()
     if existing_user:
         raise HTTPException(
@@ -101,45 +93,83 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
             detail="An account with this email address already exists."
         )
 
-    # 3. Create Organization
-    org = Organization(
-        name=resolved_org_name,
-        institution_type=data.institution_type or ("Academic" if is_academic else "Internal"),
-        address=data.address,
-        country=data.country,
-        state=data.state,
-        city=data.city,
-        pincode=data.pincode,
-        gst_number=data.gst_number
-    )
-    db.add(org)
-    db.flush()
+    # Determine Organization ID to link to AdminProfile
+    from app.models.user_affiliation import UserAffiliation
+    from app.models.college import College
 
-    # 4. Create Billing Address
-    billing = BillingAddress(
-        organization_id=org.id,
-        address_line=data.address or "Address",
-        city=data.city or "City",
-        state=data.state or "State",
-        country=data.country or "Country",
-        pincode=data.pincode or "Pincode",
-        gst_number=data.gst_number
-    )
-    db.add(billing)
+    org_id = None
+    resolved_org_name = data.organization_name or data.org_name or "CyberRange Organization"
+    college_target_id = None
 
-    # 5. Create Admin User (hashed with bcrypt)
+    if data.primary_affiliation_type == "college":
+        if not data.college_id:
+            raise HTTPException(status_code=400, detail="college_id is required for college affiliation")
+        college = db.query(College).filter(College.id == data.college_id).first()
+        if not college:
+            raise HTTPException(status_code=404, detail="College not found")
+        college_target_id = college.id
+        resolved_org_name = college.name
+        # Find or create a matching Organization to keep AdminProfile compatible
+        org = db.query(Organization).filter(Organization.name.ilike(college.name)).first()
+        if not org:
+            org = Organization(
+                name=college.name,
+                institution_type="College",
+                city=college.city,
+                country=college.country,
+                state=college.state,
+                status="ACTIVE"
+            )
+            db.add(org)
+            db.flush()
+        org_id = org.id
+    else:
+        # Organization selection
+        org_name = resolved_org_name.strip()
+        org = db.query(Organization).filter(Organization.name.ilike(org_name)).first()
+        if not org:
+            org = Organization(
+                name=org_name,
+                institution_type=data.institution_type or "Company",
+                address=data.address,
+                country=data.country,
+                state=data.state,
+                city=data.city,
+                pincode=data.pincode,
+                gst_number=data.gst_number,
+                status="PENDING"
+            )
+            db.add(org)
+            db.flush()
+        org_id = org.id
+
+    # Create Billing Address for Organization
+    billing = db.query(BillingAddress).filter(BillingAddress.organization_id == org_id).first()
+    if not billing:
+        billing = BillingAddress(
+            organization_id=org_id,
+            address_line=data.address or "Address",
+            city=data.city or "City",
+            state=data.state or "State",
+            country=data.country or "Country",
+            pincode=data.pincode or "Pincode",
+            gst_number=data.gst_number
+        )
+        db.add(billing)
+
+    # Create Admin User
     password_validator.validate_or_raise(data.password, email=email_clean, username=data.admin_name)
     hashed_pw = get_password_hash(data.password)
     
-    # CyberRange admins are 'internal'; professors/academics are 'academic'
     account_type = "internal" if is_cyberrange else "academic"
     email_verified = True if is_cyberrange else False
+    role_name = data.role_text.lower() if data.role_text else "admin"
 
     user = User(
         name=data.admin_name,
         email=email_clean,
         password_hash=hashed_pw,
-        role="admin",
+        role=role_name,
         is_active=True if is_cyberrange else False, # Academic admin is inactive until verified
         email_verified=email_verified,
         account_type=account_type,
@@ -147,24 +177,36 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
         organization=resolved_org_name,
         country=data.country,
         state=data.state,
-        city=data.city
+        city=data.city,
+        designation=data.designation,
+        department=data.department
     )
     db.add(user)
     db.flush()
 
-    # 6. Create Admin Profile
+    # Create primary affiliation record
+    aff = UserAffiliation(
+        user_id=user.id,
+        affiliation_type=data.primary_affiliation_type,
+        college_id=college_target_id,
+        organization_id=org_id if data.primary_affiliation_type == "organization" else None,
+        is_primary=True
+    )
+    db.add(aff)
+
+    # Create Admin Profile
     verification_token = secrets.token_hex(16)
     admin_prof = AdminProfile(
         user_id=user.id,
-        organization_id=org.id,
+        organization_id=org_id,
         phone=data.phone,
-        designation="Primary Admin",
+        designation=data.designation or "Administrator",
         is_verified=email_verified,
         verification_token=verification_token
     )
     db.add(admin_prof)
 
-    # 7. For Academic Admins, generate & send secure 6-digit OTP code
+    # For Academic Admins, generate & send secure 6-digit OTP code
     if not is_cyberrange:
         from app.models.otp import OTPVerification
         otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
@@ -599,6 +641,8 @@ def get_admin_users(
 
     # Exclude internal system admin & platform maintenance accounts from operational user management
     from sqlalchemy.orm import joinedload
+    from app.models.user_affiliation import UserAffiliation as UA
+
     q = db.query(User).options(joinedload(User.group)).filter(
         not_(or_(
             User.role.ilike('%sysadmin%'),
@@ -608,7 +652,33 @@ def get_admin_users(
             User.email.ilike('%sysadmin%'),
         ))
     )
+    # Affiliation ID filtering
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
 
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+            
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+            q = q.filter(User.id.in_(valid_user_ids))
+        else:
+            return []
     if query and query.strip():
         search_term = query.strip()
         search_fmt = f"%{search_term}%"
@@ -678,12 +748,81 @@ def get_admin_users(
             "lastActive": u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "Never",
             "score": u.total_score or 0,
             "completedLabsCount": completed_labs_cnt,
-            "rollNumber": f"22BCS{u.id:03d}",
-            "department": "Cyber Security" if u.id % 2 == 0 else "Computer Science",
-            "year": "III Year" if u.id % 2 == 0 else "II Year",
+            "rollNumber": u.roll_number or f"22BCS{u.id:03d}",
+            "department": u.department or ("Cyber Security" if u.id % 2 == 0 else "Computer Science"),
+            "year": f"{u.year} Year" if u.year else ("III Year" if u.id % 2 == 0 else "II Year"),
             "phone": u.phone or "+91 98765 43210"
         })
     return result
+
+def parse_dept_year(dept_year_str: str):
+    dept_year_str = str(dept_year_str or "").strip()
+    if not dept_year_str:
+        return "", None
+    year = None
+    lower_str = dept_year_str.lower()
+    if "iv" in lower_str or "4th" in lower_str or "fourth" in lower_str or "year 4" in lower_str:
+        year = 4
+    elif "iii" in lower_str or "3rd" in lower_str or "third" in lower_str or "year 3" in lower_str:
+        year = 3
+    elif "ii" in lower_str or "2nd" in lower_str or "second" in lower_str or "year 2" in lower_str:
+        year = 2
+    elif "i" in lower_str or "1st" in lower_str or "first" in lower_str or "year 1" in lower_str:
+        year = 1
+
+    import re
+    clean_dept = re.sub(
+        r'(?i)\b(i{1,4}|1st|2nd|3rd|4th|first|second|third|fourth|year\s*\d)\s*(year|yr)?\b',
+        '',
+        dept_year_str
+    )
+    clean_dept = re.sub(r'[\s\-/,]+$', '', clean_dept)
+    clean_dept = re.sub(r'^[\s\-/,]+', '', clean_dept)
+    clean_dept = clean_dept.strip()
+    return clean_dept, year
+
+@router.get("/users/template")
+def download_users_import_template(format: str = "xlsx"):
+    """Generates standard Excel template for bulk user provisioning with preset department validation."""
+    headers = ["S.No", "Full Name", "Email", "Department / Year", "Roll Number"]
+    example_row = [1, "Alex Morgan", "alex.morgan@enterprise.io", "B.E. CSE - III Year", "22BCS001"]
+    
+    import io
+    import openpyxl
+    from openpyxl.worksheet.datavalidation import DataValidation
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "User Import Template"
+    ws.append(headers)
+    ws.append(example_row)
+    
+    presets = [
+        "B.E. CSE - I Year", "B.E. CSE - II Year", "B.E. CSE - III Year", "B.E. CSE - IV Year",
+        "B.Tech. IT - I Year", "B.Tech. IT - II Year", "B.Tech. IT - III Year", "B.Tech. IT - IV Year",
+        "B.Tech. AI&DS - I Year", "B.Tech. AI&DS - II Year", "B.Tech. AI&DS - III Year", "B.Tech. AI&DS - IV Year",
+        "B.Tech. Cyber Security - I Year", "B.Tech. Cyber Security - II Year", "B.Tech. Cyber Security - III Year", "B.Tech. Cyber Security - IV Year",
+        "B.C.A. - I Year", "B.C.A. - II Year", "B.C.A. - III Year",
+        "B.Sc. CS - I Year", "B.Sc. CS - II Year", "B.Sc. CS - III Year",
+        "M.E. CSE - I Year", "M.E. CSE - II Year",
+        "M.Sc. CS - I Year", "M.Sc. CS - II Year"
+    ]
+    ws_presets = wb.create_sheet(title="Presets")
+    ws_presets.sheet_state = "hidden"
+    for i, val in enumerate(presets, start=1):
+        ws_presets[f"A{i}"] = val
+        
+    dv = DataValidation(type="list", formula1="=Presets!$A$1:$A$26", allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add("D2:D500")
+    
+    output = io.BytesIO()
+    wb.save(output)
+    return Response(
+        content=output.getvalue(), 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers={"Content-Disposition": "attachment; filename=cyberrange_user_import_template.xlsx"}
+    )
 
 @router.get("/users/{user_id}")
 def get_single_student_details(
@@ -926,14 +1065,53 @@ def get_admin_groups(
 ):
     from app.models.group import Group
     from app.models.student_assignment import StudentAssignment
+    from app.models.user_affiliation import UserAffiliation as UA
+    from sqlalchemy import not_, or_
+
     org_id = get_admin_org_id(current_user, db)
     groups = db.query(Group).filter((Group.organization_id == org_id) | (Group.organization_id.is_(None))).all()
 
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
+
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
     result = []
     for g in groups:
-        member_count = db.query(User).filter(User.group_id == g.id).count()
-        # Count users in this group who have assignments
-        group_user_ids = [u.id for u in db.query(User.id).filter(User.group_id == g.id).all()]
+        member_q = db.query(User).filter(
+            User.group_id == g.id,
+            not_(or_(
+                User.role.ilike('%sysadmin%'),
+                User.role.ilike('%system_admin%'),
+                User.name.ilike('%sysadmin%'),
+                User.name.ilike('%sys admin%'),
+                User.email.ilike('%sysadmin%'),
+            ))
+        )
+        if not is_super_admin and valid_user_ids is not None:
+            member_q = member_q.filter(User.id.in_(valid_user_ids))
+        
+        member_count = member_q.count()
+        group_user_ids = [u.id for u in member_q.with_entities(User.id).all()]
         assigned_labs = 0
         if group_user_ids:
             assigned_labs = db.query(StudentAssignment).filter(StudentAssignment.student_id.in_(group_user_ids)).count()
@@ -1067,9 +1245,44 @@ def add_group_member(
     u = db.query(User).filter(User.id == data.user_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Enforce maximum 40 students per group
+    member_count = db.query(User).filter(User.group_id == group_id).count()
+    if member_count >= 40:
+        raise HTTPException(status_code=400, detail="Group has reached the maximum capacity of 40 students.")
+
+    # Enforce admin and student affiliation overlap
+    from app.models.user_affiliation import UserAffiliation as UA
+    
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = {a.college_id for a in admin_affs if a.college_id is not None}
+        admin_org_ids = {a.organization_id for a in admin_affs if a.organization_id is not None}
+
+        student_affs = db.query(UA).filter(UA.user_id == u.id).all()
+        student_col_ids = {a.college_id for a in student_affs if a.college_id is not None}
+        student_org_ids = {a.organization_id for a in student_affs if a.organization_id is not None}
+
+        has_overlap = bool((admin_col_ids & student_col_ids) or (admin_org_ids & student_org_ids))
+        if not has_overlap:
+            raise HTTPException(status_code=400, detail="Admin can only add students belonging to the same affiliation.")
         
     u.group_id = g.id
     db.commit()
+
+    # Send added to group/cohort notification email
+    try:
+        from app.services.ses_service import ses_service
+        ses_service.send_added_to_group_email(
+            email=u.email,
+            student_name=u.name or u.email,
+            group_name=g.name,
+            admin_name=current_user.name or current_user.email
+        )
+    except Exception as mail_err:
+        logger.error(f"Cohort addition email failed for {u.email}: {mail_err}")
+
     return {"status": "success"}
 
 @router.delete("/groups/{group_id}/members/{user_id}")
@@ -1096,16 +1309,19 @@ class AllocationCreateRequest(BaseModel):
     lab_id: str
     group_id: int
     seat_count: int
+    hours: int = 1
 
 class UserAllocationRequest(BaseModel):
     lab_id: str
     user_email: str
     seat_count: int = 1
+    hours: int = 1
 
 class GroupAllocationRequest(BaseModel):
     lab_id: str
     group_id: int
     seat_count: int
+    hours: int = 1
 
 @router.get("/allocations")
 def get_admin_allocations(
@@ -1190,6 +1406,9 @@ def get_purchased_labs_matrix(
             "remaining_seats": remaining,
             "total_licenses": total_licenses,
             "assigned_licenses": assigned_licenses,
+            "hours_purchased": p.hours_purchased or 0,
+            "hours_remaining": p.hours_remaining or 0,
+            "hours_used": (p.hours_purchased or 0) - (p.hours_remaining or 0),
             "status": p.status,
             "expiry_date": p.expiry_date.strftime("%Y-%m-%d") if p.expiry_date else "",
             "purchased_date": p.purchased_date.strftime("%Y-%m-%d") if p.purchased_date else "",
@@ -1226,31 +1445,50 @@ def allocate_lab_to_user(
     if not p:
         raise HTTPException(status_code=404, detail="Purchased lab license not found for this organization.")
 
-    # Seat availability validation (backend-enforced)
-    available_seats = p.total_seats - p.assigned_seats
-    if available_seats < data.seat_count:
+    # Initialize hours if not set
+    if p.hours_purchased is None or p.hours_purchased == 0:
+        p.hours_purchased = 40
+    if p.hours_remaining is None:
+        p.hours_remaining = p.hours_purchased
+
+    requested_hours = data.hours or 1
+    if p.hours_remaining < requested_hours:
         raise HTTPException(
             status_code=400,
-            detail=f"Insufficient seats. Requested: {data.seat_count}. Available: {available_seats} of {p.total_seats} total purchased seats."
+            detail=f"Insufficient hours remaining. Requested: {requested_hours} hours. Available: {p.hours_remaining} hours."
         )
 
-    from app.models.admin_models import License
-    # Find an AVAILABLE license slot
-    available_license = db.query(License).filter(
-        License.purchased_lab_id == p.id,
-        License.status == "AVAILABLE"
-    ).first()
-    if not available_license:
-        raise HTTPException(status_code=400, detail="No available license slots remaining. All seats are allocated.")
-
-    # Assign license to user
+    # Assign hours to target user
     target_user = db.query(User).filter(User.email == data.user_email).first()
     if not target_user:
         raise HTTPException(status_code=404, detail=f"User '{data.user_email}' not found in the platform.")
 
-    available_license.allocated_user_email = data.user_email
-    available_license.status = "ASSIGNED"
-    p.assigned_seats = min(p.total_seats, p.assigned_seats + data.seat_count)
+    from app.models.admin_models import License
+    import secrets
+
+    # Find or dynamically create license for this user
+    lic = db.query(License).filter(
+        License.purchased_lab_id == p.id,
+        License.allocated_user_email == data.user_email
+    ).first()
+
+    if not lic:
+        lic = License(
+            purchased_lab_id=p.id,
+            license_key=f"KEY-{p.lab_id.upper()}-{secrets.token_hex(4).upper()}",
+            allocated_user_email=data.user_email,
+            status="ASSIGNED",
+            expiry_date=p.expiry_date,
+            hours_allocated=requested_hours,
+            hours_used=0
+        )
+        db.add(lic)
+    else:
+        lic.hours_allocated += requested_hours
+        lic.status = "ASSIGNED"
+
+    p.hours_remaining -= requested_hours
+    p.assigned_seats += 1
     db.commit()
 
     from app.services.audit_service import log_audit_event
@@ -1262,15 +1500,16 @@ def allocate_lab_to_user(
         performed_by=current_user.email,
         performed_by_role=current_user.role,
         organization_id=org_id,
-        new_value=f"Assigned {data.seat_count} seat(s) for lab '{p.lab_title}' to user {data.user_email}",
+        new_value=f"Assigned {requested_hours} hours for lab '{p.lab_title}' to user {data.user_email}",
         request=request
     )
     return {
         "status": "success",
-        "message": f"Lab '{p.lab_title}' seat assigned to {data.user_email}.",
-        "license_key": available_license.license_key,
+        "message": f"Lab '{p.lab_title}' ({requested_hours} hours) assigned to {data.user_email}.",
+        "license_key": lic.license_key,
         "assigned_seats": p.assigned_seats,
-        "remaining_seats": p.total_seats - p.assigned_seats
+        "hours_allocated": lic.hours_allocated,
+        "hours_remaining": p.hours_remaining
     }
 
 
@@ -1297,14 +1536,48 @@ def allocate_lab_to_group(
     if not p:
         raise HTTPException(status_code=404, detail="Purchased lab license not found for this organization.")
 
-    available_seats = p.total_seats - p.assigned_seats
-    if available_seats < data.seat_count:
+    # Initialize hours if not set
+    if p.hours_purchased is None or p.hours_purchased == 0:
+        p.hours_purchased = 40
+    if p.hours_remaining is None:
+        p.hours_remaining = p.hours_purchased
+
+    recipients = db.query(User).filter(User.group_id == data.group_id, User.is_active.is_(True)).all()
+    requested_hours_per_student = data.hours or 1
+    total_hours_needed = len(recipients) * requested_hours_per_student
+
+    if p.hours_remaining < total_hours_needed:
         raise HTTPException(
             status_code=400,
-            detail=f"Insufficient seats. Requested: {data.seat_count}. Available: {available_seats} of {p.total_seats}."
+            detail=f"Insufficient hours remaining. Required: {total_hours_needed} hours (for {len(recipients)} students). Available: {p.hours_remaining} hours."
         )
 
-    p.assigned_seats = min(p.total_seats, p.assigned_seats + data.seat_count)
+    from app.models.admin_models import License
+    import secrets
+
+    for s in recipients:
+        lic = db.query(License).filter(
+            License.purchased_lab_id == p.id,
+            License.allocated_user_email == s.email
+        ).first()
+
+        if not lic:
+            lic = License(
+                purchased_lab_id=p.id,
+                license_key=f"KEY-{p.lab_id.upper()}-{secrets.token_hex(4).upper()}",
+                allocated_user_email=s.email,
+                status="ASSIGNED",
+                expiry_date=p.expiry_date,
+                hours_allocated=requested_hours_per_student,
+                hours_used=0
+            )
+            db.add(lic)
+        else:
+            lic.hours_allocated += requested_hours_per_student
+            lic.status = "ASSIGNED"
+
+    p.hours_remaining -= total_hours_needed
+    p.assigned_seats += len(recipients)
     db.commit()
 
     from app.services.audit_service import log_audit_event
@@ -1316,7 +1589,7 @@ def allocate_lab_to_group(
         performed_by=current_user.email,
         performed_by_role=current_user.role,
         organization_id=org_id,
-        new_value=f"Bulk-allocated {data.seat_count} seats for lab '{p.lab_title}' to group {data.group_id}",
+        new_value=f"Bulk-allocated {total_hours_needed} hours total for lab '{p.lab_title}' to group {data.group_id}",
         request=request
     )
     from app.services.notification_service import notification_service
@@ -1337,7 +1610,8 @@ class AssignLabRequest(BaseModel):
     group_id: Optional[int] = None
     student_id: Optional[int] = None
     start_datetime: str
-    end_datetime: str
+    end_datetime: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 @router.get("/assignments")
 def get_scheduled_assignments(
@@ -1357,7 +1631,7 @@ def get_scheduled_assignments(
         lab_title = lab_names.get(a.lab_id) or a.lab_id
         
         # Calculate derived status
-        now = datetime.utcnow()
+        now = datetime.now()
         if a.status == "Completed":
             derived_status = "Completed"
         elif a.paused_at is not None:
@@ -1391,13 +1665,77 @@ def create_scheduled_assignment(
     db: Session = Depends(get_db)
 ):
     from app.models.assignment import Assignment
+    from app.models.admin_models import PurchasedLab
+    from datetime import datetime, timedelta
+
+    start_dt = datetime.fromisoformat(data.start_datetime.replace('Z', ''))
+    duration = data.duration_minutes or 60
+    end_dt = start_dt + timedelta(minutes=duration)
+
+    org_id = get_admin_org_id(current_user, db)
+    purchased_list = db.query(PurchasedLab).filter(
+        PurchasedLab.lab_id == data.lab_id,
+        PurchasedLab.organization_id == org_id
+    ).all()
+    if not purchased_list:
+        purchased_list = db.query(PurchasedLab).filter(
+            PurchasedLab.lab_id == data.lab_id,
+            PurchasedLab.user_id == current_user.id
+        ).all()
+
+    # Sort purchased labs descending by remaining hours so we pick the one with available hours
+    purchased_list.sort(key=lambda x: x.hours_remaining or 0.0, reverse=True)
+    p = purchased_list[0] if purchased_list else None
+
+    if not p:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You do not own a purchased license/hours for lab '{data.lab_id}'."
+        )
+
+    num_students = 0
+    if data.group_id:
+        from app.models.user_affiliation import UserAffiliation as UA
+        from sqlalchemy import not_, or_, func
+        is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin")
+        student_query = db.query(User).filter(User.group_id == data.group_id, User.is_active.is_(True))
+        if not is_super_admin:
+            admin_org = db.query(UA).filter(UA.user_id == current_user.id).first()
+            if admin_org:
+                student_query = student_query.join(UA, UA.user_id == User.id).filter(
+                    UA.organization_id == admin_org.organization_id
+                )
+        student_query = student_query.filter(
+            not_(or_(func.lower(User.role) == "super_admin", func.lower(User.role) == "system_admin"))
+        )
+        recipients = student_query.all()
+        num_students = len(recipients)
+    elif data.student_id:
+        num_students = 1
+
+    duration_hours = duration / 60.0
+    total_hours_needed = duration_hours * num_students
+
+    if p.hours_purchased is None or p.hours_purchased == 0:
+        p.hours_purchased = 40.0
+    if p.hours_remaining is None:
+        p.hours_remaining = p.hours_purchased
+
+    if p.hours_remaining < total_hours_needed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient remaining hours. Required: {total_hours_needed} hrs, Available: {p.hours_remaining} hrs."
+        )
+
+    p.hours_remaining -= total_hours_needed
+    p.hours_used = (p.hours_used or 0.0) + total_hours_needed
 
     a = Assignment(
         lab_id=data.lab_id,
         group_id=data.group_id,
         student_id=data.student_id,
-        start_datetime=datetime.fromisoformat(data.start_datetime.replace('Z', '')),
-        end_datetime=datetime.fromisoformat(data.end_datetime.replace('Z', '')),
+        start_datetime=start_dt,
+        end_datetime=end_dt,
         assigned_by=current_user.email
     )
     db.add(a)
@@ -1493,7 +1831,47 @@ def get_assignment_analytics(
     if a.student_id:
         students = db.query(DBUser).filter(DBUser.id == a.student_id).all()
     elif a.group_id:
-        students = db.query(DBUser).filter(DBUser.group_id == a.group_id).all()
+        from app.models.user_affiliation import UserAffiliation as UA
+        from sqlalchemy import not_, or_
+        
+        is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+        valid_user_ids = None
+        if not is_super_admin:
+            admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+            admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
+            raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+            admin_org_ids = []
+            if raw_org_ids:
+                from app.models.admin_models import Organization
+                approved_orgs = db.query(Organization.id).filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"])
+                ).all()
+                admin_org_ids = [o[0] for o in approved_orgs]
+
+            filter_conds = []
+            if admin_col_ids:
+                filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+            if admin_org_ids:
+                filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+            if filter_conds:
+                valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+        member_q = db.query(DBUser).filter(
+            DBUser.group_id == a.group_id,
+            not_(or_(
+                DBUser.role.ilike('%sysadmin%'),
+                DBUser.role.ilike('%system_admin%'),
+                DBUser.name.ilike('%sysadmin%'),
+                DBUser.name.ilike('%sys admin%'),
+                DBUser.email.ilike('%sysadmin%'),
+            ))
+        )
+        if not is_super_admin and valid_user_ids is not None:
+            member_q = member_q.filter(DBUser.id.in_(valid_user_ids))
+            
+        students = member_q.all()
     else:
         students = []
 
@@ -1507,11 +1885,24 @@ def get_assignment_analytics(
     total_score = 0
     scores_count = 0
 
+    from app.models.user_progress import UserProgress
+    from app.core.constants import TRACK_TO_LAB
+    tracks = [t for t, l in TRACK_TO_LAB.items() if l == a.lab_id]
+
     for s in students:
         progress_records = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == s.id,
-            UserLabProgress.lab_id == a.lab_id
+            UserLabProgress.lab_id == a.lab_id,
+            UserLabProgress.started_at >= a.start_datetime
         ).all()
+
+        up_records = []
+        if tracks:
+            up_records = db.query(UserProgress).filter(
+                UserProgress.user_id == str(s.id),
+                UserProgress.track_id.in_(tracks),
+                UserProgress.started_at >= a.start_datetime
+            ).all()
 
         status = "Not Started"
         started_time = "N/A"
@@ -1519,12 +1910,27 @@ def get_assignment_analytics(
         time_taken = "N/A"
         overall_score = 0
 
-        if progress_records:
-            overall_score = sum(p.score or 0 for p in progress_records)
+        # Combine progress records
+        has_any_progress = len(progress_records) > 0 or len(up_records) > 0
+
+        if has_any_progress:
+            ulp_score = sum(p.score or 0 for p in progress_records)
+            up_score = sum(p.module_score or 0 for p in up_records)
+            overall_score = max(ulp_score, up_score)
             total_score += overall_score
             scores_count += 1
 
-            has_completed = all(p.status == "COMPLETED" for p in progress_records)
+            # Check completion
+            from app.models.lab_module import LabModule
+            total_mods = db.query(LabModule).filter(LabModule.lab_id == a.lab_id).count()
+            if total_mods == 0:
+                total_mods = 5
+
+            ulp_completed_cnt = sum(1 for p in progress_records if p.status == "COMPLETED")
+            up_completed_cnt = sum(1 for p in up_records if p.completed)
+            solved_mods = max(ulp_completed_cnt, up_completed_cnt)
+
+            has_completed = solved_mods >= total_mods
             has_failed = any(p.status == "FAILED" for p in progress_records)
 
             if has_completed:
@@ -1537,8 +1943,15 @@ def get_assignment_analytics(
                 status = "Running"
                 started_cnt += 1
 
-            first_start = min((p.started_at for p in progress_records if p.started_at), default=None)
-            last_complete = max((p.completed_at for p in progress_records if p.completed_at), default=None)
+            first_start = None
+            starts = [p.started_at for p in progress_records if p.started_at] + [p.started_at for p in up_records if p.started_at]
+            if starts:
+                first_start = min(starts)
+
+            last_complete = None
+            completes = [p.completed_at for p in progress_records if p.completed_at] + [p.completed_at for p in up_records if p.completed_at]
+            if completes:
+                last_complete = max(completes)
             
             if first_start:
                 started_time = first_start.strftime("%Y-%m-%d %H:%M:%S")
@@ -1553,7 +1966,7 @@ def get_assignment_analytics(
 
         members_list.append({
             "id": s.id,
-            "fullName": s.fullName or s.name,
+            "fullName": s.name,
             "department": s.department or "Cyber Security",
             "year": s.year or "III Year",
             "status": status,
@@ -1613,8 +2026,6 @@ def delete_scheduled_assignment(
 
     db.commit()
     return {"status": "success", "id": a.id}
-
-
 @router.post("/allocations", status_code=status.HTTP_201_CREATED)
 def create_admin_allocation(
     data: AllocationCreateRequest,
@@ -1629,13 +2040,48 @@ def create_admin_allocation(
     if not p:
         raise HTTPException(status_code=404, detail="Purchased lab license not found for this organization.")
 
-    if p.assigned_seats + data.seat_count > p.total_seats:
+    # Initialize hours if not set
+    if p.hours_purchased is None or p.hours_purchased == 0:
+        p.hours_purchased = 40
+    if p.hours_remaining is None:
+        p.hours_remaining = p.hours_purchased
+
+    recipients = db.query(User).filter(User.group_id == data.group_id, User.is_active.is_(True)).all()
+    requested_hours_per_student = data.hours or 1
+    total_hours_needed = len(recipients) * requested_hours_per_student
+
+    if p.hours_remaining < total_hours_needed:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot allocate {data.seat_count} seats. Only {p.total_seats - p.assigned_seats} seats remaining out of {p.total_seats} total purchased seats."
+            detail=f"Cannot allocate. Insufficient hours remaining. Required: {total_hours_needed} hours (for {len(recipients)} students). Available: {p.hours_remaining} hours."
         )
 
-    p.assigned_seats += data.seat_count
+    from app.models.admin_models import License
+    import secrets
+
+    for s in recipients:
+        lic = db.query(License).filter(
+            License.purchased_lab_id == p.id,
+            License.allocated_user_email == s.email
+        ).first()
+
+        if not lic:
+            lic = License(
+                purchased_lab_id=p.id,
+                license_key=f"KEY-{p.lab_id.upper()}-{secrets.token_hex(4).upper()}",
+                allocated_user_email=s.email,
+                status="ASSIGNED",
+                expiry_date=p.expiry_date,
+                hours_allocated=requested_hours_per_student,
+                hours_used=0
+            )
+            db.add(lic)
+        else:
+            lic.hours_allocated += requested_hours_per_student
+            lic.status = "ASSIGNED"
+
+    p.hours_remaining -= total_hours_needed
+    p.assigned_seats += len(recipients)
     db.commit()
 
     from app.services.audit_service import log_audit_event
@@ -1647,14 +2093,13 @@ def create_admin_allocation(
         performed_by=current_user.email,
         performed_by_role=current_user.role,
         organization_id=org_id,
-        new_value=f"Allocated {data.seat_count} seats for lab {p.lab_title}",
+        new_value=f"Allocated {total_hours_needed} hours total for lab {p.lab_title} to group {data.group_id}",
         request=request
     )
     from app.services.notification_service import notification_service
-    recipients = db.query(User).filter(User.group_id == data.group_id, User.is_active.is_(True)).all()
     notification_service.notify_users(db, recipients, "Lab Assigned",
-                                       f"{p.lab_title} has been assigned to your group.", "LAB_ASSIGNED")
-    return {"status": "success", "message": "Seats allocated successfully"}
+                                       f"{p.lab_title} ({requested_hours_per_student} hours) has been assigned to your group.", "LAB_ASSIGNED")
+    return {"status": "success", "message": "Hours allocated successfully"}
 
 
 @router.get("/inventory")
@@ -1669,9 +2114,9 @@ def get_org_inventory(
     if not purchased:
         purchased = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).all()
 
-    total_purchased = sum(p.total_seats for p in purchased)
-    total_allocated = sum(p.assigned_seats for p in purchased)
-    total_remaining = total_purchased - total_allocated
+    total_hours_purchased = sum((p.hours_purchased or 0) for p in purchased)
+    total_hours_remaining = sum((p.hours_remaining or 0) for p in purchased)
+    total_hours_used = total_hours_purchased - total_hours_remaining
 
     labs_inventory = []
     for p in purchased:
@@ -1683,6 +2128,9 @@ def get_org_inventory(
             "total_seats": p.total_seats,
             "allocated_seats": p.assigned_seats,
             "remaining_seats": max(0, p.total_seats - p.assigned_seats),
+            "hours_purchased": p.hours_purchased or 0,
+            "hours_remaining": p.hours_remaining or 0,
+            "hours_used": p.hours_used or 0,
             "status": p.status,
             "expiry_date": p.expiry_date.strftime("%Y-%m-%d") if p.expiry_date else "",
         })
@@ -1690,9 +2138,9 @@ def get_org_inventory(
     return {
         "organization_id": org_id,
         "summary": {
-            "total_purchased": total_purchased,
-            "total_allocated": total_allocated,
-            "total_remaining": total_remaining,
+            "total_purchased": total_hours_purchased,
+            "total_allocated": total_hours_used,
+            "total_remaining": total_hours_remaining,
             "total_labs": len(purchased)
         },
         "labs": labs_inventory
@@ -1937,30 +2385,6 @@ def sanitize_csv_formula(val: str) -> str:
         return "'" + val_str
     return val_str
 
-@router.get("/users/template")
-def download_users_import_template(format: str = Query("csv", regex="^(csv|xlsx)$")):
-    """Generates standard CSV/Excel template for bulk user provisioning."""
-    headers = ["Full Name", "Email", "Role", "Group", "Phone", "Department", "Organization", "Password"]
-    example_row = ["Alex Morgan", "alex.morgan@enterprise.io", "User", "Unassigned", "+15550192834", "Cyber Defense", "TechCorp", ""]
-    
-    if format == "csv":
-        import io, csv
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(headers)
-        writer.writerow(example_row)
-        return Response(content=output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=cyberrange_user_import_template.csv"})
-    else:
-        import io
-        import openpyxl
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "User Import Template"
-        ws.append(headers)
-        ws.append(example_row)
-        output = io.BytesIO()
-        wb.save(output)
-        return Response(content=output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=cyberrange_user_import_template.xlsx"})
 
 @router.post("/users/import")
 async def bulk_import_users(
@@ -1970,95 +2394,126 @@ async def bulk_import_users(
     db: Session = Depends(get_db)
 ):
     """
-    Production Bulk User Import (CSV / XLSX) with transactional insert,
-    formula sanitization, role & group validation, and audit logging.
+    Production Bulk User Import (XLSX only) with transactional insert,
+    formula sanitization, and audit logging.
     """
-    if not file.filename.endswith(('.csv', '.xlsx')):
-        raise HTTPException(status_code=400, detail="Invalid file format. Only .csv and .xlsx files are supported.")
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Invalid file format. Only .xlsx files are supported.")
 
     contents = await file.read()
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File size exceeds maximum allowed limit of 10MB.")
 
-    import io, csv
+    import io
     rows = []
-    if file.filename.endswith('.csv'):
-        text = contents.decode('utf-8-sig', errors='ignore')
-        reader = csv.DictReader(io.StringIO(text))
-        rows = list(reader)
-    else:
-        import openpyxl
-        wb = openpyxl.load_workbook(filename=io.BytesIO(contents), data_only=True)
-        ws = wb.active
-        headers = [str(cell.value or '').strip() for cell in ws[1]]
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if any(row):
-                rows.append(dict(zip(headers, row)))
+    import openpyxl
+    wb = openpyxl.load_workbook(filename=io.BytesIO(contents), data_only=True)
+    ws = wb.active
+    headers = [str(cell.value or '').strip() for cell in ws[1]]
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if any(row):
+            rows.append(dict(zip(headers, row)))
 
     if len(rows) > 1000:
         raise HTTPException(status_code=400, detail="Batch upload exceeds maximum threshold of 1000 records.")
 
-    from app.models.group import Group
-    groups_map = {g.name.lower(): g.id for g in db.query(Group).all()}
     existing_emails = {u.email.lower() for u in db.query(User.email).all()}
 
     valid_rows = []
     failed_rows = []
     duplicate_rows = []
     imported_count = 0
-    forbidden_roles = {"super_admin", "system_admin", "sysadmin"}
 
-    org_id = get_admin_org_id(current_user, db)
+    from app.models.user_affiliation import UserAffiliation as UA
+    
+    admin_primary_aff = db.query(UA).filter(UA.user_id == current_user.id, UA.is_primary == True).first()
+    admin_college_id = admin_primary_aff.college_id if admin_primary_aff else None
+    admin_org_id = admin_primary_aff.organization_id if admin_primary_aff else None
+    admin_aff_type = admin_primary_aff.affiliation_type if admin_primary_aff else None
 
-    for idx, row in enumerate(rows, start=2):
-        name = str(row.get("Full Name") or row.get("full_name") or row.get("Name") or "").strip()
-        email = str(row.get("Email") or row.get("email") or "").strip()
-        role = str(row.get("Role") or row.get("role") or "User").strip()
-        group_name = str(row.get("Group") or row.get("group_name") or "Unassigned").strip()
-        password = str(row.get("Password") or row.get("password") or "").strip()
+    admin_org_name = None
+    if admin_org_id:
+        admin_org_name = db.query(Organization.name).filter(Organization.id == admin_org_id).scalar()
 
-        if not name or not email:
-            failed_rows.append({"row": idx, "email": email, "reason": "Missing mandatory field (Full Name or Email)"})
-            continue
+    created_users = []
 
-        if role.lower() in forbidden_roles:
-            failed_rows.append({"row": idx, "email": email, "reason": f"Importing restricted security role '{role}' is forbidden."})
-            continue
+    try:
+        for idx, row in enumerate(rows, start=2):
+            name = str(row.get("Full Name") or row.get("full_name") or row.get("Name") or "").strip()
+            email = str(row.get("Email") or row.get("email") or "").strip()
+            dept_year_raw = str(row.get("Department / Year") or row.get("department_year") or "").strip()
+            roll_number = str(row.get("Roll Number") or row.get("roll_number") or "").strip()
 
-        if email.lower() in existing_emails:
-            duplicate_rows.append({"row": idx, "email": email, "reason": "User email already exists in database"})
-            continue
-
-        target_group_id = None
-        if group_name and group_name.lower() != "unassigned":
-            if group_name.lower() in groups_map:
-                target_group_id = groups_map[group_name.lower()]
-            else:
-                failed_rows.append({"row": idx, "email": email, "reason": f"Target group '{group_name}' does not exist."})
+            if not name or not email:
+                failed_rows.append({"row": idx, "email": email, "reason": "Missing mandatory field (Full Name or Email)"})
                 continue
 
-        pwd_to_use = password if password else secrets.token_urlsafe(10)
-        pwd_hash = get_password_hash(pwd_to_use)
+            if email.lower() in existing_emails:
+                duplicate_rows.append({"row": idx, "email": email, "reason": "User email already exists in database"})
+                continue
 
-        try:
+            parsed_dept, parsed_year = parse_dept_year(dept_year_raw)
+
+            pwd_to_use = secrets.token_urlsafe(10)
+            pwd_hash = get_password_hash(pwd_to_use)
+
             new_u = User(
                 name=sanitize_csv_formula(name),
                 email=sanitize_csv_formula(email),
                 password_hash=pwd_hash,
-                role=role.lower(),
-                group_id=target_group_id,
-                is_active=True
+                role="user",
+                is_active=True,
+                college_id=admin_college_id,
+                organization=admin_org_name,
+                department=sanitize_csv_formula(parsed_dept),
+                year=parsed_year,
+                roll_number=sanitize_csv_formula(roll_number)
             )
             db.add(new_u)
             db.flush()
+
+            # Create User Affiliation
+            if admin_primary_aff:
+                new_aff = UA(
+                    user_id=new_u.id,
+                    affiliation_type=admin_aff_type,
+                    college_id=admin_college_id,
+                    organization_id=admin_org_id,
+                    is_primary=True
+                )
+                db.add(new_aff)
+
             existing_emails.add(email.lower())
             imported_count += 1
             valid_rows.append({"email": email, "name": name})
-        except Exception as e:
-            db.rollback()
-            failed_rows.append({"row": idx, "email": email, "reason": str(e)})
+            created_users.append((email, pwd_to_use))
 
-    db.commit()
+        # Rollback if any validation/import failures occurred
+        if failed_rows:
+            db.rollback()
+            return {
+                "status": "failed",
+                "message": "Bulk import failed validation checks. No accounts were created.",
+                "imported": 0,
+                "duplicates": len(duplicate_rows),
+                "failed": len(failed_rows),
+                "duplicate_details": duplicate_rows,
+                "failed_details": failed_rows
+            }
+
+        db.commit()
+
+        # Send welcome emails after successful commit
+        from app.services.ses_service import ses_service
+        for email, pwd in created_users:
+            try:
+                ses_service.send_welcome_email(email, pwd, current_user.name or current_user.email)
+            except Exception as mail_err:
+                logger.error(f"Welcome email failed for {email}: {mail_err}")
+
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database transaction failure during bulk import: {exc}")
 
     # Log Audit Event
     log_audit_event(
@@ -2326,3 +2781,118 @@ def revoke_organization_api_key(
     )
 
     return {"status": "success", "message": "API Key revoked successfully."}
+
+# ==========================================
+# 13. PENDING ORGANIZATIONS MANAGEMENT (Super Admin Only)
+# ==========================================
+
+class OrgMergeRequest(BaseModel):
+    target_org_id: int
+
+@router.get("/organizations/pending")
+def list_pending_organizations(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Super Admin only: lists all organizations in PENDING status.
+    """
+    if (current_user.role or "").lower() not in ("super_admin", "system_admin", "sysadmin"):
+        raise HTTPException(status_code=403, detail="Access denied. Super Admin role required.")
+    
+    pending_orgs = db.query(Organization).filter(Organization.status == "PENDING").all()
+    return [
+        {
+            "id": o.id,
+            "name": o.name,
+            "institution_type": o.institution_type,
+            "city": o.city,
+            "state": o.state,
+            "country": o.country,
+            "created_at": o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else ""
+        }
+        for o in pending_orgs
+    ]
+
+@router.post("/organizations/{org_id}/approve")
+def approve_pending_organization(
+    org_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Super Admin only: Approves a pending organization.
+    """
+    if (current_user.role or "").lower() not in ("super_admin", "system_admin", "sysadmin"):
+        raise HTTPException(status_code=403, detail="Access denied. Super Admin role required.")
+
+    org = db.query(Organization).filter(Organization.id == org_id, Organization.status == "PENDING").first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+
+    org.status = "APPROVED"
+    db.commit()
+
+    from app.services.audit_service import log_audit_event
+    log_audit_event(
+        db=db,
+        action="Organization Approved",
+        entity="Organization",
+        entity_id=org.id,
+        performed_by=current_user.email,
+        performed_by_role=current_user.role,
+        new_value=f"Approved organization '{org.name}'",
+        request=request
+    )
+
+    return {"status": "success", "message": f"Organization '{org.name}' approved successfully."}
+
+@router.post("/organizations/{org_id}/merge")
+def merge_pending_organization(
+    org_id: int,
+    data: OrgMergeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Super Admin only: Merges a pending organization into an existing approved organization,
+    updating all user affiliations accordingly.
+    """
+    if (current_user.role or "").lower() not in ("super_admin", "system_admin", "sysadmin"):
+        raise HTTPException(status_code=403, detail="Access denied. Super Admin role required.")
+
+    pending_org = db.query(Organization).filter(Organization.id == org_id, Organization.status == "PENDING").first()
+    if not pending_org:
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+
+    target_org = db.query(Organization).filter(Organization.id == data.target_org_id, Organization.status == "APPROVED").first()
+    if not target_org:
+        raise HTTPException(status_code=404, detail="Approved target organization not found.")
+
+    from app.models.user_affiliation import UserAffiliation as UA
+    
+    # 1. Update all user affiliations
+    db.query(UA).filter(UA.organization_id == pending_org.id).update({UA.organization_id: target_org.id})
+
+    # 2. Update Admin Profiles
+    db.query(AdminProfile).filter(AdminProfile.organization_id == pending_org.id).update({AdminProfile.organization_id: target_org.id})
+
+    # 3. Delete the pending organization record
+    db.delete(pending_org)
+    db.commit()
+
+    from app.services.audit_service import log_audit_event
+    log_audit_event(
+        db=db,
+        action="Organization Merged",
+        entity="Organization",
+        entity_id=target_org.id,
+        performed_by=current_user.email,
+        performed_by_role=current_user.role,
+        new_value=f"Merged organization '{pending_org.name}' into '{target_org.name}'",
+        request=request
+    )
+
+    return {"status": "success", "message": f"Successfully merged '{pending_org.name}' into '{target_org.name}'."}

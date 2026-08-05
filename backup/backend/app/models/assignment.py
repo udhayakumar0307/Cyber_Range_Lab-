@@ -19,4 +19,5 @@ class Assignment(Base):
     paused_at = Column(DateTime, nullable=True)
     resumed_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+    reminder_intervals = Column(String(100), default="24h,1h,15m", nullable=True)
 

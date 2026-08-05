@@ -83,14 +83,21 @@ export const MonitoringAnalytics: React.FC = () => {
     try {
       const res = await fetch(`/api/v1/reporting/analytics/groups/${groupId}`, { headers });
       if (res.ok) {
-        setGroupDetails(await res.json());
+        const data = await res.json();
+        setGroupDetails(data);
         setSelectedGroupId(groupId);
+        if (data.labs && data.labs.length > 0) {
+          const firstLab = data.labs[0];
+          await loadLabAnalytics(firstLab.assignment_id, firstLab.lab_id);
+        } else {
+          setLoading(false);
+        }
       } else {
         setErrorMsg('No analytics available.');
+        setLoading(false);
       }
     } catch (err) {
       setErrorMsg('No analytics available.');
-    } finally {
       setLoading(false);
     }
   };
@@ -189,6 +196,8 @@ export const MonitoringAnalytics: React.FC = () => {
               setSelectedLabId(null);
               setSelectedAssignmentId(null);
               setLabAnalytics(null);
+              setSelectedGroupId(null);
+              setGroupDetails(null);
             } else {
               setSelectedGroupId(null);
               setGroupDetails(null);
@@ -279,7 +288,7 @@ export const MonitoringAnalytics: React.FC = () => {
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Score</span>
-                    <strong className="text-sm text-blue-650 dark:text-blue-400">{groupDetails.average_score}%</strong>
+                    <strong className="text-sm text-blue-650 dark:text-blue-400">{groupDetails.average_score} pts</strong>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Time</span>

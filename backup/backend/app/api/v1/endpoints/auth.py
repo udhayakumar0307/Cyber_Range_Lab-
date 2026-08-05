@@ -528,42 +528,58 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
     if existing_user:
         raise AppError("Email already registered", status_code=status.HTTP_400_BAD_REQUEST)
 
-    # 1. Domain Validation for College Students
-    if register_data.account_type == "STUDENT":
-        from app.security.domain_validator import extract_domain, match_domain_pattern
-        domain = extract_domain(register_data.email)
-        academic_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
-        personal_patterns = ["gmail.com", "outlook.com", "yahoo.com", "proton.me", "icloud.com"]
-        
-        # Reject gmail/outlook if the user selected College Student
-        if match_domain_pattern(domain, personal_patterns):
-            raise AppError("Personal email addresses cannot be used for College Student registration.", status_code=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate that domain is academic
-        if not match_domain_pattern(domain, academic_patterns):
-            raise AppError("Please use a valid academic email address (e.g. .edu, .ac.in, .edu.in).", status_code=status.HTTP_400_BAD_REQUEST)
-
     # Generate OTP
     otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
     logger.info("OTP generated")
 
     # Add User to session
     hashed_pw = get_password_hash(register_data.password)
-    user_account_type = "academic" if register_data.account_type == "STUDENT" else "INDIVIDUAL"
     
     user = User(
         name=register_data.name,
         email=register_data.email,
         password_hash=hashed_pw,
+        phone=register_data.phone,
         role="user",
         is_active=True,  # Active by default to support backward compatible login tests
-        account_type=user_account_type,
-        college_id=register_data.college_id if register_data.account_type == "STUDENT" else None,
-        department=register_data.department if register_data.account_type == "STUDENT" else None,
-        year=register_data.year if register_data.account_type == "STUDENT" else None,
-        roll_number=register_data.roll_number if register_data.account_type == "STUDENT" else None
+        account_type="student",
+        department=register_data.department,
+        year=register_data.year,
+        roll_number=register_data.roll_number
     )
     db.add(user)
+    db.flush()  # flush to generate user.id
+
+    # Create primary affiliation
+    from app.models.user_affiliation import UserAffiliation
+    from app.models.admin_models import Organization
+    from app.models.college import College
+
+    if register_data.primary_affiliation_type == "college":
+        if register_data.college_id:
+            user.college_id = register_data.college_id
+            aff = UserAffiliation(
+                user_id=user.id,
+                affiliation_type="college",
+                college_id=register_data.college_id,
+                is_primary=True
+            )
+            db.add(aff)
+    elif register_data.primary_affiliation_type == "organization":
+        if register_data.organization_name and register_data.organization_name.strip():
+            org_name = register_data.organization_name.strip()
+            org = db.query(Organization).filter(Organization.name.ilike(org_name)).first()
+            if not org:
+                org = Organization(name=org_name, institution_type="Company", status="PENDING")
+                db.add(org)
+                db.flush()
+            aff = UserAffiliation(
+                user_id=user.id,
+                affiliation_type="organization",
+                organization_id=org.id,
+                is_primary=True
+            )
+            db.add(aff)
 
     # Store OTP in database
     otp_record = OTPVerification(
@@ -672,6 +688,18 @@ def verify_otp(request_data: OTPVerifyRequest, db: Session = Depends(get_db)):
         
     db.delete(otp_rec)
     
+    # Send account created success notification email
+    if user:
+        try:
+            from app.services.ses_service import ses_service
+            ses_service.send_account_created_email(
+                email=user.email,
+                name=user.name or user.email,
+                role=user.role or "user"
+            )
+        except Exception as mail_err:
+            logger.error(f"Account creation email failed for {user.email}: {mail_err}")
+            
     # Write audit log
     log_entry = AuditLog(
         user_id=user.id if user else None,

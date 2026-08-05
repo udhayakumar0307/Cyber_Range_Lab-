@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Building, User, Mail, Phone, Lock, MapPin, CheckCircle2, ArrowRight, ArrowLeft, Key } from 'lucide-react';
 
@@ -28,6 +28,28 @@ export const AdminRegisterPage: React.FC = () => {
   const [pincode, setPincode] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [institutionType, setInstitutionType] = useState('College');
+  
+  // Affiliation, Designation & Department
+  const [primaryAffiliationType, setPrimaryAffiliationType] = useState<'college' | 'organization'>('college');
+  const [collegeId, setCollegeId] = useState('');
+  const [collegeSearch, setCollegeSearch] = useState('');
+  const [collegeResults, setCollegeResults] = useState<Array<{ id: number, name: string, code: string }>>([]);
+  const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
+  const [selectedCollegeName, setSelectedCollegeName] = useState('');
+  
+  const [designation, setDesignation] = useState('Professor');
+  const [department, setDepartment] = useState('');
+
+  const designations = [
+    'Professor',
+    'Assistant Professor',
+    'HOD',
+    'Trainer',
+    'Security Analyst',
+    'Instructor',
+    'Administrator',
+    'Other'
+  ];
 
   const institutionTypes = [
     'College',
@@ -39,12 +61,40 @@ export const AdminRegisterPage: React.FC = () => {
     'Research Organization'
   ];
 
+  // Search Colleges
+  useEffect(() => {
+    if (primaryAffiliationType === 'college' && collegeSearch.trim().length >= 2 && collegeSearch !== selectedCollegeName) {
+      const delayDebounce = setTimeout(() => {
+        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setCollegeResults(data);
+            setShowCollegeDropdown(true);
+          })
+          .catch((err) => console.error('Failed to search colleges:', err));
+      }, 300);
+      return () => clearTimeout(delayDebounce);
+    } else {
+      setShowCollegeDropdown(false);
+    }
+  }, [collegeSearch, primaryAffiliationType, selectedCollegeName]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!adminKey.trim()) {
       setError('Admin Registration Security Key is required.');
+      return;
+    }
+
+    if (primaryAffiliationType === 'college' && !collegeId) {
+      setError('Please search and select a college.');
+      return;
+    }
+
+    if (primaryAffiliationType === 'organization' && !orgName.trim()) {
+      setError('Organization name is required.');
       return;
     }
 
@@ -65,8 +115,8 @@ export const AdminRegisterPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          org_name: orgName,
-          organization_name: orgName,
+          org_name: primaryAffiliationType === 'organization' ? orgName : selectedCollegeName,
+          organization_name: primaryAffiliationType === 'organization' ? orgName : selectedCollegeName,
           admin_name: adminName,
           email,
           phone,
@@ -78,7 +128,11 @@ export const AdminRegisterPage: React.FC = () => {
           city,
           pincode,
           gst_number: gstNumber || null,
-          institution_type: institutionType
+          institution_type: institutionType,
+          designation,
+          department,
+          primary_affiliation_type: primaryAffiliationType,
+          college_id: primaryAffiliationType === 'college' && collegeId ? parseInt(collegeId) : null
         })
       });
 
@@ -151,28 +205,91 @@ export const AdminRegisterPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Section 1: Organization Information */}
+            {/* Section 1: Affiliation details */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
                 <Building className="w-4 h-4 text-blue-600" />
-                <span>Organization Details</span>
+                <span>Primary Affiliation Details</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Organization Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. IIT Madras Cyber Academy"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Affiliation Type *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPrimaryAffiliationType('college')}
+                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                        primaryAffiliationType === 'college'
+                          ? 'border-blue-600 bg-blue-50 text-blue-600'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      College / University
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrimaryAffiliationType('organization')}
+                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                        primaryAffiliationType === 'organization'
+                          ? 'border-blue-600 bg-blue-50 text-blue-600'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Corporate Org
+                    </button>
+                  </div>
                 </div>
 
+                {primaryAffiliationType === 'college' ? (
+                  <div className="relative">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Search & Select College *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type college name..."
+                      value={collegeSearch}
+                      onChange={(e) => setCollegeSearch(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
+                    />
+                    {showCollegeDropdown && collegeResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {collegeResults.map((col) => (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => {
+                              setCollegeId(col.id.toString());
+                              setCollegeSearch(col.name);
+                              setSelectedCollegeName(col.name);
+                              setShowCollegeDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-100 font-semibold text-slate-700 border-b border-slate-100 last:border-0"
+                          >
+                            {col.name} ({col.code})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Organization / Enterprise Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Hackup Technologies"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {primaryAffiliationType === 'organization' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Institution Type *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Institution / Org Type *</label>
                   <select
                     value={institutionType}
                     onChange={(e) => setInstitutionType(e.target.value)}
@@ -183,7 +300,7 @@ export const AdminRegisterPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Section 2: Admin Profile & Credentials */}
@@ -226,6 +343,31 @@ export const AdminRegisterPage: React.FC = () => {
                     placeholder="+91 98765 43210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Designation *</label>
+                  <select
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
+                  >
+                    {designations.map((des) => (
+                      <option key={des} value={des}>{des}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Department *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Computer Science & Engineering"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
                   />
                 </div>

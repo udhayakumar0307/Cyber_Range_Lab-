@@ -1,7 +1,7 @@
 import logging
 import time
 from typing import Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, inspect
@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.api.deps import get_db, get_current_system_admin
 from app.models.user import User
 from app.models.admin_models import (
-    Organization, AdminProfile, Order, Payment, PurchasedLab, Subscription, Invoice
+    Organization, AdminProfile, Order, OrderItem, Payment, PurchasedLab, Subscription, Invoice
 )
 from app.models.group import Group
 from app.models.lab import Lab
@@ -21,6 +21,7 @@ from app.models.study_session import StudySession
 from app.models.user_lab_progress import UserLabProgress
 from app.services.audit_service import log_audit_event
 from app.database.manager import db_manager
+from app.security.utils import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def verify_system_security_key(payload: SecurityKeyPayload, request: Request):
     Verifies System Admin Security Key before login screen is displayed.
     Performs rate limiting and returns generic error message if invalid.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     now = time.time()
     
     # Clean up old attempts older than 15 mins (900s)
@@ -487,7 +488,8 @@ def get_system_labs(
                 "category": l.category,
                 "difficulty": l.difficulty,
                 "max_points": l.max_points,
-                "status": l.status
+                "status": l.status,
+                "price_per_hour": l.price_per_hour or 100.0
             }
             for l in items
         ]
@@ -714,3 +716,391 @@ def read_only_database_viewer(
         "pages": pages,
         "limit": limit
     }
+
+# =========================================================================
+# SYSTEM ADMIN ADDITIONS (Colleges, Manual Labs, Org Stats, Verification)
+# =========================================================================
+
+class CollegeCreateRequest(BaseModel):
+    name: str
+    code: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+
+@router.get("/colleges")
+def get_system_colleges(
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.college import College
+    colleges = db.query(College).order_by(College.name.asc()).all()
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "code": c.code,
+            "city": c.city,
+            "state": c.state,
+            "country": c.country,
+            "email": c.email,
+            "website": c.website,
+            "status": c.status,
+            "created_at": c.created_at.strftime("%Y-%m-%d") if c.created_at else ""
+        }
+        for c in colleges
+    ]
+
+@router.post("/colleges", status_code=status.HTTP_201_CREATED)
+def create_system_college(
+    data: CollegeCreateRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.college import College
+    # Check duplicate
+    existing = db.query(College).filter(func.lower(College.name) == func.lower(data.name)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A college with this name already exists.")
+
+    c = College(
+        name=data.name,
+        code=data.code,
+        city=data.city,
+        district=data.district,
+        state=data.state,
+        country=data.country or "India",
+        contact_number=data.contact_number,
+        email=data.email,
+        website=data.website,
+        status="ACTIVE"
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return {"status": "success", "message": "College created successfully.", "college_id": c.id}
+
+class VerifyOrgRequest(BaseModel):
+    is_verified: bool
+
+@router.post("/organizations/{org_id}/verify")
+def verify_system_organization(
+    org_id: int,
+    data: VerifyOrgRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    admins = db.query(AdminProfile).filter(AdminProfile.organization_id == org_id).all()
+    for a in admins:
+        a.is_verified = data.is_verified
+    db.commit()
+    status_str = "verified" if data.is_verified else "unverified"
+    return {"status": "success", "message": f"Organization admin verification toggled to {status_str} successfully."}
+
+@router.delete("/organizations/{org_id}")
+def delete_system_organization(
+    org_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+    # Delete related profiles
+    db.query(AdminProfile).filter(AdminProfile.organization_id == org_id).delete()
+    db.delete(org)
+    db.commit()
+    return {"status": "success", "message": "Organization removed successfully."}
+
+class ManualLabAssignRequest(BaseModel):
+    lab_id: str
+    lab_title: str
+    hours: float
+    user_id: Optional[int] = None
+    price_per_hour: Optional[float] = 0.0
+    total_price: Optional[float] = 0.0
+
+@router.post("/organizations/{org_id}/assign-lab")
+def assign_lab_manually(
+    org_id: int,
+    data: ManualLabAssignRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    import secrets
+    target_user_id = data.user_id
+    target_org_id = org_id if org_id > 0 else None
+
+    if not target_user_id and target_org_id:
+        admin = db.query(AdminProfile).filter(AdminProfile.organization_id == target_org_id).first()
+        target_user_id = admin.user_id if admin else current_admin.id
+
+    if not target_user_id:
+        target_user_id = current_admin.id
+
+    # Create Order and Payment record for real-time revenue integration
+    order_num = f"MANUAL-ORD-{secrets.token_hex(4).upper()}"
+    new_order = Order(
+        order_number=order_num,
+        user_id=target_user_id,
+        organization_id=target_org_id,
+        institution_name=None,
+        subtotal=data.total_price or 0.0,
+        tax=0.0,
+        discount=0.0,
+        grand_total=data.total_price or 0.0,
+        status="COMPLETED",
+        payment_status="COMPLETED"
+    )
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+
+    order_item = OrderItem(
+        order_id=new_order.id,
+        lab_id=data.lab_id,
+        lab_title=data.lab_title,
+        seats=1,
+        duration_months=12,
+        price=data.total_price or 0.0,
+        hours_purchased=data.hours
+    )
+    db.add(order_item)
+
+    payment = Payment(
+        order_id=new_order.id,
+        transaction_id=f"MANUAL-TXN-{secrets.token_hex(6).upper()}",
+        payment_status="SUCCESS",
+        gateway="mock",
+        amount=data.total_price or 0.0,
+        currency="INR",
+        method="UPI / Card"
+    )
+    db.add(payment)
+
+    lic_key = f"MANUAL-{data.lab_id.upper()}-{secrets.token_hex(4).upper()}"
+    pl = PurchasedLab(
+        user_id=target_user_id,
+        organization_id=target_org_id,
+        lab_id=data.lab_id,
+        lab_title=data.lab_title,
+        license_key=lic_key,
+        total_seats=1,
+        assigned_seats=0,
+        status="ACTIVE",
+        expiry_date=datetime.utcnow() + timedelta(days=365),
+        hours_purchased=data.hours,
+        hours_remaining=data.hours,
+        hours_used=0.0
+    )
+    db.add(pl)
+    db.commit()
+    return {"status": "success", "message": f"Successfully assigned lab '{data.lab_title}' with {data.hours} hours manually."}
+
+@router.delete("/users/{user_id}")
+def delete_system_user(
+    user_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.study_session import StudySession
+    from app.models.user_lab_progress import UserLabProgress
+    from app.models.admin_models import Cart
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Delete dependent child tables first
+    db.query(AdminProfile).filter(AdminProfile.user_id == user_id).delete()
+    db.query(Cart).filter(Cart.user_id == user_id).delete()
+    db.query(Order).filter(Order.user_id == user_id).delete()
+    db.query(PurchasedLab).filter(PurchasedLab.user_id == user_id).delete()
+    db.query(StudySession).filter(StudySession.user_id == user_id).delete()
+    db.query(UserLabProgress).filter(UserLabProgress.user_id == user_id).delete()
+
+    db.delete(user)
+    db.commit()
+    return {"status": "success", "message": "User permanently deleted from the database in real-time."}
+
+class ManualLabRevokeRequest(BaseModel):
+    lab_id: str
+
+@router.post("/organizations/{org_id}/revoke-lab")
+def revoke_lab_manually(
+    org_id: int,
+    data: ManualLabRevokeRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    pl = db.query(PurchasedLab).filter(
+        PurchasedLab.organization_id == org_id,
+        PurchasedLab.lab_id == data.lab_id
+    ).first()
+    if not pl:
+        raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
+
+    db.delete(pl)
+    db.commit()
+    return {"status": "success", "message": "Successfully revoked purchased lab manually."}
+
+@router.get("/organizations/{org_id}/purchases")
+def get_organization_purchase_history(
+    org_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    orders = db.query(Order).filter(Order.organization_id == org_id).order_by(Order.created_at.desc()).all()
+    return [
+        {
+            "id": o.id,
+            "order_number": o.order_number,
+            "grand_total": o.grand_total,
+            "status": o.status,
+            "created_at": o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else ""
+        }
+        for o in orders
+    ]
+
+@router.get("/organizations/{org_id}/audit-logs")
+def get_organization_audit_logs(
+    org_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    logs = db.query(AuditLog).filter(AuditLog.organization_id == org_id).order_by(AuditLog.timestamp.desc()).limit(100).all()
+    return [
+        {
+            "id": l.id,
+            "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S") if l.timestamp else "",
+            "action": l.action,
+            "entity": l.entity or "System",
+            "performed_by": l.performed_by,
+            "status": l.status
+        }
+        for l in logs
+    ]
+
+@router.get("/students/{student_id}/analytics")
+def get_student_portal_analytics(
+    student_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    student = db.query(User).filter(User.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    progress = db.query(UserLabProgress).filter(UserLabProgress.user_id == student_id).all()
+    sessions = db.query(StudySession).filter(StudySession.user_id == student_id).all()
+
+    total_active_hours = sum((s.duration_minutes or 0.0) for s in sessions) / 60.0
+    completed_count = sum(1 for p in progress if p.status == "COMPLETED")
+    avg_score = sum((p.score or 0.0) for p in progress) / len(progress) if progress else 0.0
+
+    return {
+        "student_id": student.id,
+        "name": student.name or student.email,
+        "email": student.email,
+        "total_active_hours": round(total_active_hours, 2),
+        "completed_labs_count": completed_count,
+        "average_score": round(avg_score, 2),
+        "labs": [
+            {
+                "lab_id": p.lab_id,
+                "status": p.status,
+                "score": p.score,
+                "completed_at": p.completed_at.strftime("%Y-%m-%d") if p.completed_at else ""
+            }
+            for p in progress
+        ]
+    }
+
+# =========================================================================
+# STANDALONE WORKER INTERACTIVE CHANNELS (Security Alerts & Lab Approvals)
+# =========================================================================
+
+@router.get("/security-alerts")
+def get_system_security_alerts(
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.security_alert import SecurityAlert
+    alerts = db.query(SecurityAlert).order_by(SecurityAlert.timestamp.desc()).limit(100).all()
+    return [
+        {
+            "id": a.id,
+            "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S") if a.timestamp else "",
+            "alert_type": a.alert_type,
+            "severity": a.severity,
+            "source_ip": a.source_ip,
+            "user_email": a.user_email,
+            "description": a.description,
+            "status": a.status
+        }
+        for a in alerts
+    ]
+
+@router.post("/security-alerts/{alert_id}/resolve")
+def resolve_system_security_alert(
+    alert_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.security_alert import SecurityAlert
+    alert = db.query(SecurityAlert).filter(SecurityAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    alert.status = "RESOLVED"
+    db.commit()
+    return {"status": "success", "message": "Security alert marked as RESOLVED."}
+
+@router.post("/labs/{lab_id}/approve")
+def approve_auto_synced_lab(
+    lab_id: str,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab not found.")
+    lab.status = "ACTIVE"
+    db.commit()
+    return {"status": "success", "message": f"Lab {lab_id} approved and status changed to ACTIVE."}
+
+class UpdateLabPriceRequest(BaseModel):
+    price_per_hour: float
+
+@router.post("/labs/{lab_id}/update-price")
+def update_lab_hourly_pricing(
+    lab_id: str,
+    data: UpdateLabPriceRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab not found.")
+    lab.price_per_hour = data.price_per_hour
+    db.commit()
+    return {"status": "success", "message": f"Hourly rate for lab {lab_id} updated to ₹{data.price_per_hour} successfully."}
+
+@router.delete("/labs/{lab_id}")
+def delete_system_lab(
+    lab_id: str,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab not found.")
+    db.delete(lab)
+    db.commit()
+    return {"status": "success", "message": f"Lab {lab_id} has been permanently deleted from database."}
+
+

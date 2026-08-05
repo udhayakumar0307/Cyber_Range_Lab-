@@ -8,394 +8,156 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
 ![Docker](https://img.shields.io/badge/Docker-Lab_Containers-2496ED)
-![License](https://img.shields.io/badge/License-MIT-green)
+![AWS](https://img.shields.io/badge/AWS-Secrets_Manager_%26_SES-orange)
 
 ---
 
 # 🚀 Overview
 
-Cyber Range is an enterprise-grade cybersecurity training platform that enables universities, enterprises, and training organizations to conduct practical cybersecurity education through isolated virtual lab environments.
+Cyber Range is a production-grade, enterprise-ready cybersecurity training platform that enables universities, companies, and training centers to host practical security learning through containerized, isolated virtual labs.
 
-The platform provides role-based access for administrators and students, challenge management, learning paths, containerized command-line labs, real-time monitoring, progress analytics, and secure authentication.
+The platform handles role-based access control (RBAC), hour-based lab rental workflows, automated student lab scheduling, CTF arenas, real-time telemetry, and platform-wide audit logging.
 
----
-
-# ✨ Features
-
-## 👨‍🎓 Student Portal
-
-### Dashboard
-- Personalized dashboard
-- XP & Level progression
-- Learning statistics
-- Active labs
-- Recent activities
-- Achievement summary
-
-### Learning Modules
-- Available Labs
-- Learning Paths
-- CTF Challenges
-- Command Line Lab
-- Progress Tracking
-- Leaderboards
-
-### Interactive Command Line Lab
-
-Features include
-
-- Docker-based isolated Linux terminal
-- Real Linux commands
-- Interactive objectives
-- Hint system
-- Flag validation
-- Module progression
-- Automatic scoring
-- Session timer
-- Progress persistence
-
-### Profile
-
-- User profile
-- Avatar
-- Personal statistics
-- Account information
-
-### Settings
-
-- Theme preference
-- Notification settings
-- Security settings
-- Password management
+> Decoupled async threat monitoring, auto-sync registry ingestion, real-time database hourly auditing, and cascade deletion capabilities represent high-quality production engineering.
 
 ---
 
-# 👨‍💼 Administrator Portal
+# 🛠️ Technology Stack
 
-## Dashboard
-
-- Platform analytics
-- Active users
-- Running labs
-- User statistics
-- Recent activities
-- Performance metrics
-
-## User Management
-
-- Create users
-- Edit users
-- Delete users
-- Role management
-- Search & filtering
-- Bulk import
-
-## Group Management
-
-- Create groups
-- Assign students
-- Manage instructors
-- View members
-- Edit groups
-
-## Lab Management
-
-- Available lab catalog
-- Purchase marketplace
-- Lab allocation
-- Scheduler
-- Challenge assignment
-- Lab control panel
-
-## Monitoring
-
-- Live running containers
-- CPU & Memory monitoring
-- User activity
-- Session monitoring
-- Emergency stop controls
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide React, React Router.
+- **Backend**: FastAPI, SQLAlchemy (Object-Relational Mapping), Pydantic validation, Alembic migrations.
+- **Database**: PostgreSQL (AWS RDS) with connection pooling (`pool_pre_ping=True` and `pool_recycle` connections).
+- **Workers**: Standalone Python asynchronous background daemon loops.
+- **Infrastructure & Secrets**: Docker engines, AWS Application Load Balancers, AWS Secrets Manager, and Amazon Simple Email Service (SES).
 
 ---
 
-# 🔐 Authentication
+# 🔐 Security & Secrets Management
 
-Implemented authentication system includes
-
-- Login
-- Register
-- Email OTP Verification
-- Forgot Password
-- Reset Password
-- JWT Authentication
-- Protected Routes
-- Role Based Access Control (RBAC)
+- **AWS Secrets Manager**: Securely stores platform secrets (DB URLs, Razorpay keys, JWT codes). Loaded dynamically on startup via the `AWS_SECRET_NAME` flag.
+- **ALB Client IP Trust (Proxy Matching)**: Centralized request extraction via `get_client_ip(request)` reads `X-Forwarded-For` and `X-Real-IP` header arrays to log actual client IPs instead of Load Balancer proxy addresses.
+- **Intrusion Detection (HIDS)**: Standalone security loop analyzes system logs to detect brute-force DDoS indicators (e.g., >150 requests/min from a single IP) and RBAC privilege violations, committing unresolved security alerts to the database.
+- **Role-Based Access Control (RBAC)**: Strict separation between System Administrators (`SYSTEM_ADMIN`), Organization Administrators (`ADMIN`), and Students (`USER`). Protected API routes guard operational system paths.
 
 ---
 
-# 📊 Progress & Analytics
+# 🔑 Login & Authentication System
 
-Students can monitor
-
-- XP
-- Level
-- Completed labs
-- Learning progress
-- Weekly statistics
-- Leaderboards
-- Achievements
-- Completion percentage
+- **Dual-Tier Authentication**: Protects accounts using standard username/password combinations verified by bcrypt hashing and secure JWT access tokens.
+- **Email OTP Verification**: Registration triggers a secure one-time passcode (OTP) delivered to the user's email via Amazon SES. Accounts remain locked until verified.
+- **Key-Locked System Portal**: Entering the system portal `/admin/system` requires a verified system security key validation check (with dynamic 15-minute brute-force IP lockout protection).
 
 ---
 
-# 🏆 CTF Platform
+# 🐳 Labs & Docker Virtualization
 
-Implemented
-
-- CTF Portal
-- Active Competitions
-- Scoreboard
-- Challenge Sessions
-- Team Rankings
-- Dynamic Scoring
-
-Admin Features
-
-- Create CTF
-- Schedule competitions
-- Manage challenges
-- View submissions
-- Monitor participants
+- **Available Labs & Catalog**: Catalog containing beginner, intermediate, and advanced labs. Supports categories like OT SCADA Security, Web Penetration, and Binary Exploitation.
+- **EC2 Docker SDK Sync**: A background daemon (`docker.py`) integrates with the EC2 host Docker engine. It programmatically inspects images, pulls required lab configs, and prunes orphaned running containers.
+- **Hour-Based Lab Allocations**: Allows admins to rent labs by the hour with customizable schedules and durations (30 min, 45 min, 60 min, 75 min, 90 min) with automatic session duration calculation.
+- **Background Hourly Deductor**: A background worker checks active study sessions every 30 seconds and deducts execution time from the student's or organization's `hours_remaining` database balance.
 
 ---
 
-# 🐳 Command Line Lab
+# 🏆 CTF Puzzles & Score System
 
-Interactive Linux environment supporting
-
-- pwd
-- ls
-- cd
-- cat
-- touch
-- mkdir
-- rm
-- cp
-- mv
-- chmod
-- grep
-- find
-- echo
-- nano
-- vim
-- sudo (simulated)
-- nmap (simulated)
-
-Features
-
-- Docker Containers
-- WebSocket Terminal
-- Session Validation
-- Automatic Flag Detection
-- Progress Saving
-- Hint System
-- Module Based Learning
+- **CTF Challenges**: Provides capture-the-flag arenas with challenge submissions.
+- **Dynamic Score Sync**: An async evaluator loop (`scoremanager.py`) audits flag submissions, calculates total scores/XP progress, and updates platform leaderboards in real-time.
+- **Automatic Achievements**: Syncs achievements, level meters, and finished labs count for user profiles.
 
 ---
 
-# 🎨 UI Features
+# 💳 Payment & Billing System
 
-- Responsive Design
-- Light Theme
-- Dark Theme
-- Modern Dashboard
-- Sidebar Navigation
-- Animated Components
-- Mobile Friendly
-- Accessible UI
+- **Razorpay Integration**: Production checkout system tracking transactions, payments, and invoices.
+- **Real-Time Revenue Dashboard**: Collects order metadata and maps manual lab allocations to `orders` and `payments` tables to dynamically display SaaS metrics.
+- **Hourly Pricing Tiers**: Configures price per hour for catalog labs (Beginner ₹100, Intermediate ₹200, Advanced ₹300, Custom overrides) with inline sysadmin catalog updates.
 
 ---
 
-# 🛠 Technology Stack
-
-## Frontend
-
-- React 18
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- Lucide React
-
-## Backend
-
-- FastAPI
-- SQLAlchemy
-- Alembic
-- JWT Authentication
-- REST APIs
-
-## Database
-
-- PostgreSQL
-
-## Infrastructure
-
-- Docker
-- Docker Compose
-
-## Email
-
-- AWS SES
-
----
-
-# 📂 Project Structure
+# 📂 Detailed Project Structure
 
 ```
 CyberRange
 │
 ├── backend/
+│   ├── alembic/                         # Database schema migrations
+│   │
 │   ├── app/
-│   ├── alembic/
-│   ├── models/
-│   ├── routers/
-│   ├── services/
-│   └── main.py
-│
-├── public/
-│
-├── src/
-│   ├── assets/
-│   ├── components/
-│   │   ├── admin/
-│   │   ├── user/
-│   │   └── shared/
+│   │   ├── api/                         # FastAPI routing module
+│   │   │   └── v1/
+│   │   │       └── endpoints/
+│   │   │           ├── auth.py          # JWT/OTP auth
+│   │   │           ├── admin_api.py     # Admin schedules and cohorts
+│   │   │           ├── system_audit_api.py # Sysadmin governance and lab managers
+│   │   │           └── payment_api.py   # Razorpay webhook integrations
+│   │   │
+│   │   ├── core/                        # Application configurations
+│   │   │   └── config.py                # AWS Secrets Manager loader
+│   │   │
+│   │   ├── database/                    # SQLAlchemy connection pools
+│   │   │
+│   │   ├── models/                      # Database entities (with security_alert)
+│   │   │
+│   │   ├── services/                    # Background mailer workers
+│   │   │
+│   │   └── main.py                      # Application entry point
 │   │
-│   ├── context/
-│   ├── hooks/
-│   ├── pages/
-│   │   ├── admin/
-│   │   ├── auth/
-│   │   ├── user/
-│   │   └── shared/
-│   │
-│   ├── services/
-│   ├── types/
-│   ├── App.tsx
-│   └── main.tsx
+│   └── requirements.txt                 # Backend dependencies
 │
-├── tasks/
-├── package.json
-└── README.md
+├── src/                                 # Frontend codebase (React + Vite)
+│   ├── components/                      # Reusable components
+│   ├── context/                         # Auth/Theme contexts
+│   ├── pages/                           # Application route layouts
+│   │   └── admin/
+│   │       ├── SystemPortal.tsx         # Unified light-themed Sysadmin panel
+│   │       ├── LabAllocation.tsx        # Scheduled lab presets (30m, 45m, 60m, 90m)
+│   │       └── PurchasedLabsPage.tsx    # Visual hourly rentals statistics
+│   │
+│   └── App.tsx                          # Router layout mappings
+│
+├── worker/                              # Standalone Worker Daemon Service
+│   ├── worker_manager.py                # Main worker orchestrator
+│   ├── security.py                      # HIDS logs security checker
+│   ├── docker.py                        # Docker SDK container sync and pruner
+│   ├── laballocator.py / puzzleallocator# Auto-sync registry file scanners
+│   ├── labmanager.py                    # Hourly billing deductor loop
+│   ├── scoremanager.py                  # XP points leaderboard sync loop
+│   ├── databasemanager.py               # SQLAlchemy pool health checker
+│   └── alb_config.json                  # AWS Application Load Balancer template
+│
+└── README.md                            # Documentation entry point
 ```
 
 ---
 
 # 🚀 Getting Started
 
-## Clone
-
-```bash
-git clone https://github.com/umadhatri/cyberrange.git
-cd cyberrange
+## 1. Setup Environment
+Configure credentials in `backend/.env` (or setup `AWS_SECRET_NAME` to fetch secrets from AWS Secrets Manager):
+```env
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+SYSTEM_ADMIN_SECURITY_KEY=your_sysadmin_security_key
+RAZORPAY_KEY_ID=your_key_id
+RAZORPAY_KEY_SECRET=your_key_secret
+AWS_SECRET_NAME=cyberrange-production-secrets
 ```
 
-## Install
-
-```bash
-npm install
-```
-
-## Run Frontend
-
-```bash
-npm run dev
-```
-
-## Backend
-
+## 2. Run Backend
 ```bash
 cd backend
-
 python -m venv venv
-
 source venv/bin/activate
-
 pip install -r requirements.txt
-
 uvicorn app.main:app --reload
 ```
 
----
-
-# 📌 Current Status
-
-## ✅ Completed
-
-- Authentication System
-- JWT Security
-- Student Dashboard
-- Admin Dashboard
-- User Management
-- Group Management
-- Profile
-- Settings
-- Progress Tracking
-- Leaderboards
-- CTF Module
-- Command Line Lab
-- Docker Integration
-- Backend APIs
-- PostgreSQL Integration
-- AWS SES Email
-- Responsive UI
-- Theme Support
-
----
-
-# 🔒 Security Features
-
-- JWT Authentication
-- Password Hashing
-- Role Based Access Control
-- Protected Routes
-- Secure REST APIs
-- Input Validation
-- Session Management
-- Docker Isolation
-
----
-
-# 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 💳 Razorpay Configuration
-
-To enable production payments for enterprise lab licenses, configure your Razorpay credentials:
-
-### Backend (.env)
-```env
-RAZORPAY_KEY_ID=your_key_id
-RAZORPAY_KEY_SECRET=your_key_secret
-RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+## 3. Run Standalone Worker Daemon
+```bash
+python worker/worker_manager.py
 ```
 
-### Frontend (.env)
-```env
-VITE_RAZORPAY_KEY_ID=your_key_id
+## 4. Run Frontend
+```bash
+npm install
+npm run dev
 ```
-
-### Obtaining Credentials from Razorpay Dashboard
-1. Log in to your [Razorpay Dashboard](https://dashboard.razorpay.com/).
-2. Navigate to **Settings** → **API Keys**.
-3. Click **Generate Key** to receive your `RAZORPAY_KEY_ID` (Key ID) and `RAZORPAY_KEY_SECRET` (Key Secret).
-4. Navigate to **Settings** → **Webhooks** and configure a webhook pointing to `https://your-domain.com/api/v1/payments/webhook` with event subscriptions `payment.captured`, `payment.failed`, `refund.processed`, and `subscription.charged`. Set your secret key as `RAZORPAY_WEBHOOK_SECRET`.
-
----
-
-## Developed for
-
-Cyber Range Platform for Cybersecurity Training, Practical Learning, CTF Competitions, and Virtual Lab Management.

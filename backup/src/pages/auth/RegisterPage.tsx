@@ -11,17 +11,22 @@ export const RegisterPage: React.FC = () => {
   // Form inputs
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [organization, setOrganization] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   
-  // Student Specifics
-  const [accountType, setAccountType] = useState<'STUDENT' | 'INDIVIDUAL'>('INDIVIDUAL');
+  // Affiliation & Student Details
+  const [primaryAffiliationType, setPrimaryAffiliationType] = useState<'college' | 'organization'>('college');
   const [collegeId, setCollegeId] = useState('');
+  const [collegeSearch, setCollegeSearch] = useState('');
+  const [collegeResults, setCollegeResults] = useState<Array<{ id: number, name: string, code: string }>>([]);
+  const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
+  const [selectedCollegeName, setSelectedCollegeName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  
   const [department, setDepartment] = useState('');
   const [year, setYear] = useState('');
   const [rollNumber, setRollNumber] = useState('');
   
-  const [colleges, setColleges] = useState<Array<{ id: number, name: string, code: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -40,13 +45,23 @@ export const RegisterPage: React.FC = () => {
   const [resendTimer, setResendTimer] = useState(45);
   const [isResendDisabled, setIsResendDisabled] = useState(true);
 
-  // Load Colleges
+  // Search Colleges
   useEffect(() => {
-    fetch('/api/v1/reporting/colleges')
-      .then((res) => res.json())
-      .then((data) => setColleges(data))
-      .catch((err) => console.error('Failed to load colleges list:', err));
-  }, []);
+    if (primaryAffiliationType === 'college' && collegeSearch.trim().length >= 2 && collegeSearch !== selectedCollegeName) {
+      const delayDebounce = setTimeout(() => {
+        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setCollegeResults(data);
+            setShowCollegeDropdown(true);
+          })
+          .catch((err) => console.error('Failed to search colleges:', err));
+      }, 300);
+      return () => clearTimeout(delayDebounce);
+    } else {
+      setShowCollegeDropdown(false);
+    }
+  }, [collegeSearch, primaryAffiliationType, selectedCollegeName]);
 
   useEffect(() => {
     let interval: any = null;
@@ -64,6 +79,16 @@ export const RegisterPage: React.FC = () => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim() || !password.trim()) return;
 
+    if (primaryAffiliationType === 'college' && !collegeId) {
+      setErrorMsg('Please select a college from the searchable list.');
+      return;
+    }
+
+    if (primaryAffiliationType === 'organization' && !organizationName.trim()) {
+      setErrorMsg('Please enter your primary organization name.');
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -76,11 +101,13 @@ export const RegisterPage: React.FC = () => {
           name: fullName,
           email: email,
           password: password,
-          account_type: accountType,
-          college_id: accountType === 'STUDENT' && collegeId ? parseInt(collegeId) : null,
-          department: accountType === 'STUDENT' ? department : null,
-          year: accountType === 'STUDENT' && year ? parseInt(year) : null,
-          roll_number: accountType === 'STUDENT' ? rollNumber : null
+          phone: phone,
+          primary_affiliation_type: primaryAffiliationType,
+          college_id: primaryAffiliationType === 'college' && collegeId ? parseInt(collegeId) : null,
+          organization_name: primaryAffiliationType === 'organization' ? organizationName : null,
+          department: department,
+          year: year ? parseInt(year) : null,
+          roll_number: rollNumber || null
         }),
       });
 
@@ -227,50 +254,85 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1.5">Account Type</label>
+                <label className="font-bold text-xs text-slate-700 block mb-1">Phone Number</label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 9876543210"
+                    className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-slate-700 block mb-1.5">Primary Affiliation</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setAccountType('INDIVIDUAL')}
+                    onClick={() => setPrimaryAffiliationType('college')}
                     className={`py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      accountType === 'INDIVIDUAL'
+                      primaryAffiliationType === 'college'
                         ? 'border-[#0052CC] bg-[#0052CC]/5 text-[#0052CC]'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    Individual Learner
+                    College / University
                   </button>
                   <button
                     type="button"
-                    onClick={() => setAccountType('STUDENT')}
+                    onClick={() => setPrimaryAffiliationType('organization')}
                     className={`py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      accountType === 'STUDENT'
+                      primaryAffiliationType === 'organization'
                         ? 'border-[#0052CC] bg-[#0052CC]/5 text-[#0052CC]'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    College Student
+                    Corporate / Organization
                   </button>
                 </div>
               </div>
 
-              {accountType === 'STUDENT' ? (
+              {primaryAffiliationType === 'college' ? (
                 <div className="space-y-4 border-l-2 border-slate-200 pl-4 py-1 my-2 animate-in slide-in-from-left-2 duration-200">
-                  <div>
-                    <label className="font-bold text-xs text-slate-700 block mb-1">Select College</label>
-                    <select
+                  <div className="relative">
+                    <label className="font-bold text-xs text-slate-700 block mb-1">Search & Select College</label>
+                    <input
+                      type="text"
                       required
-                      value={collegeId}
-                      onChange={(e) => setCollegeId(e.target.value)}
+                      value={collegeSearch}
+                      onChange={(e) => setCollegeSearch(e.target.value)}
+                      placeholder="Type college name to search..."
                       className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-                    >
-                      <option value="">-- Choose Your College --</option>
-                      {colleges.map((col) => (
-                        <option key={col.id} value={col.id}>
-                          {col.name} ({col.code})
-                        </option>
-                      ))}
-                    </select>
+                    />
+                    {showCollegeDropdown && collegeResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                        {collegeResults.map((col: any) => (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => {
+                              setCollegeId(col.id.toString());
+                              setCollegeSearch(col.name);
+                              setSelectedCollegeName(col.name);
+                              setShowCollegeDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0 flex items-start gap-2.5 transition-colors"
+                          >
+                            <span className="text-base mt-0.5">🏛</span>
+                            <div>
+                              <div className="font-extrabold text-xs text-slate-800 dark:text-slate-200">{col.name}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+                                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded text-slate-500">{col.code}</span>
+                                <span>{col.city || ''}, {col.state || ''}</span>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -301,10 +363,9 @@ export const RegisterPage: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="font-bold text-xs text-slate-700 block mb-1">Roll / Registration Number</label>
+                    <label className="font-bold text-xs text-slate-700 block mb-1">Roll / Registration Number (Optional)</label>
                     <input
                       type="text"
-                      required
                       value={rollNumber}
                       onChange={(e) => setRollNumber(e.target.value)}
                       placeholder="e.g. CS23B045"
@@ -313,16 +374,30 @@ export const RegisterPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Organization / Enterprise Name</label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="space-y-4 border-l-2 border-slate-200 pl-4 py-1 my-2 animate-in slide-in-from-left-2 duration-200">
+                  <div>
+                    <label className="font-bold text-xs text-slate-700 block mb-1">Organization / Company Name</label>
+                    <div className="relative">
+                      <Building className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        required
+                        value={organizationName}
+                        onChange={(e) => setOrganizationName(e.target.value)}
+                        placeholder="e.g. Hackup Technologies"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="font-bold text-xs text-slate-700 block mb-1">Department / Team</label>
                     <input
                       type="text"
-                      value={organization}
-                      onChange={(e) => setOrganization(e.target.value)}
-                      placeholder="Acme Cyber Defense Corp"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                      required
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      placeholder="e.g. Security Operations"
+                      className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
                     />
                   </div>
                 </div>

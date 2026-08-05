@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { 
@@ -142,14 +142,14 @@ export const UserDashboard: React.FC = () => {
           <div className="pt-3 flex flex-wrap items-center gap-3">
             <button
               onClick={() => navigate('/labs')}
-              className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md inline-flex items-center gap-2 border border-white/20"
+              className="bg-[#2563EB] hover:bg-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md inline-flex items-center gap-2 border border-white/20 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-white" />
               Continue Training
             </button>
             <a
               href="#help"
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-4 py-2.5 rounded-xl text-xs transition-all inline-flex items-center gap-2"
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-4 py-2.5 rounded-xl text-xs transition-all inline-flex items-center gap-2 cursor-pointer"
             >
               <BookOpen className="w-4 h-4" />
               View Handbook

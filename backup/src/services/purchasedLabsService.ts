@@ -24,6 +24,9 @@ export interface PurchasedLabRecord {
   expiry_date: string;
   purchased_date?: string;
   organization_id?: number;
+  hours_purchased?: number;
+  hours_remaining?: number;
+  hours_used?: number;
   groups?: { id: number; name: string; member_count: number }[];
 }
 
@@ -48,6 +51,7 @@ export interface AllocationRecord {
   assignedSeats: number;
   totalSeats: number;
   remainingSeats: number;
+  hoursAllocated?: number;
   allocatedDate: string;
   expiryDate: string;
   status: string;
@@ -89,27 +93,33 @@ export async function fetchInventory(): Promise<OrgInventory | null> {
   return res.json();
 }
 
-export async function allocateSeatToUser(labId: string, userEmail: string, seatCount = 1) {
+export async function allocateHoursToUser(labId: string, userEmail: string, hours = 1) {
   const res = await fetch('/api/v1/admin/allocations/user', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ lab_id: labId, user_email: userEmail, seat_count: seatCount })
+    body: JSON.stringify({ lab_id: labId, user_email: userEmail, seat_count: 1, hours })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to allocate seat.');
+  if (!res.ok) throw new Error(data.detail || 'Failed to allocate hours.');
   return data;
 }
 
-export async function allocateSeatsToGroup(labId: string, groupId: number, seatCount: number) {
+/** Legacy alias kept for compatibility */
+export const allocateSeatToUser = allocateHoursToUser;
+
+export async function allocateHoursToGroup(labId: string, groupId: number, hours: number) {
   const res = await fetch('/api/v1/admin/allocations/group', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ lab_id: labId, group_id: groupId, seat_count: seatCount })
+    body: JSON.stringify({ lab_id: labId, group_id: groupId, seat_count: 1, hours })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to allocate seats to group.');
+  if (!res.ok) throw new Error(data.detail || 'Failed to allocate hours to group.');
   return data;
 }
+
+/** Legacy alias kept for compatibility */
+export const allocateSeatsToGroup = allocateHoursToGroup;
 
 export async function revokeSeats(labId: string, seatCount: number) {
   const res = await fetch('/api/v1/admin/licenses/revoke', {
@@ -153,7 +163,7 @@ export function usePurchasedLabs() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchPurchasedLabsMatrix();
+      const data = await fetchPurchasedLabs();
       setLabs(data);
     } catch (e: any) {
       setError(e.message || 'Failed to load purchased labs.');

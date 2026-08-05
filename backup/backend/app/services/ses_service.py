@@ -415,5 +415,190 @@ class SESService:
             logger.error(f"SES error: Unexpected error sending email: {e}")
             raise RuntimeError(f"An unexpected error occurred while sending email: {str(e)}")
 
+    def send_welcome_email(self, email: str, temp_password: str, professor_name: str):
+        """
+        Sends welcome email with temporary password.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Welcome to CyberRange</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>Welcome to CyberRange!</h2>
+    <p>You have been added to the CyberRange platform by Professor <strong>{professor_name}</strong>.</p>
+    <p>To log into your student dashboard, please use the following temporary password:</p>
+    <div style="background: #f4f6f8; border: 1px dashed #0052cc; padding: 15px; font-size: 20px; font-weight: bold; text-align: center; color: #0052cc; margin: 20px 0;">
+        {temp_password}
+    </div>
+    <p>Please log in and update your password immediately from your profile settings.</p>
+    <p>Best regards,<br><strong>CyberRange Team</strong></p>
+</body>
+</html>
+"""
+        text_body = f"Welcome to CyberRange!\nYou have been added by Professor {professor_name}.\nTemporary password: {temp_password}\nLog in and update your password immediately."
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Welcome email bypass to {email}. Password: {temp_password}")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [email]},
+                Message={
+                    "Subject": {"Data": f"You have been added to CyberRange by Professor {professor_name}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {e}")
+
+    def send_lab_assigned_email(self, email: str, lab_name: str, date: str, time: str, duration: str):
+        """
+        Sends lab assigned email.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>New Lab Assigned: {lab_name}</h2>
+    <p>A new lab assessment has been assigned to you.</p>
+    <ul>
+        <li><strong>Lab:</strong> {lab_name}</li>
+        <li><strong>Date:</strong> {date}</li>
+        <li><strong>Time:</strong> {time}</li>
+        <li><strong>Duration:</strong> {duration}</li>
+    </ul>
+    <p>Please log in to your student portal dashboard to complete the assessment.</p>
+</body>
+</html>
+"""
+        text_body = f"New Lab Assigned: {lab_name}\nDate: {date}\nTime: {time}\nDuration: {duration}"
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Lab Assigned email bypass to {email}.")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [email]},
+                Message={
+                    "Subject": {"Data": f"CyberRange Lab Assigned: {lab_name}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send lab assigned email: {e}")
+
+    def send_lab_reminder_email(self, email: str, lab_name: str, date: str, time: str, duration: str):
+        """
+        Sends 15-minute start reminder email.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>Reminder: Assigned Lab Starting Soon</h2>
+    <p>This is a reminder that your assigned lab assessment <strong>{lab_name}</strong> will start in 15 minutes.</p>
+    <ul>
+        <li><strong>Lab:</strong> {lab_name}</li>
+        <li><strong>Date:</strong> {date}</li>
+        <li><strong>Time:</strong> {time}</li>
+        <li><strong>Duration:</strong> {duration}</li>
+    </ul>
+    <p>Please prepare your environment and log in to start on time.</p>
+</body>
+</html>
+"""
+        text_body = f"Reminder: Lab starting soon: {lab_name}\nDate: {date}\nTime: {time}\nDuration: {duration}"
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Lab Reminder email bypass to {email}.")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [email]},
+                Message={
+                    "Subject": {"Data": f"Lab Starting Soon: {lab_name}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send lab reminder email: {e}")
+
+    def send_added_to_group_email(self, email: str, student_name: str, group_name: str, admin_name: str):
+        """
+        Sends email informing student they have been successfully added to a cohort/group.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>Cohort Group Enrollment Successful</h2>
+    <p>Hello <strong>{student_name}</strong>,</p>
+    <p>You have been successfully added to the group cohort <strong>{group_name}</strong> by Administrator <strong>{admin_name}</strong>.</p>
+    <p>Please log in to your student portal dashboard to view any assigned training labs and start practicing.</p>
+    <p>Best regards,<br><strong>CyberRange Team</strong></p>
+</body>
+</html>
+"""
+        text_body = f"Hello {student_name},\nYou have been successfully added to the group cohort '{group_name}' by Administrator {admin_name}.\nLog in to your student portal to see your assigned labs."
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Group Add notification email bypass to {email}.")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [email]},
+                Message={
+                    "Subject": {"Data": f"Successfully Added to Cohort: {group_name}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send cohort addition email: {e}")
+
+    def send_account_created_email(self, email: str, name: str, role: str):
+        """
+        Sends account creation success confirmation email.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>CyberRange Account Created Successfully</h2>
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>Your CyberRange account ({role.upper()} portal) has been verified and created successfully.</p>
+    <p>You can now log in to the portal and start using the platform.</p>
+    <p>Best regards,<br><strong>CyberRange Team</strong></p>
+</body>
+</html>
+"""
+        text_body = f"Hello {name},\nYour CyberRange account ({role.upper()}) has been verified and created successfully.\nLog in to the portal to start using the platform."
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Account creation email bypass to {email}.")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [email]},
+                Message={
+                    "Subject": {"Data": "CyberRange Account Created Successfully", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send account created email: {e}")
+
 ses_service = SESService()
 

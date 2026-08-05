@@ -10,8 +10,10 @@ import {
   Plus
 } from 'lucide-react';
 import { usePurchasedLabs } from '../../services/purchasedLabsService';
+import { useNavigate } from 'react-router-dom';
 
 export const LabAllocation: React.FC = () => {
+  const navigate = useNavigate();
   const { labs: purchasedLabs } = usePurchasedLabs();
   const [assignmentTab, setAssignmentTab] = useState<'group' | 'individual'>('group');
   
@@ -42,8 +44,7 @@ export const LabAllocation: React.FC = () => {
   const [formLabId, setFormLabId] = useState('');
   const [formStartDate, setFormStartDate] = useState('');
   const [formStartTime, setFormStartTime] = useState('');
-  const [formEndDate, setFormEndDate] = useState('');
-  const [formEndTime, setFormEndTime] = useState('');
+  const [formDuration, setFormDuration] = useState<number>(60);
   
   const [extendEndDate, setExtendEndDate] = useState('');
   const [extendEndTime, setExtendEndTime] = useState('');
@@ -111,20 +112,22 @@ export const LabAllocation: React.FC = () => {
     setFormLabId(purchasedLabs[0]?.lab_id || '');
     setFormStartDate('');
     setFormStartTime('');
-    setFormEndDate('');
-    setFormEndTime('');
+    setFormDuration(60);
     setIsModalOpen(true);
   };
 
   const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formLabId || !formStartDate || !formStartTime || !formEndDate || !formEndTime) {
+    if (!formLabId || !formStartDate || !formStartTime || !formDuration) {
       alert('All fields are required.');
       return;
     }
 
     const startISO = `${formStartDate}T${formStartTime}:00`;
-    const endISO = `${formEndDate}T${formEndTime}:00`;
+    // Compute fallback endISO on frontend
+    const startDateObj = new Date(`${formStartDate}T${formStartTime}`);
+    startDateObj.setMinutes(startDateObj.getMinutes() + Number(formDuration));
+    const endISO = startDateObj.toISOString().split('.')[0]; // remove ms/Z
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -143,10 +146,16 @@ export const LabAllocation: React.FC = () => {
           group_id: activeTargetGroup ? (activeTargetGroup.db_id || Number(activeTargetGroup.id.replace('grp-', ''))) : null,
           student_id: activeTargetStudent ? Number(activeTargetStudent.id) : null,
           start_datetime: startISO,
-          end_datetime: endISO
+          end_datetime: endISO,
+          duration_minutes: formDuration
         })
       });
-      if (res.ok) fetchRostersAndAssignments();
+      if (res.ok) {
+        fetchRostersAndAssignments();
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || 'Failed to submit assignment.');
+      }
       setIsModalOpen(false);
     } catch (err) {
       console.error('Failed to submit assignment:', err);
@@ -608,10 +617,20 @@ export const LabAllocation: React.FC = () => {
               </div>
             </div>
 
-            <div className="border-t pt-4 border-slate-100 dark:border-slate-800">
+            <div className="border-t pt-4 border-slate-100 dark:border-slate-800 space-y-2">
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  navigate('/admin/analytics');
+                }}
+                className="w-full py-2.5 bg-blue-650 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <BarChart2 className="w-4 h-4" />
+                View Analytics
+              </button>
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold"
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold cursor-pointer"
               >
                 Close Details
               </button>
@@ -767,8 +786,8 @@ export const LabAllocation: React.FC = () => {
                   className="w-full p-2 bg-slate-50 dark:bg-slate-805 border rounded-lg font-semibold text-slate-800 dark:text-slate-105 focus:outline-none"
                 >
                   <option value="">-- Select Purchased Lab --</option>
-                  {purchasedLabs.map(l => (
-                    <option key={l.lab_id} value={l.lab_id}>{l.lab_title}</option>
+                  {Array.from(new Map((purchasedLabs || []).map(l => [l.lab_id, l])).values()).map(l => (
+                    <option key={l.id} value={l.lab_id}>{l.lab_title}</option>
                   ))}
                 </select>
               </div>
@@ -794,25 +813,19 @@ export const LabAllocation: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={formEndDate}
-                    onChange={(e) => setFormEndDate(e.target.value)}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">End Time</label>
-                  <input
-                    type="time"
-                    value={formEndTime}
-                    onChange={(e) => setFormEndTime(e.target.value)}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-855 border rounded-lg text-slate-855 dark:text-slate-100 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-355 block mb-1">Duration</label>
+                <select
+                  value={formDuration}
+                  onChange={(e) => setFormDuration(Number(e.target.value))}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-805 border rounded-lg font-semibold text-slate-800 dark:text-slate-105 focus:outline-none"
+                >
+                  <option value={30}>30 mins</option>
+                  <option value={45}>45 mins</option>
+                  <option value={60}>60 mins (1 hr)</option>
+                  <option value={75}>75 mins</option>
+                  <option value={90}>90 mins (1.5 hrs)</option>
+                </select>
               </div>
             </div>
 

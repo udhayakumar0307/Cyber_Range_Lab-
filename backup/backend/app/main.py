@@ -51,12 +51,13 @@ async def lifespan(app: FastAPI):
         logger.critical(f"Database connection failed: {exc}", exc_info=True)
         raise
 
-    # Start background notification worker (lightweight, async)
+    # Start background notification workers (lightweight, async)
     try:
-        from app.services.daily_notification_worker import daily_notification_loop
+        from app.services.daily_notification_worker import daily_notification_loop, assignment_reminder_loop
         app.state.daily_notification_task = asyncio.create_task(daily_notification_loop())
+        app.state.assignment_reminder_task = asyncio.create_task(assignment_reminder_loop())
     except Exception as exc:
-        logger.warning(f"Daily notification worker failed to start: {exc}")
+        logger.warning(f"Notification workers failed to start: {exc}")
 
     # Lazy-validate SES credentials without blocking startup
     try:

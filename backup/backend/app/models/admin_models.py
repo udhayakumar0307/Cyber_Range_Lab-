@@ -15,7 +15,16 @@ class Organization(Base):
     city = Column(String(100), nullable=True)
     pincode = Column(String(20), nullable=True)
     gst_number = Column(String(50), nullable=True)
+    status = Column(String(50), default="ACTIVE", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    @property
+    def organization_name(self) -> str:
+        return self.name or ""
+
+    @organization_name.setter
+    def organization_name(self, value: str):
+        self.name = value
 
 class AdminProfile(Base):
     __tablename__ = "admin_profiles"
@@ -53,6 +62,7 @@ class CartItem(Base):
     price_inr = Column(Float, nullable=False, default=0.0)
     quantity = Column(Integer, nullable=False, default=1)  # Student seats count
     license_duration_months = Column(Integer, default=12)
+    hours_purchased = Column(Float, default=40.0, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     cart = relationship("Cart", back_populates="items")
@@ -86,6 +96,7 @@ class OrderItem(Base):
     seats = Column(Integer, default=1)
     duration_months = Column(Integer, default=12)
     price = Column(Float, default=0.0)
+    hours_purchased = Column(Float, default=40.0, nullable=True)
 
     order = relationship("Order", back_populates="items")
 
@@ -128,6 +139,11 @@ class PurchasedLab(Base):
     status = Column(String(50), default="ACTIVE")  # ACTIVE, EXPIRED, SUSPENDED
     purchased_date = Column(DateTime, default=datetime.utcnow)
     expiry_date = Column(DateTime, nullable=False)
+    
+    # Hourly rentals
+    hours_purchased = Column(Float, default=0.0, nullable=True)
+    hours_used = Column(Float, default=0.0, nullable=True)
+    hours_remaining = Column(Float, default=0.0, nullable=True)
 
 class License(Base):
     __tablename__ = "licenses"
@@ -138,6 +154,8 @@ class License(Base):
     allocated_user_email = Column(String(150), nullable=True)
     status = Column(String(50), default="AVAILABLE")  # AVAILABLE, ASSIGNED, REVOKED
     expiry_date = Column(DateTime, nullable=False)
+    hours_allocated = Column(Float, default=1.0, nullable=True)
+    hours_used = Column(Float, default=0.0, nullable=True)
 
 class BillingAddress(Base):
     __tablename__ = "billing_addresses"
