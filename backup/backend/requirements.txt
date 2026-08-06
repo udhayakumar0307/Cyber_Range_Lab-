@@ -10,4 +10,8 @@ pydantic>=2.10.3
 boto3>=1.34.0
 botocore>=1.34.0
 docker>=7.1.0
+razorpay>=1.4.1
+websockets>=12.0
+
+
 
