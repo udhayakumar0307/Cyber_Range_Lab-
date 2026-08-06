@@ -1,0 +1,46 @@
+{
+  "canvas": {
+    "width": 1400,
+    "height": 990
+  },
+  "fields": {
+    "recipient_name": {
+      "x": 700,
+      "y": 466,
+      "font": "GreatVibes-Regular.ttf",
+      "size": 92,
+      "color": "#0F172A",
+      "align": "center"
+    },
+    "lab_title": {
+      "x": 700,
+      "y": 620,
+      "font": "PlusJakartaSans-Bold.ttf",
+      "size": 34,
+      "color": "#0B1F3A",
+      "align": "center"
+    },
+    "completion_date": {
+      "x": 560,
+      "y": 750,
+      "font": "PlusJakartaSans-Bold.ttf",
+      "size": 20,
+      "color": "#0F172A",
+      "align": "center"
+    },
+    "certificate_id": {
+      "x": 950,
+      "y": 750,
+      "font": "PlusJakartaSans-Bold.ttf",
+      "size": 20,
+      "color": "#0F172A",
+      "align": "center"
+    },
+    "qr_code": {
+      "x": 1150,
+      "y": 680,
+      "width": 100,
+      "height": 100
+    }
+  }
+}

@@ -1,0 +1,33 @@
+============================================================
+OT & ICS SECURITY SIMULATOR LAB - ANSWER KEY
+============================================================
+
+==========================
+MODULE 1 - OT Network & Protocol Reconnaissance
+==========================
+Expected Flag:
+FLAG{ot_module1_student_c4a8b2d1}
+
+==========================
+MODULE 2 - PLC Register & Process Manipulation
+==========================
+Expected Flag:
+FLAG{ot_module2_student_f7e9a1c3}
+
+==========================
+MODULE 3 - Modbus & S7comm Traffic PCAP Analysis
+==========================
+Expected Flag:
+FLAG{ot_module3_student_b5d2e4f6}
+
+==========================
+MODULE 4 - OT Incident Response & HMI Mitigation
+==========================
+Expected Flag:
+FLAG{ot_module4_student_a8c9d1e3}
+
+==========================
+MODULE 5 - Full Industrial Network Infiltration (Capstone)
+==========================
+Expected Flag:
+FLAG{ot_module5_student_e2f4a6b8}

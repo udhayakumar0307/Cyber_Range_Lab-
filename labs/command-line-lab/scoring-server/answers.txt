@@ -1,0 +1,601 @@
+================================================================================
+COMMAND LINE LAB & CYBER RANGE — COMPREHENSIVE INSTRUCTOR & LEARNING GUIDE
+================================================================================
+Total Tracks: 4 (Linux, Python, Java, C)
+Total Modules: 20 Modules (5 per track)
+================================================================================
+
+================================================================================
+TRACK 1: LINUX TRACK
+================================================================================
+
+==================================================
+Linux Module 1: Linux Navigation
+==================================================
+Challenge Objective:
+Locate the onboarding key hidden inside nested directories under your home directory.
+
+Commands to Use:
+- pwd
+- ls -la
+- cd records/logs/archive
+- cat .keyfile
+
+Step-by-Step Solution:
+Step 1: Execute `pwd` to print your current working directory path.
+Step 2: Execute `ls -la` to list all directory contents, including hidden dotfiles.
+Step 3: Execute `cd records/logs/archive` to navigate to the target directory.
+Step 4: Execute `cat .keyfile` to display the hidden onboarding flag key.
+
+Command Explanations & Practical Use Cases:
+- `pwd` (Print Working Directory): Displays your current directory in the filesystem. Useful when navigating complex server directory trees.
+- `ls -la` (List Directory Contents): Lists directory entries with permissions, ownership, file size, and includes hidden files (prefixed with '.'). Essential for identifying secret files and inspecting permissions.
+- `cd` (Change Directory): Moves your active terminal context to a specified path. Critical for workstation navigation.
+- `cat` (Concatenate & Print): Reads file contents and prints them directly to terminal standard output. Standard tool for inspecting configuration files and logs.
+
+Expected Output:
+FLAG{cll_linux_module1_student_66796faf}
+
+How Flag is Obtained:
+Printed directly on terminal stdout after inspecting `.keyfile` with `cat`.
+
+
+==================================================
+Linux Module 2: File Operations
+==================================================
+Challenge Objective:
+Organize workspace files by creating backup folders, copying manifests, moving final drafts, and deleting temporary files.
+
+Commands to Use:
+- mkdir -p workspace/backup
+- cp inbox/manifest.txt workspace/backup/
+- mv inbox/draft.txt workspace/final.txt
+- rm workspace/junk.tmp
+
+Step-by-Step Solution:
+Step 1: Execute `mkdir -p workspace/backup` to create the nested backup directory.
+Step 2: Execute `cp inbox/manifest.txt workspace/backup/` to copy the manifest file safely.
+Step 3: Execute `mv inbox/draft.txt workspace/final.txt` to move and rename the draft file into place.
+Step 4: Execute `rm workspace/junk.tmp` to delete temporary scratch files.
+
+Command Explanations & Practical Use Cases:
+- `mkdir -p`: Creates new directories. The `-p` flag creates parent directories automatically without erroring if they already exist.
+- `cp`: Copies files or directories from source to destination. Preserves original files during data migration.
+- `mv`: Moves or renames files. Crucial for organizing project releases and renaming file extensions.
+- `rm`: Removes files permanently from the filesystem. Used to clean build artifacts and temporary scratch files.
+
+Expected Output:
+FLAG{cll_linux_module2_student_9f8a7b6c}
+
+How Flag is Obtained:
+Revealed upon completing all 4 required file management operations.
+
+
+==================================================
+Linux Module 3: Text Processing & Line Counting
+==================================================
+Challenge Objective:
+A web server log was flooded with duplicate entries during a system breach. Analyze log line counts, aggregate unique IP records, and extract the target access key.
+
+Commands to Use:
+- wc -l data/server.log
+- sort data/server.log | uniq -c
+- cut -d':' -f2 data/server.log
+- grep -i "ACCESS_KEY" data/server.log
+
+Step-by-Step Solution:
+Step 1: Execute `wc -l data/server.log` to count total line records.
+Step 2: Execute `sort data/server.log | uniq -c` to sort and aggregate duplicate entries.
+Step 3: Execute `cut -d':' -f2 data/server.log` to extract the key column.
+Step 4: Execute `grep -i "ACCESS_KEY" data/server.log` to isolate the target line.
+
+Command Explanations & Practical Use Cases:
+- `wc -l` (Word Count - Lines): Counts total lines in text files. Essential for verifying dataset size and counting log entries.
+- `sort`: Orders text lines alphabetically or numerically. Required before executing duplicate aggregation tools.
+- `uniq -c`: Filters adjacent duplicate lines and prefixes line frequency counts. Critical in security incident response for identifying DDoS IP anomalies.
+- `cut`: Extracts targeted columns or fields from delimited lines (`-d` delimiter, `-f` field index). Essential for parsing CSVs and log data.
+
+Expected Output:
+FLAG{cll_linux_module3_student_4e5d6c7b}
+
+How Flag is Obtained:
+Extracted from log record stream output.
+
+
+==================================================
+Linux Module 4: Archive Extraction & Binary Inspection
+==================================================
+Challenge Objective:
+An legacy backup archive contains encrypted binary blobs and encoded metadata. Decompress the tarball, inspect binary file types, extract printable ASCII strings, and decode base64.
+
+Commands to Use:
+- tar -xzf backup.tar.gz
+- file extracted/*
+- strings extracted/blob.dat
+- echo "QUNDRVNTX0tFWTogRkxBR3tjbGxfbGludXhfbW9kdWxlNF9zdHVkZW50XzRiZDVhYTJkfQ==" | base64 -d
+
+Step-by-Step Solution:
+Step 1: Execute `tar -xzf backup.tar.gz` to extract the compressed archive.
+Step 2: Execute `file extracted/*` to inspect file header signatures.
+Step 3: Execute `strings extracted/blob.dat` to extract readable ASCII characters from binary blob.
+Step 4: Pipe or pass extracted payload into `base64 -d` to decode the key payload.
+
+Command Explanations & Practical Use Cases:
+- `tar -xzf`: Extracts gzipped tarball archives (`-x` extract, `-z` gzip, `-f` file). Standard format for Linux software distribution.
+- `file`: Determines real file types by inspecting magic byte headers rather than file extensions. Essential for malware analysis.
+- `strings`: Scans binary executables/blobs and extracts printable ASCII strings of 4+ characters. Used in reverse engineering and forensics.
+- `base64 -d`: Decodes Base64 encoded binary streams back to plain text bytes. Crucial in web security and email header decoding.
+
+Expected Output:
+FLAG{cll_linux_module4_student_1a2b3c4d}
+
+How Flag is Obtained:
+Decoded from Base64 stream output.
+
+
+==================================================
+Linux Module 5: System Diagnostics & Stream Redirection
+==================================================
+Challenge Objective:
+A rogue background process modified system environment settings and configuration files. Compare file diffs, inspect running process PIDs, and redirect pipeline metrics.
+
+Commands to Use:
+- env
+- diff config.old config.new
+- ps aux | grep runaway
+- cat .final/key.txt > result.txt
+- cat result.txt
+
+Step-by-Step Solution:
+Step 1: Execute `env` to review active environment variables.
+Step 2: Execute `diff config.old config.new` to compare configuration file differences.
+Step 3: Execute `ps aux | grep runaway` to locate rogue Process ID.
+Step 4: Execute `cat .final/key.txt > result.txt` to redirect output to file.
+
+Command Explanations & Practical Use Cases:
+- `env`: Lists all exported shell environment variables. Used to check API keys, PATH configurations, and runtime settings.
+- `diff`: Compares two files line by line and highlights modifications. Standard utility for reviewing code diffs and patch files.
+- `ps aux`: Displays complete snapshot of all running processes with PID, CPU/Memory usage, and command arguments. Fundamental system administration tool.
+- Redirection (`>`): Redirects command standard output to a file (overwriting existing content). Core Linux stream redirection concept.
+
+Expected Output:
+FLAG{cll_linux_module5_student_31cda6c5}
+
+How Flag is Obtained:
+Saved to `result.txt` file via pipeline redirection.
+
+
+================================================================================
+TRACK 2: PYTHON TRACK
+================================================================================
+
+==================================================
+Python Module 1: Python Variables & Data Types
+==================================================
+Challenge Objective:
+Inspect main.py variable declarations and run python3 main.py to verify environment settings.
+
+Commands to Use:
+- python3 --version
+- cat main.py
+- python3 main.py
+
+Step-by-Step Solution:
+Step 1: Execute `python3 --version` to check Python installation.
+Step 2: Execute `cat main.py` to inspect variable declarations and script logic.
+Step 3: Execute `python3 main.py` to run the script in terminal.
+
+Command Explanations & Practical Use Cases:
+- `python3 --version`: Prints installed Python runtime version.
+- `cat main.py`: Displays raw Python script code.
+- `python3 main.py`: Invokes Python 3 interpreter to execute script instructions.
+
+Expected Output:
+FLAG{cll_python_module1_student_89d09a2e}
+
+How Flag is Obtained:
+Printed on stdout by script execution.
+
+
+==================================================
+Python Module 2: Conditionals & Strings
+==================================================
+Challenge Objective:
+Security team needs access token validation. Inspect security.py string parsing logic and run python3 security.py.
+
+Commands to Use:
+- cat security.py
+- python3 security.py
+
+Step-by-Step Solution:
+Step 1: Execute `cat security.py` to review `str.strip()` and `str.startswith()` condition logic.
+Step 2: Execute `python3 security.py` to run token validation.
+
+Command Explanations & Practical Use Cases:
+- `str.strip()`: Trims leading and trailing whitespace from string inputs. Essential for sanitizing user inputs.
+- `str.startswith()`: Evaluates if string begins with target prefix string. Used in authorization token verification.
+
+Expected Output:
+FLAG{cll_python_module2_student_86e5e00d}
+
+How Flag is Obtained:
+Printed on stdout after token verification succeeds.
+
+
+==================================================
+Python Module 3: Code Flow & Multi-Module Imports
+==================================================
+Challenge Objective:
+A data pipeline consists of modular scripts (analytics.py, data_loader.py, calculator.py). Trace function calls across modules using grep and execute analytics.py.
+
+Commands to Use:
+- ls
+- grep -n "import" *.py
+- cat data_loader.py
+- python3 analytics.py
+
+Step-by-Step Solution:
+Step 1: Execute `ls` to view all Python script files in workspace.
+Step 2: Execute `grep -n "import" *.py` to trace module import statements.
+Step 3: Execute `cat data_loader.py` to inspect dataset loader method.
+Step 4: Execute `python3 analytics.py` to compute metrics and output flag.
+
+Command Explanations & Practical Use Cases:
+- Modular Python Architecture: Splitting programs into multiple `.py` files improves code reusability and maintainability.
+- `grep -n "import" *.py`: Searches for module import dependencies across project codebase and shows line numbers.
+
+Expected Output:
+FLAG{cll_python_module3_student_c6ea5573}
+
+How Flag is Obtained:
+Printed on stdout when `python3 analytics.py` executes successfully.
+
+
+==================================================
+Python Module 4: Configuration Files & JSON Parsing
+==================================================
+Challenge Objective:
+An API gateway reads sensitive keys from structured JSON config files and environment variables. Inspect nested JSON structure and run app.py.
+
+Commands to Use:
+- cat config.json
+- env
+- cat app.py
+- python3 app.py
+
+Step-by-Step Solution:
+Step 1: Execute `cat config.json` to inspect JSON schema.
+Step 2: Execute `env` to check active environment settings.
+Step 3: Execute `cat app.py` to inspect `json.load()` parser code.
+Step 4: Execute `python3 app.py` to extract secret key.
+
+Command Explanations & Practical Use Cases:
+- `json.load()`: Parses JSON formatted files into native Python dictionary objects. Standard method for reading web application settings.
+- Structured Configuration: Storing API settings in JSON files separates code logic from credentials.
+
+Expected Output:
+FLAG{cll_python_module4_student_fbadb689}
+
+How Flag is Obtained:
+Printed on stdout by `python3 app.py` execution.
+
+
+==================================================
+Python Module 5: Exception Tracing & Error Handling
+==================================================
+Challenge Objective:
+An automated service crashes due to unhandled exceptions when processing corrupted log payloads. Trace exception handlers and execute runner.py safely.
+
+Commands to Use:
+- cat runner.py
+- grep -n "except" runner.py
+- python3 runner.py
+
+Step-by-Step Solution:
+Step 1: Execute `cat runner.py` to review error handling code.
+Step 2: Execute `grep -n "except" runner.py` to check exception handling blocks.
+Step 3: Execute `python3 runner.py` to run safe fallback script.
+
+Command Explanations & Practical Use Cases:
+- `try...except`: Catches runtime errors (exceptions) without crashing the main application thread. Essential for resilient network services.
+- Exception Tracing: Inspecting stack traces and exception handlers allows engineers to debug production outages.
+
+Expected Output:
+FLAG{cll_python_module5_student_268bd1e2}
+
+How Flag is Obtained:
+Printed on stdout when `python3 runner.py` handles log stream safely.
+
+
+================================================================================
+TRACK 3: JAVA TRACK
+================================================================================
+
+==================================================
+Java Module 1: Java Program Structure & Main
+==================================================
+Challenge Objective:
+Compile Main.java with javac and run java Main to output module flag.
+
+Commands to Use:
+- javac -version
+- cat Main.java
+- javac Main.java
+- java Main
+
+Step-by-Step Solution:
+Step 1: Execute `javac -version` to verify Java compiler version.
+Step 2: Execute `cat Main.java` to review `public static void main(String[] args)`.
+Step 3: Execute `javac Main.java` to compile source file to `Main.class` bytecode.
+Step 4: Execute `java Main` to launch JVM runtime.
+
+Command Explanations & Practical Use Cases:
+- `javac`: Compiles Java source code (`.java`) into platform-independent Java bytecode (`.class`).
+- `java`: Launches Java Virtual Machine (JVM) and runs compiled class file bytecode.
+
+Expected Output:
+FLAG{cll_java_module1_student_501f952a}
+
+How Flag is Obtained:
+Printed on stdout by JVM runtime.
+
+
+==================================================
+Java Module 2: Control Flow & Array Iteration
+==================================================
+Challenge Objective:
+Complete ControlFlow.java to iterate through code array and output the flag.
+
+Commands to Use:
+- cat ControlFlow.java
+- javac ControlFlow.java
+- java ControlFlow
+
+Step-by-Step Solution:
+Step 1: Execute `cat ControlFlow.java` to inspect `for` loop and target array code.
+Step 2: Execute `javac ControlFlow.java` to compile class file.
+Step 3: Execute `java ControlFlow` to run program.
+
+Command Explanations & Practical Use Cases:
+- Array Indexing: Java arrays store ordered elements accessible by zero-indexed integers (`codes[i]`).
+- Control Flow (`for`/`if`): Iterates over data elements and executes conditional logic matching target authorization codes.
+
+Expected Output:
+FLAG{cll_java_module2_student_e86e6e1e}
+
+How Flag is Obtained:
+Printed on stdout upon successful loop execution.
+
+
+==================================================
+Java Module 3: Package Structure & Static Utility Classes
+==================================================
+Challenge Objective:
+An enterprise Java service uses modular package structure (com.cyber.utils.SecurityHelper). Locate package source files using find, compile, and run App.
+
+Commands to Use:
+- find . -name '*.java'
+- grep -rn "getSecurityKey" com/
+- javac com/cyber/*.java com/cyber/utils/*.java
+- java com.cyber.App
+
+Step-by-Step Solution:
+Step 1: Execute `find . -name "*.java"` to locate all Java source files in package folder tree.
+Step 2: Execute `grep -rn "getSecurityKey" com/` to trace static utility method reference.
+Step 3: Execute `javac com/cyber/*.java com/cyber/utils/*.java` to compile package files.
+Step 4: Execute `java com.cyber.App` to run application class.
+
+Command Explanations & Practical Use Cases:
+- Java Packages (`package com.cyber`): Namespace management mechanism used in Java to organize enterprise code files and prevent class name collisions.
+- Full Class Names (`java com.cyber.App`): Executes Java classes using fully qualified package name.
+
+Expected Output:
+FLAG{cll_java_module3_student_4b0285ac}
+
+How Flag is Obtained:
+Printed on stdout by package main class execution.
+
+
+==================================================
+Java Module 4: Class Inheritance & Object Instantiation
+==================================================
+Challenge Objective:
+An object-oriented vault service uses sub-class inheritance (SecureVault extends Vault). Inspect class definitions, compile all classes, and run VaultApp.
+
+Commands to Use:
+- cat Vault.java
+- cat SecureVault.java
+- javac *.java
+- java VaultApp
+
+Step-by-Step Solution:
+Step 1: Execute `cat Vault.java` to inspect base class declaration.
+Step 2: Execute `cat SecureVault.java` to inspect `extends Vault` inheritance logic.
+Step 3: Execute `javac *.java` to compile all source files in directory.
+Step 4: Execute `java VaultApp` to run application.
+
+Command Explanations & Practical Use Cases:
+- Object Inheritance (`extends`): Allows child classes (`SecureVault`) to inherit fields and methods from parent classes (`Vault`). Core Object-Oriented Programming (OOP) paradigm.
+- Object Instantiation (`new`): Creates runtime instance of class in heap memory.
+
+Expected Output:
+FLAG{cll_java_module4_student_a8312f32}
+
+How Flag is Obtained:
+Printed on stdout when `VaultApp` executes.
+
+
+==================================================
+Java Module 5: Resource Handling & Properties Configuration
+==================================================
+Challenge Objective:
+A Java application loads configuration settings from app.properties via java.util.Properties. Inspect resource properties, compile ConfigLoader, and run.
+
+Commands to Use:
+- cat app.properties
+- cat ConfigLoader.java
+- javac ConfigLoader.java
+- java ConfigLoader
+
+Step-by-Step Solution:
+Step 1: Execute `cat app.properties` to inspect key-value configuration pairs.
+Step 2: Execute `cat ConfigLoader.java` to inspect `java.util.Properties` loading logic.
+Step 3: Execute `javac ConfigLoader.java` to compile application.
+Step 4: Execute `java ConfigLoader` to run program and display key.
+
+Command Explanations & Practical Use Cases:
+- `java.util.Properties`: Standard Java API for managing external application configuration files (`.properties`).
+- Resource Stream I/O: Reading configuration files at runtime decoupling environment settings from compiled class binaries.
+
+Expected Output:
+FLAG{cll_java_module5_student_04f12c80}
+
+How Flag is Obtained:
+Printed on stdout by `ConfigLoader` execution.
+
+
+================================================================================
+TRACK 4: C PROGRAMMING TRACK
+================================================================================
+
+==================================================
+C Module 1: C Program Syntax & printf
+==================================================
+Challenge Objective:
+Compile main.c with gcc and run ./main executable to print module key.
+
+Commands to Use:
+- gcc --version
+- cat main.c
+- gcc -o main main.c
+- ./main
+
+Step-by-Step Solution:
+Step 1: Execute `gcc --version` to check GNU C Compiler version.
+Step 2: Execute `cat main.c` to review `#include <stdio.h>` and `main()`.
+Step 3: Execute `gcc -o main main.c` to compile source file to native binary executable `./main`.
+Step 4: Execute `./main` to run executable.
+
+Command Explanations & Practical Use Cases:
+- `gcc -o <out> <src.c>`: GNU C Compiler command compiling C code to native machine binary (`-o` specifies output file name).
+- Executable execution (`./main`): Runs compiled native binary in current directory shell context.
+
+Expected Output:
+FLAG{cll_c_module1_student_341633f0}
+
+How Flag is Obtained:
+Printed on stdout by native C binary.
+
+
+==================================================
+C Module 2: Variables & Conditionals
+==================================================
+Challenge Objective:
+Modify calc.c to evaluate security levels and output key binary.
+
+Commands to Use:
+- cat calc.c
+- gcc -o calc calc.c
+- ./calc
+
+Step-by-Step Solution:
+Step 1: Execute `cat calc.c` to inspect C variable types and conditional statement.
+Step 2: Execute `gcc -o calc calc.c` to compile program.
+Step 3: Execute `./calc` to run executable.
+
+Command Explanations & Practical Use Cases:
+- C Primitive Types (`int`, `char`): Direct memory-mapped data types in C.
+- Native Conditionals (`if`): Fast, low-level branching instructions evaluated at machine level.
+
+Expected Output:
+FLAG{cll_c_module2_student_3f7faea7}
+
+How Flag is Obtained:
+Printed on stdout by `./calc` binary.
+
+
+==================================================
+C Module 3: Header Files & Macro Definitions
+==================================================
+Challenge Objective:
+A C telemetry application splits configuration across header files (config.h, app.c). Inspect macro definitions, compile app.c, and run executable.
+
+Commands to Use:
+- cat config.h
+- cat app.c
+- gcc -o app app.c
+- ./app
+
+Step-by-Step Solution:
+Step 1: Execute `cat config.h` to inspect `#define` macro constants.
+Step 2: Execute `cat app.c` to inspect `#include "config.h"` preprocessor directive.
+Step 3: Execute `gcc -o app app.c` to compile C source file.
+Step 4: Execute `./app` to run program and output key.
+
+Command Explanations & Practical Use Cases:
+- C Header Files (`.h`): Interface definition files containing function prototypes, struct layouts, and macro definitions.
+- Preprocessor Macros (`#define`): Constants substituted into C source files by the preprocessor before compilation.
+
+Expected Output:
+FLAG{cll_c_module3_student_bcc023a3}
+
+How Flag is Obtained:
+Printed on stdout by `./app` binary.
+
+
+==================================================
+C Module 4: Binary Inspection & String Extraction
+==================================================
+Challenge Objective:
+A compiled binary artifact contains embedded ASCII symbols and character tables. Inspect file header types with file, extract strings, and run decoder.
+
+Commands to Use:
+- file artifact.bin
+- strings artifact.bin
+- gcc -o decoder decoder.c
+- ./decoder
+
+Step-by-Step Solution:
+Step 1: Execute `file artifact.bin` to check binary header structure.
+Step 2: Execute `strings artifact.bin` to extract printable ASCII text strings.
+Step 3: Execute `gcc -o decoder decoder.c` to compile decoder source code.
+Step 4: Execute `./decoder` to run binary and print key.
+
+Command Explanations & Practical Use Cases:
+- `file`: Identifies binary formats (ELF 64-bit, PE32, raw data) by analyzing magic bytes.
+- `strings`: Analyzes compiled binaries and extracts embedded human-readable ASCII string tables. Crucial for reverse engineering.
+
+Expected Output:
+FLAG{cll_c_module4_student_92788f58}
+
+How Flag is Obtained:
+Printed on stdout by `./decoder` execution.
+
+
+==================================================
+C Module 5: Struct Deserialization & Binary File I/O
+==================================================
+Challenge Objective:
+A system daemon deserializes structured records from binary files (data.bin). Inspect record layout in structs.c, compile, and execute.
+
+Commands to Use:
+- cat structs.c
+- ls -l data.bin
+- gcc -o structs structs.c
+- ./structs
+
+Step-by-Step Solution:
+Step 1: Execute `cat structs.c` to inspect `struct Config` definition and `fread()` logic.
+Step 2: Execute `ls -l data.bin` to inspect binary file size.
+Step 3: Execute `gcc -o structs structs.c` to compile binary.
+Step 4: Execute `./structs` to deserialize binary record and display key.
+
+Command Explanations & Practical Use Cases:
+- C Structures (`struct`): User-defined composite data types grouping contiguous memory variables.
+- Binary File I/O (`fread`/`fopen`): Reads raw binary byte streams directly into memory struct blocks. Foundation for operating system drivers and low-level protocols.
+
+Expected Output:
+FLAG{cll_c_module5_student_e8cc5d35}
+
+How Flag is Obtained:
+Printed on stdout by `./structs` execution.

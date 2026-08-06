@@ -1,0 +1,4 @@
+BEFORE reconcile user_id=5 (uk03072005@gmail.com): total_score=360
+AFTER reconcile user_id=5 (uk03072005@gmail.com): total_score=360
+BEFORE reconcile user_id=2 (user@cyberrange.in): total_score=1810
+AFTER reconcile user_id=2 (user@cyberrange.in): total_score=1810

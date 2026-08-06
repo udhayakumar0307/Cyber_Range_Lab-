@@ -1,0 +1,65 @@
+# ============================================================
+# CRYPTOGRAPHY LAB
+# Cyber Range — Cryptography Track
+# ============================================================
+networks:
+  crypto-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.30.0.0/24
+
+services:
+  student-env:
+    build:
+      context: ./student-env
+    container_name: crypto-student
+    hostname: crypto-workstation
+    networks:
+      crypto-net:
+        ipv4_address: 10.30.0.50
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  vulnerable-services:
+    build:
+      context: ./vulnerable-services
+    container_name: crypto-services
+    hostname: crypto-services
+    networks:
+      crypto-net:
+        ipv4_address: 10.30.0.10
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - STUDENT_CONTAINER=crypto-student
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  scoring-server:
+    build:
+      context: ./scoring-server
+    container_name: crypto-scoring
+    hostname: crypto-scoring
+    networks:
+      crypto-net:
+        ipv4_address: 10.30.0.20
+    ports:
+      - "5001:5000"
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - SERVICES_URL=http://10.30.0.10:9500
+    volumes:
+      - crypto-data:/data
+    depends_on:
+      - vulnerable-services
+    restart: unless-stopped
+
+volumes:
+  crypto-data:
