@@ -18,9 +18,56 @@ Cyber Range is a production-grade, enterprise-ready cybersecurity training platf
 
 The platform handles role-based access control (RBAC), hour-based lab rental workflows, automated student lab scheduling, CTF arenas, real-time telemetry, and platform-wide audit logging.
 
-> Decoupled async threat monitoring, auto-sync registry ingestion, real-time database hourly auditing, and cascade deletion capabilities represent high-quality production engineering.
+# 📊 Platform Architecture Flowchart
+
+```mermaid
+graph TD
+    %% User Roles & Access
+    Student[Student User] -->|Browses & Solves Labs| Frontend[React Frontend App]
+    OrgAdmin[Org Admin] -->|Manages Groups & Seats| Frontend
+    SysAdmin[System Admin] -->|Gate Verified Access| SysPortal[System Admin Portal]
+
+    %% Frontends to backend APIs
+    Frontend -->|API Requests| Backend[FastAPI Backend Server]
+    SysPortal -->|Administrative Actions| Backend
+
+    %% Backend integrations
+    subgraph FastAPI Backend Core
+        Auth[Auth Service: JWT & Email OTP]
+        AWSSecrets[AWS Secrets Manager]
+        ALBClient[ALB IP Trust]
+        Endpoints[API Route Endpoints]
+    end
+    
+    Backend --> Auth
+    Backend --> AWSSecrets
+    Backend --> ALBClient
+    Backend --> Endpoints
+
+    %% Databases
+    Endpoints -->|ORM Queries| RDS[(PostgreSQL Database)]
+
+    %% Worker Daemon Loop
+    subgraph Standalone Python Workers
+        HIDS[HIDS Intrusion Detector]
+        DockerSync[Docker SDK Sync & Pruner]
+        Billing[Hourly Billing Deductor]
+        Leaderboard[XP Leaderboard Sync]
+    end
+
+    RDS <-->|Telemetry & State Check| HIDS
+    RDS <-->|Fetch Active Sessions| Billing
+    RDS <-->|Sync Flags & Score Events| Leaderboard
+    RDS <-->|Container Presets & Sync| DockerSync
+
+    %% Infrastructure & Sandbox
+    DockerSync -->|Pull / Start / Terminate| DockerEngine[EC2 Docker Engine]
+    DockerEngine -->|Deploys isolated sandbox| LabContainer[Virtual Lab Containers]
+    Student -->|Interactive terminal websocket| LabContainer
+```
 
 ---
+
 
 # 🛠️ Technology Stack
 
