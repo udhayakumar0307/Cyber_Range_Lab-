@@ -938,14 +938,22 @@ def revoke_lab_manually(
     current_admin: User = Depends(get_current_system_admin),
     db: Session = Depends(get_db)
 ):
-    pl = db.query(PurchasedLab).filter(
-        PurchasedLab.organization_id == org_id,
-        PurchasedLab.lab_id == data.lab_id
-    ).first()
-    if not pl:
-        raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
-
-    db.delete(pl)
+    if org_id == 0:
+        pls = db.query(PurchasedLab).filter(
+            PurchasedLab.organization_id.is_(None),
+            PurchasedLab.lab_id == data.lab_id
+        ).all()
+        for pl in pls:
+            db.delete(pl)
+    else:
+        pl = db.query(PurchasedLab).filter(
+            PurchasedLab.organization_id == org_id,
+            PurchasedLab.lab_id == data.lab_id
+        ).first()
+        if not pl:
+            raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
+        db.delete(pl)
+        
     db.commit()
     return {"status": "success", "message": "Successfully revoked purchased lab manually."}
 

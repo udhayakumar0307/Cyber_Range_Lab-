@@ -104,6 +104,11 @@ export const SystemPortal: React.FC = () => {
   const [labSubTab, setLabSubTab] = useState<'pending' | 'active'>('pending');
   const [labPrices, setLabPrices] = useState<Record<string, number>>({});
   const [labsTabMode, setLabsTabMode] = useState<'catalog' | 'allocations'>('catalog');
+  
+  // Custom Revoke / Remove Lab modal states
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+  const [selectedLabForRemoval, setSelectedLabForRemoval] = useState<any>(null);
+  const [removeTargetType, setRemoveTargetType] = useState<'student' | 'admin' | 'both' | 'catalog'>('student');
 
   // Check existing session token on mount
   useEffect(() => {
@@ -359,6 +364,55 @@ export const SystemPortal: React.FC = () => {
     }
   };
 
+  const handleRemoveLabAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLabForRemoval) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      if (removeTargetType === 'student' || removeTargetType === 'both') {
+        await fetch(`/api/v1/system/organizations/0/revoke-lab`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ lab_id: selectedLabForRemoval.id })
+        });
+      }
+
+      if (removeTargetType === 'admin' || removeTargetType === 'both') {
+        const orgsToRevoke = allocatedLabs
+          .filter((l: any) => l.lab_id === selectedLabForRemoval.id && l.organization_id)
+          .map((l: any) => l.organization_id);
+        for (const orgId of orgsToRevoke) {
+          await fetch(`/api/v1/system/organizations/${orgId}/revoke-lab`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ lab_id: selectedLabForRemoval.id })
+          });
+        }
+      }
+
+      if (removeTargetType === 'catalog') {
+        await fetch(`/api/v1/system/labs/${selectedLabForRemoval.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+
+      setIsRemoveModalOpen(false);
+      alert("Lab removal action completed successfully!");
+      fetchLabs();
+      fetchAllocatedLabs();
+    } catch (err) {
+      console.error('Failed to remove lab:', err);
+    }
+  };
+
   useEffect(() => {
     if (step === 'dashboard') {
       if (activeTab === 'dashboard') {
@@ -554,43 +608,78 @@ export const SystemPortal: React.FC = () => {
   // Manual Lab Assign
   const handleAssignLab = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formLabId || !formLabTitle || !selectedOrg) return;
+    if (!formLabId || !formLabTitle) return;
 
     let rate = 100;
-    if (formLabLevel === 'intermediate') rate = 200;
+    if (formLabLevel === 'beginner') rate = 100;
+    else if (formLabLevel === 'intermediate') rate = 200;
     else if (formLabLevel === 'advanced') rate = 300;
     else if (formLabLevel === 'custom') rate = formPricePerHour;
 
     const totalPrice = formHours * rate;
-    const targetUserId = formAssignTarget === 'student' ? formStudentId : null;
-
     const token = localStorage.getItem('token');
+
     try {
-      const res = await fetch(`/api/v1/system/organizations/${selectedOrg.id}/assign-lab`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          lab_id: formLabId,
-          lab_title: formLabTitle,
-          hours: formHours,
-          user_id: targetUserId ? Number(targetUserId) : null,
-          price_per_hour: rate,
-          total_price: totalPrice
-        })
-      });
-      if (res.ok) {
-        setIsAssignModalOpen(false);
-        setFormLabId('');
-        setFormLabTitle('');
-        alert(`Lab assigned successfully! Total Price: ₹${totalPrice}`);
-        fetchDashboard();
-      } else {
-        const err = await res.json();
-        alert(err.detail || 'Failed to assign lab.');
+      if (formAssignTarget === 'org' || formAssignTarget === 'both') {
+        if (!formOrgId) {
+          alert("Please select an organization.");
+          return;
+        }
+        const res = await fetch(`/api/v1/system/organizations/${formOrgId}/assign-lab`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            lab_id: formLabId,
+            lab_title: formLabTitle,
+            hours: formHours,
+            user_id: null,
+            price_per_hour: rate,
+            total_price: totalPrice
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(`Org Allocation Failed: ${err.detail || 'Error'}`);
+          return;
+        }
       }
+
+      if (formAssignTarget === 'student' || formAssignTarget === 'both') {
+        if (!formStudentId) {
+          alert("Please select a student.");
+          return;
+        }
+        const res = await fetch(`/api/v1/system/organizations/0/assign-lab`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            lab_id: formLabId,
+            lab_title: formLabTitle,
+            hours: formHours,
+            user_id: Number(formStudentId),
+            price_per_hour: rate,
+            total_price: totalPrice
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(`Student Allocation Failed: ${err.detail || 'Error'}`);
+          return;
+        }
+      }
+
+      setIsAssignModalOpen(false);
+      setFormLabId('');
+      setFormLabTitle('');
+      alert(`Lab hours allocated successfully! Total Price: ₹${totalPrice}`);
+      fetchDashboard();
+      fetchAllocatedLabs();
     } catch (err) {
       console.error('Failed to assign lab manually:', err);
     }
@@ -1255,12 +1344,19 @@ export const SystemPortal: React.FC = () => {
               )
             )}
 
-            {labsTabMode === 'catalog' && (
-              allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length === 0 ? (
+            {labsTabMode === 'catalog' && (() => {
+              const activeCatalogLabs = allLabs.filter((l: any) => {
+                const isPending = l.status === 'PENDING_REVIEW' || l.status === 'PENDING';
+                const isMilestone = l.category?.toLowerCase() === 'milestone' || l.id?.includes('points') || l.name?.toLowerCase().includes('milestone');
+                const isDuplicatePuzzle = l.id === 'puzzle-lab';
+                return !isPending && !isMilestone && !isDuplicatePuzzle;
+              });
+
+              return activeCatalogLabs.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 font-medium">No active labs in the catalog.</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').map((l: any) => (
+                  {activeCatalogLabs.map((l: any) => (
                     <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
@@ -1275,7 +1371,7 @@ export const SystemPortal: React.FC = () => {
                         <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
                           <p><strong>Category:</strong> {l.category}</p>
                           <p><strong>Difficulty:</strong> {l.difficulty}</p>
-                          <p><strong>Max Points:</strong> {l.max_points} pts</p>
+                          <p><strong>Max Points:</strong> {l.max_points || 500} pts</p>
                         </div>
                       </div>
                       
@@ -1297,18 +1393,38 @@ export const SystemPortal: React.FC = () => {
                             </button>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteLab(l.id)}
-                          className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-250 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove Lab From Catalog
-                        </button>
+                        <div className="pt-2 flex gap-2">
+                          <button
+                            onClick={() => {
+                              setFormLabId(l.id);
+                              setFormLabTitle(l.name);
+                              setFormPricePerHour(l.price_per_hour || 100.0);
+                              setFormLabLevel('custom');
+                              setFormAssignTarget('student');
+                              setIsAssignModalOpen(true);
+                            }}
+                            className="flex-1 py-2 bg-purple-650 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Allocate Hours
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedLabForRemoval(l);
+                              setRemoveTargetType('student');
+                              setIsRemoveModalOpen(true);
+                            }}
+                            className="px-3 py-2 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-colors cursor-pointer"
+                            title="Remove or revoke allocations"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              )
-            )}
+              );
+            })()}
 
             {labsTabMode === 'allocations' && (
               allocatedLabsLoading ? (
@@ -1892,9 +2008,10 @@ export const SystemPortal: React.FC = () => {
                   >
                     <option value="org">Organization Admins</option>
                     <option value="student">Specific Student</option>
+                    <option value="both">Both (Student & Org)</option>
                   </select>
                 </div>
-                {formAssignTarget === 'org' ? (
+                {(formAssignTarget === 'org' || formAssignTarget === 'both') && (
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">Select Organization *</label>
                     <select
@@ -1914,7 +2031,8 @@ export const SystemPortal: React.FC = () => {
                       ))}
                     </select>
                   </div>
-                ) : (
+                )}
+                {(formAssignTarget === 'student' || formAssignTarget === 'both') && (
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">Select Student *</label>
                     <select
@@ -2114,6 +2232,39 @@ export const SystemPortal: React.FC = () => {
               <button type="button" onClick={() => setIsStudentModalOpen(false)} className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl cursor-pointer">Close</button>
             </div>
           </div>
+        </div>
+      )}
+      {/* MODAL 5: Revoke / Remove Lab Modal */}
+      {isRemoveModalOpen && selectedLabForRemoval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <form onSubmit={handleRemoveLabAction} className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-base font-extrabold text-slate-900">Remove / Revoke Lab Allocation</h2>
+              <button type="button" onClick={() => setIsRemoveModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
+            </div>
+            <div className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                You are performing a removal/revoke action for: <strong className="text-slate-900">{selectedLabForRemoval.name}</strong> (ID: {selectedLabForRemoval.id}). Please select your target:
+              </p>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Revocation Target Scope</label>
+                <select
+                  value={removeTargetType}
+                  onChange={(e) => setRemoveTargetType(e.target.value as any)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
+                >
+                  <option value="student">Revoke allocations for Students only</option>
+                  <option value="admin">Revoke allocations for Organizations only</option>
+                  <option value="both">Revoke allocations for Both (Students & Orgs)</option>
+                  <option value="catalog">Delete Lab from Catalog completely</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setIsRemoveModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl cursor-pointer">Execute Action</button>
+            </div>
+          </form>
         </div>
       )}
 
