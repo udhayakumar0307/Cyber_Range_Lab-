@@ -185,6 +185,10 @@ def get_system_audit_dashboard(
                        .filter((AdminProfile.organization_id == org.id) | (User.organization == org.name)).count()
         group_count = db.query(Group).filter(Group.organization_id == str(org.id)).count()
         spent = db.query(func.sum(Order.grand_total)).filter(Order.organization_id == org.id, Order.status == "COMPLETED").scalar() or 0.0
+        has_verified_admin = db.query(AdminProfile).filter(
+            AdminProfile.organization_id == org.id,
+            AdminProfile.is_verified == True
+        ).first() is not None
         organizations.append({
             "id": org.id,
             "name": org.name,
@@ -194,7 +198,8 @@ def get_system_audit_dashboard(
             "created_at": org.created_at.strftime("%Y-%m-%d") if org.created_at else "",
             "total_users": user_count,
             "total_groups": group_count,
-            "total_spent": float(spent)
+            "total_spent": float(spent),
+            "is_verified": has_verified_admin
         })
 
     return {

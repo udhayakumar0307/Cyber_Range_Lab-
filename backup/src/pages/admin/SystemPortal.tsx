@@ -1123,24 +1123,6 @@ export const SystemPortal: React.FC = () => {
                             Purchases
                           </button>
                           <button
-                            onClick={() => {
-                              setSelectedOrg(org);
-                              setIsAssignModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-200 cursor-pointer"
-                          >
-                            + Assign Lab
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedOrg(org);
-                              setIsRevokeModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 cursor-pointer"
-                          >
-                            Revoke Lab
-                          </button>
-                          <button
                             onClick={() => handleDeleteOrg(org.id)}
                             className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                             title="Delete Organization"
