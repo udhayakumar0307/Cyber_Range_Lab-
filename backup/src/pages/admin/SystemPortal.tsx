@@ -103,6 +103,7 @@ export const SystemPortal: React.FC = () => {
   // New Labs pricing and catalog views
   const [labSubTab, setLabSubTab] = useState<'pending' | 'active'>('pending');
   const [labPrices, setLabPrices] = useState<Record<string, number>>({});
+  const [labsTabMode, setLabsTabMode] = useState<'catalog' | 'allocations'>('catalog');
 
   // Check existing session token on mount
   useEffect(() => {
@@ -372,15 +373,13 @@ export const SystemPortal: React.FC = () => {
         fetchAuditLogs(auditPage, auditSearch);
       } else if (activeTab === 'db_viewer') {
         fetchTableData(selectedTable, dbPage, dbSearch);
-      } else if (activeTab === 'lab_allocation' as any) {
+      } else if (activeTab === 'labs' as any) {
         fetchAllocatedLabs();
         fetchLabs();
         fetchStudents(1, '');
-        fetchDashboard(); // To load orgs list for selection dropdown
+        fetchDashboard();
       } else if (activeTab === 'security_telemetry' as any) {
         fetchSecurityAlerts();
-      } else if (activeTab === 'auto_sync_labs' as any) {
-        fetchLabs();
       }
     }
   }, [step, activeTab, selectedTable, dbPage, studentPage, auditPage]);
@@ -838,9 +837,8 @@ export const SystemPortal: React.FC = () => {
               else if (activeTab === 'students') fetchStudents(studentPage, studentSearch);
               else if (activeTab === 'audit_logs') fetchAuditLogs(auditPage, auditSearch);
               else if (activeTab === 'db_viewer') fetchTableData(selectedTable, dbPage, dbSearch);
-              else if (activeTab === 'lab_allocation' as any) { fetchAllocatedLabs(); fetchLabs(); }
+              else if (activeTab === 'labs' as any) { fetchAllocatedLabs(); fetchLabs(); }
               else if (activeTab === 'security_telemetry' as any) fetchSecurityAlerts();
-              else if (activeTab === 'auto_sync_labs' as any) fetchLabs();
             }}
             className="p-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 transition-colors"
             title="Refresh Data"
@@ -862,9 +860,8 @@ export const SystemPortal: React.FC = () => {
           { id: 'dashboard', label: 'Dashboard', icon: Activity },
           { id: 'colleges', label: 'Colleges', icon: GraduationCap },
           { id: 'orgs', label: 'Organizations', icon: Building2 },
-          { id: 'lab_allocation', label: 'Lab Allocation', icon: BookOpen },
+          { id: 'labs', label: 'Labs', icon: BookOpen },
           { id: 'security_telemetry', label: 'Security Alerts', icon: ShieldCheck },
-          { id: 'auto_sync_labs', label: 'Auto-Synced Labs', icon: RefreshCw },
           { id: 'students', label: 'Students Roster', icon: Users },
           { id: 'audit_logs', label: 'Audit Telemetry', icon: FileText },
           { id: 'db_viewer', label: 'ORM DB Inspector', icon: Database }
@@ -1093,94 +1090,281 @@ export const SystemPortal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB: Lab Allocation */}
-        {activeTab === 'lab_allocation' && (
+        {/* TAB: Security Telemetry Alerts */}
+        {activeTab === 'security_telemetry' as any && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-purple-600" /> Platform Lab Allocations
-                </h3>
-                <p className="text-xs text-slate-500">View and manage manual hourly assignments for students and organizations</p>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedOrg(null);
-                  setFormOrgId('');
-                  setFormLabId('');
-                  setFormLabTitle('');
-                  setIsAssignModalOpen(true);
-                }}
-                className="px-4 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Allocate New Lab
-              </button>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-rose-600" /> Platform Security Alerts & Threat Intelligence
+              </h3>
+              <p className="text-xs text-slate-500">Live monitoring of security logs (DDoS attacks, brute force, role violations)</p>
             </div>
 
-            {allocatedLabsLoading ? (
-              <div className="text-center py-12 text-slate-500">Querying database allocations...</div>
-            ) : allocatedLabs.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 font-medium">No lab allocations found. Click "Allocate New Lab" to assign.</div>
+            {securityLoading ? (
+              <div className="text-center py-12 text-slate-500">Querying security telemetry...</div>
+            ) : securityAlerts.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 font-medium">No unresolved security anomalies detected on the platform.</div>
             ) : (
               <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                     <tr>
-                      <th className="p-4">Lab Title</th>
-                      <th className="p-4">Assigned To</th>
-                      <th className="p-4">License Key</th>
-                      <th className="p-4 text-center">Hours (Total / Used / Rem)</th>
-                      <th className="p-4">Expiry Date</th>
-                      <th className="p-4 text-center">Actions</th>
+                      <th className="p-4">Timestamp</th>
+                      <th className="p-4">Alert Type</th>
+                      <th className="p-4 text-center">Severity</th>
+                      <th className="p-4">Origin Details</th>
+                      <th className="p-4">Description</th>
+                      <th className="p-4 text-center">Status / Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {allocatedLabs.map((l: any) => (
-                      <tr key={l.id} className="hover:bg-slate-50/60">
-                        <td className="p-4">
-                          <p className="font-bold text-slate-900">{l.lab_title}</p>
-                          <span className="text-[10px] text-slate-500 font-mono">ID: {l.lab_id}</span>
+                    {securityAlerts.map((alert: any) => (
+                      <tr key={alert.id} className="hover:bg-slate-50/60">
+                        <td className="p-4 text-slate-500 font-mono">{alert.timestamp}</td>
+                        <td className="p-4 font-bold text-slate-900">{alert.alert_type}</td>
+                        <td className="p-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            alert.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+                            alert.severity === 'HIGH' ? 'bg-orange-100 text-orange-850' : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {alert.severity}
+                          </span>
                         </td>
                         <td className="p-4">
-                          {l.organization_id ? (
-                            <div>
-                              <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold uppercase">Org ID: {l.organization_id}</span>
-                            </div>
+                          {alert.source_ip && <p><strong>IP:</strong> {alert.source_ip}</p>}
+                          {alert.user_email && <p><strong>Email:</strong> {alert.user_email}</p>}
+                        </td>
+                        <td className="p-4 text-slate-600 max-w-sm">{alert.description}</td>
+                        <td className="p-4 text-center">
+                          {alert.status === 'UNRESOLVED' ? (
+                            <button
+                              onClick={() => handleResolveAlert(alert.id)}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] rounded-lg cursor-pointer"
+                            >
+                              Resolve
+                            </button>
                           ) : (
-                            <div>
-                              <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold uppercase">Individual</span>
-                            </div>
-                          )}
-                          <p className="text-[10px] text-slate-500 font-mono mt-1">User ID: {l.user_id}</p>
-                        </td>
-                        <td className="p-4 text-slate-600 font-mono">{l.license_key}</td>
-                        <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5 font-bold">
-                            <span className="text-slate-900">{l.hours_purchased || 0} hrs</span>
-                            <span className="text-slate-400">/</span>
-                            <span className="text-amber-600">{l.hours_used || 0} used</span>
-                            <span className="text-slate-400">/</span>
-                            <span className="text-emerald-600">{l.hours_remaining || 0} rem</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-slate-500 font-mono">{l.expiry_date}</td>
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => {
-                              setSelectedOrg({ id: l.organization_id });
-                              setFormLabId(l.lab_id);
-                              setIsRevokeModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 cursor-pointer"
-                          >
-                            Revoke Lab
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            <span className="text-emerald-600 font-bold text-xs">RESOLVED ✓</span>
+        {/* TAB: Combined Labs View */}
+        {activeTab === 'labs' as any && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-purple-600" /> Platform Labs Management
+                </h3>
+                <p className="text-xs text-slate-500">Manage virtual lab catalogs, approve auto-synced filesystem configurations, and allocate student hours</p>
               </div>
+              <div className="flex items-center gap-3">
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setLabsTabMode('pending' as any)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      labsTabMode === ('pending' as any) ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    Pending Review ({allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabsTabMode('catalog')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      labsTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    Active Catalog ({allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabsTabMode('allocations')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      labsTabMode === 'allocations' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    Active Allocations ({allocatedLabs.length})
+                  </button>
+                </div>
+                {labsTabMode === 'allocations' && (
+                  <button
+                    onClick={() => {
+                      setSelectedOrg(null);
+                      setFormOrgId('');
+                      setFormLabId('');
+                      setFormLabTitle('');
+                      setIsAssignModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Allocate New Lab
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {labsTabMode === ('pending' as any) && (
+              allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length === 0 ? (
+                <div className="text-center py-12 text-slate-500 font-medium">No pending lab configurations in the registry queue.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').map((l: any) => (
+                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-sm">{l.name}</h4>
+                          <span className="text-[10px] font-mono text-purple-650">ID: {l.id}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          {l.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
+                        <p><strong>Category:</strong> {l.category}</p>
+                        <p><strong>Difficulty:</strong> {l.difficulty}</p>
+                        <p><strong>Max Points:</strong> {l.max_points} pts</p>
+                      </div>
+                      <div className="pt-2 flex gap-2">
+                        <button
+                          onClick={() => handleApproveLab(l.id)}
+                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors"
+                        >
+                          Approve & Publish
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLab(l.id)}
+                          className="p-2 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-colors cursor-pointer"
+                          title="Reject / Delete configuration"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {labsTabMode === 'catalog' && (
+              allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length === 0 ? (
+                <div className="text-center py-12 text-slate-500 font-medium">No active labs in the catalog.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').map((l: any) => (
+                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-extrabold text-slate-900 text-sm">{l.name}</h4>
+                            <span className="text-[10px] font-mono text-purple-650">ID: {l.id}</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {l.status}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
+                          <p><strong>Category:</strong> {l.category}</p>
+                          <p><strong>Difficulty:</strong> {l.difficulty}</p>
+                          <p><strong>Max Points:</strong> {l.max_points} pts</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Hourly Pricing (₹ per hour)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={labPrices[l.id] !== undefined ? labPrices[l.id] : (l.price_per_hour || 100.0)}
+                              onChange={(e) => setLabPrices({ ...labPrices, [l.id]: Number(e.target.value) })}
+                              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-bold"
+                            />
+                            <button
+                              onClick={() => handleSaveLabPrice(l.id, labPrices[l.id] || l.price_per_hour || 100.0)}
+                              className="px-3 bg-purple-650 hover:bg-purple-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteLab(l.id)}
+                          className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-250 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove Lab From Catalog
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {labsTabMode === 'allocations' && (
+              allocatedLabsLoading ? (
+                <div className="text-center py-12 text-slate-500">Querying database allocations...</div>
+              ) : allocatedLabs.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 font-medium">No lab allocations found. Click "Allocate New Lab" to assign.</div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Lab Title</th>
+                        <th className="p-4">Assigned To</th>
+                        <th className="p-4">License Key</th>
+                        <th className="p-4 text-center">Hours (Total / Used / Rem)</th>
+                        <th className="p-4">Expiry Date</th>
+                        <th className="p-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {allocatedLabs.map((l: any) => (
+                        <tr key={l.id} className="hover:bg-slate-50/60">
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900">{l.lab_title}</p>
+                            <span className="text-[10px] text-slate-500 font-mono">ID: {l.lab_id}</span>
+                          </td>
+                          <td className="p-4">
+                            {l.organization_id ? (
+                              <div>
+                                <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold uppercase">Org ID: {l.organization_id}</span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold uppercase">Individual</span>
+                              </div>
+                            )}
+                            <p className="text-[10px] text-slate-500 font-mono mt-1">User ID: {l.user_id}</p>
+                          </td>
+                          <td className="p-4 text-slate-600 font-mono">{l.license_key}</td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5 font-bold">
+                              <span className="text-slate-900">{l.hours_purchased || 0} hrs</span>
+                              <span className="text-slate-400">/</span>
+                              <span className="text-amber-600">{l.hours_used || 0} used</span>
+                              <span className="text-slate-400">/</span>
+                              <span className="text-emerald-600">{l.hours_remaining || 0} rem</span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-slate-500 font-mono">{l.expiry_date}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => {
+                                setSelectedOrg({ id: l.organization_id });
+                                setFormLabId(l.lab_id);
+                                setIsRevokeModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 cursor-pointer"
+                            >
+                              Revoke Lab
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         )}
@@ -1247,135 +1431,6 @@ export const SystemPortal: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB: Auto-Synced Labs Catalog */}
-        {activeTab === 'auto_sync_labs' as any && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
-                  <RefreshCw className="w-5 h-5 text-purple-600" /> Auto-Synced Registry & Platform Catalog
-                </h3>
-                <p className="text-xs text-slate-500">Review synced files, approve new modules, edit hourly rates, or delete labs</p>
-              </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setLabSubTab('pending')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    labSubTab === 'pending' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                  }`}
-                >
-                  Pending Review ({allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLabSubTab('active')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    labSubTab === 'active' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                  }`}
-                >
-                  Active Catalog ({allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length})
-                </button>
-              </div>
-            </div>
-
-            {labSubTab === 'pending' ? (
-              allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length === 0 ? (
-                <div className="text-center py-12 text-slate-500 font-medium">No pending lab configurations in the registry queue.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').map((l: any) => (
-                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-extrabold text-slate-900 text-sm">{l.name}</h4>
-                          <span className="text-[10px] font-mono text-purple-650">ID: {l.id}</span>
-                        </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                          {l.status}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
-                        <p><strong>Category:</strong> {l.category}</p>
-                        <p><strong>Difficulty:</strong> {l.difficulty}</p>
-                        <p><strong>Max Points:</strong> {l.max_points} pts</p>
-                      </div>
-                      <div className="pt-2 flex gap-2">
-                        <button
-                          onClick={() => handleApproveLab(l.id)}
-                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors"
-                        >
-                          Approve & Publish
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLab(l.id)}
-                          className="p-2 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-colors cursor-pointer"
-                          title="Reject / Delete configuration"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : (
-              allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length === 0 ? (
-                <div className="text-center py-12 text-slate-500 font-medium">No active labs in the catalog.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').map((l: any) => (
-                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-extrabold text-slate-900 text-sm">{l.name}</h4>
-                            <span className="text-[10px] font-mono text-purple-650">ID: {l.id}</span>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {l.status}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
-                          <p><strong>Category:</strong> {l.category}</p>
-                          <p><strong>Difficulty:</strong> {l.difficulty}</p>
-                          <p><strong>Max Points:</strong> {l.max_points} pts</p>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-3">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Hourly Pricing (₹ per hour)</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              value={labPrices[l.id] !== undefined ? labPrices[l.id] : (l.price_per_hour || 100.0)}
-                              onChange={(e) => setLabPrices({ ...labPrices, [l.id]: Number(e.target.value) })}
-                              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-bold"
-                            />
-                            <button
-                              onClick={() => handleSaveLabPrice(l.id, labPrices[l.id] || l.price_per_hour || 100.0)}
-                              className="px-3 bg-purple-650 hover:bg-purple-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteLab(l.id)}
-                          className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-250 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove Lab From Catalog
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
             )}
           </div>
         )}
