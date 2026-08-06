@@ -930,8 +930,7 @@ export const SystemPortal: React.FC = () => {
           { id: 'labs', label: 'Labs', icon: BookOpen },
           { id: 'security_telemetry', label: 'Security Alerts', icon: ShieldCheck },
           { id: 'students', label: 'Students Roster', icon: Users },
-          { id: 'audit_logs', label: 'Audit Telemetry', icon: FileText },
-          { id: 'db_viewer', label: 'ORM DB Inspector', icon: Database }
+          { id: 'db_viewer', label: 'Audit Telemetry', icon: FileText }
         ].map(tab => {
           const IconComp = tab.icon;
           return (
@@ -1456,100 +1455,16 @@ export const SystemPortal: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* TAB 5: Audit logs telemetry */}
-        {activeTab === 'audit_logs' && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-purple-600" /> Platform Activity Audit Logs
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Search and view administrative audit trails in real time</p>
-              </div>
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={auditSearch}
-                  onChange={(e) => setAuditSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && fetchAuditLogs(1, auditSearch)}
-                  placeholder="Search logs by action or performer..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-            </div>
-
-            {auditLoading ? (
-              <div className="text-center py-12 text-slate-500">Querying platform audit log...</div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-4">Timestamp</th>
-                      <th className="p-4">Action</th>
-                      <th className="p-4">Entity</th>
-                      <th className="p-4">Performed By</th>
-                      <th className="p-4">IP Address</th>
-                      <th className="p-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {auditLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50/60">
-                        <td className="p-4 text-slate-500 font-mono">{log.timestamp}</td>
-                        <td className="p-4 font-bold text-slate-900">{log.action}</td>
-                        <td className="p-4 text-purple-600 font-medium">{log.entity}</td>
-                        <td className="p-4 text-blue-600">{log.performed_by}</td>
-                        <td className="p-4 text-slate-500 font-mono">{log.ip_address}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            log.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}>
-                            {log.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Audit Logs Pagination */}
-            <div className="flex items-center justify-between pt-2">
-              <button
-                disabled={auditPage <= 1}
-                onClick={() => setAuditPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" /> Previous
-              </button>
-              <span className="text-xs text-slate-500 font-medium">
-                Page {auditPage} | {totalAuditLogs} entries total
-              </span>
-              <button
-                disabled={auditPage * 10 >= totalAuditLogs}
-                onClick={() => setAuditPage(p => p + 1)}
-                className="px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-              >
-                Next <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 6: Read-Only Database Viewer */}
+        {/* TAB 5: Audit Telemetry & DB Viewer */}
         {activeTab === 'db_viewer' && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
-                  <Database className="w-5 h-5 text-purple-600" /> Read-Only PostgreSQL Database Viewer
+                  <FileText className="w-5 h-5 text-purple-600" /> Audit Telemetry
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Direct inspection of ORM model tables. Read-only mode — raw SQL execution disabled.
+                  Direct inspection of ORM model tables, logs, and database schemas. Read-only mode.
                 </p>
               </div>
 
