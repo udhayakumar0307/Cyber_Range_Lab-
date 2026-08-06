@@ -229,7 +229,11 @@ class PasswordChange(BaseModel):
 
 def get_client_info(request: Request):
     user_agent = request.headers.get("User-Agent", "Web Browser")
-    ip_address = request.client.host if request.client else "127.0.0.1"
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        ip_address = x_forwarded_for.split(",")[0].strip()
+    else:
+        ip_address = request.client.host if request.client else "127.0.0.1"
     
     device = "PC / Workstation"
     if "Mobile" in user_agent: device = "Mobile Device"

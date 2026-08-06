@@ -816,8 +816,11 @@ def delete_system_organization(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 
-    # Delete related profiles
+    # Delete related profiles and clear foreign keys
     db.query(AdminProfile).filter(AdminProfile.organization_id == org_id).delete()
+    db.query(Group).filter(Group.organization_id == org_id).delete()
+    db.query(PurchasedLab).filter(PurchasedLab.organization_id == org_id).delete()
+    db.query(Order).filter(Order.organization_id == org_id).update({Order.organization_id: None})
     db.delete(org)
     db.commit()
     return {"status": "success", "message": "Organization removed successfully."}
