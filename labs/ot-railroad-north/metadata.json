@@ -1,9 +1,0 @@
-{
-  "name": "OT Railroad Signaling & Control Security Lab",
-  "category": "OT & Industrial Security",
-  "difficulty": "Advanced",
-  "description": "Railroad North OT Security Scenario. Investigate Master & Slave PLC Modbus communications, train speed setpoint manipulation, SCADA monitoring, and syslog telemetry analysis.",
-  "duration": "1.5",
-  "price": "24999",
-  "docker_image": "cyberrange/ot-railroad-north:latest"
-}

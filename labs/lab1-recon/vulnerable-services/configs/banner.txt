@@ -1,5 +1,0 @@
-############################################################
-#         TechCorp Industries Internal SSH Server          #
-#         Ubuntu 22.04.1 LTS  |  OpenSSH_8.9p1            #
-#         Authorized Access Only - Violations Logged       #
-############################################################
