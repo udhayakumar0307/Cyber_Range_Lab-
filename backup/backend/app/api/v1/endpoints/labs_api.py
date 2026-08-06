@@ -175,9 +175,9 @@ def get_labs(
             lab for lab in labs_metadata if lab["id"] in assigned_lab_ids
         ]
     else:
-        # Individual / personal / organization user: only show labs that have been assigned by sysadmin
+        # Individual / personal / organization user: show all labs, but set isPurchased status
         from app.models.admin_models import PurchasedLab, AdminProfile
-        from sqlalchemy import or_
+        from sqlalchemy import or_, and_
 
         user_org_id = None
         if current_user.group:
@@ -187,31 +187,38 @@ def get_labs(
         if admin_prof:
             user_org_id = admin_prof.organization_id
 
-        filters = [
-            PurchasedLab.user_id == current_user.id,
-            PurchasedLab.assigned_to.in_(["student", "both"])
+        conditions = [
+            PurchasedLab.user_id == current_user.id
         ]
         if user_org_id is not None:
-            filters.append(PurchasedLab.organization_id == user_org_id)
-            filters.append(
-                (PurchasedLab.organization_id == user_org_id) & 
-                PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+            conditions.append(
+                and_(
+                    PurchasedLab.organization_id == user_org_id,
+                    PurchasedLab.assigned_to.in_(["student", "both", "org"])
+                )
             )
 
+        # Global manual student assignments
+        conditions.append(
+            and_(
+                PurchasedLab.organization_id.is_(None),
+                PurchasedLab.assigned_to.in_(["student", "both"])
+            )
+        )
+
         purchased = db.query(PurchasedLab).filter(
-            or_(*filters),
+            or_(*conditions),
             PurchasedLab.status == "ACTIVE"
         ).all()
         purchased_lab_ids = {p.lab_id for p in purchased}
 
-
         active_labs_metadata = []
         for lab in labs_metadata:
-            if lab["id"] in purchased_lab_ids:
-                active_labs_metadata.append({
-                    **lab,
-                    "isPurchased": True
-                })
+            is_pur = lab["id"] in purchased_lab_ids
+            active_labs_metadata.append({
+                **lab,
+                "isPurchased": is_pur
+            })
 
     # User progress — reuses progress_service cache (shared with dashboard)
     from app.services.progress_service import get_user_lab_statistics
