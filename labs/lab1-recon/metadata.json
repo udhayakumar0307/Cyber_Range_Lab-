@@ -1,9 +1,0 @@
-{
-  "name": "Network Reconnaissance Lab",
-  "category": "Network Reconnaissance",
-  "difficulty": "Intermediate",
-  "description": "Perform target network scanning, service fingerprinting, endpoint discovery, and credential analysis.",
-  "duration": "3",
-  "price": "14999",
-  "docker_image": "cyberrange/network-recon:latest"
-}
