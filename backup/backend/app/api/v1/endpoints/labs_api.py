@@ -187,15 +187,23 @@ def get_labs(
         if admin_prof:
             user_org_id = admin_prof.organization_id
 
-        filters = [PurchasedLab.user_id == current_user.id]
+        filters = [
+            PurchasedLab.user_id == current_user.id,
+            PurchasedLab.assigned_to.in_(["student", "both"])
+        ]
         if user_org_id is not None:
             filters.append(PurchasedLab.organization_id == user_org_id)
+            filters.append(
+                (PurchasedLab.organization_id == user_org_id) & 
+                PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+            )
 
         purchased = db.query(PurchasedLab).filter(
             or_(*filters),
             PurchasedLab.status == "ACTIVE"
         ).all()
         purchased_lab_ids = {p.lab_id for p in purchased}
+
 
         active_labs_metadata = []
         for lab in labs_metadata:

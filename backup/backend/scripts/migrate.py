@@ -155,6 +155,9 @@ def run_sqlite_column_migrations(engine):
         add_col_if_missing("purchased_labs", "hours_purchased", "INTEGER DEFAULT 0")
         add_col_if_missing("purchased_labs", "hours_used", "INTEGER DEFAULT 0")
         add_col_if_missing("purchased_labs", "hours_remaining", "INTEGER DEFAULT 0")
+        add_col_if_missing("purchased_labs", "assigned_to", "VARCHAR(50) DEFAULT 'both'")
+        add_col_if_missing("purchased_labs", "fixed_rate", "FLOAT DEFAULT 0.0")
+
 
 
 def run_postgres_column_migrations(engine):
@@ -306,9 +309,12 @@ def run_postgres_column_migrations(engine):
                 ALTER TABLE purchased_labs
                 ADD COLUMN IF NOT EXISTS hours_purchased INTEGER DEFAULT 0,
                 ADD COLUMN IF NOT EXISTS hours_used INTEGER DEFAULT 0,
-                ADD COLUMN IF NOT EXISTS hours_remaining INTEGER DEFAULT 0;
+                ADD COLUMN IF NOT EXISTS hours_remaining INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(50) DEFAULT 'both',
+                ADD COLUMN IF NOT EXISTS fixed_rate FLOAT DEFAULT 0.0;
             """))
             logger.info("  purchased_labs: column migrations applied")
+
 
 
 def apply_indexes(engine):

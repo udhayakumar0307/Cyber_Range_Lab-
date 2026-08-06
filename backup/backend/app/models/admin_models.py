@@ -144,6 +144,9 @@ class PurchasedLab(Base):
     hours_purchased = Column(Float, default=0.0, nullable=True)
     hours_used = Column(Float, default=0.0, nullable=True)
     hours_remaining = Column(Float, default=0.0, nullable=True)
+    assigned_to = Column(String(50), default="both", nullable=True)
+    fixed_rate = Column(Float, default=0.0, nullable=True)
+
 
 class License(Base):
     __tablename__ = "licenses"

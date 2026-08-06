@@ -610,13 +610,8 @@ export const SystemPortal: React.FC = () => {
     e.preventDefault();
     if (!formLabId || !formLabTitle) return;
 
-    let rate = 100;
-    if (formLabLevel === 'beginner') rate = 100;
-    else if (formLabLevel === 'intermediate') rate = 200;
-    else if (formLabLevel === 'advanced') rate = 300;
-    else if (formLabLevel === 'custom') rate = formPricePerHour;
-
-    const totalPrice = formHours * rate;
+    const rate = formPricePerHour;
+    const totalPrice = formPricePerHour;
     const token = localStorage.getItem('token');
 
     try {
@@ -640,12 +635,13 @@ export const SystemPortal: React.FC = () => {
         body: JSON.stringify({
           lab_id: formLabId,
           lab_title: formLabTitle,
-          hours: formHours,
+          hours: 999999.0,
           user_id: targetUserId,
           price_per_hour: rate,
           total_price: totalPrice
         })
       });
+
 
       if (res.ok) {
         setIsAssignModalOpen(false);
@@ -1331,14 +1327,15 @@ export const SystemPortal: React.FC = () => {
                             onClick={() => {
                               setFormLabId(l.id);
                               setFormLabTitle(l.name);
-                              setFormPricePerHour(l.price_per_hour || 100.0);
+                              setFormPricePerHour(l.price_inr || 14999.0);
                               setFormLabLevel('custom');
                               setFormAssignTarget('student');
                               setIsAssignModalOpen(true);
                             }}
                             className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors flex items-center justify-center gap-1"
                           >
-                            <Plus className="w-3.5 h-3.5" /> Allocate Hours
+                            <Plus className="w-3.5 h-3.5" /> Allocate Lab
+
                           </button>
                           <button
                             onClick={() => {
@@ -1369,10 +1366,7 @@ export const SystemPortal: React.FC = () => {
                       <tr>
                         <th className="p-4">Lab Name</th>
                         <th className="p-4">Assigned To</th>
-                        <th className="p-4 text-center">Allocated Hours</th>
-                        <th className="p-4 text-center">Remaining Hours</th>
-                        <th className="p-4 text-center">Price Rate</th>
-                        <th className="p-4 text-center">Total Price</th>
+                        <th className="p-4 text-center">Fixed Rate</th>
                         <th className="p-4 text-center">Action</th>
                       </tr>
                     </thead>
@@ -1381,27 +1375,37 @@ export const SystemPortal: React.FC = () => {
                         <tr key={al.id} className="hover:bg-slate-50/60">
                           <td className="p-4 font-bold text-slate-900">{al.lab_title || al.lab_id}</td>
                           <td className="p-4 font-semibold text-slate-600">
-                            {al.organization_id ? (
-                              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-750 border border-blue-200 uppercase">
-                                Org ID: {al.organization_id}
-                              </span>
-                            ) : al.user_id ? (
-                              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-755 border border-purple-200 uppercase">
-                                Student ID: {al.user_id}
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 font-medium">Global Access</span>
-                            )}
+                            {(() => {
+                              const scope = al.assigned_to || (al.organization_id ? 'admin' : al.user_id ? 'student' : 'both');
+                              if (scope === 'student') {
+                                return (
+                                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                                    Student
+                                  </span>
+                                );
+                              } else if (scope === 'admin' || scope === 'org') {
+                                return (
+                                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                                    Admin
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                                    Both
+                                  </span>
+                                );
+                              }
+                            })()}
                           </td>
-                          <td className="p-4 text-center font-mono font-bold text-slate-600">{al.allocated_hours} hrs</td>
-                          <td className="p-4 text-center font-mono font-bold text-emerald-600">{al.remaining_hours} hrs</td>
-                          <td className="p-4 text-center font-mono text-slate-500">₹{al.price_per_hour}/hr</td>
-                          <td className="p-4 text-center font-mono font-black text-slate-900">₹{al.total_price}</td>
+                          <td className="p-4 text-center font-mono font-black text-slate-950">
+                            ₹{(al.fixed_rate ?? al.price_per_hour ?? 0).toLocaleString()}
+                          </td>
                           <td className="p-4 text-center">
                             <button
                               onClick={() => {
                                 setSelectedLabForRemoval({ id: al.lab_id, name: al.lab_title });
-                                setRemoveTargetType(al.organization_id ? 'admin' : 'student');
+                                setRemoveTargetType(al.assigned_to || (al.organization_id ? 'admin' : 'student'));
                                 setIsRemoveModalOpen(true);
                               }}
                               className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-250 cursor-pointer transition-colors"
@@ -1414,6 +1418,7 @@ export const SystemPortal: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+
               )
             )}
 
@@ -1787,72 +1792,27 @@ export const SystemPortal: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Select Lab *</label>
-                <select
-                  required
-                  value={formLabId}
-                  onChange={(e) => {
-                    const selectedId = e.target.value;
-                    setFormLabId(selectedId);
-                    const found = allLabs.find((l: any) => l.id === selectedId);
-                    if (found) setFormLabTitle(found.name);
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
-                >
-                  <option value="">-- Choose Lab --</option>
-                  {allLabs.filter((l: any) => {
-                    const isPending = l.status === 'PENDING_REVIEW' || l.status === 'PENDING';
-                    const isMilestone = l.category?.toLowerCase() === 'milestone' || l.id?.includes('points') || l.name?.toLowerCase().includes('milestone');
-                    const isDuplicatePuzzle = l.id === 'puzzle-lab';
-                    return !isPending && !isMilestone && !isDuplicatePuzzle;
-                  }).map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name} ({l.difficulty || l.category || 'Standard'})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Lab Title (Confirmation)</label>
+                <label className="font-bold text-slate-700 block mb-1">Lab Title</label>
                 <input
                   type="text"
                   disabled
                   value={formLabTitle}
                   placeholder="Selected Lab Title"
-                  className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none text-slate-600"
+                  className="w-full p-2.5 bg-slate-105 border border-slate-200 rounded-xl focus:outline-none text-slate-700 font-bold"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Difficulty / Rate level</label>
-                  <select
-                    value={formLabLevel}
-                    onChange={(e) => {
-                      const lvl = e.target.value as any;
-                      setFormLabLevel(lvl);
-                      if (lvl === 'beginner') setFormPricePerHour(100);
-                      else if (lvl === 'intermediate') setFormPricePerHour(200);
-                      else if (lvl === 'advanced') setFormPricePerHour(300);
-                    }}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                  >
-                    <option value="beginner">Beginner (₹100/hr)</option>
-                    <option value="intermediate">Intermediate (₹200/hr)</option>
-                    <option value="advanced">Advanced (₹300/hr)</option>
-                    <option value="custom">Custom Price</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Rate (₹ per hour)</label>
-                  <input
-                    type="number"
-                    disabled={formLabLevel !== 'custom'}
-                    value={formPricePerHour}
-                    onChange={(e) => setFormPricePerHour(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none disabled:opacity-60"
-                  />
-                </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Fixed Rate / Price (₹)</label>
+                <input
+                  type="number"
+                  value={formPricePerHour}
+                  onChange={(e) => setFormPricePerHour(Number(e.target.value))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                />
               </div>
+
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>

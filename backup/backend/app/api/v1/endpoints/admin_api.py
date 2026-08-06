@@ -1332,8 +1332,13 @@ def get_admin_allocations(
     Falls back to user_id query if organization_id is not resolved yet."""
     org_id = get_admin_org_id(current_user, db)
 
-    # Primary: query by org_id
-    purchased = db.query(PurchasedLab).filter(PurchasedLab.organization_id == org_id).all()
+    # Primary: query by org_id OR globally assigned to admin/both
+    purchased = db.query(PurchasedLab).filter(
+        or_(
+            PurchasedLab.organization_id == org_id,
+            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+        )
+    ).all()
 
     # Fallback: also include labs purchased directly by this user (catches NULL org_id from older records)
     if not purchased:
@@ -1375,7 +1380,12 @@ def get_purchased_labs_matrix(
     org_id = get_admin_org_id(current_user, db)
 
     # Dual-query for resilience
-    purchased = db.query(PurchasedLab).filter(PurchasedLab.organization_id == org_id).all()
+    purchased = db.query(PurchasedLab).filter(
+        or_(
+            PurchasedLab.organization_id == org_id,
+            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+        )
+    ).all()
     if not purchased:
         purchased = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).all()
         for p in purchased:
@@ -1383,6 +1393,7 @@ def get_purchased_labs_matrix(
                 p.organization_id = org_id
         if purchased:
             db.commit()
+
 
     from app.models.admin_models import License
     groups = db.query(Group).filter(Group.organization_id == org_id).all() if hasattr(Group, 'organization_id') else db.query(Group).all()

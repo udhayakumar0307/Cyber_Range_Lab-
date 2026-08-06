@@ -841,93 +841,89 @@ def assign_lab_manually(
     db: Session = Depends(get_db)
 ):
     import secrets
+    from datetime import datetime, timedelta
     
     # 1. Determine target scopes
-    targets = [] # List of tuples: (target_user_id, target_org_id)
-    
-    if org_id == -1 or org_id == -2: # All Organizations
-        orgs = db.query(Organization).all()
-        for org in orgs:
-            admin = db.query(AdminProfile).filter(AdminProfile.organization_id == org.id).first()
-            uid = admin.user_id if admin else current_admin.id
-            targets.append((uid, org.id))
-            
-    if org_id == -2 or (org_id == 0 and data.user_id == -1): # All Students
-        users = db.query(User).filter(User.role == 'USER').all()
-        for u in users:
-            targets.append((u.id, None))
-            
-    if not targets:
+    assigned_to = "both"
+    target_org_id = None
+    target_user_id = current_admin.id
+
+    if org_id == -1: # All Organizations
+        assigned_to = "admin"
+    elif org_id == -2: # Both
+        assigned_to = "both"
+    elif org_id == 0 and data.user_id == -1: # All Students
+        assigned_to = "student"
+    else:
         # Fallback to single specific assignment
-        target_user_id = data.user_id
         target_org_id = org_id if org_id > 0 else None
-        if not target_user_id and target_org_id:
-            admin = db.query(AdminProfile).filter(AdminProfile.organization_id == target_org_id).first()
-            target_user_id = admin.user_id if admin else current_admin.id
-        if not target_user_id:
-            target_user_id = current_admin.id
-        targets.append((target_user_id, target_org_id))
+        target_user_id = data.user_id or current_admin.id
+        if target_org_id:
+            assigned_to = "admin"
+        else:
+            assigned_to = "student"
 
-    # 2. Perform bulk allocations
-    for target_user_id, target_org_id in targets:
-        order_num = f"MANUAL-ORD-{secrets.token_hex(4).upper()}"
-        new_order = Order(
-            order_number=order_num,
-            user_id=target_user_id,
-            organization_id=target_org_id,
-            institution_name=None,
-            subtotal=data.total_price or 0.0,
-            tax=0.0,
-            discount=0.0,
-            grand_total=data.total_price or 0.0,
-            status="COMPLETED",
-            payment_status="COMPLETED"
-        )
-        db.add(new_order)
-        db.commit()
-        db.refresh(new_order)
-
-        order_item = OrderItem(
-            order_id=new_order.id,
-            lab_id=data.lab_id,
-            lab_title=data.lab_title,
-            seats=1,
-            duration_months=12,
-            price=data.total_price or 0.0,
-            hours_purchased=data.hours
-        )
-        db.add(order_item)
-
-        payment = Payment(
-            order_id=new_order.id,
-            transaction_id=f"MANUAL-TXN-{secrets.token_hex(6).upper()}",
-            payment_status="SUCCESS",
-            gateway="mock",
-            amount=data.total_price or 0.0,
-            currency="INR",
-            method="UPI / Card"
-        )
-        db.add(payment)
-
-        lic_key = f"MANUAL-{data.lab_id.upper()}-{secrets.token_hex(4).upper()}"
-        pl = PurchasedLab(
-            user_id=target_user_id,
-            organization_id=target_org_id,
-            lab_id=data.lab_id,
-            lab_title=data.lab_title,
-            license_key=lic_key,
-            total_seats=1,
-            assigned_seats=0,
-            status="ACTIVE",
-            expiry_date=datetime.utcnow() + timedelta(days=365),
-            hours_purchased=data.hours,
-            hours_remaining=data.hours,
-            hours_used=0.0
-        )
-        db.add(pl)
-        
+    # 2. Create one scoped purchase/order mapping
+    order_num = f"MANUAL-ORD-{secrets.token_hex(4).upper()}"
+    new_order = Order(
+        order_number=order_num,
+        user_id=target_user_id,
+        organization_id=target_org_id,
+        institution_name=None,
+        subtotal=data.total_price or 0.0,
+        tax=0.0,
+        discount=0.0,
+        grand_total=data.total_price or 0.0,
+        status="COMPLETED",
+        payment_status="COMPLETED"
+    )
+    db.add(new_order)
     db.commit()
-    return {"status": "success", "message": f"Successfully completed bulk manual assignments for '{data.lab_title}'."}
+    db.refresh(new_order)
+
+    order_item = OrderItem(
+        order_id=new_order.id,
+        lab_id=data.lab_id,
+        lab_title=data.lab_title,
+        seats=1,
+        duration_months=12,
+        price=data.total_price or 0.0,
+        hours_purchased=999999.0
+    )
+    db.add(order_item)
+
+    payment = Payment(
+        order_id=new_order.id,
+        transaction_id=f"MANUAL-TXN-{secrets.token_hex(6).upper()}",
+        payment_status="SUCCESS",
+        gateway="mock",
+        amount=data.total_price or 0.0,
+        currency="INR",
+        method="UPI / Card"
+    )
+    db.add(payment)
+
+    lic_key = f"MANUAL-{data.lab_id.upper()}-{secrets.token_hex(4).upper()}"
+    pl = PurchasedLab(
+        user_id=target_user_id,
+        organization_id=target_org_id,
+        lab_id=data.lab_id,
+        lab_title=data.lab_title,
+        license_key=lic_key,
+        total_seats=1,
+        assigned_seats=0,
+        status="ACTIVE",
+        expiry_date=datetime.utcnow() + timedelta(days=365),
+        hours_purchased=999999.0, # Unlimited
+        hours_remaining=999999.0, # Unlimited
+        hours_used=0.0,
+        assigned_to=assigned_to,
+        fixed_rate=data.total_price or 0.0
+    )
+    db.add(pl)
+    db.commit()
+    return {"status": "success", "message": f"Successfully configured manual assignment for '{data.lab_title}'."}
+
 
 @router.delete("/users/{user_id}")
 def delete_system_user(
@@ -967,22 +963,31 @@ def revoke_lab_manually(
 ):
     if org_id == 0:
         pls = db.query(PurchasedLab).filter(
-            PurchasedLab.organization_id.is_(None),
-            PurchasedLab.lab_id == data.lab_id
+            PurchasedLab.lab_id == data.lab_id,
+            PurchasedLab.assigned_to.in_(["student", "both"])
         ).all()
         for pl in pls:
             db.delete(pl)
     else:
+        # Try specific organization first
         pl = db.query(PurchasedLab).filter(
             PurchasedLab.organization_id == org_id,
             PurchasedLab.lab_id == data.lab_id
         ).first()
         if not pl:
+            # Fall back to checking global admin/both assignments
+            pl = db.query(PurchasedLab).filter(
+                PurchasedLab.lab_id == data.lab_id,
+                PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+            ).first()
+        if pl:
+            db.delete(pl)
+        else:
             raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
-        db.delete(pl)
         
     db.commit()
     return {"status": "success", "message": "Successfully revoked purchased lab manually."}
+
 
 @router.get("/organizations/{org_id}/purchases")
 def get_organization_purchase_history(
