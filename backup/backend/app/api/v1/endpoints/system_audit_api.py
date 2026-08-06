@@ -233,11 +233,15 @@ def get_system_users(
     current_admin: User = Depends(get_current_system_admin),
     db: Session = Depends(get_db)
 ):
-    query = db.query(User)
+    query = db.query(User).filter(
+        User.role != 'SYSTEM_ADMIN',
+        User.role != 'system_admin'
+    )
     if search:
         s = f"%{search}%"
         query = query.filter((User.name.ilike(s)) | (User.email.ilike(s)) | (User.role.ilike(s)))
     total = query.count()
+
     items = query.order_by(User.id.desc()).offset((page - 1) * limit).limit(limit).all()
     
     return {
