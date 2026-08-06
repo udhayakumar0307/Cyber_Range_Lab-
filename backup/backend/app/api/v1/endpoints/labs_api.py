@@ -62,6 +62,11 @@ def _build_labs_metadata(db: Session) -> list:
 
     lab_ids = [lab.id for lab in labs]
 
+    # Fetch global rates for custom pricing
+    from app.models.admin_models import PurchasedLab
+    global_rates = db.query(PurchasedLab).filter(PurchasedLab.organization_id.is_(None)).all()
+    pricing_map = {ga.lab_id: ga.fixed_rate for ga in global_rates if ga.fixed_rate is not None}
+
     # Query 2: ALL modules for all active labs in one batch query
     all_modules = (
         db.query(LabModule)
@@ -86,6 +91,8 @@ def _build_labs_metadata(db: Session) -> list:
         is_puzzle = "puzzle" in lab.id.lower() or (lab.category and "puzzle" in lab.category.lower())
         is_command_line = "command-line" in lab.id.lower() or "cmd" in lab.id.lower()
         
+        custom_price = pricing_map.get(lab.id)
+
         if is_puzzle:
             duration_str = "Unlimited"
             duration_val = 0
@@ -94,13 +101,13 @@ def _build_labs_metadata(db: Session) -> list:
         elif is_command_line:
             duration_str = "6 Hours"
             duration_val = 6.0
-            price_val = lab.price_inr
-            is_free = False
+            price_val = custom_price if custom_price is not None else lab.price_inr
+            is_free = (price_val == 0.0)
         else:
             duration_str = "1.5 Hours"
             duration_val = 1.5
-            price_val = lab.price_inr
-            is_free = False
+            price_val = custom_price if custom_price is not None else lab.price_inr
+            is_free = (price_val == 0.0)
 
         result.append({
             "id": lab.id,
@@ -198,11 +205,15 @@ def get_labs(
                 )
             )
 
-        # Global manual student assignments
+        # Global manual student assignments (only if they are free assignments; priced global assignments are for catalog catalog rates!)
         conditions.append(
             and_(
                 PurchasedLab.organization_id.is_(None),
-                PurchasedLab.assigned_to.in_(["student", "both"])
+                PurchasedLab.assigned_to.in_(["student", "both"]),
+                or_(
+                    PurchasedLab.fixed_rate == 0.0,
+                    PurchasedLab.fixed_rate.is_(None)
+                )
             )
         )
 
@@ -214,11 +225,11 @@ def get_labs(
 
         active_labs_metadata = []
         for lab in labs_metadata:
-            if lab["id"] in purchased_lab_ids:
-                active_labs_metadata.append({
-                    **lab,
-                    "isPurchased": True
-                })
+            is_pur = lab["id"] in purchased_lab_ids
+            active_labs_metadata.append({
+                **lab,
+                "isPurchased": is_pur
+            })
 
     # User progress — reuses progress_service cache (shared with dashboard)
     from app.services.progress_service import get_user_lab_statistics

@@ -150,8 +150,11 @@ export const LabMarketplace: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const getHourlyRate = (difficulty?: string) => {
-    const d = (difficulty ?? '').toLowerCase();
+  const getHourlyRate = (lab: SecurityLab) => {
+    if (lab.priceInr !== undefined && lab.priceInr !== null && lab.priceInr > 0) {
+      return lab.priceInr;
+    }
+    const d = (lab.difficulty ?? '').toLowerCase();
     if (d.includes('advanced') || d.includes('expert')) return 300;
     if (d.includes('intermediate')) return 200;
     return 100; // Beginner default
@@ -164,7 +167,7 @@ export const LabMarketplace: React.FC = () => {
       setIsCartOpen(true);
       return;
     }
-    const hourlyRate = getHourlyRate(lab.difficulty || undefined);
+    const hourlyRate = getHourlyRate(lab);
     const DEFAULT_HOURS = 40;
     const newItem: CartItem = {
       id: Date.now(),
@@ -462,7 +465,7 @@ export const LabMarketplace: React.FC = () => {
                       ) : isFree ? (
                         <span className="text-base font-black text-emerald-600 dark:text-emerald-400">FREE</span>
                       ) : (
-                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab.difficulty || undefined).toLocaleString('en-IN')}</span>
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab).toLocaleString('en-IN')}</span>
                       )}
                     </div>
 

@@ -553,7 +553,11 @@ def get_purchased_labs(
     conditions.append(
         and_(
             PurchasedLab.organization_id.is_(None),
-            PurchasedLab.assigned_to.in_(["admin", "both"])
+            PurchasedLab.assigned_to.in_(["admin", "both"]),
+            or_(
+                PurchasedLab.fixed_rate == 0.0,
+                PurchasedLab.fixed_rate.is_(None)
+            )
         )
     )
 
