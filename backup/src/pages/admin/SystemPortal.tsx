@@ -103,7 +103,7 @@ export const SystemPortal: React.FC = () => {
   // New Labs pricing and catalog views
   const [labSubTab, setLabSubTab] = useState<'pending' | 'active'>('pending');
   const [labPrices, setLabPrices] = useState<Record<string, number>>({});
-  const [labsTabMode, setLabsTabMode] = useState<'catalog' | 'allocations'>('catalog');
+  const [labsTabMode, setLabsTabMode] = useState<'catalog' | 'arrivals' | 'assigned'>('catalog');
   
   // Custom Revoke / Remove Lab modal states
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
@@ -1218,32 +1218,41 @@ export const SystemPortal: React.FC = () => {
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                   <button
                     type="button"
-                    onClick={() => setLabsTabMode('pending' as any)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      labsTabMode === ('pending' as any) ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                    }`}
-                  >
-                    Pending Review ({allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length})
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setLabsTabMode('catalog')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       labsTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
                     }`}
                   >
-                    Active Catalog ({allLabs.filter((l: any) => {
+                    Labs ({allLabs.filter((l: any) => {
                       const isPending = l.status === 'PENDING_REVIEW' || l.status === 'PENDING';
                       const isMilestone = l.category?.toLowerCase() === 'milestone' || l.id?.includes('points') || l.name?.toLowerCase().includes('milestone');
                       const isDuplicatePuzzle = l.id === 'puzzle-lab';
                       return !isPending && !isMilestone && !isDuplicatePuzzle;
                     }).length})
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabsTabMode('arrivals')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      labsTabMode === 'arrivals' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    New Arrivals ({allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabsTabMode('assigned')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      labsTabMode === 'assigned' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    Assigned Labs ({allocatedLabs.length})
+                  </button>
                 </div>
               </div>
             </div>
 
-            {labsTabMode === ('pending' as any) && (
+            {labsTabMode === 'arrivals' && (
               allLabs.filter((l: any) => l.status === 'PENDING_REVIEW' || l.status === 'PENDING').length === 0 ? (
                 <div className="text-center py-12 text-slate-500 font-medium">No pending lab configurations in the registry queue.</div>
               ) : (
@@ -1327,7 +1336,7 @@ export const SystemPortal: React.FC = () => {
                               setFormAssignTarget('student');
                               setIsAssignModalOpen(true);
                             }}
-                            className="flex-1 py-2 bg-purple-650 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors flex items-center justify-center gap-1"
+                            className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors flex items-center justify-center gap-1"
                           >
                             <Plus className="w-3.5 h-3.5" /> Allocate Hours
                           </button>
@@ -1349,6 +1358,64 @@ export const SystemPortal: React.FC = () => {
                 </div>
               );
             })()}
+
+            {labsTabMode === 'assigned' && (
+              allocatedLabs.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 font-medium">No assigned labs currently active.</div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Lab Name</th>
+                        <th className="p-4">Assigned To</th>
+                        <th className="p-4 text-center">Allocated Hours</th>
+                        <th className="p-4 text-center">Remaining Hours</th>
+                        <th className="p-4 text-center">Price Rate</th>
+                        <th className="p-4 text-center">Total Price</th>
+                        <th className="p-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {allocatedLabs.map((al: any) => (
+                        <tr key={al.id} className="hover:bg-slate-50/60">
+                          <td className="p-4 font-bold text-slate-900">{al.lab_title || al.lab_id}</td>
+                          <td className="p-4 font-semibold text-slate-600">
+                            {al.organization_id ? (
+                              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-750 border border-blue-200 uppercase">
+                                Org ID: {al.organization_id}
+                              </span>
+                            ) : al.user_id ? (
+                              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-755 border border-purple-200 uppercase">
+                                Student ID: {al.user_id}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 font-medium">Global Access</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center font-mono font-bold text-slate-600">{al.allocated_hours} hrs</td>
+                          <td className="p-4 text-center font-mono font-bold text-emerald-600">{al.remaining_hours} hrs</td>
+                          <td className="p-4 text-center font-mono text-slate-500">₹{al.price_per_hour}/hr</td>
+                          <td className="p-4 text-center font-mono font-black text-slate-900">₹{al.total_price}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => {
+                                setSelectedLabForRemoval({ id: al.lab_id, name: al.lab_title });
+                                setRemoveTargetType(al.organization_id ? 'admin' : 'student');
+                                setIsRemoveModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-250 cursor-pointer transition-colors"
+                            >
+                              Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
 
           </div>
         )}
