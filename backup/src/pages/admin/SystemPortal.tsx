@@ -67,10 +67,10 @@ export const SystemPortal: React.FC = () => {
   const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
   const [formLabId, setFormLabId] = useState('');
   const [formLabTitle, setFormLabTitle] = useState('');
-  const [formHours, setFormHours] = useState<number>(40);
+  const [formHours, setFormHours] = useState<number>(9999);
   const [formLabLevel, setFormLabLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'custom'>('beginner');
   const [formPricePerHour, setFormPricePerHour] = useState<number>(100);
-  const [formAssignTarget, setFormAssignTarget] = useState<'org' | 'student'>('org');
+  const [formAssignTarget, setFormAssignTarget] = useState<'org' | 'student' | 'both'>('org');
   const [formStudentId, setFormStudentId] = useState<string>('');
   const [formOrgId, setFormOrgId] = useState<string>('');
   const [allLabs, setAllLabs] = useState<any[]>([]);
@@ -620,66 +620,44 @@ export const SystemPortal: React.FC = () => {
     const token = localStorage.getItem('token');
 
     try {
-      if (formAssignTarget === 'org' || formAssignTarget === 'both') {
-        if (!formOrgId) {
-          alert("Please select an organization.");
-          return;
-        }
-        const res = await fetch(`/api/v1/system/organizations/${formOrgId}/assign-lab`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            lab_id: formLabId,
-            lab_title: formLabTitle,
-            hours: formHours,
-            user_id: null,
-            price_per_hour: rate,
-            total_price: totalPrice
-          })
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          alert(`Org Allocation Failed: ${err.detail || 'Error'}`);
-          return;
-        }
+      let endpoint = `/api/v1/system/organizations/0/assign-lab`;
+      let targetUserId: number | null = -1; // Default to all students
+
+      if (formAssignTarget === 'org') {
+        endpoint = `/api/v1/system/organizations/-1/assign-lab`;
+        targetUserId = null;
+      } else if (formAssignTarget === 'both') {
+        endpoint = `/api/v1/system/organizations/-2/assign-lab`;
+        targetUserId = -1;
       }
 
-      if (formAssignTarget === 'student' || formAssignTarget === 'both') {
-        if (!formStudentId) {
-          alert("Please select a student.");
-          return;
-        }
-        const res = await fetch(`/api/v1/system/organizations/0/assign-lab`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            lab_id: formLabId,
-            lab_title: formLabTitle,
-            hours: formHours,
-            user_id: Number(formStudentId),
-            price_per_hour: rate,
-            total_price: totalPrice
-          })
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          alert(`Student Allocation Failed: ${err.detail || 'Error'}`);
-          return;
-        }
-      }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          lab_id: formLabId,
+          lab_title: formLabTitle,
+          hours: formHours,
+          user_id: targetUserId,
+          price_per_hour: rate,
+          total_price: totalPrice
+        })
+      });
 
-      setIsAssignModalOpen(false);
-      setFormLabId('');
-      setFormLabTitle('');
-      alert(`Lab hours allocated successfully! Total Price: ₹${totalPrice}`);
-      fetchDashboard();
-      fetchAllocatedLabs();
+      if (res.ok) {
+        setIsAssignModalOpen(false);
+        setFormLabId('');
+        setFormLabTitle('');
+        alert(`Lab allocations completed successfully!`);
+        fetchDashboard();
+        fetchAllocatedLabs();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to complete allocation.');
+      }
     } catch (err) {
       console.error('Failed to assign lab manually:', err);
     }
@@ -1275,30 +1253,7 @@ export const SystemPortal: React.FC = () => {
                   >
                     Active Catalog ({allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setLabsTabMode('allocations')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      labsTabMode === 'allocations' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                    }`}
-                  >
-                    Active Allocations ({allocatedLabs.length})
-                  </button>
                 </div>
-                {labsTabMode === 'allocations' && (
-                  <button
-                    onClick={() => {
-                      setSelectedOrg(null);
-                      setFormOrgId('');
-                      setFormLabId('');
-                      setFormLabTitle('');
-                      setIsAssignModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-                  >
-                    <Plus className="w-4 h-4" /> Allocate New Lab
-                  </button>
-                )}
               </div>
             </div>
 
@@ -1426,73 +1381,6 @@ export const SystemPortal: React.FC = () => {
               );
             })()}
 
-            {labsTabMode === 'allocations' && (
-              allocatedLabsLoading ? (
-                <div className="text-center py-12 text-slate-500">Querying database allocations...</div>
-              ) : allocatedLabs.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 font-medium">No lab allocations found. Click "Allocate New Lab" to assign.</div>
-              ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="p-4">Lab Title</th>
-                        <th className="p-4">Assigned To</th>
-                        <th className="p-4">License Key</th>
-                        <th className="p-4 text-center">Hours (Total / Used / Rem)</th>
-                        <th className="p-4">Expiry Date</th>
-                        <th className="p-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {allocatedLabs.map((l: any) => (
-                        <tr key={l.id} className="hover:bg-slate-50/60">
-                          <td className="p-4">
-                            <p className="font-bold text-slate-900">{l.lab_title}</p>
-                            <span className="text-[10px] text-slate-500 font-mono">ID: {l.lab_id}</span>
-                          </td>
-                          <td className="p-4">
-                            {l.organization_id ? (
-                              <div>
-                                <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold uppercase">Org ID: {l.organization_id}</span>
-                              </div>
-                            ) : (
-                              <div>
-                                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold uppercase">Individual</span>
-                              </div>
-                            )}
-                            <p className="text-[10px] text-slate-500 font-mono mt-1">User ID: {l.user_id}</p>
-                          </td>
-                          <td className="p-4 text-slate-600 font-mono">{l.license_key}</td>
-                          <td className="p-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5 font-bold">
-                              <span className="text-slate-900">{l.hours_purchased || 0} hrs</span>
-                              <span className="text-slate-400">/</span>
-                              <span className="text-amber-600">{l.hours_used || 0} used</span>
-                              <span className="text-slate-400">/</span>
-                              <span className="text-emerald-600">{l.hours_remaining || 0} rem</span>
-                            </div>
-                          </td>
-                          <td className="p-4 text-slate-500 font-mono">{l.expiry_date}</td>
-                          <td className="p-4 text-center">
-                            <button
-                              onClick={() => {
-                                setSelectedOrg({ id: l.organization_id });
-                                setFormLabId(l.lab_id);
-                                setIsRevokeModalOpen(true);
-                              }}
-                              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-200 cursor-pointer"
-                            >
-                              Revoke Lab
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            )}
           </div>
         )}
 
@@ -1994,60 +1882,21 @@ export const SystemPortal: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
           <form onSubmit={handleAssignLab} className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h2 className="text-base font-extrabold text-slate-900">Manually Assign Lab Hours</h2>
+              <h2 className="text-base font-extrabold text-slate-900">Manually Allocate Lab</h2>
               <button type="button" onClick={() => setIsAssignModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
             </div>
             <div className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Assignee Target</label>
-                  <select
-                    value={formAssignTarget}
-                    onChange={(e) => setFormAssignTarget(e.target.value as any)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
-                  >
-                    <option value="org">Organization Admins</option>
-                    <option value="student">Specific Student</option>
-                    <option value="both">Both (Student & Org)</option>
-                  </select>
-                </div>
-                {(formAssignTarget === 'org' || formAssignTarget === 'both') && (
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Select Organization *</label>
-                    <select
-                      required
-                      value={formOrgId}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        setFormOrgId(selectedId);
-                        const found = organizations.find((o: any) => o.id === Number(selectedId));
-                        if (found) setSelectedOrg(found);
-                      }}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                    >
-                      <option value="">-- Choose Organization --</option>
-                      {organizations.map((o: any) => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {(formAssignTarget === 'student' || formAssignTarget === 'both') && (
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Select Student *</label>
-                    <select
-                      required
-                      value={formStudentId}
-                      onChange={(e) => setFormStudentId(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                    >
-                      <option value="">-- Choose Student --</option>
-                      {students.map(s => (
-                        <option key={s.id} value={s.id}>{s.name || s.email} ({s.role})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Assignee Target Scope</label>
+                <select
+                  value={formAssignTarget}
+                  onChange={(e) => setFormAssignTarget(e.target.value as any)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
+                >
+                  <option value="org">All Organizations</option>
+                  <option value="student">All Students</option>
+                  <option value="both">Both (All Organizations & Students)</option>
+                </select>
               </div>
 
               <div>
@@ -2112,30 +1961,10 @@ export const SystemPortal: React.FC = () => {
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Hours Purchased *</label>
-                  <input
-                    type="number"
-                    required
-                    value={formHours}
-                    onChange={(e) => setFormHours(Number(e.target.value))}
-                    placeholder="40"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Calculated Price (INR)</label>
-                  <div className="w-full p-2.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl font-black text-sm">
-                    ₹{(formHours * formPricePerHour).toLocaleString()}
-                  </div>
-                </div>
-              </div>
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl cursor-pointer">Assign Lab & Save</button>
+              <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl cursor-pointer">Allocate Lab & Save</button>
             </div>
           </form>
         </div>
