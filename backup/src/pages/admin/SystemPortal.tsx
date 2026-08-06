@@ -1145,6 +1145,17 @@ export const SystemPortal: React.FC = () => {
                             </button>
                           ) : (
                             <span className="text-emerald-600 font-bold text-xs">RESOLVED ✓</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB: Combined Labs View */}
         {activeTab === 'labs' as any && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
