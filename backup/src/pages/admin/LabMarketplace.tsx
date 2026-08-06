@@ -163,7 +163,7 @@ export const LabMarketplace: React.FC = () => {
       setIsCartOpen(true);
       return;
     }
-    const hourlyRate = getHourlyRate(lab.difficulty);
+    const hourlyRate = getHourlyRate(lab.difficulty || undefined);
     const DEFAULT_HOURS = 40;
     const newItem: CartItem = {
       id: Date.now(),
@@ -459,7 +459,7 @@ export const LabMarketplace: React.FC = () => {
                       {isFree ? (
                         <span className="text-base font-black text-emerald-600 dark:text-emerald-400">FREE</span>
                       ) : (
-                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab.difficulty).toLocaleString('en-IN')}</span>
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab.difficulty || undefined).toLocaleString('en-IN')}</span>
                       )}
                     </div>
 

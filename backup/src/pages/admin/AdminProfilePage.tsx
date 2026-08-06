@@ -96,7 +96,7 @@ export const AdminProfilePage: React.FC = () => {
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
-    const h = token ? { Authorization: `Bearer ${token}` } : {};
+    const h: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const profileRes = await fetch('/api/v1/admin/profile', { headers: h });
       if (profileRes.ok) {
