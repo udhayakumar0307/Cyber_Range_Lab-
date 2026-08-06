@@ -1317,7 +1317,7 @@ export const SystemPortal: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {activeCatalogLabs.map((l: any) => (
-                    <div key={l.id} className="group p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
+                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
@@ -1331,11 +1331,11 @@ export const SystemPortal: React.FC = () => {
                         <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
                           <p><strong>Category:</strong> {l.category}</p>
                           <p><strong>Difficulty:</strong> {l.difficulty}</p>
-                          <p><strong>Max Points:</strong> {l.max_points || 500} pts</p>
+                          <p><strong>Max Points:</strong> {l.id === 'techcorp-sysadmin-labs' || l.category?.toLowerCase() === 'puzzle' ? 3400 : (l.max_points || 1000)} pts</p>
                         </div>
                       </div>
                       
-                      <div className="mt-4 pt-3 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <div className="mt-4 pt-3 border-t border-slate-100">
                         <div className="flex gap-2">
                           <button
                             onClick={() => {

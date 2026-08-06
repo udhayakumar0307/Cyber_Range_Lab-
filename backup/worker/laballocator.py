@@ -30,7 +30,7 @@ async def run_lab_allocator_sync():
                         name = lab_id.replace("-", " ").title()
                         category = "General Security"
                         difficulty = "Medium"
-                        max_points = 100
+                        max_points = 1000
                         docker_image = f"cyberrange/{lab_id}:latest"
                         price_per_hour = 100.0
 
@@ -41,7 +41,7 @@ async def run_lab_allocator_sync():
                                 name = meta.get("name", name)
                                 category = meta.get("category", category)
                                 difficulty = meta.get("difficulty", difficulty)
-                                max_points = int(meta.get("max_points", 100))
+                                max_points = int(meta.get("max_points", 1000))
                                 docker_image = meta.get("docker_image", docker_image)
                                 price_per_hour = float(meta.get("price_per_hour", 100.0))
                             except Exception as json_err:
@@ -78,7 +78,7 @@ async def run_lab_allocator_sync():
                         name = puzzle_id.replace("-", " ").title()
                         category = "Puzzle"
                         difficulty = "Intermediate"
-                        max_points = 340 # 34 levels
+                        max_points = 3400 # 34 levels * 100 points
                         docker_image = "techcorp-sysadmin-labs:latest"
                         price_per_hour = 150.0
 
@@ -89,7 +89,7 @@ async def run_lab_allocator_sync():
                                 name = meta.get("name", name)
                                 category = meta.get("category", category)
                                 difficulty = meta.get("difficulty", difficulty)
-                                max_points = int(meta.get("max_points", max_points))
+                                max_points = int(meta.get("max_points", 3400))
                                 docker_image = meta.get("docker_image", docker_image)
                                 price_per_hour = float(meta.get("price_per_hour", price_per_hour))
                             except Exception as json_err:
