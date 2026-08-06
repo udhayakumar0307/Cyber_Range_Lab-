@@ -175,23 +175,35 @@ def get_labs(
             lab for lab in labs_metadata if lab["id"] in assigned_lab_ids
         ]
     else:
-        # Individual / personal user: has access to all catalog marketplace labs
-        # We check purchased status against purchased_labs database
-        from app.models.admin_models import PurchasedLab
+        # Individual / personal / organization user: only show labs that have been assigned by sysadmin
+        from app.models.admin_models import PurchasedLab, AdminProfile
+        from sqlalchemy import or_
+
+        user_org_id = None
+        if current_user.group:
+            user_org_id = current_user.group.organization_id
+
+        admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
+        if admin_prof:
+            user_org_id = admin_prof.organization_id
+
+        filters = [PurchasedLab.user_id == current_user.id]
+        if user_org_id is not None:
+            filters.append(PurchasedLab.organization_id == user_org_id)
+
         purchased = db.query(PurchasedLab).filter(
-            PurchasedLab.user_id == current_user.id,
+            or_(*filters),
             PurchasedLab.status == "ACTIVE"
         ).all()
         purchased_lab_ids = {p.lab_id for p in purchased}
 
         active_labs_metadata = []
         for lab in labs_metadata:
-            # Overwrite isPurchased value dynamically
-            is_purchased = lab["id"] in purchased_lab_ids or lab.get("isFree", True)
-            active_labs_metadata.append({
-                **lab,
-                "isPurchased": is_purchased
-            })
+            if lab["id"] in purchased_lab_ids:
+                active_labs_metadata.append({
+                    **lab,
+                    "isPurchased": True
+                })
 
     # User progress — reuses progress_service cache (shared with dashboard)
     from app.services.progress_service import get_user_lab_statistics
