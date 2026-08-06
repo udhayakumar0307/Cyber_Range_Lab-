@@ -1251,7 +1251,12 @@ export const SystemPortal: React.FC = () => {
                       labsTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
                     }`}
                   >
-                    Active Catalog ({allLabs.filter((l: any) => l.status !== 'PENDING_REVIEW' && l.status !== 'PENDING').length})
+                    Active Catalog ({allLabs.filter((l: any) => {
+                      const isPending = l.status === 'PENDING_REVIEW' || l.status === 'PENDING';
+                      const isMilestone = l.category?.toLowerCase() === 'milestone' || l.id?.includes('points') || l.name?.toLowerCase().includes('milestone');
+                      const isDuplicatePuzzle = l.id === 'puzzle-lab';
+                      return !isPending && !isMilestone && !isDuplicatePuzzle;
+                    }).length})
                   </button>
                 </div>
               </div>
@@ -1312,7 +1317,7 @@ export const SystemPortal: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {activeCatalogLabs.map((l: any) => (
-                    <div key={l.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
+                    <div key={l.id} className="group p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
@@ -1330,25 +1335,8 @@ export const SystemPortal: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="mt-4 pt-3 border-t border-slate-100 space-y-3">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Hourly Pricing (₹ per hour)</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              value={labPrices[l.id] !== undefined ? labPrices[l.id] : (l.price_per_hour || 100.0)}
-                              onChange={(e) => setLabPrices({ ...labPrices, [l.id]: Number(e.target.value) })}
-                              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-bold"
-                            />
-                            <button
-                              onClick={() => handleSaveLabPrice(l.id, labPrices[l.id] || l.price_per_hour || 100.0)}
-                              className="px-3 bg-purple-650 hover:bg-purple-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        </div>
-                        <div className="pt-2 flex gap-2">
+                      <div className="mt-4 pt-3 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex gap-2">
                           <button
                             onClick={() => {
                               setFormLabId(l.id);
@@ -1913,7 +1901,12 @@ export const SystemPortal: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
                 >
                   <option value="">-- Choose Lab --</option>
-                  {allLabs.map((l: any) => (
+                  {allLabs.filter((l: any) => {
+                    const isPending = l.status === 'PENDING_REVIEW' || l.status === 'PENDING';
+                    const isMilestone = l.category?.toLowerCase() === 'milestone' || l.id?.includes('points') || l.name?.toLowerCase().includes('milestone');
+                    const isDuplicatePuzzle = l.id === 'puzzle-lab';
+                    return !isPending && !isMilestone && !isDuplicatePuzzle;
+                  }).map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name} ({l.difficulty || l.category || 'Standard'})</option>
                   ))}
                 </select>
