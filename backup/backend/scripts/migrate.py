@@ -158,6 +158,13 @@ def run_sqlite_column_migrations(engine):
         add_col_if_missing("purchased_labs", "assigned_to", "VARCHAR(50) DEFAULT 'both'")
         add_col_if_missing("purchased_labs", "fixed_rate", "FLOAT DEFAULT 0.0")
 
+        # cart_items
+        add_col_if_missing("cart_items", "hours_purchased", "FLOAT DEFAULT 40.0")
+
+        # order_items
+        add_col_if_missing("order_items", "hours_purchased", "FLOAT DEFAULT 40.0")
+
+
 
 
 def run_postgres_column_migrations(engine):
@@ -314,6 +321,21 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS fixed_rate FLOAT DEFAULT 0.0;
             """))
             logger.info("  purchased_labs: column migrations applied")
+
+        if table_exists("cart_items"):
+            conn.execute(text("""
+                ALTER TABLE cart_items
+                ADD COLUMN IF NOT EXISTS hours_purchased FLOAT DEFAULT 40.0;
+            """))
+            logger.info("  cart_items: column migrations applied")
+
+        if table_exists("order_items"):
+            conn.execute(text("""
+                ALTER TABLE order_items
+                ADD COLUMN IF NOT EXISTS hours_purchased FLOAT DEFAULT 40.0;
+            """))
+            logger.info("  order_items: column migrations applied")
+
 
 
 
