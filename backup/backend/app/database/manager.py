@@ -98,6 +98,18 @@ class DatabaseManager:
                 )
                 self.current_url = target_url
 
+                # Dynamically assert tables and columns presence
+                try:
+                    from app.models.base import Base
+                    from app.models.security_alert import SecurityAlert
+                    Base.metadata.create_all(bind=self.engine)
+                    
+                    with self.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS price_per_hour FLOAT DEFAULT 100.0"))
+                        conn.commit()
+                except Exception as db_init_err:
+                    logger.warning(f"Database schema validation checks skipped or failed on startup: {db_init_err}")
+
                 dialect = self.engine.dialect.name
                 host = self.engine.url.host or "localhost"
                 database = self.engine.url.database or "default"
