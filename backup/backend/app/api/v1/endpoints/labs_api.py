@@ -214,11 +214,11 @@ def get_labs(
 
         active_labs_metadata = []
         for lab in labs_metadata:
-            is_pur = lab["id"] in purchased_lab_ids
-            active_labs_metadata.append({
-                **lab,
-                "isPurchased": is_pur
-            })
+            if lab["id"] in purchased_lab_ids:
+                active_labs_metadata.append({
+                    **lab,
+                    "isPurchased": True
+                })
 
     # User progress — reuses progress_service cache (shared with dashboard)
     from app.services.progress_service import get_user_lab_statistics
