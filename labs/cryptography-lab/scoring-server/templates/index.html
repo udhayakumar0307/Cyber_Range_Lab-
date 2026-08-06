@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cyber Range | Cryptography Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            bg: '#F8FAFC',
+            card: '#FFFFFF',
+            border: '#E5E7EB',
+            blue: '#2563EB',
+            green: '#10B981',
+            muted: '#64748B'
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace']
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+</style>
+</head>
+<body class="bg-[#F8FAFC] min-h-screen flex flex-col text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-700">
+
+  <!-- Top Header Navigation Bar -->
+  <header class="bg-white border-b border-[#E5E7EB] sticky top-0 z-30 shadow-xs">
+    <div class="max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+      
+      <!-- Header Left: Back Button, Session Badge, Title -->
+      <div class="flex items-center gap-3">
+        <button id="back-link" style="display: none;" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+          <span id="back-link-text">Back to Available Labs</span>
+        </button>
+
+        <div id="header-divider" style="display: none;" class="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#10B981] border border-emerald-200/80">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-[#10B981]"></span>
+          </span>
+          LAB SESSION ACTIVE
+        </span>
+
+        <h1 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight hidden md:block" id="app-header-title">
+          Cryptography Lab
+        </h1>
+      </div>
+
+      <!-- Header Right: Metrics, Timer, Exit Button -->
+      <div class="flex items-center gap-2.5">
+        <!-- Module Counter Badge -->
+        <div id="module-counter-container" style="display: none;" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
+          <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+          </svg>
+          <span id="header-module-counter">Module 1 of 5</span>
+        </div>
+
+        <!-- Score Badge -->
+        <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-[#2563EB] text-xs font-bold">
+          <svg class="w-3.5 h-3.5 text-[#2563EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Score: <span id="total-points" class="font-extrabold">{{ total_points }}</span> pts
+        </div>
+
+        <!-- Session Timer Badge -->
+        <div id="session-timer-container" style="display: none;" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono font-semibold">
+          <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Session: <span id="session-timer-display">--:--</span>
+        </div>
+
+        <!-- Exit Session Button -->
+        <button id="exit-session-header-btn" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all cursor-pointer ml-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+          Exit Session
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="flex-1 max-w-(--breakpoint-2xl) w-full mx-auto p-4 sm:p-6">
+
+    <!-- FIRST SCREEN: LEARNING TRACK CARDS -->
+    <section id="tracks-view" class="space-y-6">
+      <div class="bg-white border border-[#E5E7EB] rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+        <div class="max-w-3xl space-y-2">
+          <span class="inline-block text-xs font-bold text-[#2563EB] tracking-wider uppercase bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            Interactive Cryptography Track
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Cryptography Fundamentals
+          </h2>
+          <p class="text-sm sm:text-base text-slate-600 leading-relaxed">
+            Master Data Encoding, Hashes, Hash Calculators, Classical Encryption, and Decryption tools through hands-on interactive tools.
+          </p>
+        </div>
+        
+        <!-- Track Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6" id="tracks-grid"></div>
+      </div>
+    </section>
+
+    <!-- MODULE DETAIL VIEW: Two-Column Layout -->
+    <section id="module-detail" class="hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-140px)]">
+
+        <!-- LEFT PANEL (~45% -> lg:col-span-5): Clean Objectives List (Command Line Lab Style) -->
+        <div class="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-6 overflow-y-auto max-h-[calc(100vh-140px)]">
+          
+          <div class="space-y-6">
+            
+            <!-- Module Navigation (1-5) Numbered Buttons -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider" id="active-track-name">Track Modules</span>
+              <div class="flex items-center gap-2" id="module-nav-buttons">
+                <!-- Dynamically rendered buttons 1 to 5 -->
+              </div>
+            </div>
+
+            <!-- Header Badge & Title -->
+            <div class="space-y-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#2563EB] border border-blue-200 uppercase tracking-wider" id="detail-badge">
+                Module 1
+              </span>
+              <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight" id="detail-title">
+                Module Title
+              </h2>
+              <p class="text-xs sm:text-sm text-slate-600 leading-relaxed" id="detail-story"></p>
+            </div>
+
+            <!-- Mission Overview Card -->
+            <div class="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 space-y-1.5 shadow-xs">
+              <div class="flex items-center gap-2 text-xs font-bold text-[#2563EB] uppercase tracking-wider">
+                <svg class="w-4 h-4 text-[#2563EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Mission
+              </div>
+              <p class="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed" id="detail-mission"></p>
+            </div>
+
+            <!-- Concise Objectives Section (Questions Only) -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Objectives (4 Required)</h3>
+                <span class="text-xs font-semibold text-blue-600" id="objectives-count-badge">0/4 completed</span>
+              </div>
+              
+              <ul class="space-y-2.5" id="detail-objectives">
+                <!-- Dynamically populated concise objective list -->
+              </ul>
+            </div>
+
+            <!-- Hint System (2 Clues per module: -20 pts each) -->
+            <div class="space-y-3 pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                  </svg>
+                  Need Help? (2 Hints Available)
+                </h3>
+              </div>
+
+              <!-- Hint Card 1 -->
+              <div class="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-2" id="hint-box-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-amber-900">Hint 1 (Small Clue)</span>
+                  <button id="unlock-hint-1-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer">
+                    Unlock Hint 1 (-20 pts)
+                  </button>
+                </div>
+                <p id="hint-content-1" class="text-xs text-amber-900/90 leading-relaxed hidden pt-1 border-t border-amber-200/50"></p>
+              </div>
+
+              <!-- Hint Card 2 -->
+              <div class="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-2 opacity-60" id="hint-box-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-amber-900">Hint 2 (Stronger Clue)</span>
+                  <button id="unlock-hint-2-btn" disabled class="px-3 py-1 bg-slate-300 text-slate-500 font-bold text-xs rounded-lg transition-all cursor-not-allowed">
+                    Unlock Hint 1 First
+                  </button>
+                </div>
+                <p id="hint-content-2" class="text-xs text-amber-900/90 leading-relaxed hidden pt-1 border-t border-amber-200/50"></p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom: Verify Key / Submit Flag Input -->
+          <div class="pt-4 border-t border-slate-100 space-y-3">
+            <label for="key-input" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Submit Flag / Answer
+            </label>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                id="key-input"
+                placeholder="FLAG{...} or answer"
+                class="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              />
+              <button
+                id="verify-btn"
+                class="px-5 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                Submit &rarr;
+              </button>
+            </div>
+            <p id="verify-feedback" class="text-xs font-semibold min-h-[16px]"></p>
+          </div>
+
+        </div>
+
+        <!-- RIGHT PANEL (~55% -> lg:col-span-7): Interactive Cryptography Suite Tools -->
+        <div class="lg:col-span-7 flex flex-col space-y-4">
+          
+          <div class="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-5 flex-1 flex flex-col justify-between">
+            
+            <div class="space-y-4">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                  <span class="p-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-base" id="tool-panel-icon">🛠️</span>
+                  <div>
+                    <h3 class="text-base font-extrabold text-slate-900" id="tool-panel-title">Interactive Tool Panel</h3>
+                    <p class="text-xs text-slate-500" id="tool-panel-subtitle">Use tool to solve active module objectives</p>
+                  </div>
+                </div>
+                <span class="px-3 py-1 bg-blue-50 text-[#2563EB] border border-blue-200 rounded-full text-xs font-bold uppercase tracking-wider">
+                  Interactive Workspace
+                </span>
+              </div>
+
+              <!-- Universal Cryptography Tool -->
+              <div id="universal-tool" class="space-y-4">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                  <div class="grid grid-cols-1 gap-3">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Operation:</label>
+                      <select id="uni-algo" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold">
+                        <option value="b64_enc">Base64 Encode</option>
+                        <option value="b64_dec">Base64 Decode</option>
+                        <option value="hex_enc">Hex Encode</option>
+                        <option value="hex_dec">Hex Decode</option>
+                        <option value="bin_enc">Binary Encode</option>
+                        <option value="bin_dec">Binary Decode</option>
+                        <option value="MD5">MD5</option>
+                        <option value="SHA-1">SHA1</option>
+                        <option value="SHA-224">SHA224</option>
+                        <option value="SHA-256">SHA256</option>
+                        <option value="SHA-384">SHA384</option>
+                        <option value="SHA-512">SHA512</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Input:</label>
+                      <input type="text" id="uni-input" placeholder="Enter text or string..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900" />
+                    </div>
+                  </div>
+
+                  <div class="flex items-center">
+                    <button onclick="processUniversalTool()" class="w-full px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all shadow-xs">Process</button>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="block text-xs font-bold text-slate-700">Output Result:</label>
+                  <div class="p-4 bg-slate-900 rounded-xl font-mono text-sm text-[#00FF9D] break-all border border-slate-800 min-h-[60px] flex items-center" id="uni-output">
+                    <span>Result will appear here...</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Interactive Guidance Footer -->
+            <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Read objective on the left &rarr; Use tool to find answer &rarr; Submit flag.</span>
+              <span class="font-semibold text-blue-600">Interactive Cipher Suite</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Success Completion Modal Overlay -->
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center z-50 p-4" id="success-overlay">
+    <div class="bg-white border border-[#E5E7EB] rounded-2xl p-6 sm:p-8 text-center max-w-sm w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+      <div class="w-14 h-14 bg-emerald-100 border border-emerald-200 rounded-full flex items-center justify-center mx-auto text-[#10B981] text-2xl font-bold">
+        &#10003;
+      </div>
+      <div class="space-y-1">
+        <h3 class="text-xl font-extrabold text-slate-900">Module Complete!</h3>
+        <p class="text-xs text-slate-600" id="success-message"></p>
+      </div>
+      <div class="font-mono text-xs bg-slate-900 text-[#00FF9D] p-3 rounded-xl break-all border border-slate-800" id="flag-display"></div>
+      <button id="popup-close-btn" class="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer">
+        Continue to Next Module
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let TRACKS_DATA = {{ tracks_json | tojson }};
+
+    const tracksView = document.getElementById("tracks-view");
+    const tracksGrid = document.getElementById("tracks-grid");
+    const moduleDetail = document.getElementById("module-detail");
+    const moduleNavButtons = document.getElementById("module-nav-buttons");
+
+    let currentTrack = null;
+    let currentModule = null;
+    let nextModuleToLoad = null;
+    let pollTimer;
+
+    function getAuthHeaders() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      return token ? { "Authorization": `Bearer ${token}` } : {};
+    }
+
+    function getAuthQuery() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      return token ? `?token=${encodeURIComponent(token)}` : '';
+    }
+
+    let unlockedHintsMap = {};
+
+    let sessionStartTimeKey = "crypto_session_start_time";
+    let sessionStartTime = localStorage.getItem(sessionStartTimeKey);
+    if (!sessionStartTime) {
+      sessionStartTime = Date.now().toString();
+      localStorage.setItem(sessionStartTimeKey, sessionStartTime);
+    }
+    let elapsedSeconds = Math.floor((Date.now() - parseInt(sessionStartTime, 10)) / 1000);
+    let totalSeconds = Math.max(0, (45 * 60) - elapsedSeconds);
+
+    setInterval(() => {
+      if (totalSeconds > 0) {
+        totalSeconds--;
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        const display = document.getElementById("session-timer-display");
+        if (display) display.textContent = `${m}:${s}`;
+      } else {
+        const display = document.getElementById("session-timer-display");
+        if (display) display.textContent = "00:00";
+      }
+    }, 1000);
+
+    function updateTrackModuleUnlocks(track) {
+      if (!track || !track.modules) return;
+      let isPrevSolved = true;
+      track.modules.forEach((m, idx) => {
+        if (idx === 0) {
+          m.unlocked = true;
+        } else {
+          m.unlocked = isPrevSolved;
+        }
+        isPrevSolved = isPrevSolved && m.solved;
+      });
+    }
+
+    function renderTracksGrid() {
+      if (!tracksGrid) return;
+      tracksGrid.innerHTML = "";
+
+      TRACKS_DATA.forEach((track) => {
+        updateTrackModuleUnlocks(track);
+        const solvedCount = track.modules.filter(m => m.solved).length;
+        const totalCount = track.modules.length;
+
+        const card = document.createElement("div");
+        card.className = "bg-white border border-[#E5E7EB] rounded-2xl p-6 hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer flex flex-col justify-between space-y-5";
+        card.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#2563EB] border border-blue-100 uppercase tracking-wider">
+                ${track.title}
+              </span>
+              <span class="text-xs font-bold ${solvedCount === totalCount ? 'text-[#10B981] bg-emerald-50 border border-emerald-200' : 'text-slate-600 bg-slate-100'} px-2.5 py-0.5 rounded-full">
+                ${solvedCount}/${totalCount} Solved
+              </span>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">${track.title}</h3>
+              <p class="text-xs font-semibold text-blue-600 mb-1">${track.subtitle}</p>
+              <p class="text-xs text-slate-600 leading-relaxed line-clamp-3">${track.description}</p>
+            </div>
+          </div>
+
+          <div class="space-y-4 pt-4 border-t border-slate-100">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-500">
+              <span class="text-amber-500">${'★'.repeat(track.difficulty)}</span>
+              <span class="text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-md font-bold">${track.total_points} pts</span>
+            </div>
+
+            <button class="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5">
+              Start Track &rarr;
+            </button>
+          </div>
+        `;
+        card.addEventListener("click", () => openTrack(track.id));
+        tracksGrid.appendChild(card);
+      });
+    }
+
+    function openTrack(trackId) {
+      currentTrack = TRACKS_DATA.find(t => t.id === trackId);
+      if (!currentTrack) return;
+
+      updateTrackModuleUnlocks(currentTrack);
+
+      let targetMod = null;
+      if (!currentTrack.modules[0].solved) {
+        targetMod = currentTrack.modules[0];
+      } else {
+        try {
+          const saved = localStorage.getItem("crypto_active_module_" + trackId);
+          if (saved) {
+            targetMod = currentTrack.modules.find(m => m.id === saved && m.unlocked);
+          }
+        } catch(e) {}
+
+        if (!targetMod) {
+          targetMod = currentTrack.modules.find(m => m.unlocked && !m.solved);
+        }
+        if (!targetMod) {
+          targetMod = currentTrack.modules[0];
+        }
+      }
+
+      document.getElementById("active-track-name").textContent = `${currentTrack.title} Modules`;
+      document.getElementById("app-header-title").textContent = currentTrack.title;
+      document.getElementById("back-link-text").textContent = "Back to Tracks";
+      
+      const backBtn = document.getElementById("back-link");
+      if (backBtn) backBtn.style.display = "inline-flex";
+
+      const divider = document.getElementById("header-divider");
+      if (divider) divider.style.display = "block";
+
+      const modCounter = document.getElementById("module-counter-container");
+      if (modCounter) modCounter.style.display = "inline-flex";
+
+      const timerContainer = document.getElementById("session-timer-container");
+      if (timerContainer) timerContainer.style.display = "inline-flex";
+
+      tracksView.classList.add("hidden");
+      moduleDetail.classList.remove("hidden");
+
+      openModule(targetMod.id);
+    }
+
+    function closeToTracks() {
+      tracksView.classList.remove("hidden");
+      moduleDetail.classList.add("hidden");
+
+      const backBtn = document.getElementById("back-link");
+      if (backBtn) backBtn.style.display = "none";
+
+      const divider = document.getElementById("header-divider");
+      if (divider) divider.style.display = "none";
+
+      const modCounter = document.getElementById("module-counter-container");
+      if (modCounter) modCounter.style.display = "none";
+
+      const timerContainer = document.getElementById("session-timer-container");
+      if (timerContainer) timerContainer.style.display = "none";
+
+      document.getElementById("app-header-title").textContent = "Cryptography Lab";
+      if (pollTimer) clearInterval(pollTimer);
+      renderTracksGrid();
+    }
+
+    function renderModuleNavButtons() {
+      if (!moduleNavButtons || !currentTrack) return;
+      updateTrackModuleUnlocks(currentTrack);
+      moduleNavButtons.innerHTML = "";
+
+      currentTrack.modules.forEach((m, idx) => {
+        const num = idx + 1;
+        const btn = document.createElement("button");
+        const isActive = currentModule && currentModule.id === m.id;
+        const isSolved = m.solved;
+        const isUnlocked = m.unlocked;
+
+        if (isUnlocked) {
+          btn.className = `w-8 h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border ${
+            isActive 
+              ? "bg-[#2563EB] text-white border-blue-600 shadow-xs" 
+              : isSolved 
+                ? "bg-emerald-50 text-[#10B981] border-emerald-200 hover:bg-emerald-100" 
+                : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+          }`;
+          btn.textContent = num;
+          btn.title = isSolved ? `Module ${num} (Solved)` : `Module ${num}: ${m.title}`;
+          btn.addEventListener("click", () => openModule(m.id));
+        } else {
+          btn.className = "w-8 h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center border bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60";
+          btn.innerHTML = `<span class="text-[10px]">🔒</span>`;
+          btn.title = "Complete previous module to unlock";
+          btn.addEventListener("click", () => {
+            alert("Module locked! Complete the previous module first to unlock.");
+          });
+        }
+        moduleNavButtons.appendChild(btn);
+      });
+    }
+
+    function renderHintsUI(m) {
+      const hintBox1 = document.getElementById("hint-box-1");
+      const hintBox2 = document.getElementById("hint-box-2");
+      const btn1 = document.getElementById("unlock-hint-1-btn");
+      const btn2 = document.getElementById("unlock-hint-2-btn");
+      const content1 = document.getElementById("hint-content-1");
+      const content2 = document.getElementById("hint-content-2");
+
+      const key1 = `${m.track}_${m.id}_hint1`;
+      const key2 = `${m.track}_${m.id}_hint2`;
+
+      const unlocked1 = !!unlockedHintsMap[key1];
+      const unlocked2 = !!unlockedHintsMap[key2];
+
+      if (unlocked1) {
+        btn1.textContent = "Unlocked";
+        btn1.className = "px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg border border-emerald-300";
+        btn1.disabled = true;
+        content1.textContent = m.hints[0] || "Hint 1 active.";
+        content1.classList.remove("hidden");
+      } else {
+        btn1.textContent = "Unlock Hint 1 (-20 pts)";
+        btn1.className = "px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer";
+        btn1.disabled = false;
+        content1.classList.add("hidden");
+      }
+
+      if (unlocked2) {
+        hintBox2.classList.remove("opacity-60");
+        btn2.textContent = "Unlocked";
+        btn2.className = "px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg border border-emerald-300";
+        btn2.disabled = true;
+        content2.textContent = m.hints[1] || "Hint 2 active.";
+        content2.classList.remove("hidden");
+      } else if (unlocked1) {
+        hintBox2.classList.remove("opacity-60");
+        btn2.textContent = "Unlock Hint 2 (-20 pts)";
+        btn2.className = "px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer";
+        btn2.disabled = false;
+        content2.classList.add("hidden");
+      } else {
+        hintBox2.classList.add("opacity-60");
+        btn2.textContent = "Unlock Hint 1 First";
+        btn2.className = "px-3 py-1 bg-slate-300 text-slate-500 font-bold text-xs rounded-lg transition-all cursor-not-allowed";
+        btn2.disabled = true;
+        content2.classList.add("hidden");
+      }
+    }
+
+    async function unlockHint(hintIndex) {
+      if (!currentModule || !currentTrack) return;
+      try {
+        const res = await fetch("/api/v1/crypto/hint" + getAuthQuery(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({
+            track: currentTrack.id,
+            module: currentModule.id,
+            hint_index: hintIndex
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const key = `${currentTrack.id}_${currentModule.id}_hint${hintIndex}`;
+          unlockedHintsMap[key] = true;
+          document.getElementById("total-points").textContent = data.total_points;
+          renderHintsUI(currentModule);
+        } else {
+          alert(data.error || "Could not unlock hint.");
+        }
+      } catch(e) {
+        alert("Error requesting hint.");
+      }
+    }
+
+    document.getElementById("unlock-hint-1-btn").addEventListener("click", () => unlockHint(1));
+    document.getElementById("unlock-hint-2-btn").addEventListener("click", () => unlockHint(2));
+
+    function openModule(id) {
+      if (!currentTrack) return;
+      updateTrackModuleUnlocks(currentTrack);
+
+      const targetModule = currentTrack.modules.find(m => m.id === id);
+      if (!targetModule) return;
+      if (!targetModule.unlocked) {
+        alert("Module locked! Complete the previous module first.");
+        return;
+      }
+
+      currentModule = targetModule;
+      try {
+        localStorage.setItem("crypto_active_module_" + currentTrack.id, id);
+        localStorage.setItem("crypto_active_module", id);
+      } catch(e) {}
+
+      const modNum = id.replace("module", "");
+      document.getElementById("detail-badge").textContent = `${currentTrack.title} — Module ${modNum}`;
+      document.getElementById("detail-title").textContent = currentModule.title;
+      document.getElementById("detail-story").textContent = currentModule.story;
+      document.getElementById("detail-mission").textContent = currentModule.mission;
+      
+      const counterEl = document.getElementById("header-module-counter");
+      if (counterEl) counterEl.textContent = `Module ${modNum} of ${currentTrack.modules.length}`;
+
+      renderModuleNavButtons();
+      renderStepObjectives(currentModule.objectives);
+      renderHintsUI(currentModule);
+
+      document.getElementById("verify-feedback").textContent = "";
+      document.getElementById("verify-feedback").className = "text-xs font-semibold min-h-[16px]";
+      document.getElementById("key-input").value = "";
+
+      switchToolPanel(id);
+
+      pollProgress();
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(pollProgress, 4000);
+    }
+
+    // Command Line Lab Style Clean Objectives List
+    function renderStepObjectives(objectives) {
+      const list = document.getElementById("detail-objectives");
+      const countBadge = document.getElementById("objectives-count-badge");
+      list.innerHTML = "";
+
+      let doneCount = 0;
+      objectives.forEach((o) => {
+        if (o.complete) doneCount++;
+        const li = document.createElement("li");
+        li.className = `flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium transition-all ${
+          o.complete 
+            ? "bg-emerald-50 text-emerald-900 border border-emerald-200" 
+            : "bg-slate-50 text-slate-600 border border-slate-100"
+        }`;
+        li.innerHTML = `
+          <span class="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+            o.complete ? "bg-[#10B981] text-white" : "border-2 border-slate-300 text-transparent"
+          }">&#10003;</span>
+          <span>${o.label}</span>
+        `;
+        list.appendChild(li);
+      });
+
+      if (countBadge) countBadge.textContent = `${doneCount}/4 completed`;
+    }
+
+    function switchToolPanel(moduleId) {
+      document.getElementById("tool-panel-title").textContent = "Universal Cryptography Tool";
+      document.getElementById("tool-panel-subtitle").textContent = "All encodings and hashes in one place";
+      document.getElementById("tool-panel-icon").textContent = "🛠️";
+    }
+
+    // A lightweight MD5 implementation for client-side hashing
+    function md5(string) {
+      function RotateLeft(lValue, iShiftBits) { return (lValue<<iShiftBits) | (lValue>>>(32-iShiftBits)); }
+      function AddUnsigned(lX,lY) {
+        var lX4,lY4,lX8,lY8,lResult;
+        lX8 = (lX & 0x80000000); lY8 = (lY & 0x80000000);
+        lX4 = (lX & 0x40000000); lY4 = (lY & 0x40000000);
+        lResult = (lX & 0x3FFFFFFF)+(lY & 0x3FFFFFFF);
+        if (lX4 & lY4) return (lResult ^ 0x80000000 ^ lX8 ^ lY8);
+        if (lX4 | lY4) {
+          if (lResult & 0x40000000) return (lResult ^ 0xC0000000 ^ lX8 ^ lY8);
+          else return (lResult ^ 0x40000000 ^ lX8 ^ lY8);
+        } else return (lResult ^ lX8 ^ lY8);
+      }
+      function F(x,y,z) { return (x & y) | ((~x) & z); }
+      function G(x,y,z) { return (x & z) | (y & (~z)); }
+      function H(x,y,z) { return (x ^ y ^ z); }
+      function I(x,y,z) { return (y ^ (x | (~z))); }
+      function FF(a,b,c,d,x,s,ac) { a = AddUnsigned(a, AddUnsigned(AddUnsigned(F(b, c, d), x), ac)); return AddUnsigned(RotateLeft(a, s), b); };
+      function GG(a,b,c,d,x,s,ac) { a = AddUnsigned(a, AddUnsigned(AddUnsigned(G(b, c, d), x), ac)); return AddUnsigned(RotateLeft(a, s), b); };
+      function HH(a,b,c,d,x,s,ac) { a = AddUnsigned(a, AddUnsigned(AddUnsigned(H(b, c, d), x), ac)); return AddUnsigned(RotateLeft(a, s), b); };
+      function II(a,b,c,d,x,s,ac) { a = AddUnsigned(a, AddUnsigned(AddUnsigned(I(b, c, d), x), ac)); return AddUnsigned(RotateLeft(a, s), b); };
+      function ConvertToWordArray(string) {
+        var lWordCount;
+        var lMessageLength = string.length;
+        var lNumberOfWords_temp1=lMessageLength + 8;
+        var lNumberOfWords_temp2=(lNumberOfWords_temp1-(lNumberOfWords_temp1 % 64))/64;
+        var lNumberOfWords = (lNumberOfWords_temp2+1)*16;
+        var lWordArray=Array(lNumberOfWords-1);
+        var lBytePosition = 0;
+        var lByteCount = 0;
+        while ( lByteCount < lMessageLength ) {
+          lWordCount = (lByteCount-(lByteCount % 4))/4;
+          lBytePosition = (lByteCount % 4)*8;
+          lWordArray[lWordCount] = (lWordArray[lWordCount] | (string.charCodeAt(lByteCount)<<lBytePosition));
+          lByteCount++;
+        }
+        lWordCount = (lByteCount-(lByteCount % 4))/4;
+        lBytePosition = (lByteCount % 4)*8;
+        lWordArray[lWordCount] = lWordArray[lWordCount] | (0x80<<lBytePosition);
+        lWordArray[lNumberOfWords-2] = lMessageLength<<3;
+        lWordArray[lNumberOfWords-1] = lMessageLength>>>29;
+        return lWordArray;
+      }
+      function WordToHex(lValue) {
+        var WordToHexValue="",WordToHexValue_temp="",lByte,lCount;
+        for (lCount = 0;lCount<=3;lCount++) {
+          lByte = (lValue>>>(lCount*8)) & 255;
+          WordToHexValue_temp = "0" + lByte.toString(16);
+          WordToHexValue = WordToHexValue + WordToHexValue_temp.substr(WordToHexValue_temp.length-2,2);
+        }
+        return WordToHexValue;
+      }
+      function Utf8Encode(string) {
+        string = string.replace(/\r\n/g,"\n");
+        var utftext = "";
+        for (var n = 0; n < string.length; n++) {
+          var c = string.charCodeAt(n);
+          if (c < 128) { utftext += String.fromCharCode(c); }
+          else if((c > 127) && (c < 2048)) { utftext += String.fromCharCode((c >> 6) | 192); utftext += String.fromCharCode((c & 63) | 128); }
+          else { utftext += String.fromCharCode((c >> 12) | 224); utftext += String.fromCharCode(((c >> 6) & 63) | 128); utftext += String.fromCharCode((c & 63) | 128); }
+        }
+        return utftext;
+      }
+      var x=Array();
+      var k,AA,BB,CC,DD,a,b,c,d;
+      var S11=7, S12=12, S13=17, S14=22;
+      var S21=5, S22=9 , S23=14, S24=20;
+      var S31=4, S32=11, S33=16, S34=23;
+      var S41=6, S42=10, S43=15, S44=21;
+      string = Utf8Encode(string);
+      x = ConvertToWordArray(string);
+      a = 0x67452301; b = 0xEFCDAB89; c = 0x98BADCFE; d = 0x10325476;
+      for (k=0;k<x.length;k+=16) {
+        AA=a; BB=b; CC=c; DD=d;
+        a=FF(a,b,c,d,x[k+0], S11,0xD76AA478); d=FF(d,a,b,c,x[k+1], S12,0xE8C7B756); c=FF(c,d,a,b,x[k+2], S13,0x242070DB); b=FF(b,c,d,a,x[k+3], S14,0xC1BDCEEE);
+        a=FF(a,b,c,d,x[k+4], S11,0xF57C0FAF); d=FF(d,a,b,c,x[k+5], S12,0x4787C62A); c=FF(c,d,a,b,x[k+6], S13,0xA8304613); b=FF(b,c,d,a,x[k+7], S14,0xFD469501);
+        a=FF(a,b,c,d,x[k+8], S11,0x698098D8); d=FF(d,a,b,c,x[k+9], S12,0x8B44F7AF); c=FF(c,d,a,b,x[k+10],S13,0xFFFF5BB1); b=FF(b,c,d,a,x[k+11],S14,0x895CD7BE);
+        a=FF(a,b,c,d,x[k+12],S11,0x6B901122); d=FF(d,a,b,c,x[k+13],S12,0xFD987193); c=FF(c,d,a,b,x[k+14],S13,0xA679438E); b=FF(b,c,d,a,x[k+15],S14,0x49B40821);
+        a=GG(a,b,c,d,x[k+1], S21,0xF61E2562); d=GG(d,a,b,c,x[k+6], S22,0xC040B340); c=GG(c,d,a,b,x[k+11],S23,0x265E5A51); b=GG(b,c,d,a,x[k+0], S24,0xE9B6C7AA);
+        a=GG(a,b,c,d,x[k+5], S21,0xD62F105D); d=GG(d,a,b,c,x[k+10],S22,0x2441453);  c=GG(c,d,a,b,x[k+15],S23,0xD8A1E681); b=GG(b,c,d,a,x[k+4], S24,0xE7D3FBC8);
+        a=GG(a,b,c,d,x[k+9], S21,0x21E1CDE6); d=GG(d,a,b,c,x[k+14],S22,0xC33707D6); c=GG(c,d,a,b,x[k+3], S23,0xF4D50D87); b=GG(b,c,d,a,x[k+8], S24,0x455A14ED);
+        a=GG(a,b,c,d,x[k+13],S21,0xA9E3E905); d=GG(d,a,b,c,x[k+2], S22,0xFCEFA3F8); c=GG(c,d,a,b,x[k+7], S23,0x676F02D9); b=GG(b,c,d,a,x[k+12],S24,0x8D2A4C8A);
+        a=HH(a,b,c,d,x[k+5], S31,0xFFFA3942); d=HH(d,a,b,c,x[k+8], S32,0x8771F681); c=HH(c,d,a,b,x[k+11],S33,0x6D9D6122); b=HH(b,c,d,a,x[k+14],S34,0xFDE5380C);
+        a=HH(a,b,c,d,x[k+1], S31,0xA4BEEA44); d=HH(d,a,b,c,x[k+4], S32,0x4BDECFA9); c=HH(c,d,a,b,x[k+7], S33,0xF6BB4B60); b=HH(b,c,d,a,x[k+10],S34,0xBEBFBC70);
+        a=HH(a,b,c,d,x[k+13],S31,0x289B7EC6); d=HH(d,a,b,c,x[k+0], S32,0xEAA127FA); c=HH(c,d,a,b,x[k+3], S33,0xD4EF3085); b=HH(b,c,d,a,x[k+6], S34,0x4881D05);
+        a=HH(a,b,c,d,x[k+9], S31,0xD9D4D039); d=HH(d,a,b,c,x[k+12],S32,0xE6DB99E5); c=HH(c,d,a,b,x[k+15],S33,0x1FA27CF8); b=HH(b,c,d,a,x[k+2], S34,0xC4AC5665);
+        a=II(a,b,c,d,x[k+0], S41,0xF4292244); d=II(d,a,b,c,x[k+7], S42,0x432AFF97); c=II(c,d,a,b,x[k+14],S43,0xAB9423A7); b=II(b,c,d,a,x[k+5], S44,0xFC93A039);
+        a=II(a,b,c,d,x[k+12],S41,0x655B59C3); d=II(d,a,b,c,x[k+3], S42,0x8F0CCC92); c=II(c,d,a,b,x[k+10],S43,0xFFEFF47D); b=II(b,c,d,a,x[k+1], S44,0x85845DD1);
+        a=II(a,b,c,d,x[k+8], S41,0x6FA87E4F); d=II(d,a,b,c,x[k+15],S42,0xFE2CE6E0); c=II(c,d,a,b,x[k+6], S43,0xA3014314); b=II(b,c,d,a,x[k+13],S44,0x4E0811A1);
+        a=II(a,b,c,d,x[k+4], S41,0xF7537E82); d=II(d,a,b,c,x[k+11],S42,0xBD3AF235); c=II(c,d,a,b,x[k+2], S43,0x2AD7D2BB); b=II(b,c,d,a,x[k+9], S44,0xEB86D391);
+        a=AddUnsigned(a,AA); b=AddUnsigned(b,BB); c=AddUnsigned(c,CC); d=AddUnsigned(d,DD);
+      }
+      return (WordToHex(a)+WordToHex(b)+WordToHex(c)+WordToHex(d)).toLowerCase();
+    }
+
+    async function processUniversalTool() {
+      const algo = document.getElementById("uni-algo").value;
+      const input = document.getElementById("uni-input").value;
+      const out = document.getElementById("uni-output");
+
+      if (!input) {
+        out.innerHTML = `<span class="text-rose-400">Please enter an input string.</span>`;
+        return;
+      }
+
+      try {
+        let result = "";
+        if (algo === 'b64_enc') {
+          result = btoa(input);
+        } else if (algo === 'b64_dec') {
+          result = atob(input);
+        } else if (algo === 'hex_enc') {
+          result = Array.from(input).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+        } else if (algo === 'hex_dec') {
+          const bytes = input.match(/.{1,2}/g) || [];
+          result = bytes.map(b => String.fromCharCode(parseInt(b, 16))).join('');
+        } else if (algo === 'bin_enc') {
+          result = Array.from(input).map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+        } else if (algo === 'bin_dec') {
+          const bins = input.replace(/\s+/g, '').match(/.{1,8}/g) || [];
+          result = bins.map(b => String.fromCharCode(parseInt(b, 2))).join('');
+        } else if (algo === 'MD5') {
+          result = md5(input);
+        } else if (algo.startsWith('SHA')) {
+          const msgUint8 = new TextEncoder().encode(input);
+          const hashBuffer = await crypto.subtle.digest(algo, msgUint8);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          result = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        out.innerHTML = `<span><strong>${result}</strong></span>`;
+      } catch(e) {
+        out.innerHTML = `<span class="text-rose-400">Error processing input: ${e.message}</span>`;
+      }
+    }
+
+    async function pollProgress() {
+      if (!currentModule || !currentTrack) return;
+      try {
+        const res = await fetch(`/api/v1/crypto/progress/${currentTrack.id}/${currentModule.id}` + getAuthQuery(), { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.objectives) renderStepObjectives(data.objectives);
+      } catch (e) { }
+    }
+
+    async function exitSessionToLabs() {
+      try {
+        await fetch("/api/v1/crypto/exit" + getAuthQuery(), { method: "POST", headers: getAuthHeaders() }).catch(() => {});
+      } catch(e) {}
+      try {
+        localStorage.removeItem("crypto_session_start_time");
+        localStorage.removeItem("crypto_active_track");
+        localStorage.removeItem("crypto_active_module");
+      } catch(e) {}
+      if (pollTimer) clearInterval(pollTimer);
+
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'EXIT_SESSION' }, '*');
+        }
+        if (window.top && window.top !== window) {
+          window.top.postMessage({ type: 'EXIT_SESSION' }, '*');
+        }
+      } catch(e) {}
+
+      setTimeout(() => {
+        try { window.top.location.href = "/labs"; } catch(e) {}
+        try { window.parent.location.href = "/labs"; } catch(e) {}
+        window.location.href = "/labs";
+      }, 150);
+    }
+
+    document.getElementById("back-link").addEventListener("click", () => {
+      if (moduleDetail && !moduleDetail.classList.contains("hidden")) {
+        closeToTracks();
+      } else {
+        exitSessionToLabs();
+      }
+    });
+
+    document.getElementById("exit-session-header-btn").addEventListener("click", exitSessionToLabs);
+
+    // ── Verify / Submit Flag ──────────────────────────────
+    document.getElementById("verify-btn").addEventListener("click", async () => {
+      if (!currentModule || !currentTrack) return;
+      const flag = document.getElementById("key-input").value.trim();
+      const feedback = document.getElementById("verify-feedback");
+      if (!flag) { 
+        feedback.textContent = "Enter an answer or flag first."; 
+        feedback.className = "text-xs font-semibold min-h-[16px] text-rose-600"; 
+        return; 
+      }
+
+      const res = await fetch("/api/v1/crypto/submit" + getAuthQuery(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ track: currentTrack.id, module: currentModule.id, flag }),
+      });
+      const data = await res.json();
+
+      if (data.correct) {
+        feedback.textContent = data.message;
+        feedback.className = "text-xs font-semibold min-h-[16px] text-[#10B981]";
+        document.getElementById("total-points").textContent = data.total_points;
+        
+        // Immediately fetch and re-render objectives to show the new checkmark!
+        pollProgress();
+
+        if (data.module_completed) {
+          currentModule.solved = true;
+          nextModuleToLoad = data.next_module;
+
+          document.getElementById("success-message").textContent =
+            `You earned ${data.points} points for ${currentModule.title}.${nextModuleToLoad ? ' Next module unlocked!' : ' Track completed!'}`;
+          document.getElementById("flag-display").textContent = flag;
+          
+          const overlay = document.getElementById("success-overlay");
+          overlay.classList.remove("hidden");
+          overlay.classList.add("flex");
+          
+          updateTrackModuleUnlocks(currentTrack);
+          renderModuleNavButtons();
+          renderTracksGrid();
+        }
+      } else {
+        feedback.textContent = data.message || "Incorrect key or answer.";
+        feedback.className = "text-xs font-semibold min-h-[16px] text-rose-600";
+      }
+    });
+
+    document.getElementById("popup-close-btn").addEventListener("click", () => {
+      const overlay = document.getElementById("success-overlay");
+      overlay.classList.add("hidden");
+      overlay.classList.remove("flex");
+
+      if (nextModuleToLoad) {
+        const nextId = nextModuleToLoad;
+        nextModuleToLoad = null;
+        openModule(nextId);
+      } else {
+        renderTracksGrid();
+      }
+    });
+
+    async function syncUserData() {
+      try {
+        const res = await fetch("/api/v1/crypto/config" + getAuthQuery(), { headers: getAuthHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.total_points !== undefined) {
+            const ptEl = document.getElementById("total-points");
+            if (ptEl) ptEl.textContent = data.total_points;
+          }
+          if (data.tracks && Array.isArray(data.tracks)) {
+            TRACKS_DATA = data.tracks;
+            renderTracksGrid();
+          }
+        }
+      } catch(e) {}
+    }
+
+    closeToTracks();
+    syncUserData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# ── Command Line Lab shell profile ─────────────────────────
+# Planted into /home/student/.bashrc by entrypoint.sh at boot.
+
+export STUDENT_ID="__STUDENT_ID__"
+export SERVICES_URL="http://10.20.0.10:9500"
+export HINT_SERVICE_URL="http://10.20.0.10:9600"
+export SCORING_URL="http://10.20.0.99:5000"
+
+# Log every command (best-effort — authoritative checks happen
+# server-side by re-reading this log and by inspecting the
+# filesystem directly, not by trusting this hook).
+export PROMPT_COMMAND='python3 /opt/tools/command_checker.py "$(history 1 | sed "s/^[ ]*[0-9]*[ ]*//")" 2>/dev/null'
+
+alias progress='python3 /opt/tools/terminal_helper.py progress'
+alias hint='python3 /opt/tools/hint_helper.py'
+alias submitflag='python3 /opt/tools/submit_flag.py'
+
+cat /opt/configs/banner.txt

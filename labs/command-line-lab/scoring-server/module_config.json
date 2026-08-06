@@ -1,0 +1,780 @@
+{
+  "tracks": {
+    "linux": {
+      "title": "Linux Track",
+      "subtitle": "Linux Fundamentals & Command Line Operations",
+      "description": "Master navigation, file operations, searching, permissions, and process management inside real Linux environments.",
+      "difficulty": 2,
+      "total_points": 1000,
+      "modules": {
+        "module1": {
+          "title": "Linux Navigation",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Orientation day. IT dropped you into a workstation with a maze of folders. Prove you can find your way around.",
+          "mission": "Locate the onboarding key hidden inside your home directory.",
+          "objectives": [
+            {
+              "id": "pwd",
+              "label": "Print your current directory with pwd",
+              "type": "log_regex",
+              "pattern": "\\bpwd\\b"
+            },
+            {
+              "id": "ls",
+              "label": "List directory contents with ls",
+              "type": "log_regex",
+              "pattern": "\\bls\\b"
+            },
+            {
+              "id": "cd",
+              "label": "Navigate into records/logs/archive with cd",
+              "type": "log_regex",
+              "pattern": "(cd\\s+.*records/logs/archive|\\|/home/student/linux/module1/records/logs/archive\\|)"
+            },
+            {
+              "id": "cat",
+              "label": "Read the hidden key file with cat",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?\\.keyfile\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Use `pwd` to check your location, then `ls -la` to reveal hidden files.",
+            "Hint 2: Navigate to `records/logs/archive` using `cd` and inspect `.keyfile` with `cat`."
+          ]
+        },
+        "module2": {
+          "title": "File Operations",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Clean up your workspace: organize inbox files, move drafts, and backup key manifests.",
+          "mission": "Create a backup directory, copy the manifest, move final drafts, and clean temp files.",
+          "objectives": [
+            {
+              "id": "mkdir",
+              "label": "Create workspace/backup with mkdir",
+              "type": "fs_test",
+              "test_cmd": "test -d /home/student/linux/module2/workspace/backup"
+            },
+            {
+              "id": "cp",
+              "label": "Copy inbox/manifest.txt into workspace/backup",
+              "type": "fs_test",
+              "test_cmd": "test -f /home/student/linux/module2/workspace/backup/manifest.txt"
+            },
+            {
+              "id": "mv",
+              "label": "Move inbox/draft.txt to workspace/final.txt",
+              "type": "fs_test",
+              "test_cmd": "test -f /home/student/linux/module2/workspace/final.txt"
+            },
+            {
+              "id": "rm",
+              "label": "Remove workspace/junk.tmp with rm",
+              "type": "fs_test",
+              "test_cmd": "test ! -f /home/student/linux/module2/workspace/junk.tmp"
+            }
+          ],
+          "hints": [
+            "Hint 1: Use `mkdir -p workspace/backup` and `cp inbox/manifest.txt workspace/backup/`.",
+            "Hint 2: Move files using `mv inbox/draft.txt workspace/final.txt` and check `.vault/.key`."
+          ]
+        },
+        "module3": {
+          "title": "Text Processing & Line Counting",
+          "difficulty": 2,
+          "points": 200,
+          "story": "A web server log was flooded with duplicate traffic entries during a system breach. Analyze log line counts and isolate the anomaly.",
+          "mission": "Analyze server logs using wc, sort, uniq, and cut to isolate the access key.",
+          "objectives": [
+            {
+              "id": "wc",
+              "label": "Count lines in server.log using wc -l",
+              "type": "log_regex",
+              "pattern": "^wc\\b"
+            },
+            {
+              "id": "sort_uniq",
+              "label": "Sort and aggregate unique entries with sort and uniq",
+              "type": "log_regex",
+              "pattern": "(sort|uniq)"
+            },
+            {
+              "id": "cut",
+              "label": "Extract specific key columns using cut or awk",
+              "type": "log_regex",
+              "pattern": "(cut|awk)"
+            },
+            {
+              "id": "read_key",
+              "label": "Inspect extracted target key line",
+              "type": "log_regex",
+              "pattern": "ACCESS_KEY"
+            }
+          ],
+          "hints": [
+            "Hint 1: Count log records with `wc -l data/server.log`.",
+            "Hint 2: Sort and count unique lines using `sort data/server.log | uniq -c` and extract key with `cut -d':' -f2`."
+          ]
+        },
+        "module4": {
+          "title": "Archive Extraction & Binary Inspection",
+          "difficulty": 3,
+          "points": 200,
+          "story": "An legacy backup archive contains encrypted binary blobs and encoded metadata. Decompress the tarball, inspect binary strings, and decode base64.",
+          "mission": "Decompress backup.tar.gz, inspect file types, extract printable strings, and decode base64.",
+          "objectives": [
+            {
+              "id": "tar",
+              "label": "Extract compressed archive with tar -xzf",
+              "type": "fs_test",
+              "test_cmd": "test -d /home/student/linux/module4/extracted"
+            },
+            {
+              "id": "file",
+              "label": "Inspect file headers using file utility",
+              "type": "log_regex",
+              "pattern": "^file\\b"
+            },
+            {
+              "id": "strings",
+              "label": "Extract printable strings from binary blob using strings",
+              "type": "log_regex",
+              "pattern": "^strings\\b"
+            },
+            {
+              "id": "base64",
+              "label": "Decode key payload using base64 -d",
+              "type": "log_regex",
+              "pattern": "^base64\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Extract files using `tar -xzf backup.tar.gz` and check types using `file extracted/*`.",
+            "Hint 2: Extract text using `strings extracted/blob.dat` and decode payload with `base64 -d`."
+          ]
+        },
+        "module5": {
+          "title": "System Diagnostics & Stream Redirection",
+          "difficulty": 3,
+          "points": 200,
+          "story": "A rogue background process modified environment variables and system config files. Compare config diffs, locate running PIDs, and redirect metrics.",
+          "mission": "Inspect environment variables, compare file diffs, identify process PID, and redirect output.",
+          "objectives": [
+            {
+              "id": "env",
+              "label": "Inspect active environment variables with env",
+              "type": "log_regex",
+              "pattern": "^env\\b"
+            },
+            {
+              "id": "diff",
+              "label": "Compare config changes using diff",
+              "type": "log_regex",
+              "pattern": "^diff\\b"
+            },
+            {
+              "id": "ps",
+              "label": "Locate rogue background process with ps aux",
+              "type": "log_regex",
+              "pattern": "ps\\b"
+            },
+            {
+              "id": "redirect",
+              "label": "Chain utilities and redirect stream output to result.txt",
+              "type": "fs_test",
+              "test_cmd": "test -f /home/student/linux/module5/result.txt"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect environment with `env` and compare files using `diff config.old config.new`.",
+            "Hint 2: Find PID with `ps aux | grep runaway` and redirect processed key output using `cat .final/key.txt > result.txt`."
+          ]
+        }
+      }
+    },
+    "python": {
+      "title": "Python Track",
+      "subtitle": "Python Syntax & Automation Programming",
+      "description": "Learn Python programming: variables, string operations, loops, dictionaries, file I/O, and exception handling.",
+      "difficulty": 2,
+      "total_points": 1000,
+      "modules": {
+        "module1": {
+          "title": "Python Variables & Data Types",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Orientation day in Python workstation. Inspect variables in main.py and execute script to verify environment.",
+          "mission": "Execute main.py with python3 and inspect variables to output the module key.",
+          "objectives": [
+            {
+              "id": "python_version",
+              "label": "Check Python version with python3 --version",
+              "type": "log_regex",
+              "pattern": "python3? --version"
+            },
+            {
+              "id": "cat_main",
+              "label": "Inspect main.py source code",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?main\\.py\\b"
+            },
+            {
+              "id": "run_main",
+              "label": "Execute python3 main.py in terminal",
+              "type": "log_regex",
+              "pattern": "python3?\\s+(\\./)?main\\.py\\b"
+            },
+            {
+              "id": "print_flag",
+              "label": "Print variable output flag",
+              "type": "log_regex",
+              "pattern": "(Execution Successful|python3?\\s+(\\./)?main\\.py\\b)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Check Python installation with `python3 --version`.",
+            "Hint 2: Inspect code with `cat main.py` and run using `python3 main.py`."
+          ]
+        },
+        "module2": {
+          "title": "Conditionals & Strings",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Security team needs access token validation. Inspect security.py and parse tokens to reveal key.",
+          "mission": "Complete security.py to parse access tokens and output the verified key.",
+          "objectives": [
+            {
+              "id": "inspect_sec",
+              "label": "Inspect security.py source code",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?security\\.py\\b"
+            },
+            {
+              "id": "str_methods",
+              "label": "Inspect string strip/split parsing logic",
+              "type": "log_regex",
+              "pattern": "(\\b(strip|split)\\b|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?security\\.py\\b|python3?\\s+(\\./)?security\\.py\\b)"
+            },
+            {
+              "id": "if_condition",
+              "label": "Inspect conditional token verification check",
+              "type": "log_regex",
+              "pattern": "(KEY_|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?security\\.py\\b|python3?\\s+(\\./)?security\\.py\\b)"
+            },
+            {
+              "id": "run_security",
+              "label": "Execute python3 security.py to print flag",
+              "type": "log_regex",
+              "pattern": "python3?\\s+(\\./)?security\\.py\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect parsing logic in `security.py` using `cat security.py`.",
+            "Hint 2: Run `python3 security.py` to validate tokens and output key."
+          ]
+        },
+        "module3": {
+          "title": "Code Flow & Multi-Module Imports",
+          "difficulty": 2,
+          "points": 200,
+          "story": "A data pipeline consists of modular scripts (analytics.py, data_loader.py). Trace function calls across modules using grep and execute analytics.py.",
+          "mission": "Trace imports across data_loader.py and calculator.py, and execute python3 analytics.py.",
+          "objectives": [
+            {
+              "id": "ls_modules",
+              "label": "List workspace Python modules with ls",
+              "type": "log_regex",
+              "pattern": "^ls\\b"
+            },
+            {
+              "id": "grep_imports",
+              "label": "Search for imported helper methods with grep",
+              "type": "log_regex",
+              "pattern": "^grep\\b"
+            },
+            {
+              "id": "cat_loader",
+              "label": "Inspect data_loader.py source file",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?data_loader\\.py\\b"
+            },
+            {
+              "id": "run_analytics",
+              "label": "Execute python3 analytics.py to compute metrics",
+              "type": "log_regex",
+              "pattern": "python3?\\s+(\\./)?analytics\\.py\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Trace imported functions with `grep -n 'import' *.py`.",
+            "Hint 2: Inspect `data_loader.py` and run `python3 analytics.py`."
+          ]
+        },
+        "module4": {
+          "title": "Configuration Files & JSON Parsing",
+          "difficulty": 3,
+          "points": 200,
+          "story": "An API gateway reads sensitive keys from structured JSON config files and environment variables. Inspect nested JSON structure and run app.py.",
+          "mission": "Inspect config.json, verify environment key resolution, and execute python3 app.py.",
+          "objectives": [
+            {
+              "id": "cat_json",
+              "label": "Inspect config.json structure with cat",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?config\\.json\\b"
+            },
+            {
+              "id": "env_check",
+              "label": "Inspect active environment settings with env or export",
+              "type": "log_regex",
+              "pattern": "(env|export)"
+            },
+            {
+              "id": "cat_app",
+              "label": "Inspect app.py JSON parser implementation",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?app\\.py\\b"
+            },
+            {
+              "id": "run_app",
+              "label": "Execute python3 app.py to output secret key",
+              "type": "log_regex",
+              "pattern": "python3?\\s+(\\./)?app\\.py\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Read JSON file using `cat config.json`.",
+            "Hint 2: Check environment variables with `env` and execute `python3 app.py`."
+          ]
+        },
+        "module5": {
+          "title": "Exception Tracing & Error Handling",
+          "difficulty": 3,
+          "points": 200,
+          "story": "An automated service crashes due to unhandled exceptions when processing corrupted log payloads. Trace exception handlers and execute runner.py safely.",
+          "mission": "Trace exception handlers, process safe fallback logic, and run python3 runner.py.",
+          "objectives": [
+            {
+              "id": "cat_runner",
+              "label": "Inspect exception handling logic in runner.py",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?runner\\.py\\b"
+            },
+            {
+              "id": "grep_except",
+              "label": "Search for exception handlers with grep",
+              "type": "log_regex",
+              "pattern": "except\\b"
+            },
+            {
+              "id": "verify_try",
+              "label": "Verify try-except block in handler script",
+              "type": "log_regex",
+              "pattern": "(try:|\\bgrep\\b|\\b(cat|less|more|head|tail)\\s+(\\./)?runner\\.py\\b|python3?\\s+(\\./)?runner\\.py\\b)"
+            },
+            {
+              "id": "run_runner",
+              "label": "Execute python3 runner.py to output flag",
+              "type": "log_regex",
+              "pattern": "python3?\\s+(\\./)?runner\\.py\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Search exception blocks using `grep -n 'except' runner.py`.",
+            "Hint 2: Execute `python3 runner.py` to process log stream safely."
+          ]
+        }
+      }
+    },
+    "java": {
+      "title": "Java Track",
+      "subtitle": "Object-Oriented & Java Application Architecture",
+      "description": "Learn Java programming: class structure, array iteration, static methods, class inheritance, file stream I/O, and properties configuration.",
+      "difficulty": 2,
+      "total_points": 1000,
+      "modules": {
+        "module1": {
+          "title": "Java Program Structure & Main",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Compile Main.java with javac and run java Main to output module flag.",
+          "mission": "Compile Main.java with javac and run java Main to output module flag.",
+          "objectives": [
+            {
+              "id": "javac_version",
+              "label": "Check Java compiler with javac -version",
+              "type": "log_regex",
+              "pattern": "javac -version"
+            },
+            {
+              "id": "cat_java",
+              "label": "Inspect Main.java source code",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?Main\\.java\\b"
+            },
+            {
+              "id": "javac_compile",
+              "label": "Compile source code with javac Main.java",
+              "type": "log_regex",
+              "pattern": "javac\\s+.*(\\./)?Main\\.java\\b"
+            },
+            {
+              "id": "java_run",
+              "label": "Execute java Main to print flag",
+              "type": "log_regex",
+              "pattern": "java\\s+(\\./)?Main\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Verify compiler with `javac -version`.",
+            "Hint 2: Compile code with `javac Main.java` and execute with `java Main`."
+          ]
+        },
+        "module2": {
+          "title": "Control Flow & Array Iteration",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Complete ControlFlow.java to iterate through code array and output the flag.",
+          "mission": "Complete ControlFlow.java to iterate through code array and output the flag.",
+          "objectives": [
+            {
+              "id": "cat_control",
+              "label": "Inspect ControlFlow.java source file",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?ControlFlow\\.java\\b"
+            },
+            {
+              "id": "for_loop",
+              "label": "Inspect array iteration for loop",
+              "type": "log_regex",
+              "pattern": "(\\bfor\\b|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?ControlFlow\\.java\\b|javac\\s+.*ControlFlow|java\\s+.*ControlFlow)"
+            },
+            {
+              "id": "if_check",
+              "label": "Inspect conditional target code comparison",
+              "type": "log_regex",
+              "pattern": "(1337|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?ControlFlow\\.java\\b|javac\\s+.*ControlFlow|java\\s+.*ControlFlow)"
+            },
+            {
+              "id": "run_control",
+              "label": "Execute java ControlFlow to print flag",
+              "type": "log_regex",
+              "pattern": "java\\s+(\\./)?ControlFlow\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect array logic using `cat ControlFlow.java`.",
+            "Hint 2: Compile with `javac ControlFlow.java` and run `java ControlFlow`."
+          ]
+        },
+        "module3": {
+          "title": "Package Structure & Static Utility Classes",
+          "difficulty": 2,
+          "points": 200,
+          "story": "An enterprise Java service uses modular package structure (com.cyber.utils.SecurityHelper). Locate package source files using find, compile, and run App.",
+          "mission": "Navigate package structure, compile Java package, and execute java com.cyber.App.",
+          "objectives": [
+            {
+              "id": "find_pkg",
+              "label": "Locate package Java files using find . -name '*.java'",
+              "type": "log_regex",
+              "pattern": "^find\\b"
+            },
+            {
+              "id": "grep_util",
+              "label": "Search for static utility methods with grep",
+              "type": "log_regex",
+              "pattern": "^grep\\b"
+            },
+            {
+              "id": "compile_pkg",
+              "label": "Compile package source files with javac com/cyber/*.java",
+              "type": "log_regex",
+              "pattern": "javac\\s+.*com/cyber"
+            },
+            {
+              "id": "run_pkg_app",
+              "label": "Execute java com.cyber.App to print flag",
+              "type": "log_regex",
+              "pattern": "java\\s+com\\.cyber\\.App\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Search Java package sources with `find . -name '*.java'`.",
+            "Hint 2: Compile package with `javac com/cyber/*.java` and run `java com.cyber.App`."
+          ]
+        },
+        "module4": {
+          "title": "Class Inheritance & Object Instantiation",
+          "difficulty": 3,
+          "points": 200,
+          "story": "An object-oriented vault service uses sub-class inheritance (SecureVault extends Vault). Inspect class definitions, compile all classes, and run VaultApp.",
+          "mission": "Inspect inherited class definitions, compile *.java, and execute java VaultApp.",
+          "objectives": [
+            {
+              "id": "cat_vault",
+              "label": "Inspect Vault.java base class definition",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?Vault\\.java\\b"
+            },
+            {
+              "id": "cat_sec_vault",
+              "label": "Inspect SecureVault.java subclass definition",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?SecureVault\\.java\\b"
+            },
+            {
+              "id": "compile_all_java",
+              "label": "Compile all Java classes with javac *.java",
+              "type": "log_regex",
+              "pattern": "javac\\s+.*\\*\\.java|javac\\s+.*Vault"
+            },
+            {
+              "id": "run_vault_app",
+              "label": "Execute java VaultApp to output key",
+              "type": "log_regex",
+              "pattern": "java\\s+(\\./)?VaultApp\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect inheritance structure using `cat SecureVault.java`.",
+            "Hint 2: Compile with `javac *.java` and execute `java VaultApp`."
+          ]
+        },
+        "module5": {
+          "title": "Resource Handling & Properties Configuration",
+          "difficulty": 3,
+          "points": 200,
+          "story": "A Java application loads configuration settings from app.properties via java.util.Properties. Inspect resource properties, compile ConfigLoader, and run.",
+          "mission": "Inspect app.properties, compile ConfigLoader.java, and execute java ConfigLoader.",
+          "objectives": [
+            {
+              "id": "cat_props",
+              "label": "Inspect app.properties resource file with cat",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?app\\.properties\\b"
+            },
+            {
+              "id": "cat_config_loader",
+              "label": "Inspect ConfigLoader.java resource reader implementation",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?ConfigLoader\\.java\\b"
+            },
+            {
+              "id": "compile_loader",
+              "label": "Compile ConfigLoader.java with javac",
+              "type": "log_regex",
+              "pattern": "javac\\s+.*ConfigLoader\\.java\\b"
+            },
+            {
+              "id": "run_loader",
+              "label": "Execute java ConfigLoader to display flag",
+              "type": "log_regex",
+              "pattern": "java\\s+(\\./)?ConfigLoader\\b"
+            }
+          ],
+          "hints": [
+            "Hint 1: Read properties file using `cat app.properties`.",
+            "Hint 2: Compile with `javac ConfigLoader.java` and execute `java ConfigLoader`."
+          ]
+        }
+      }
+    },
+    "c": {
+      "title": "C Programming Track",
+      "subtitle": "Low-Level C Programming & Artifact Investigation",
+      "description": "Master C programming: compilation, conditionals, memory arrays, header files, binary string inspection, and struct deserialization.",
+      "difficulty": 3,
+      "total_points": 1000,
+      "modules": {
+        "module1": {
+          "title": "C Program Syntax & printf",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Compile main.c with gcc and run ./main executable to print module key.",
+          "mission": "Compile main.c with gcc and run ./main executable to print module key.",
+          "objectives": [
+            {
+              "id": "gcc_version",
+              "label": "Check GCC compiler with gcc --version",
+              "type": "log_regex",
+              "pattern": "gcc --version"
+            },
+            {
+              "id": "cat_c_main",
+              "label": "Inspect main.c source code",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?main\\.c\\b"
+            },
+            {
+              "id": "gcc_compile",
+              "label": "Compile main.c with gcc -o main main.c",
+              "type": "log_regex",
+              "pattern": "gcc\\s+.*-o\\s+main\\s+(\\./)?main\\.c\\b"
+            },
+            {
+              "id": "run_c_main",
+              "label": "Execute binary ./main to print flag",
+              "type": "log_regex",
+              "pattern": "(?:\\./main\\b|\\./main$)(?!\\.c)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Check compiler with `gcc --version`.",
+            "Hint 2: Compile with `gcc -o main main.c` and execute `./main`."
+          ]
+        },
+        "module2": {
+          "title": "Variables & Conditionals",
+          "difficulty": 1,
+          "points": 200,
+          "story": "Modify calc.c to evaluate security levels and output key binary.",
+          "mission": "Modify calc.c to evaluate security levels and output key binary.",
+          "objectives": [
+            {
+              "id": "cat_calc",
+              "label": "Inspect calc.c source code",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?calc\\.c\\b"
+            },
+            {
+              "id": "c_var",
+              "label": "Inspect integer code variable declaration",
+              "type": "log_regex",
+              "pattern": "(int\\s+code|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?calc\\.c\\b|gcc\\s+.*calc|(?:\\./calc\\b|\\./calc$)(?!\\.c))"
+            },
+            {
+              "id": "c_if",
+              "label": "Inspect conditional check if (code == 1337)",
+              "type": "log_regex",
+              "pattern": "(1337|\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?calc\\.c\\b|gcc\\s+.*calc|(?:\\./calc\\b|\\./calc$)(?!\\.c))"
+            },
+            {
+              "id": "run_calc",
+              "label": "Execute ./calc to output flag",
+              "type": "log_regex",
+              "pattern": "(?:\\./calc\\b|\\./calc$)(?!\\.c)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Read source with `cat calc.c`.",
+            "Hint 2: Compile with `gcc -o calc calc.c` and run `./calc`."
+          ]
+        },
+        "module3": {
+          "title": "Header Files & Macro Definitions",
+          "difficulty": 2,
+          "points": 200,
+          "story": "A C telemetry application splits configuration across header files (config.h, app.c). Inspect macro definitions, compile app.c, and run executable.",
+          "mission": "Inspect config.h header definitions, compile with gcc -o app app.c, and execute ./app.",
+          "objectives": [
+            {
+              "id": "cat_header",
+              "label": "Inspect config.h header definitions with cat or grep",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?config\\.h\\b"
+            },
+            {
+              "id": "cat_c_app",
+              "label": "Inspect app.c implementation file",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?app\\.c\\b"
+            },
+            {
+              "id": "compile_c_app",
+              "label": "Compile C application with gcc -o app app.c",
+              "type": "log_regex",
+              "pattern": "gcc\\s+.*-o\\s+app\\s+(\\./)?app\\.c\\b"
+            },
+            {
+              "id": "run_c_app",
+              "label": "Execute binary ./app to print flag",
+              "type": "log_regex",
+              "pattern": "(?:\\./app\\b|\\./app$)(?!\\.c)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Read header file using `cat config.h`.",
+            "Hint 2: Compile using `gcc -o app app.c` and execute `./app`."
+          ]
+        },
+        "module4": {
+          "title": "Binary Inspection & String Extraction",
+          "difficulty": 3,
+          "points": 200,
+          "story": "A compiled binary artifact contains embedded ASCII symbols and character tables. Inspect file header types with file, extract strings, and run decoder.",
+          "mission": "Inspect binary file type with file, extract printable text with strings, and run ./decoder.",
+          "objectives": [
+            {
+              "id": "file_cmd",
+              "label": "Inspect binary artifact file type using file",
+              "type": "log_regex",
+              "pattern": "^file\\b"
+            },
+            {
+              "id": "strings_cmd",
+              "label": "Extract printable character symbols using strings",
+              "type": "log_regex",
+              "pattern": "^strings\\b"
+            },
+            {
+              "id": "compile_decoder",
+              "label": "Compile decoder source with gcc -o decoder decoder.c",
+              "type": "log_regex",
+              "pattern": "gcc\\s+.*-o\\s+decoder\\s+(\\./)?decoder\\.c\\b"
+            },
+            {
+              "id": "run_decoder",
+              "label": "Execute binary ./decoder to output key",
+              "type": "log_regex",
+              "pattern": "(?:\\./decoder\\b|\\./decoder$)(?!\\.c)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect binary header using `file artifact.bin`.",
+            "Hint 2: Extract text using `strings artifact.bin` and run `./decoder`."
+          ]
+        },
+        "module5": {
+          "title": "Struct Deserialization & Binary File I/O",
+          "difficulty": 3,
+          "points": 200,
+          "story": "A system daemon deserializes structured records from binary files (data.bin). Inspect record layout in structs.c, compile, and execute.",
+          "mission": "Inspect struct layout in structs.c, compile with gcc -o structs structs.c, and execute ./structs.",
+          "objectives": [
+            {
+              "id": "cat_structs_c",
+              "label": "Inspect struct layout in structs.c",
+              "type": "log_regex",
+              "pattern": "\\b(cat|less|more|head|tail|grep(\\s+.*)?)\\s+(\\./)?structs\\.c\\b"
+            },
+            {
+              "id": "stat_bin",
+              "label": "Inspect binary file data.bin using stat or ls -l",
+              "type": "log_regex",
+              "pattern": "(stat|ls)"
+            },
+            {
+              "id": "compile_structs",
+              "label": "Compile C source with gcc -o structs structs.c",
+              "type": "log_regex",
+              "pattern": "gcc\\s+.*-o\\s+structs\\s+(\\./)?structs\\.c\\b"
+            },
+            {
+              "id": "run_structs",
+              "label": "Execute binary ./structs to display flag",
+              "type": "log_regex",
+              "pattern": "(?:\\./structs\\b|\\./structs$)(?!\\.c)"
+            }
+          ],
+          "hints": [
+            "Hint 1: Inspect file structure using `cat structs.c` and check binary file size with `ls -l data.bin`.",
+            "Hint 2: Compile with `gcc -o structs structs.c` and execute `./structs`."
+          ]
+        }
+      }
+    }
+  }
+}

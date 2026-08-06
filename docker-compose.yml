@@ -1,0 +1,82 @@
+# ============================================================
+# CYBER RANGE PLATFORM — COMMAND LINE LAB DOCKER SERVICES
+# ============================================================
+# Usage:
+#   docker compose up --build -d
+# ============================================================
+
+networks:
+  cll-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.30.0.0/24
+
+services:
+
+  # ── Student Workspace Container ──
+  student-env:
+    build:
+      context: ./labs/command-line-lab/student-env
+    container_name: cll-student
+    hostname: cll-workstation
+    networks:
+      cll-net:
+        ipv4_address: 10.30.0.50
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # ── Orchestration & Terminal WebSocket Service ──
+  vulnerable-services:
+    build:
+      context: ./labs/command-line-lab/vulnerable-services
+    container_name: cll-services
+    hostname: cll-services
+    networks:
+      cll-net:
+        ipv4_address: 10.30.0.10
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - STUDENT_CONTAINER=cll-student
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./labs/command-line-lab/vulnerable-services/flags:/flags
+    ports:
+      - "8022:8022"   # terminal_service.py — browser xterm.js WebSocket
+      - "9500:9500"   # progress_service.py — objective status API
+    depends_on:
+      - student-env
+    restart: unless-stopped
+
+  # ── Scoring / Standalone Flask Server ──
+  scoring-server:
+    build:
+      context: ./labs/command-line-lab/scoring-server
+    container_name: cll-scoring
+    hostname: scoring
+    networks:
+      cll-net:
+        ipv4_address: 10.30.0.99
+    environment:
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+      - SERVICES_URL=http://10.30.0.10:9500
+      - HINT_SERVICE_URL=http://10.30.0.10:9600
+      - TERMINAL_WS_HOST=localhost
+      - TERMINAL_WS_PORT=8022
+    ports:
+      - "5001:5000"
+    volumes:
+      - scoring-data:/data
+      - ./labs/command-line-lab/modules:/app/static/modules:ro
+    depends_on:
+      - vulnerable-services
+    restart: unless-stopped
+
+volumes:
+  scoring-data:
