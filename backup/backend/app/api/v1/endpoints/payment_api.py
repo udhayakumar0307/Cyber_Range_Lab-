@@ -533,7 +533,33 @@ def get_purchased_labs(
     """
     Lists organization purchased labs and seat allocation pool.
     """
-    labs = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).order_by(PurchasedLab.purchased_date.desc()).all()
+    from sqlalchemy import or_
+
+    # Resolve organization ID for current admin user
+    user_org_id = None
+    if current_user.group:
+        user_org_id = current_user.group.organization_id
+
+    admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
+    if admin_prof:
+        user_org_id = admin_prof.organization_id
+
+    filters = [
+        PurchasedLab.user_id == current_user.id,
+        PurchasedLab.assigned_to.in_(["admin", "both"])
+    ]
+    if user_org_id is not None:
+        filters.append(PurchasedLab.organization_id == user_org_id)
+        filters.append(
+            (PurchasedLab.organization_id == user_org_id) & 
+            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+        )
+
+    labs = db.query(PurchasedLab).filter(
+        or_(*filters),
+        PurchasedLab.status == "ACTIVE"
+    ).order_by(PurchasedLab.purchased_date.desc()).all()
+
 
     result = []
     for lab in labs:

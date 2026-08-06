@@ -11,7 +11,8 @@ import {
   Star, 
   ShoppingCart, 
   Layers, 
-  Play
+  Play,
+  Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -456,7 +457,9 @@ export const LabMarketplace: React.FC = () => {
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
                         Price / Hour
                       </span>
-                      {isFree ? (
+                      {isPurchased ? (
+                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">INCLUDED</span>
+                      ) : isFree ? (
                         <span className="text-base font-black text-emerald-600 dark:text-emerald-400">FREE</span>
                       ) : (
                         <span className="text-lg font-black text-slate-900 dark:text-white">₹{getHourlyRate(lab.difficulty || undefined).toLocaleString('en-IN')}</span>
@@ -471,7 +474,15 @@ export const LabMarketplace: React.FC = () => {
                         View Details
                       </button>
 
-                      {isPuzzle ? (
+                      {isPurchased ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 rounded-lg bg-emerald-50 text-[#28A745] border border-emerald-200 font-bold text-xs inline-flex items-center gap-1.5 cursor-not-allowed"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Assigned</span>
+                        </button>
+                      ) : isPuzzle ? (
                         <button
                           onClick={() => {
                             // Auto purchase puzzle lab if needed then navigate
