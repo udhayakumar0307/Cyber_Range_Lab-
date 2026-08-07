@@ -65,7 +65,9 @@ export const OnboardingPage: React.FC = () => {
             navigate('/dashboard');
             return;
           }
-          setAccountType(data.account_type || 'STUDENT');
+          // Force account_type by role
+          const computedType = data.role === 'admin' ? 'INDIVIDUAL' : 'STUDENT';
+          setAccountType(computedType);
           setForm(prev => ({
             ...prev,
             name: data.name || user?.name || '',
@@ -193,28 +195,42 @@ export const OnboardingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Account Type Selector */}
-        <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50">
-          <button
-            type="button"
-            onClick={() => setAccountType('STUDENT')}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-              accountType === 'STUDENT' ? 'bg-[#2563EB] text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4" /> Student Account
-          </button>
+        {/* Account Type Selector (only shown if not explicitly determined by role) */}
+        {!user?.role ? (
+          <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50">
+            <button
+              type="button"
+              onClick={() => setAccountType('STUDENT')}
+              className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                accountType === 'STUDENT' ? 'bg-[#2563EB] text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" /> Student Account
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setAccountType('INDIVIDUAL')}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-              accountType === 'INDIVIDUAL' ? 'bg-[#2563EB] text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Briefcase className="w-4 h-4" /> Individual / Professional
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setAccountType('INDIVIDUAL')}
+              className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                accountType === 'INDIVIDUAL' ? 'bg-[#2563EB] text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Briefcase className="w-4 h-4" /> Individual / Professional
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-xs font-bold text-[#2563EB]">
+            {user.role === 'admin' ? (
+              <span className="flex items-center justify-center gap-2">
+                <Briefcase className="w-4 h-4" /> Professional Profile Onboarding
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <GraduationCap className="w-4 h-4" /> Student Profile Onboarding
+              </span>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6 text-xs">
           {/* PHOTO UPLOAD WIDGET */}
