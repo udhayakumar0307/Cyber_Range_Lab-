@@ -137,17 +137,9 @@ def update_cart_item(
 
     if data.hours_purchased is not None and data.hours_purchased > 0:
         item.hours_purchased = data.hours_purchased
-        # Recalculate price
+        # Recalculate price using the actual SysAdmin-set price_per_hour
         lab_obj = db.query(Lab).filter(Lab.id == item.lab_id).first()
-        difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
-        if "beginner" in difficulty:
-            rate = 100.0
-        elif "intermediate" in difficulty:
-            rate = 200.0
-        elif "advanced" in difficulty or "adv" in difficulty:
-            rate = 300.0
-        else:
-            rate = 100.0
+        rate = (lab_obj.price_per_hour if lab_obj and lab_obj.price_per_hour else 100.0)
         item.price_inr = rate * data.hours_purchased
 
     db.commit()
