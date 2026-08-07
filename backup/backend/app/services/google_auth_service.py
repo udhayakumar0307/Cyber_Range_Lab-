@@ -256,7 +256,7 @@ class GoogleAuthService:
         is_sso = False
         if domain:
             sso_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
-            is_sso = match_domain_pattern(domain, sso_patterns) or user.provider == "google"
+            is_sso = match_domain_pattern(domain, sso_patterns)
         
         user.auth_type = "SSO" if is_sso else "INDIVIDUAL"
         user.last_login = datetime.utcnow()

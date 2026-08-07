@@ -228,7 +228,7 @@ def _execute_login(
     is_sso = False
     if domain:
         sso_patterns = ["*.edu", "*.ac.in", "*.edu.in", "*college*", "*univ*"]
-        is_sso = match_domain_pattern(domain, sso_patterns) or user.provider == "google" or getattr(user, "account_type", "").lower() == "academic"
+        is_sso = match_domain_pattern(domain, sso_patterns) or getattr(user, "account_type", "").lower() == "academic"
     else:
         is_sso = getattr(user, "account_type", "").lower() == "academic"
     
