@@ -120,9 +120,9 @@ async def check_assignment_reminders() -> None:
                     users = [u]
 
             for user in users:
-        # Starting notifications and 15m reminders removed per user request.
-        # Only direct notification on creation is sent.
-        pass
+                # Starting notifications and 15m reminders removed per user request.
+                # Only direct notification on creation is sent.
+                pass
 
     except Exception:
         db.rollback()
