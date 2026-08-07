@@ -14,6 +14,7 @@ import {
   Check,
   Play,
   X,
+  Star,
 } from 'lucide-react';
 
 interface Lab {
@@ -30,6 +31,8 @@ interface Lab {
   isPurchased: boolean;
   totalChallenges: number;
   modules: any[];
+  rating?: number;
+  reviewCount?: number;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -91,6 +94,8 @@ export const AvailableLabs: React.FC = () => {
           isPurchased: item?.isPurchased ?? false,
           totalChallenges: item?.totalChallenges ?? (Array.isArray(item?.modules) ? item.modules.length : 5),
           modules: Array.isArray(item?.modules) ? item.modules : [],
+          rating: item?.rating ?? 4.9,
+          reviewCount: item?.reviewCount ?? 120,
         };
       });
       // Filter out internal labs
