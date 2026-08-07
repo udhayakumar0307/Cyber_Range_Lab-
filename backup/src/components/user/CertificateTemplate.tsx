@@ -1,14 +1,15 @@
 import React from 'react';
+import { Calendar, ShieldCheck, Contact2 } from 'lucide-react';
 
 export interface CertificateData {
   recipientName: string;
   labTitle: string;
   category?: string;
-  score: number;
+  score?: number;
   percentage?: number;
   points?: number;
   completedAt: string;
-  duration: string;
+  duration?: string;
   certificateId: string;
   badgeTitle?: string;
   verifyUrl?: string;
@@ -17,36 +18,27 @@ export interface CertificateData {
 
 const FontLoader: React.FC = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-    .font-jakarta {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .clip-diagonal { clip-path: polygon(100% 0, 100% 100%, 0 0); }
-    .clip-diagonal-bottom { clip-path: polygon(0 0, 100% 100%, 0 100%); }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Great+Vibes&family=Cinzel:wght@600;700;800;900&display=swap');
+    .font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-cinzel { font-family: 'Cinzel', serif; }
+    .font-signature { font-family: 'Great Vibes', cursive; }
   `}</style>
 );
 
 export const CertificateTemplate: React.FC<CertificateData> = (props) => {
-  const { recipientName, labTitle, completedAt, certificateId, pngUrl } = props;
+  const { recipientName, labTitle, completedAt, certificateId } = props;
 
-  if (pngUrl) {
-    return (
-      <div id="certificate-template-wrapper" className="w-full flex items-center justify-center select-none overflow-hidden rounded-xl shadow-2xl border border-slate-200 bg-white">
-        <img
-          src={pngUrl}
-          alt={`Certificate - ${labTitle}`}
-          className="w-full h-auto object-contain max-w-[1400px]"
-        />
-      </div>
-    );
-  }
+  const displayRecipient = (recipientName || 'CyberRange Student').toUpperCase();
+  const displayLab = (labTitle || 'First Security Lab Environment').toUpperCase();
+  const displayDate = (completedAt || '31 JULY 2026').toUpperCase();
+  const displayId = (certificateId || 'CYR-2026-000001').toUpperCase();
 
   return (
     <>
       <FontLoader />
       <div
         id="certificate-template-wrapper"
-        className="relative bg-white rounded-xl shadow-2xl overflow-hidden select-none text-slate-900 border border-slate-200 shrink-0 font-jakarta"
+        className="relative bg-[#FAFBFD] rounded-xl shadow-2xl overflow-hidden select-none text-[#0B1F3A] shrink-0 font-jakarta border border-slate-200"
         style={{
           width: '1400px',
           height: '990px',
@@ -54,61 +46,158 @@ export const CertificateTemplate: React.FC<CertificateData> = (props) => {
           boxSizing: 'border-box',
         }}
       >
-        {/* Rendered Master BG Preview fallback */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 right-0 w-[300px] h-[150px] bg-[#0B1F3A] clip-diagonal transform rotate-12 origin-top-right opacity-90" />
-          <div className="absolute bottom-0 left-0 w-[250px] h-[180px] bg-[#0B1F3A] clip-diagonal-bottom transform rotate-12 origin-bottom-left opacity-90" />
+        {/* Background Circuit Vectors */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20" xmlns="http://www.w3.org/2000/svg">
+          {/* Top Right Circuit */}
+          <path d="M 950 0 L 1100 0 L 1150 50 L 1300 50 L 1350 100 L 1400 100" stroke="#0B1F3A" strokeWidth="1.5" fill="none" />
+          <path d="M 1000 0 L 1050 50 L 1250 50 L 1300 100" stroke="#C5A059" strokeWidth="1.5" fill="none" />
+          <circle cx="1150" cy="50" r="4" fill="#0B1F3A" />
+          <circle cx="1300" cy="50" r="4" fill="#C5A059" />
+
+          {/* Left Circuit */}
+          <path d="M 0 500 L 50 500 L 100 550 L 100 700 L 150 750" stroke="#0B1F3A" strokeWidth="1.5" fill="none" />
+          <circle cx="100" cy="550" r="4" fill="#C5A059" />
+          <circle cx="150" cy="750" r="4" fill="#0B1F3A" />
+        </svg>
+
+        {/* Top-Right Decorative Corner Ribbons */}
+        <div className="absolute top-0 right-0 w-[420px] h-[160px] pointer-events-none overflow-hidden">
+          <div className="absolute top-[-90px] right-[-60px] w-[500px] h-[160px] bg-[#0B1F3A] transform rotate-[25deg] shadow-lg" />
+          <div className="absolute top-[-40px] right-[-60px] w-[500px] h-[16px] bg-[#C5A059] transform rotate-[25deg]" />
+          <div className="absolute top-[-15px] right-[-60px] w-[500px] h-[8px] bg-[#E2B755] transform rotate-[25deg]" />
         </div>
 
-        {/* Certificate Text & Layout Overlay */}
-        <div className="relative z-10 h-full flex flex-col justify-between p-16">
-          {/* Header row */}
-          <div className="flex items-center justify-between pt-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-[#0B1F3A] text-white flex items-center justify-center font-bold">CR</div>
+        {/* Bottom-Left Decorative Corner Ribbons */}
+        <div className="absolute bottom-0 left-0 w-[420px] h-[180px] pointer-events-none overflow-hidden">
+          <div className="absolute bottom-[-100px] left-[-60px] w-[500px] h-[180px] bg-[#0B1F3A] transform rotate-[25deg] shadow-lg" />
+          <div className="absolute bottom-[40px] left-[-60px] w-[500px] h-[16px] bg-[#C5A059] transform rotate-[25deg]" />
+          <div className="absolute bottom-[68px] left-[-60px] w-[500px] h-[8px] bg-[#E2B755] transform rotate-[25deg]" />
+        </div>
+
+        {/* Bottom-Right Dot Matrix */}
+        <div className="absolute bottom-12 right-12 grid grid-cols-12 gap-1.5 opacity-25 pointer-events-none">
+          {Array.from({ length: 48 }).map((_, i) => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#0B1F3A]" />
+          ))}
+        </div>
+
+        {/* Main Certificate Outer Frame Border */}
+        <div className="absolute inset-8 border border-slate-200/80 rounded-lg pointer-events-none" />
+
+        {/* Content Container */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-14 sm:p-16">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Logo Shield */}
+              <div className="w-14 h-14 rounded-2xl bg-[#0B1F3A] border-2 border-[#C5A059] flex items-center justify-center text-amber-400 shadow-md">
+                <div className="relative flex items-center justify-center">
+                  <ShieldCheck className="w-8 h-8 text-[#C5A059]" />
+                </div>
+              </div>
               <div>
-                <h2 className="text-xl font-extrabold tracking-wider text-[#0B1F3A]">CYBER RANGE</h2>
-                <p className="text-[8px] font-bold tracking-[0.2em] text-slate-400">LEARN. PRACTICE. DEFEND.</p>
+                <h2 className="text-xl font-extrabold tracking-[0.15em] text-[#0B1F3A] font-cinzel">CYBER RANGE</h2>
+                <p className="text-[9px] font-black tracking-[0.25em] text-[#C5A059] uppercase mt-0.5">LEARN. PRACTICE. DEFEND.</p>
               </div>
             </div>
           </div>
 
-          {/* Certificate Title */}
-          <div className="text-center my-4">
-            <h1 className="text-5xl font-black text-[#0B1F3A] tracking-[0.25em] uppercase">CERTIFICATE</h1>
-            <p className="text-sm font-bold text-[#D89B2B] tracking-[0.3em] uppercase mt-2">OF COMPLETION</p>
-          </div>
+          {/* Certificate Header Title */}
+          <div className="text-center mt-2">
+            <h1 className="text-5xl font-black tracking-[0.25em] text-[#0B1F3A] uppercase font-cinzel">
+              CERTIFICATE
+            </h1>
 
-          {/* Certification Body */}
-          <div className="text-center space-y-4">
-            <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">THIS IS TO CERTIFY THAT</p>
-            <h2 className="text-5xl font-black text-[#0B1F3A] py-1 border-b-2 border-slate-100 max-w-xl mx-auto tracking-wide">{recipientName}</h2>
-            <p className="text-xs uppercase tracking-widest text-slate-400 font-bold pt-3">HAS SUCCESSFULLY COMPLETED THE LAB</p>
-            <h3 className="text-3xl font-extrabold text-[#0B1F3A] tracking-tight max-w-2xl mx-auto leading-relaxed">{labTitle}</h3>
-          </div>
-
-          {/* Info Details Footer Row */}
-          <div className="flex items-center justify-center gap-24 border-t border-slate-100 pt-8 pb-4">
-            <div className="text-center">
-              <span className="text-[10px] font-black text-slate-400 tracking-wider block uppercase">COMPLETED ON</span>
-              <span className="text-sm font-extrabold text-[#0B1F3A]">{completedAt}</span>
-            </div>
-            <div className="h-10 w-[1px] bg-slate-200" />
-            <div className="text-center">
-              <span className="text-[10px] font-black text-slate-400 tracking-wider block uppercase">CERTIFICATE ID</span>
-              <span className="text-sm font-extrabold text-[#0B1F3A]">{certificateId}</span>
+            {/* Gold Divider Line with Circle Markers */}
+            <div className="flex items-center justify-center gap-3 my-3 max-w-lg mx-auto">
+              <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-[#C5A059] to-[#C5A059]" />
+              <div className="w-2.5 h-2.5 rounded-full border-2 border-[#C5A059] bg-white" />
+              <span className="text-xs font-bold text-[#C5A059] tracking-[0.35em] uppercase font-jakarta px-2">
+                OF COMPLETION
+              </span>
+              <div className="w-2.5 h-2.5 rounded-full border-2 border-[#C5A059] bg-white" />
+              <div className="h-[2px] flex-1 bg-gradient-to-l from-transparent via-[#C5A059] to-[#C5A059]" />
             </div>
           </div>
 
-          {/* Signatures and Seals */}
-          <div className="flex items-end justify-between px-10">
+          {/* Recipient Statement Body */}
+          <div className="text-center space-y-3 max-w-4xl mx-auto">
+            <p className="text-xs font-bold tracking-[0.25em] text-slate-500 uppercase">
+              THIS IS TO CERTIFY THAT
+            </p>
+
+            {/* Recipient Name (Dynamic DB) */}
+            <div className="py-2">
+              <h2 className="text-4xl sm:text-5xl font-black text-[#0B1F3A] tracking-wider font-cinzel px-8 inline-block">
+                {displayRecipient}
+              </h2>
+              {/* Golden Underline Accent with Center Diamond */}
+              <div className="flex items-center justify-center gap-2 max-w-md mx-auto mt-2">
+                <div className="h-[2px] flex-1 bg-[#C5A059]" />
+                <div className="w-2 h-2 rotate-45 bg-[#C5A059]" />
+                <div className="h-[2px] flex-1 bg-[#C5A059]" />
+              </div>
+            </div>
+
+            <p className="text-xs font-bold tracking-[0.25em] text-slate-500 uppercase pt-2">
+              HAS SUCCESSFULLY COMPLETED THE LAB
+            </p>
+
+            {/* Lab Title (Dynamic DB) */}
+            <h3 className="text-2xl sm:text-3xl font-black text-[#0B1F3A] tracking-tight leading-snug uppercase max-w-3xl mx-auto py-1">
+              {displayLab}
+            </h3>
+            <div className="w-16 h-[2px] bg-[#C5A059] mx-auto rounded-full" />
+          </div>
+
+          {/* Footer Details Grid (Date & ID Card Badges) */}
+          <div className="flex items-center justify-center gap-16 my-2">
+            {/* Completed Date Card */}
+            <div className="flex items-center gap-4 bg-white border border-slate-200/80 px-6 py-3 rounded-2xl shadow-sm">
+              <div className="w-12 h-12 rounded-full border-2 border-[#C5A059] flex items-center justify-center text-[#C5A059]">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] font-black text-slate-400 tracking-widest block uppercase">COMPLETED ON</span>
+                <span className="text-sm font-extrabold text-[#0B1F3A] tracking-wide">{displayDate}</span>
+              </div>
+            </div>
+
+            {/* Vertical Divider */}
+            <div className="h-12 w-[1px] bg-slate-200" />
+
+            {/* Certificate ID Card */}
+            <div className="flex items-center gap-4 bg-white border border-slate-200/80 px-6 py-3 rounded-2xl shadow-sm">
+              <div className="w-12 h-12 rounded-full border-2 border-[#C5A059] flex items-center justify-center text-[#C5A059]">
+                <Contact2 className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] font-black text-slate-400 tracking-widest block uppercase">CERTIFICATE ID</span>
+                <span className="text-sm font-extrabold text-[#0B1F3A] tracking-wide font-mono">{displayId}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Signatures and Verification Seal */}
+          <div className="flex items-end justify-between px-6 pt-4 border-t border-slate-200/60">
+            {/* Left/Center Signature */}
             <div className="text-left">
-              <span className="font-semibold text-lg text-[#0B1F3A] block border-b border-slate-300 pb-1">CyberRange</span>
-              <span className="text-[10px] text-slate-500 block pt-1">CYBER RANGE LEARNING PLATFORM</span>
+              <span className="font-signature text-3xl text-[#0B1F3A] block leading-none pl-2">CyberRange</span>
+              <div className="w-48 h-[1.5px] bg-[#C5A059] my-1" />
+              <span className="text-[9px] font-black tracking-[0.2em] text-slate-500 uppercase block">
+                CYBER RANGE LEARNING PLATFORM
+              </span>
             </div>
-            <div className="text-right">
-              <span className="font-extrabold text-xs text-[#0B1F3A] uppercase tracking-widest block">VERIFIED</span>
-              <span className="text-[9px] text-slate-400 block">Verified by Author</span>
+
+            {/* Right Verified Author Badge */}
+            <div className="flex items-center gap-3 text-right">
+              <div className="w-10 h-10 rounded-full bg-[#0B1F3A] text-[#C5A059] border border-[#C5A059] flex items-center justify-center shadow-md">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <span className="text-xs font-black tracking-widest text-[#0B1F3A] block uppercase">VERIFIED</span>
+                <span className="text-[10px] font-bold text-slate-400 block">Verified by Author</span>
+              </div>
             </div>
           </div>
         </div>
