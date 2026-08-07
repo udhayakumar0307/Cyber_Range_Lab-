@@ -671,7 +671,14 @@ export const AvailableLabs: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Duration: {lab.durationHours} hrs</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">Price / Hour</span>
+                      {lab.priceInr === 0 || lab.isFree ? (
+                        <span className="text-sm font-black text-emerald-500">FREE</span>
+                      ) : (
+                        <span className="text-sm font-black text-slate-800 dark:text-slate-100">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
+                      )}
+                    </div>
                     {/* Personal workspace: purchased → Launch Lab */}
                     {!isSso && lab.isPurchased ? (
                       <button
@@ -703,8 +710,7 @@ export const AvailableLabs: React.FC = () => {
                                 body: JSON.stringify({
                                   lab_id: lab.id,
                                   lab_title: lab.title,
-                                  price_inr: lab.priceInr ?? 4999.0,
-                                  quantity: 1
+                                  hours_purchased: 1
                                 })
                               });
                               if (res.status === 409) {

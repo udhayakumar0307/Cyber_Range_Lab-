@@ -15,7 +15,7 @@ class AddToCartRequest(BaseModel):
     lab_id: str
     lab_title: str
     lab_image: Optional[str] = None
-    hours_purchased: int = 40
+    hours_purchased: int = 1
 
 class UpdateCartItemRequest(BaseModel):
     hours_purchased: Optional[int] = None
@@ -41,19 +41,11 @@ def get_cart(current_user: User = Depends(get_current_user), db: Session = Depen
     subtotal = 0.0
 
     for item in cart.items:
-        hours = item.hours_purchased or 40
+        hours = item.hours_purchased or 1
         
-        # Calculate hourly rate based on difficulty
+        # Use the actual per-hour price from the lab record set by SysAdmin
         lab_obj = db.query(Lab).filter(Lab.id == item.lab_id).first()
-        difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
-        if "beginner" in difficulty:
-            rate = 100.0
-        elif "intermediate" in difficulty:
-            rate = 200.0
-        elif "advanced" in difficulty or "adv" in difficulty:
-            rate = 300.0
-        else:
-            rate = 100.0
+        rate = (lab_obj.price_per_hour if lab_obj and lab_obj.price_per_hour else 100.0)
 
         item.price_inr = rate * hours
         item.hours_purchased = hours
@@ -107,19 +99,11 @@ def add_item_to_cart(
             detail=f"'{data.lab_title}' is already in your cart."
         )
 
-    # Get difficulty and calculate price
+    # Get the per-hour price from the lab record (set by SysAdmin)
     lab_obj = db.query(Lab).filter(Lab.id == data.lab_id).first()
-    difficulty = (lab_obj.difficulty or "Beginner").lower() if lab_obj else "beginner"
-    if "beginner" in difficulty:
-        rate = 100.0
-    elif "intermediate" in difficulty:
-        rate = 200.0
-    elif "advanced" in difficulty or "adv" in difficulty:
-        rate = 300.0
-    else:
-        rate = 100.0
+    rate = (lab_obj.price_per_hour if lab_obj and lab_obj.price_per_hour else 100.0)
 
-    hours = data.hours_purchased or 40
+    hours = data.hours_purchased or 1
     new_item = CartItem(
         cart_id=cart.id,
         lab_id=data.lab_id,
