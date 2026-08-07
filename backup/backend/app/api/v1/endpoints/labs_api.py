@@ -170,62 +170,14 @@ def get_labs(
     if not current_user:
         return [{**lab, "solvedChallenges": 0} for lab in labs_metadata]
 
-    user_auth_type = getattr(current_user, "auth_type", "INDIVIDUAL")
-
-    if user_auth_type == "SSO":
-        # SSO group students: filter to their specific Assignment records
-        from app.models.assignment import Assignment
-        student_group_id = getattr(current_user, "group_id", None)
-        assigned_query = db.query(Assignment).filter(
-            (Assignment.student_id == current_user.id) |
-            (Assignment.group_id == student_group_id)
-        )
-        assigned_lab_ids = {a.lab_id for a in assigned_query.all() if a.lab_id}
-        active_labs_metadata = [
-            {**lab, "isPurchased": True}
-            for lab in labs_metadata
-            if lab["id"] in assigned_lab_ids
-        ]
-    else:
-        # INDIVIDUAL / ADMIN: show all sysadmin-assigned labs.
-        # Free labs -> Launch. Priced labs -> Add to Cart unless already paid.
-        from app.models.admin_models import PurchasedLab, AdminProfile
-        from sqlalchemy import or_, and_
-
-        user_org_id = None
-        if current_user.group:
-            user_org_id = current_user.group.organization_id
-        admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
-        if admin_prof:
-            user_org_id = admin_prof.organization_id
-
-        # Find labs already paid for by this user (Razorpay purchases have user_id set)
-        pay_conditions = [
-            and_(
-                PurchasedLab.user_id == current_user.id,
-                PurchasedLab.organization_id.isnot(None)
-            )
-        ]
-        if user_org_id is not None:
-            pay_conditions.append(
-                and_(
-                    PurchasedLab.organization_id == user_org_id,
-                    PurchasedLab.assigned_to.in_(["student", "both", "org"])
-                )
-            )
-
-        paid_records = db.query(PurchasedLab).filter(
-            or_(*pay_conditions),
-            PurchasedLab.status == "ACTIVE"
-        ).all()
-        paid_lab_ids = {p.lab_id for p in paid_records}
-
-        active_labs_metadata = []
-        for lab in labs_metadata:
-            # Only mark as isPurchased (Assigned/Included) for FREE labs.
-            # Priced labs are always purchasable — admins can buy more hours.
-            is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
-            active_labs_metadata.append({**lab, "isPurchased": is_free_lab})
+    # Show all sysadmin-assigned labs to every student (no SSO/INDIVIDUAL restriction).
+    # Free labs -> Launch. Priced labs -> Add to Cart.
+    active_labs_metadata = []
+    for lab in labs_metadata:
+        # Only mark as isPurchased (Assigned/Included) for FREE labs.
+        # Priced labs are always purchasable — admins or students can buy them.
+        is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
+        active_labs_metadata.append({**lab, "isPurchased": is_free_lab})
 
     # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics
