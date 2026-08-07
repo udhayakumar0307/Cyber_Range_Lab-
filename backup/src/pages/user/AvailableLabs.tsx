@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { CartDrawer } from '../../components/admin/CartDrawer';
+import { LabDetailModal } from '../../components/admin/LabDetailModal';
 import type { CartItem } from '../../types/cart';
 import {
   Search,
@@ -55,6 +56,10 @@ export const AvailableLabs: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+
+  // Detail Modal State
+  const [selectedModalLab, setSelectedModalLab] = useState<any | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'all' | 'purchased'>('all');
@@ -377,6 +382,10 @@ export const AvailableLabs: React.FC = () => {
                         {durationText}
                       </span>
                       <span className="flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        {lab.rating || 4.9}
+                      </span>
+                      <span className="flex items-center gap-1">
                         <Layers className="w-3.5 h-3.5 text-slate-400" />
                         {moduleCount} Modules
                       </span>
@@ -444,7 +453,7 @@ export const AvailableLabs: React.FC = () => {
                       ) : (
                         <>
                           <button
-                            onClick={() => navigate(`/labs/${lab.id}`)}
+                            onClick={() => setSelectedModalLab(lab)}
                             className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
                           >
                             View Details
@@ -539,6 +548,12 @@ export const AvailableLabs: React.FC = () => {
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
         onProceedToCheckout={handleProceedToCheckout}
+      />
+
+      <LabDetailModal
+        lab={selectedModalLab}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
       />
     </div>
   );
