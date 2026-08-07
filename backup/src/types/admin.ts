@@ -42,7 +42,9 @@ export interface SecurityLab {
   difficulty?: LabDifficulty | null;
   category?: string | null;
   priceInr?: number | null;
+  isFree?: boolean;
   durationHours?: number | null;
+  durationDisplay?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
   prerequisites?: string[] | null;
@@ -51,6 +53,7 @@ export interface SecurityLab {
   dockerImage?: string | null;
   registryPath?: string | null;
   isPurchased?: boolean;
+  assignedTo?: string | null;
   activeSessionsCount?: number;
   purchasedDate?: string;
   assignedGroupCount?: number;
