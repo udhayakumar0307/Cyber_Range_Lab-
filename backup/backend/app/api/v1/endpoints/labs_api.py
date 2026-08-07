@@ -170,14 +170,22 @@ def get_labs(
     if not current_user:
         return [{**lab, "solvedChallenges": 0} for lab in labs_metadata]
 
+    # Fetch user's active purchased lab IDs from database
+    from app.models.admin_models import PurchasedLab
+    purchased_records = db.query(PurchasedLab).filter(
+        PurchasedLab.user_id == current_user.id,
+        PurchasedLab.status == "ACTIVE"
+    ).all()
+    user_purchased_ids = {p.lab_id for p in purchased_records}
+
     # Show all sysadmin-assigned labs to every student (no SSO/INDIVIDUAL restriction).
     # Free labs -> Launch. Priced labs -> Add to Cart.
     active_labs_metadata = []
     for lab in labs_metadata:
-        # Only mark as isPurchased (Assigned/Included) for FREE labs.
-        # Priced labs are always purchasable — admins or students can buy them.
+        # A lab is purchased if it's free OR if the student bought it
         is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
-        active_labs_metadata.append({**lab, "isPurchased": is_free_lab})
+        is_purchased = is_free_lab or (lab["id"] in user_purchased_ids)
+        active_labs_metadata.append({**lab, "isPurchased": is_purchased})
 
     # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics
