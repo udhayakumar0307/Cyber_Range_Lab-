@@ -191,7 +191,7 @@ export const AdminLoginPage: React.FC = () => {
                   <div className="w-full border-t border-slate-200"></div>
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-3 text-slate-400 font-semibold">Or Admin Google Sign-In</span>
+                  <span className="bg-white px-3 text-slate-400 font-semibold">Or continue with Google</span>
                 </div>
               </div>
 

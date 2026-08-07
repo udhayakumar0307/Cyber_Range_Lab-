@@ -192,12 +192,20 @@ class GoogleAuthService:
             if google_info.get("picture") and not existing_user.profile_photo:
                 existing_user.profile_photo = google_info["picture"]
 
+            if portal_clean == "admin" or is_admin_domain(email):
+                existing_user.role = "admin"
+                existing_user.account_type = "academic"
+                existing_user.is_internal = True
+                existing_user.tenant_id = "cyberrange"
+                existing_user.profile_completed = True
+
             user = existing_user
         else:
             # First Login -> Auto Create Account
             dummy_password = get_password_hash(secrets.token_urlsafe(32))
             
-            if portal_clean == "admin" or is_admin_domain(email):
+            is_admin = (portal_clean == "admin" or is_admin_domain(email))
+            if is_admin:
                 role = "admin"
                 account_type = "academic"
                 is_internal = True
@@ -216,6 +224,7 @@ class GoogleAuthService:
                 account_type=account_type,
                 account_status="active",
                 email_verified=True,
+                profile_completed=True if is_admin else False,
                 tenant_id=tenant_id,
                 is_internal=is_internal,
                 google_id=google_id,
