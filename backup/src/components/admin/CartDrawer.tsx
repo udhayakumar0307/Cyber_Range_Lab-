@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { X, ShoppingCart, Trash2, ArrowRight, Clock, Zap } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 
@@ -16,6 +16,8 @@ interface CartDrawerProps {
 
 const HOUR_PRESETS = [1, 5, 10, 50, 100, 400];
 
+const inr = (n: number) => '\u20B9' + n.toLocaleString('en-IN');
+
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
@@ -23,7 +25,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateHours,
   onRemoveItem,
   onClearCart,
-  onProceedToCheckout
+  onProceedToCheckout,
 }) => {
   if (!isOpen) return null;
 
@@ -43,10 +45,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         onClick={onClose}
       />
 
-      {/* Cart Panel â€” fixed right side, full height, 500px wide */}
+      {/* Cart Panel - fixed right side, full height, 500px wide */}
       <div className="fixed top-0 right-0 bottom-0 z-50 w-[500px] bg-[#0d1117] border-l border-slate-700/60 shadow-2xl flex flex-col">
 
-        {/* â”€â”€ Header â”€â”€ */}
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-700/60 bg-[#0d1117]">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-600/20 border border-blue-500/30 rounded-xl">
@@ -67,7 +69,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           </button>
         </div>
 
-        {/* â”€â”€ Items â”€â”€ */}
+        {/* Items */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {safeItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -97,7 +99,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <div className="flex items-center gap-1.5 mt-1">
                         <Zap className="w-3 h-3 text-blue-400" />
                         <span className="text-[12px] font-extrabold text-blue-400">
-                          â‚¹{ratePerHr.toLocaleString('en-IN')} / hr
+                          {inr(ratePerHr)} / hr
                         </span>
                         <span className="text-[11px] text-slate-500">(SysAdmin rate)</span>
                       </div>
@@ -124,7 +126,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <button
                           key={h}
                           onClick={() => onUpdateHours(item.id, h)}
-                          className={`py-2 rounded-xl text-[11px] font-black transition-all ${
+                          className={`py-2 rounded-xl text-[12px] font-black transition-all ${
                             hours === h
                               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-105'
                               : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-600/40'
@@ -138,11 +140,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                   {/* Item total */}
                   <div className="pt-3 border-t border-slate-700/40 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">
-                      {hours} hr Ã— â‚¹{ratePerHr.toLocaleString('en-IN')}
+                    <span className="text-[12px] text-slate-400">
+                      {hours} hr &times; {inr(ratePerHr)}
                     </span>
                     <span className="text-sm font-black text-white">
-                      â‚¹{itemTotal.toLocaleString('en-IN')}
+                      {inr(itemTotal)}
                     </span>
                   </div>
                 </div>
@@ -151,22 +153,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           )}
         </div>
 
-        {/* â”€â”€ Footer / Price Summary â”€â”€ */}
+        {/* Footer / Price Summary */}
         {safeItems.length > 0 && (
           <div className="px-5 py-5 border-t border-slate-700/60 bg-slate-900/80 space-y-3">
             {/* Price breakdown */}
-            <div className="space-y-1.5 text-xs">
+            <div className="space-y-2 text-[13px]">
               <div className="flex justify-between text-slate-400">
                 <span>Subtotal</span>
-                <span className="font-bold text-slate-200">â‚¹{subtotal.toLocaleString('en-IN')}</span>
+                <span className="font-bold text-slate-200">{inr(subtotal)}</span>
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>GST (18%)</span>
-                <span className="font-bold text-slate-200">â‚¹{tax.toLocaleString('en-IN')}</span>
+                <span className="font-bold text-slate-200">{inr(tax)}</span>
               </div>
               <div className="flex justify-between text-sm font-black pt-2 border-t border-slate-700/60">
                 <span className="text-white">Total</span>
-                <span className="text-blue-400 text-base">â‚¹{grandTotal.toLocaleString('en-IN')}</span>
+                <span className="text-blue-400 text-base">{inr(grandTotal)}</span>
               </div>
             </div>
 
@@ -187,7 +189,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </button>
             <button
               onClick={onClearCart}
-              className="w-full text-slate-500 hover:text-rose-400 font-bold text-[11px] py-1.5 text-center transition-colors"
+              className="w-full text-slate-500 hover:text-rose-400 font-bold text-[12px] py-1.5 text-center transition-colors"
             >
               Clear Cart
             </button>

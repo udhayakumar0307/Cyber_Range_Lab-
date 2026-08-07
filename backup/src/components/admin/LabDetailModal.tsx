@@ -6,11 +6,8 @@ import {
   Star, 
   ShieldCheck, 
   Layers, 
-  ShoppingCart, 
-  ArrowRight,
   CheckCircle
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 interface LabDetailModalProps {
   lab: SecurityLab | null;
@@ -19,8 +16,6 @@ interface LabDetailModalProps {
 }
 
 export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onClose }) => {
-  const navigate = useNavigate();
-
   if (!isOpen || !lab) return null;
 
   const difficultyColors = {
@@ -28,11 +23,6 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
     Intermediate: 'bg-blue-50 text-[#0052CC] border-blue-200',
     Advanced: 'bg-amber-50 text-amber-700 border-amber-200',
     Expert: 'bg-purple-50 text-[#6F42C1] border-purple-200',
-  };
-
-  const handlePurchaseRedirect = () => {
-    onClose();
-    navigate(`/admin/labs/${lab.id}/purchase`);
   };
 
   return (
@@ -162,43 +152,27 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
         {/* Modal Action Footer */}
         <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <span className="text-xs text-slate-500 font-semibold block">Lab License Price</span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-slate-900">₹{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
-              <span className="text-xs text-slate-500">/ base unit</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-100 transition-colors"
-            >
-              Cancel
-            </button>
-
             {lab.isPurchased ? (
-              <button
-                onClick={() => {
-                  onClose();
-                  navigate('/admin/allocations');
-                }}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#28A745] hover:bg-emerald-700 text-white font-bold text-sm transition-colors shadow-sm inline-flex items-center justify-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                Allocate to Group
-              </button>
+              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-bold">
+                <ShieldCheck className="w-3.5 h-3.5" /> Lab Purchased
+              </span>
             ) : (
-              <button
-                onClick={handlePurchaseRedirect}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-sm transition-colors shadow-sm inline-flex items-center justify-center gap-2"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                Proceed to Checkout
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <>
+                <span className="text-xs text-slate-500 font-semibold block">Price / Hour</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-slate-900">&#8377;{(lab.priceInr ?? 0).toLocaleString('en-IN')}</span>
+                  <span className="text-xs text-slate-500">/ hr &mdash; close this and click Add to Cart</span>
+                </div>
+              </>
             )}
           </div>
+
+          <button
+            onClick={onClose}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-100 transition-colors"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
