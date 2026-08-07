@@ -222,9 +222,10 @@ def get_labs(
 
         active_labs_metadata = []
         for lab in labs_metadata:
+            # Only mark as isPurchased (Assigned/Included) for FREE labs.
+            # Priced labs are always purchasable — admins can buy more hours.
             is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
-            is_purchased = is_free_lab or (lab["id"] in paid_lab_ids)
-            active_labs_metadata.append({**lab, "isPurchased": is_purchased})
+            active_labs_metadata.append({**lab, "isPurchased": is_free_lab})
 
     # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics

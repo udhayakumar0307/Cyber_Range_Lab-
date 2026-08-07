@@ -388,15 +388,15 @@ export const LabMarketplace: React.FC = () => {
             </div>
           ) : (
             sortedLabs.map((lab) => {
-              const isPurchased = lab.isPurchased || purchasedLabIds.has(lab.id);
-              const isInCart = cartItems.some((i) => i.lab_id === lab.id);
-
               const isPuzzle = lab.id.toLowerCase().includes('puzzle') || (lab.category ?? '').toLowerCase().includes('puzzle');
               const isCommandLine = lab.id.toLowerCase().includes('command-line') || lab.id.toLowerCase().includes('cmd');
-
-              const durationText = isPuzzle ? 'Unlimited' : isCommandLine ? '6 Hours' : '1.5 Hours';
               // isFree: use backend isFree field (reflects sysadmin fixed_rate == 0), or puzzle labs
               const isFree = lab.isFree === true || isPuzzle || (lab.priceInr ?? 0) === 0;
+              // isPurchased: only true for FREE labs (price=0). Priced labs always show Add to Cart so admins can buy more hours.
+              const isPurchased = isFree ? (lab.isPurchased ?? false) : false;
+              const isInCart = cartItems.some((i) => i.lab_id === lab.id);
+
+              const durationText = isPuzzle ? 'Unlimited' : isCommandLine ? '6 Hours' : '1.5 Hours';
 
               const difficultyBadgeColors: Record<string, string> = {
                 Beginner: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
