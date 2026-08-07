@@ -120,87 +120,9 @@ async def check_assignment_reminders() -> None:
                     users = [u]
 
             for user in users:
-                diff_minutes = (a.start_datetime - now).total_seconds() / 60.0
-
-                # 1. 15-minute start reminder
-                if 13.0 <= diff_minutes <= 17.0:
-                    already_sent = False
-                    existing = db.query(Notification).filter(
-                        Notification.user_id == user.id,
-                        Notification.type == "LAB_REMINDER_15M"
-                    ).all()
-                    for e in existing:
-                        if e.meta_data and e.meta_data.get("assignment_id") == a.id:
-                            already_sent = True
-                            break
-                    
-                    if not already_sent:
-                        date_str = a.start_datetime.strftime("%Y-%m-%d")
-                        time_str = a.start_datetime.strftime("%I:%M %p")
-                        duration_str = f"{int((a.end_datetime - a.start_datetime).total_seconds() / 60)} mins"
-                        
-                        try:
-                            ses_service.send_lab_reminder_email(
-                                email=user.email,
-                                lab_name=a.lab_id,
-                                date=date_str,
-                                time=time_str,
-                                duration=duration_str
-                            )
-                        except Exception as ses_err:
-                            logger.error(f"SES 15m reminder failed: {ses_err}")
-                        
-                        n = Notification(
-                            user_id=user.id,
-                            recipient_role=user.role,
-                            title="Lab Starting Soon",
-                            message=f"Your assigned lab '{a.lab_id}' starts in 15 minutes.",
-                            type="LAB_REMINDER_15M",
-                            priority="HIGH",
-                            meta_data={"assignment_id": a.id}
-                        )
-                        db.add(n)
-                        db.commit()
-
-                # 2. Lab Starting Alert
-                elif -1.0 <= diff_minutes <= 2.0:
-                    already_sent = False
-                    existing = db.query(Notification).filter(
-                        Notification.user_id == user.id,
-                        Notification.type == "LAB_REMINDER_START"
-                    ).all()
-                    for e in existing:
-                        if e.meta_data and e.meta_data.get("assignment_id") == a.id:
-                            already_sent = True
-                            break
-                    
-                    if not already_sent:
-                        date_str = a.start_datetime.strftime("%Y-%m-%d")
-                        time_str = a.start_datetime.strftime("%I:%M %p")
-                        duration_str = f"{int((a.end_datetime - a.start_datetime).total_seconds() / 60)} mins"
-                        
-                        try:
-                            ses_service.send_lab_assigned_email(
-                                email=user.email,
-                                lab_name=a.lab_id,
-                                date=date_str,
-                                time=time_str,
-                                duration=duration_str
-                            )
-                        except Exception as ses_err:
-                            logger.error(f"SES start reminder failed: {ses_err}")
-                        
-                        n = Notification(
-                            user_id=user.id,
-                            recipient_role=user.role,
-                            title="Lab Assessment Active",
-                            message=f"Your assigned lab '{a.lab_id}' has started.",
-                            type="LAB_REMINDER_START",
-                            priority="HIGH",
-                            meta_data={"assignment_id": a.id}
-                        )
-                        db.add(n)
-                        db.commit()
+        # Starting notifications and 15m reminders removed per user request.
+        # Only direct notification on creation is sent.
+        pass
 
     except Exception:
         db.rollback()

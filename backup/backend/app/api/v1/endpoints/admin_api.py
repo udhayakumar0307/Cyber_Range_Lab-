@@ -1752,6 +1752,51 @@ def create_scheduled_assignment(
     db.add(a)
     db.commit()
     db.refresh(a)
+
+    # Send direct assignment notifications to students
+    try:
+        from app.models.notification import Notification
+        from app.services.ses_service import ses_service
+        
+        target_users = []
+        if data.group_id:
+            target_users = db.query(User).filter(User.group_id == data.group_id, User.is_active.is_(True)).all()
+        elif data.student_id:
+            u_obj = db.query(User).filter(User.id == data.student_id).first()
+            if u_obj:
+                target_users = [u_obj]
+                
+        for user in target_users:
+            # 1. Store in-app notification
+            n_obj = Notification(
+                user_id=user.id,
+                recipient_role=user.role,
+                title="New Lab Assigned",
+                message=f"Admin {current_user.name} has assigned lab '{data.lab_id}' to you.",
+                type="LAB_ASSIGNED",
+                priority="HIGH",
+                meta_data={"assignment_id": a.id}
+            )
+            db.add(n_obj)
+            db.commit()
+            
+            # 2. Trigger SES email notification
+            try:
+                date_str = start_dt.strftime("%Y-%m-%d")
+                time_str = start_dt.strftime("%I:%M %p") + " (IST)"
+                dur_str = f"{duration} mins"
+                ses_service.send_lab_assigned_email(
+                    email=user.email,
+                    lab_name=data.lab_id,
+                    date=date_str,
+                    time=time_str,
+                    duration=dur_str
+                )
+            except Exception as email_err:
+                logger.error(f"Failed to send immediate SES email for assignment: {email_err}")
+    except Exception as notify_err:
+        logger.error(f"Failed to trigger immediate assignment notifications: {notify_err}")
+
     return {"status": "success", "id": a.id}
 
 @router.put("/assignments/{assignment_id}")
