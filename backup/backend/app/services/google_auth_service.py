@@ -153,7 +153,7 @@ class GoogleAuthService:
 
         elif portal_clean == "admin":
             # Admin Portal Rules:
-            # Allowed: Only @cyberrange.in accounts
+            # Allowed: Only configured admin domains
             if not is_admin_domain(email):
                 logger.warning(f"Rejected Domain: Non-admin account {email} attempted login at Admin Portal.")
                 raise HTTPException(
@@ -162,11 +162,9 @@ class GoogleAuthService:
                 )
 
             if existing_user is not None:
-                is_internal = getattr(existing_user, "is_internal", False)
-                account_type = str(getattr(existing_user, "account_type", "")).lower()
                 role = str(getattr(existing_user, "role", "")).lower()
-                if not is_internal and account_type != "internal" and role in STUDENT_ROLES:
-                    logger.warning(f"Rejected Domain: Non-internal user record {email} attempted login at Admin Portal.")
+                if role in STUDENT_ROLES:
+                    logger.warning(f"Rejected Domain: Non-admin user record {email} attempted login at Admin Portal.")
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="This portal is only for CyberRange administrators."
@@ -199,9 +197,9 @@ class GoogleAuthService:
             # First Login -> Auto Create Account
             dummy_password = get_password_hash(secrets.token_urlsafe(32))
             
-            if portal_clean == "admin":
-                role = "super_admin"
-                account_type = "internal"
+            if portal_clean == "admin" or is_admin_domain(email):
+                role = "admin"
+                account_type = "academic"
                 is_internal = True
                 tenant_id = "cyberrange"
             else:
