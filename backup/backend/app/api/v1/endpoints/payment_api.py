@@ -544,27 +544,26 @@ def get_purchased_labs(
     if admin_prof:
         user_org_id = admin_prof.organization_id
 
-    conditions = [
-        PurchasedLab.user_id == current_user.id
-    ]
-    if user_org_id is not None:
-        conditions.append(PurchasedLab.organization_id == user_org_id)
-
-    conditions.append(
-        and_(
-            PurchasedLab.organization_id.is_(None),
-            PurchasedLab.assigned_to.in_(["admin", "both"]),
-            or_(
-                PurchasedLab.fixed_rate == 0.0,
-                PurchasedLab.fixed_rate.is_(None)
-            )
-        )
-    )
-
-    labs = db.query(PurchasedLab).filter(
-        or_(*conditions),
+    # All SysAdmin global assignments (organization_id IS NULL) — include BOTH free and priced
+    sysadmin_labs = db.query(PurchasedLab).filter(
+        PurchasedLab.organization_id.is_(None),
         PurchasedLab.status == "ACTIVE"
     ).order_by(PurchasedLab.purchased_date.desc()).all()
+
+    # Also include labs purchased directly by this admin user (Razorpay purchases)
+    personal_labs = db.query(PurchasedLab).filter(
+        PurchasedLab.user_id == current_user.id,
+        PurchasedLab.organization_id.isnot(None),
+        PurchasedLab.status == "ACTIVE"
+    ).order_by(PurchasedLab.purchased_date.desc()).all()
+
+    # Merge, de-duplicate by lab_id (sysadmin takes precedence)
+    seen = set()
+    labs = []
+    for lab in sysadmin_labs + personal_labs:
+        if lab.lab_id not in seen:
+            seen.add(lab.lab_id)
+            labs.append(lab)
 
 
     result = []
@@ -580,6 +579,9 @@ def get_purchased_labs(
             "hours_remaining": lab.hours_remaining or 0,
             "hours_used": (lab.hours_purchased or 0) - (lab.hours_remaining or 0),
             "status": lab.status,
+            "fixed_rate": lab.fixed_rate if lab.fixed_rate is not None else 0.0,
+            "assigned_to": lab.assigned_to or "both",
+            "is_sysadmin_assigned": lab.organization_id is None,
             "purchased_date": lab.purchased_date.strftime("%Y-%m-%d") if lab.purchased_date else "",
             "expiry_date": lab.expiry_date.strftime("%Y-%m-%d") if lab.expiry_date else ""
         })

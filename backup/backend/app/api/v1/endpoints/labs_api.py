@@ -1,11 +1,13 @@
 """
-labs_api.py — Optimized Labs Endpoint
-======================================
-Key optimizations:
-  1. Batch module query: loads ALL modules in ONE query, groups by lab_id in Python.
-     Eliminates the N+1 query pattern (was: 1 query per lab for modules).
-  2. Lab metadata cached 10 minutes (TTL). Only user-specific progress is dynamic.
-  3. Progress reuses the cached progress_service result (shared with dashboard).
+labs_api.py — Labs Endpoint (SysAdmin-assigned only)
+=====================================================
+Key design:
+  1. ONLY labs assigned by the SysAdmin (PurchasedLab records with organization_id=None)
+     are shown in both student and admin portals.
+  2. The price shown is the fixed_rate set by the SysAdmin (NOT the lab's default price_inr).
+  3. Free assignments (fixed_rate == 0): isPurchased=True -> Launch Lab directly.
+  4. Priced assignments (fixed_rate > 0): shown with Add to Cart -> Razorpay -> Launch.
+  5. After a student pays, their PurchasedLab record (with user_id set) returns isPurchased=True.
 """
 
 import logging
@@ -33,41 +35,63 @@ _MODULE_CAP = {
     "ot-water-treatment": 5,
 }
 
-_LAB_CACHE_KEY = "labs:all_active"
-_LAB_CACHE_TTL = 600  # 10 minutes
+_SYSADMIN_CACHE_KEY = "labs:sysadmin_assignments"
+_SYSADMIN_CACHE_TTL = 60  # 60 seconds
 
 
-def _build_labs_metadata(db: Session) -> list:
+def _get_sysadmin_assignments(db: Session) -> list:
     """
-    Load all active labs + all their modules in exactly 2 queries.
-    Returns a list of dicts ready for the API response (minus user progress).
-    Cached for 10 minutes since lab metadata rarely changes.
+    Fetch all active SysAdmin global lab assignments where organization_id IS NULL.
+    These are platform-level assignments set via the SysAdmin portal.
+    Returns a list of dicts: {lab_id, assigned_to, fixed_rate}.
     """
-    cached = lab_cache.get(_LAB_CACHE_KEY)
+    cached = lab_cache.get(_SYSADMIN_CACHE_KEY)
     if cached is not None:
-        logger.debug("[Labs] Cache HIT — returning cached lab metadata")
         return cached
 
-    # Query 1: all active labs
-    labs = (
-        db.query(Lab)
-        .filter(Lab.status == "ACTIVE")
-        .order_by(Lab.created_at.desc())
+    from app.models.admin_models import PurchasedLab
+    assignments = (
+        db.query(PurchasedLab)
+        .filter(
+            PurchasedLab.organization_id.is_(None),
+            PurchasedLab.status == "ACTIVE"
+        )
         .all()
     )
 
+    result = [
+        {
+            "lab_id": a.lab_id,
+            "assigned_to": (a.assigned_to or "both").lower(),
+            "fixed_rate": a.fixed_rate if a.fixed_rate is not None else 0.0,
+        }
+        for a in assignments
+    ]
+    lab_cache.set(_SYSADMIN_CACHE_KEY, result, ttl=_SYSADMIN_CACHE_TTL)
+    return result
+
+
+def _build_assigned_labs(db: Session, assignments: list) -> list:
+    """
+    Given SysAdmin assignment dicts, fetch Lab metadata and build lab cards
+    with the SysAdmin's fixed_rate as the price.
+    """
+    if not assignments:
+        return []
+
+    assigned_lab_ids = [a["lab_id"] for a in assignments]
+    price_map = {a["lab_id"]: a["fixed_rate"] for a in assignments}
+    assigned_to_map = {a["lab_id"]: a["assigned_to"] for a in assignments}
+
+    labs = (
+        db.query(Lab)
+        .filter(Lab.id.in_(assigned_lab_ids), Lab.status == "ACTIVE")
+        .all()
+    )
     if not labs:
-        lab_cache.set(_LAB_CACHE_KEY, [], ttl=_LAB_CACHE_TTL)
         return []
 
     lab_ids = [lab.id for lab in labs]
-
-    # Fetch global rates for custom pricing
-    from app.models.admin_models import PurchasedLab
-    global_rates = db.query(PurchasedLab).filter(PurchasedLab.organization_id.is_(None)).all()
-    pricing_map = {ga.lab_id: ga.fixed_rate for ga in global_rates if ga.fixed_rate is not None}
-
-    # Query 2: ALL modules for all active labs in one batch query
     all_modules = (
         db.query(LabModule)
         .filter(LabModule.lab_id.in_(lab_ids))
@@ -75,8 +99,7 @@ def _build_labs_metadata(db: Session) -> list:
         .all()
     )
 
-    # Group modules by lab_id in memory — O(n) Python, no extra DB round-trips
-    modules_by_lab: dict[str, list] = collections.defaultdict(list)
+    modules_by_lab: dict = collections.defaultdict(list)
     for mod in all_modules:
         modules_by_lab[mod.lab_id].append(mod)
 
@@ -87,27 +110,12 @@ def _build_labs_metadata(db: Session) -> list:
         if cap:
             lab_modules = lab_modules[:cap]
 
-        # Standardize durations per specification
-        is_puzzle = "puzzle" in lab.id.lower() or (lab.category and "puzzle" in lab.category.lower())
         is_command_line = "command-line" in lab.id.lower() or "cmd" in lab.id.lower()
-        
-        custom_price = pricing_map.get(lab.id)
+        fixed_rate = price_map.get(lab.id, 0.0)
+        is_free = (fixed_rate == 0.0)
 
-        if is_puzzle:
-            duration_str = "Unlimited"
-            duration_val = 0
-            price_val = 0
-            is_free = True
-        elif is_command_line:
-            duration_str = "6 Hours"
-            duration_val = 6.0
-            price_val = custom_price if custom_price is not None else lab.price_inr
-            is_free = (price_val == 0.0)
-        else:
-            duration_str = "1.5 Hours"
-            duration_val = 1.5
-            price_val = custom_price if custom_price is not None else lab.price_inr
-            is_free = (price_val == 0.0)
+        duration_str = "6 Hours" if is_command_line else "1.5 Hours"
+        duration_val = 6.0 if is_command_line else 1.5
 
         result.append({
             "id": lab.id,
@@ -117,7 +125,7 @@ def _build_labs_metadata(db: Session) -> list:
             "difficulty": lab.difficulty,
             "shortDescription": lab.description or f"Hands-on {lab.name} challenge.",
             "fullDescription": lab.description or f"Complete practical cybersecurity lab covering {lab.category}.",
-            "priceInr": price_val,
+            "priceInr": fixed_rate,
             "isFree": is_free,
             "durationHours": duration_val,
             "durationDisplay": duration_str,
@@ -127,6 +135,7 @@ def _build_labs_metadata(db: Session) -> list:
             "prerequisites": [],
             "dockerImage": lab.docker_image,
             "isPurchased": False,
+            "assignedTo": assigned_to_map.get(lab.id, "both"),
             "totalChallenges": len(lab_modules),
             "modules": [
                 {"id": m.id, "title": m.title, "durationMinutes": 45, "points": m.points}
@@ -134,8 +143,6 @@ def _build_labs_metadata(db: Session) -> list:
             ],
         })
 
-    lab_cache.set(_LAB_CACHE_KEY, result, ttl=_LAB_CACHE_TTL)
-    logger.debug(f"[Labs] Cached {len(result)} labs with modules.")
     return result
 
 
@@ -146,92 +153,80 @@ def get_labs(
     current_user=Depends(get_current_user_optional),
 ):
     """
-    Returns all active labs with module metadata and user progress.
+    Returns ONLY SysAdmin-assigned labs with their SysAdmin-set custom pricing.
 
-    Performance:
-      - Lab + module metadata: 2 DB queries, result cached 10 min
-      - User progress: 4 optimized queries via progress_service (cached 60s)
-      - Total queries on cache miss: 6
-      - Total queries on cache hit: 0 (pure in-memory)
+    Free (fixed_rate=0): isPurchased=True -> Launch Lab directly.
+    Priced (fixed_rate>0): isPurchased=False -> Add to Cart -> Razorpay -> Launch.
     """
-    labs_metadata = _build_labs_metadata(db)
+    # Step 1: Fetch all SysAdmin-assigned labs
+    assignments = _get_sysadmin_assignments(db)
 
-    # No user — return metadata without progress
+    # Step 2: Build lab cards with SysAdmin pricing
+    labs_metadata = _build_assigned_labs(db, assignments)
+    if not labs_metadata:
+        return []
+
+    # No user — return without purchase/progress status
     if not current_user:
-        return [
-            {**lab, "solvedChallenges": 0}
-            for lab in labs_metadata
-        ]
+        return [{**lab, "solvedChallenges": 0} for lab in labs_metadata]
 
-    # Check student user type
     user_auth_type = getattr(current_user, "auth_type", "INDIVIDUAL")
 
     if user_auth_type == "SSO":
-        # Fetch assigned lab IDs for currently logged-in student (individual or group assignments)
+        # SSO group students: filter to their specific Assignment records
         from app.models.assignment import Assignment
         student_group_id = getattr(current_user, "group_id", None)
-        
         assigned_query = db.query(Assignment).filter(
             (Assignment.student_id == current_user.id) |
             (Assignment.group_id == student_group_id)
         )
         assigned_lab_ids = {a.lab_id for a in assigned_query.all() if a.lab_id}
-
-        # Filter metadata list to only contain assigned labs
         active_labs_metadata = [
-            lab for lab in labs_metadata if lab["id"] in assigned_lab_ids
+            {**lab, "isPurchased": True}
+            for lab in labs_metadata
+            if lab["id"] in assigned_lab_ids
         ]
     else:
-        # Individual / personal / organization user: show all labs, but set isPurchased status
+        # INDIVIDUAL / ADMIN: show all sysadmin-assigned labs.
+        # Free labs -> Launch. Priced labs -> Add to Cart unless already paid.
         from app.models.admin_models import PurchasedLab, AdminProfile
         from sqlalchemy import or_, and_
 
         user_org_id = None
         if current_user.group:
             user_org_id = current_user.group.organization_id
-
         admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
         if admin_prof:
             user_org_id = admin_prof.organization_id
 
-        conditions = [
-            PurchasedLab.user_id == current_user.id
+        # Find labs already paid for by this user (Razorpay purchases have user_id set)
+        pay_conditions = [
+            and_(
+                PurchasedLab.user_id == current_user.id,
+                PurchasedLab.organization_id.isnot(None)
+            )
         ]
         if user_org_id is not None:
-            conditions.append(
+            pay_conditions.append(
                 and_(
                     PurchasedLab.organization_id == user_org_id,
                     PurchasedLab.assigned_to.in_(["student", "both", "org"])
                 )
             )
 
-        # Global manual student assignments (only if they are free assignments; priced global assignments are for catalog catalog rates!)
-        conditions.append(
-            and_(
-                PurchasedLab.organization_id.is_(None),
-                PurchasedLab.assigned_to.in_(["student", "both"]),
-                or_(
-                    PurchasedLab.fixed_rate == 0.0,
-                    PurchasedLab.fixed_rate.is_(None)
-                )
-            )
-        )
-
-        purchased = db.query(PurchasedLab).filter(
-            or_(*conditions),
+        paid_records = db.query(PurchasedLab).filter(
+            or_(*pay_conditions),
             PurchasedLab.status == "ACTIVE"
         ).all()
-        purchased_lab_ids = {p.lab_id for p in purchased}
+        paid_lab_ids = {p.lab_id for p in paid_records}
 
         active_labs_metadata = []
         for lab in labs_metadata:
-            is_pur = lab["id"] in purchased_lab_ids
-            active_labs_metadata.append({
-                **lab,
-                "isPurchased": is_pur
-            })
+            is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
+            is_purchased = is_free_lab or (lab["id"] in paid_lab_ids)
+            active_labs_metadata.append({**lab, "isPurchased": is_purchased})
 
-    # User progress — reuses progress_service cache (shared with dashboard)
+    # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics
     stats = get_user_lab_statistics(db, str(current_user.id))
     lab_completed = stats["lab_completed_modules"]
@@ -242,10 +237,7 @@ def get_labs(
         solved = lab_completed.get(lab["id"], 0)
         if cap:
             solved = min(solved, cap)
-
-        result.append({
-            **lab,
-            "solvedChallenges": solved,
-        })
+        result.append({**lab, "solvedChallenges": solved})
 
     return result
+

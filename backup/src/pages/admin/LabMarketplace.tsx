@@ -395,7 +395,8 @@ export const LabMarketplace: React.FC = () => {
               const isCommandLine = lab.id.toLowerCase().includes('command-line') || lab.id.toLowerCase().includes('cmd');
 
               const durationText = isPuzzle ? 'Unlimited' : isCommandLine ? '6 Hours' : '1.5 Hours';
-              const isFree = isPuzzle;
+              // isFree: use backend isFree field (reflects sysadmin fixed_rate == 0), or puzzle labs
+              const isFree = lab.isFree === true || isPuzzle || (lab.priceInr ?? 0) === 0;
 
               const difficultyBadgeColors: Record<string, string> = {
                 Beginner: 'bg-emerald-50 dark:bg-emerald-950/40 text-[#28A745] dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
