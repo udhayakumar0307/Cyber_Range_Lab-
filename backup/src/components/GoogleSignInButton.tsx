@@ -121,14 +121,15 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     }
     if (window.google?.accounts?.id) {
       try {
-        window.google.accounts.id.prompt(() => {
-          // Callback triggers on prompt status updates.
-          // Trigger the standard hidden GIS rendered button immediately to show Google Account Chooser
-          const renderedBtn = hiddenBtnRef.current?.querySelector('div[role="button"]') as HTMLElement;
-          if (renderedBtn) {
-            renderedBtn.click();
-          }
-        });
+        // Clicking the standard GIS button wrapper directly inside the click handler context
+        // allows browser popups to open immediately as a direct result of user interaction (no popup blocker).
+        const renderedBtn = hiddenBtnRef.current?.querySelector('div[role="button"]') as HTMLElement;
+        if (renderedBtn) {
+          renderedBtn.click();
+        } else {
+          // If fallback is needed, prompt the native Google dialog
+          window.google.accounts.id.prompt();
+        }
       } catch (e) {
         console.error('[GoogleSignInButton] Prompt error:', e);
       }
