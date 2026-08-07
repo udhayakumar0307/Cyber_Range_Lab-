@@ -153,22 +153,12 @@ class GoogleAuthService:
 
         elif portal_clean == "admin":
             # Admin Portal Rules:
-            # Allowed: Only configured admin domains
-            if not is_admin_domain(email):
-                logger.warning(f"Rejected Domain: Non-admin account {email} attempted login at Admin Portal.")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="This portal is only for CyberRange administrators."
-                )
-
+            # Let Google login handle creation/upgrades for any domain on the admin portal.
+            # No is_admin_domain check here to block other domains.
             if existing_user is not None:
                 role = str(getattr(existing_user, "role", "")).lower()
                 if role in STUDENT_ROLES:
-                    logger.warning(f"Rejected Domain: Non-admin user record {email} attempted login at Admin Portal.")
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="This portal is only for CyberRange administrators."
-                    )
+                    logger.warning(f"Domain validation warning: user record {email} has student role but is logging into Admin Portal. Role will be updated.")
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -197,7 +187,8 @@ class GoogleAuthService:
                 existing_user.account_type = "academic"
                 existing_user.is_internal = True
                 existing_user.tenant_id = "cyberrange"
-                existing_user.profile_completed = True
+                # Don't override profile_completed — let it remain what it was
+                # so the dashboard banner can guide them to complete their profile
             elif portal_clean == "student":
                 # Ensure they stay as a student when logging in via student portal
                 existing_user.role = "user"
@@ -230,7 +221,7 @@ class GoogleAuthService:
                 account_type=account_type,
                 account_status="active",
                 email_verified=True,
-                profile_completed=True if is_admin_portal else False,
+                profile_completed=False,  # Admin must complete profile via dashboard
                 tenant_id=tenant_id,
                 is_internal=is_internal,
                 google_id=google_id,

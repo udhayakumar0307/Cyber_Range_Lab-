@@ -9,12 +9,34 @@ import {
   ShieldCheck,
   BookOpen,
   Award,
-  Check
+  Check,
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 export const AdminDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+
+  // Profile-incomplete banner: shown when admin signs in with Google for first time
+  const bannerDismissKey = user?.id ? `admin_profile_banner_dismissed_${user.id}` : null;
+  const [showProfileBanner, setShowProfileBanner] = useState(false);
+
+  // Derive banner visibility reactively as user loads
+  useEffect(() => {
+    if (!user || !bannerDismissKey) return;
+    const dismissed = localStorage.getItem(bannerDismissKey);
+    if (!dismissed && user.profile_completed === false) {
+      setShowProfileBanner(true);
+    }
+  }, [user, bannerDismissKey]);
+
+  const dismissBanner = () => {
+    if (bannerDismissKey) localStorage.setItem(bannerDismissKey, 'true');
+    setShowProfileBanner(false);
+  };
   const [summaryData, setSummaryData] = useState<any>({
     databaseConnected: false,
     purchasedLabs: {
@@ -72,6 +94,34 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200 text-xs">
+      {/* Profile Completion Banner for new Google sign-in admins */}
+      {showProfileBanner && (
+        <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-3.5 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+              Complete your profile to connect with students
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              Please update your organization details so you can start assigning labs to students.
+            </p>
+            <Link
+              to="/admin/profile"
+              onClick={dismissBanner}
+              className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
+            >
+              Update Profile →
+            </Link>
+          </div>
+          <button
+            onClick={dismissBanner}
+            className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors rounded-md p-0.5"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* 1. Professor Command Center Hero Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-[#0052CC] to-indigo-800 rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">

@@ -410,6 +410,7 @@ def google_auth(
             "google_id": getattr(user, "google_id", None),
             "provider": getattr(user, "provider", "google"),
             "profile_picture": getattr(user, "profile_photo", None),
+            "profile_completed": getattr(user, "profile_completed", False),
             "auth_type": getattr(user, "auth_type", "INDIVIDUAL")
         }
     }
