@@ -168,7 +168,7 @@ export const LabMarketplace: React.FC = () => {
       return;
     }
     const hourlyRate = getHourlyRate(lab);
-    const DEFAULT_HOURS = 40;
+    const DEFAULT_HOURS = 1;
     const newItem: CartItem = {
       id: Date.now(),
       lab_id: lab.id,

@@ -544,23 +544,28 @@ def get_purchased_labs(
     if admin_prof:
         user_org_id = admin_prof.organization_id
 
-    # All SysAdmin global assignments (organization_id IS NULL) — include BOTH free and priced
-    sysadmin_labs = db.query(PurchasedLab).filter(
-        PurchasedLab.organization_id.is_(None),
-        PurchasedLab.status == "ACTIVE"
-    ).order_by(PurchasedLab.purchased_date.desc()).all()
-
-    # Also include labs purchased directly by this admin user (Razorpay purchases)
-    personal_labs = db.query(PurchasedLab).filter(
+    # Only show labs that were actually paid for via Razorpay.
+    # SysAdmin-assigned labs (organization_id IS NULL) are catalog entries — NOT purchases.
+    # Paid purchases always have organization_id set (to the admin's org).
+    paid_labs = db.query(PurchasedLab).filter(
         PurchasedLab.user_id == current_user.id,
         PurchasedLab.organization_id.isnot(None),
         PurchasedLab.status == "ACTIVE"
     ).order_by(PurchasedLab.purchased_date.desc()).all()
 
-    # Merge, de-duplicate by lab_id (sysadmin takes precedence)
+    # If admin belongs to an org, also include org-level purchases
+    if user_org_id is not None:
+        org_labs = db.query(PurchasedLab).filter(
+            PurchasedLab.organization_id == user_org_id,
+            PurchasedLab.status == "ACTIVE"
+        ).order_by(PurchasedLab.purchased_date.desc()).all()
+    else:
+        org_labs = []
+
+    # Merge, de-duplicate by lab_id (personal purchase takes precedence)
     seen = set()
     labs = []
-    for lab in sysadmin_labs + personal_labs:
+    for lab in paid_labs + org_labs:
         if lab.lab_id not in seen:
             seen.add(lab.lab_id)
             labs.append(lab)
