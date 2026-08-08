@@ -47,6 +47,67 @@ async def lifespan(app: FastAPI):
     try:
         db_manager.init_db()
         logger.info("Database connection pool ready.")
+        
+        # Seed initial study materials if database table is empty
+        try:
+            from app.models.study_material import StudyMaterial
+            import json
+            db_session = db_manager.get_session()
+            if db_session.query(StudyMaterial).count() == 0:
+                initial_materials = [
+                    {
+                        "title": "Command Line & Linux Administration Study Guide",
+                        "category": "System Security",
+                        "description": "Comprehensive study guide covering Linux command line navigation, file permissions, shell scripting, process management, and admin utilities.",
+                        "read_time": "20 min read",
+                        "difficulty": "Beginner",
+                        "pdf_url": "/study-materials/command-line-study-guide.pdf",
+                        "content_json": json.dumps([
+                            "Linux Shell Essentials: Master navigation (cd, ls, pwd), file creation (touch, mkdir), and file manipulation (cp, mv, rm).",
+                            "Permissions & Ownership: Understand chmod (755, 644), chown, and special SUID/SGID executable flags.",
+                            "Process & Network Monitoring: Monitor active processes using ps, top, htop, and network sockets using netstat / ss.",
+                            "Text Processing: Master grep, sed, awk, cut, and piping constructs for log analysis.",
+                            "Shell Automation: Writing bash scripts for automated system maintenance and log rotation."
+                        ])
+                    },
+                    {
+                        "title": "Cryptography & Network Security Study Guide",
+                        "category": "Cryptography",
+                        "description": "Essential guide on symmetric/asymmetric encryption, hashing algorithms (SHA-256, MD5), RSA key pairs, and TLS/SSL handshake mechanisms.",
+                        "read_time": "25 min read",
+                        "difficulty": "Intermediate",
+                        "pdf_url": "/study-materials/cryptography-study-guide.pdf",
+                        "content_json": json.dumps([
+                            "Symmetric Encryption: Fundamentals of AES (Advanced Encryption Standard) and DES block ciphers using shared secret keys.",
+                            "Asymmetric Encryption: Public-key cryptography (RSA, ECC) for digital signatures and key exchange protocols.",
+                            "Cryptographic Hashing: One-way functions (SHA-256, SHA-3) for data integrity verification and password hashing (bcrypt, Argon2).",
+                            "Public Key Infrastructure (PKI): X.509 digital certificates, Certificate Authorities (CAs), and SSL/TLS secure communication channels.",
+                            "Cryptanalysis & Common Flaws: Weak key detection, replay attacks, and side-channel vulnerability mitigations."
+                        ])
+                    },
+                    {
+                        "title": "OT & Railroad Industrial Control Systems Security Study Guide",
+                        "category": "Industrial Systems",
+                        "description": "Specialized study guide on Operational Technology (OT), SCADA networks, railway signaling protocols, Modbus/DNP3, and industrial cybersecurity.",
+                        "read_time": "30 min read",
+                        "difficulty": "Advanced",
+                        "pdf_url": "/study-materials/ot-railroad-study-guide.pdf",
+                        "content_json": json.dumps([
+                            "Operational Technology (OT) & ICS: Infrastructure overview of PLCs, RTUs, HMIs, and SCADA control loops in transport networks.",
+                            "Railroad Signaling Protocols: Analysis of track circuit telemetry, interlocking control logic, and automatic train control (ATC) security.",
+                            "Industrial Protocol Security: Vulnerability assessment of Modbus TCP, DNP3, and Ethernet/IP protocols lacking native authentication.",
+                            "Network Segmentation: Purdue Model partitioning, industrial firewall zones, and unidirectional data diodes for safety-critical systems.",
+                            "ICS Incident Response: Forensic analysis of PLC ladder logic tamper attempts and anomaly detection in OT network traffic."
+                        ])
+                    }
+                ]
+                for mat in initial_materials:
+                    db_session.add(StudyMaterial(**mat, is_published=True))
+                db_session.commit()
+                logger.info("Seeded initial study materials into database.")
+            db_session.close()
+        except Exception as seed_err:
+            logger.warning(f"Skipped study materials seeding: {seed_err}")
     except Exception as exc:
         logger.critical(f"Database connection failed: {exc}", exc_info=True)
         raise

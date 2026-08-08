@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api, colleges_orgs
+from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api, colleges_orgs, study_materials_api
 
 api_router = APIRouter()
 
@@ -20,6 +20,7 @@ api_router.include_router(recon_api.router, prefix="/recon", tags=["recon"])
 api_router.include_router(notifications_api.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(system_audit_api.router, prefix="/system", tags=["system"])
 api_router.include_router(terminal_api.router, prefix="/terminal", tags=["terminal"])
+api_router.include_router(study_materials_api.router, prefix="/study-materials", tags=["study-materials"])
 
 
 
