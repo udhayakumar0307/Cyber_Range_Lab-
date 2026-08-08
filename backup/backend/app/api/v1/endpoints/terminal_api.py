@@ -91,13 +91,18 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
 
     NEVER falls back to cll-student, lab2-student, or any other lab container.
     """
-    container_name = f"student{level}"
+    # Try both naming formats: standard student-{level}-techcorp and fallback student{level}
+    container_name = f"student-{level}-techcorp"
+    alt_container_name = f"student{level}"
 
     # 1. Already running?
     running = _get_running_containers()
     if container_name in running:
         logger.info(f"[Puzzle] Container '{container_name}' is running.")
         return container_name
+    if alt_container_name in running:
+        logger.info(f"[Puzzle] Container '{alt_container_name}' is running.")
+        return alt_container_name
 
     # 2. Exists but stopped?
     all_containers = _get_all_containers()
@@ -112,6 +117,19 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
             return container_name
         except subprocess.CalledProcessError as e:
             logger.error(f"[Puzzle] Failed to start '{container_name}': {e}")
+            return None
+
+    if alt_container_name in all_containers:
+        logger.info(f"[Puzzle] Container '{alt_container_name}' exists but stopped. Starting...")
+        try:
+            subprocess.check_call(
+                ["docker", "start", alt_container_name],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            logger.info(f"[Puzzle] Container '{alt_container_name}' started successfully.")
+            return alt_container_name
+        except subprocess.CalledProcessError as e:
+            logger.error(f"[Puzzle] Failed to start '{alt_container_name}': {e}")
             return None
 
     # 3. Does not exist -> create from image
