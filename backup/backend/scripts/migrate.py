@@ -339,6 +339,14 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  order_items: column migrations applied")
 
+        if table_exists("licenses"):
+            conn.execute(text("""
+                ALTER TABLE licenses
+                ADD COLUMN IF NOT EXISTS hours_allocated FLOAT DEFAULT 1.0,
+                ADD COLUMN IF NOT EXISTS hours_used FLOAT DEFAULT 0.0;
+            """))
+            logger.info("  licenses: column migrations applied")
+
 
 
 
