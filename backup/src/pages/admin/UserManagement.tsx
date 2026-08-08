@@ -351,13 +351,38 @@ export const UserManagement: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                if (selectedUserIds.length === 0) alert('Select students to delete.');
-                else {
-                  if (confirm(`Delete ${selectedUserIds.length} selected students? This action cannot be undone.`)) {
-                    setUsers(prev => prev.filter(u => !selectedUserIds.includes(String(u.id))));
-                    setSelectedUserIds([]);
+              onClick={async () => {
+                if (selectedUserIds.length === 0) {
+                  alert('Select students to delete.');
+                  return;
+                }
+                if (confirm(`Delete ${selectedUserIds.length} selected students? This action cannot be undone.`)) {
+                  const token = localStorage.getItem('token');
+                  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+                  let successCount = 0;
+
+                  for (const usrId of selectedUserIds) {
+                    const uObj = users.find(u => String(u.id) === usrId);
+                    if (!uObj) continue;
+                    const dbId = uObj.db_id || Number(String(usrId).replace('usr-', ''));
+                    try {
+                      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+                        method: 'DELETE',
+                        headers
+                      });
+                      if (res.ok) {
+                        successCount++;
+                      }
+                    } catch (err) {
+                      console.error(`Error deleting user ID ${dbId}:`, err);
+                    }
                   }
+                  
+                  if (successCount > 0) {
+                    alert(`Successfully deleted ${successCount} user(s).`);
+                  }
+                  await fetchUsersAndGroups();
+                  setSelectedUserIds([]);
                 }
               }}
               className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition-colors cursor-pointer"
