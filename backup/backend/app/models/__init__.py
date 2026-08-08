@@ -12,6 +12,7 @@ from app.models.lab_module import LabModule
 from app.models.user_lab_progress import UserLabProgress
 from app.models.user_progress import UserProgress
 from app.models.study_session import StudySession
+from app.models.study_material import StudyMaterial
 from app.models.achievement import Achievement
 from app.models.user_achievement import UserAchievement
 from app.models.professor_assignment import ProfessorAssignment

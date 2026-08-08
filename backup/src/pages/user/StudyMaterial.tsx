@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Book, Search, Download, ExternalLink, FileText, CheckCircle, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Book, Search, Download, FileText, CheckCircle, Clock, Plus, Trash2, Upload, X } from 'lucide-react';
 
 interface NoteItem {
   id: string;
@@ -13,100 +13,141 @@ interface NoteItem {
   content: string[];
 }
 
-const STUDY_MATERIALS: NoteItem[] = [
-  {
-    id: 'command-line-guide',
-    title: 'Command Line & Linux Administration Study Guide',
-    category: 'System Security',
-    description: 'Comprehensive study guide covering Linux command line navigation, file permissions, shell scripting, process management, and admin utilities.',
-    readTime: '20 min read',
-    difficulty: 'Beginner',
-    lastUpdated: 'Aug 2026',
-    pdfUrl: '/study-materials/command-line-study-guide.pdf',
-    content: [
-      'Linux Shell Essentials: Master navigation (cd, ls, pwd), file creation (touch, mkdir), and file manipulation (cp, mv, rm).',
-      'Permissions & Ownership: Understand chmod (755, 644), chown, and special SUID/SGID executable flags.',
-      'Process & Network Monitoring: Monitor active processes using ps, top, htop, and network sockets using netstat / ss.',
-      'Text Processing: Master grep, sed, awk, cut, and piping constructs for log analysis.',
-      'Shell Automation: Writing bash scripts for automated system maintenance and log rotation.'
-    ]
-  },
-  {
-    id: 'cryptography-guide',
-    title: 'Cryptography & Network Security Study Guide',
-    category: 'Cryptography',
-    description: 'Essential guide on symmetric/asymmetric encryption, hashing algorithms (SHA-256, MD5), RSA key pairs, and TLS/SSL handshake mechanisms.',
-    readTime: '25 min read',
-    difficulty: 'Intermediate',
-    lastUpdated: 'Aug 2026',
-    pdfUrl: '/study-materials/cryptography-study-guide.pdf',
-    content: [
-      'Symmetric Encryption: Fundamentals of AES (Advanced Encryption Standard) and DES block ciphers using shared secret keys.',
-      'Asymmetric Encryption: Public-key cryptography (RSA, ECC) for digital signatures and key exchange protocols.',
-      'Cryptographic Hashing: One-way functions (SHA-256, SHA-3) for data integrity verification and password hashing (bcrypt, Argon2).',
-      'Public Key Infrastructure (PKI): X.509 digital certificates, Certificate Authorities (CAs), and SSL/TLS secure communication channels.',
-      'Cryptanalysis & Common Flaws: Weak key detection, replay attacks, and side-channel vulnerability mitigations.'
-    ]
-  },
-  {
-    id: 'ot-railroad-guide',
-    title: 'OT & Railroad Industrial Control Systems Security Study Guide',
-    category: 'Industrial Systems',
-    description: 'Specialized study guide on Operational Technology (OT), SCADA networks, railway signaling protocols, Modbus/DNP3, and industrial cybersecurity.',
-    readTime: '30 min read',
-    difficulty: 'Advanced',
-    lastUpdated: 'Aug 2026',
-    pdfUrl: '/study-materials/ot-railroad-study-guide.pdf',
-    content: [
-      'Operational Technology (OT) & ICS: Infrastructure overview of PLCs, RTUs, HMIs, and SCADA control loops in transport networks.',
-      'Railroad Signaling Protocols: Analysis of track circuit telemetry, interlocking control logic, and automatic train control (ATC) security.',
-      'Industrial Protocol Security: Vulnerability assessment of Modbus TCP, DNP3, and Ethernet/IP protocols lacking native authentication.',
-      'Network Segmentation: Purdue Model partitioning, industrial firewall zones, and unidirectional data diodes for safety-critical systems.',
-      'ICS Incident Response: Forensic analysis of PLC ladder logic tamper attempts and anomaly detection in OT network traffic.'
-    ]
-  },
-  {
-    id: 'active-directory-sec',
-    title: 'Active Directory Security & Pentesting Notes',
-    category: 'Network Security',
-    description: 'Core concepts on Active Directory architecture, Kerberos attacks (Golden/Silver Ticket), LLMNR/NBT-NS poisoning, and Domain Dominance defense strategies.',
-    readTime: '25 min read',
-    difficulty: 'Advanced',
-    lastUpdated: 'Aug 2026',
-    content: [
-      'Active Directory (AD) serves as the primary authentication and authorization mechanism in enterprise environments.',
-      'Kerberoasting Attack: Targeting service accounts with weak passwords to extract service ticket hashes and crack them offline.',
-      'AS-REP Roasting: Targeting accounts without Kerberos Pre-authentication enabled to obtain AS-REP ticket replies and crack hashes.',
-      'Golden Ticket Attack: Forging a Kerberos Ticket Granting Ticket (TGT) using the KRBTGT NTLM hash to gain full domain admin access.',
-      'Defensive Mitigation: Restrict administrator group membership, use strong unique passwords for service accounts, enable Kerberos Armoring (FAST), and monitor for anomalous ticket requests.'
-    ]
-  },
-  {
-    id: 'web-owasp-top-10',
-    title: 'OWASP Top 10 Deep-Dive & Mitigation Notes',
-    category: 'Web Security',
-    description: 'Detailed analysis of Broken Object Level Authorization (BOLA), SQL Injection, Cross-Site Scripting (XSS), SSRF, and secure coding mitigation techniques.',
-    readTime: '15 min read',
-    difficulty: 'Intermediate',
-    lastUpdated: 'Jul 2026',
-    content: [
-      'OWASP Top 10 lists the most critical security risks to web applications.',
-      'Broken Object Level Authorization (BOLA): Occurs when an application does not validate if the user has authorization to access the specific object requested (IDOR).',
-      'SQL Injection (SQLi): Injecting malicious SQL commands into input fields to bypass authentication or extract backend database information.',
-      'Server-Side Request Forgery (SSRF): Forcing the server to make unauthorized requests to internal resources or external services.',
-      'Secure Coding Standard: Always sanitize user input, use parameterized queries, enforce strict server-side authorization checks, and implement content security policies (CSP).'
-    ]
-  }
-];
-
 export const StudyMaterial: React.FC = () => {
+  const [materials, setMaterials] = useState<NoteItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeNote, setActiveNote] = useState<NoteItem | null>(null);
+  
+  // Admin Upload State
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const categories = ['All', ...Array.from(new Set(STUDY_MATERIALS.map(item => item.category)))];
+  // Form State for Admin Upload
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('System Security');
+  const [description, setDescription] = useState('');
+  const [readTime, setReadTime] = useState('15 min read');
+  const [difficulty, setDifficulty] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
+  const [bulletPoints, setBulletPoints] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
-  const filteredMaterials = STUDY_MATERIALS.filter(item => {
+  useEffect(() => {
+    // Check if logged in user is admin
+    try {
+      const userStr = localStorage.getItem('user');
+      const roleStr = localStorage.getItem('role');
+      if (roleStr === 'admin') {
+        setIsAdmin(true);
+      } else if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u.role?.toLowerCase() === 'admin') {
+          setIsAdmin(true);
+        }
+      }
+    } catch {
+      // Non-critical check fallback
+    }
+
+    fetchMaterials();
+  }, []);
+
+  const fetchMaterials = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/v1/study-materials');
+      if (res.ok) {
+        const data = await res.json();
+        setMaterials(data);
+      }
+    } catch (err) {
+      console.error('Error loading study materials:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !description.trim()) {
+      alert('Please provide a title and description.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('category', category);
+      formData.append('description', description);
+      formData.append('read_time', readTime);
+      formData.append('difficulty', difficulty);
+
+      const bulletsArray = bulletPoints
+        .split('\n')
+        .map(b => b.trim())
+        .filter(Boolean);
+      formData.append('content_bullets', JSON.stringify(bulletsArray));
+
+      if (pdfFile) {
+        formData.append('file', pdfFile);
+      }
+
+      const res = await fetch('/api/v1/study-materials/admin/upload', {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || 'Failed to upload study material.');
+        return;
+      }
+
+      setShowUploadModal(false);
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setBulletPoints('');
+      setPdfFile(null);
+      await fetchMaterials();
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('An error occurred during upload.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this study material?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/v1/study-materials/admin/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        await fetchMaterials();
+      } else {
+        alert('Failed to delete study material.');
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  };
+
+  const categories = ['All', ...Array.from(new Set(materials.map(item => item.category)))];
+
+  const filteredMaterials = materials.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
@@ -126,6 +167,16 @@ export const StudyMaterial: React.FC = () => {
             Access curated reference notes, cybersecurity playbooks, and OT/ICS domain documentation.
           </p>
         </div>
+
+        {isAdmin && (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md transition-all flex items-center gap-2 self-start md:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            Upload Study Material
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -144,108 +195,128 @@ export const StudyMaterial: React.FC = () => {
 
         {/* Category Tabs */}
         <div className="flex flex-wrap gap-2">
-          {categories.map((category) => (
+          {categories.map((cat) => (
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
               className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                selectedCategory === category
+                selectedCategory === cat
                   ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              {category}
+              {cat}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Material Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredMaterials.map((item) => (
-          <div
-            key={item.id}
-            className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
-          >
-            <div>
-              {/* Card Badge Header */}
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
-                  {item.category}
-                </span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                  item.difficulty === 'Advanced'
-                    ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400'
-                    : item.difficulty === 'Intermediate'
-                    ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
-                    : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
-                }`}>
-                  {item.difficulty}
-                </span>
+      {/* Loading Skeleton */}
+      {loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-48 animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        /* Material Grid */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredMaterials.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+            >
+              <div>
+                {/* Card Badge Header */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                    {item.category}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                      item.difficulty === 'Advanced'
+                        ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400'
+                        : item.difficulty === 'Intermediate'
+                        ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                        : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {item.difficulty}
+                    </span>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDeleteMaterial(item.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                        title="Delete Material"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Title & Description */}
+                <h3 className="text-base font-bold text-slate-950 dark:text-white mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                  {item.title}
+                </h3>
+                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mb-4">
+                  {item.description}
+                </p>
               </div>
 
-              {/* Title & Description */}
-              <h3 className="text-base font-bold text-slate-950 dark:text-white mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                {item.title}
-              </h3>
-              <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mb-4">
-                {item.description}
-              </p>
-            </div>
+              {/* Bottom Info & Action buttons */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 mt-4">
+                <div className="flex items-center gap-4 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {item.readTime}
+                  </span>
+                  <span>• Updated {item.lastUpdated}</span>
+                </div>
 
-            {/* Bottom Info & Action buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 mt-4">
-              <div className="flex items-center gap-4 text-[11px] text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  {item.readTime}
-                </span>
-                <span>• Updated {item.lastUpdated}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setActiveNote(item)}
-                  className="px-3.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  View Notes
-                </button>
-                {item.pdfUrl ? (
-                  <a
-                    href={item.pdfUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all inline-flex items-center"
-                    title={`Download ${item.title} PDF`}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </a>
-                ) : (
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => alert(`Downloading ${item.title} PDF playbook...`)}
-                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
-                    title="Download PDF version"
+                    onClick={() => setActiveNote(item)}
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <FileText className="w-3.5 h-3.5" />
+                    View Notes
                   </button>
-                )}
+                  {item.pdfUrl ? (
+                    <a
+                      href={item.pdfUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all inline-flex items-center"
+                      title={`Download ${item.title} PDF`}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => alert(`Downloading ${item.title} PDF playbook...`)}
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                      title="Download PDF version"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {filteredMaterials.length === 0 && (
-          <div className="col-span-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
-            <Book className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No study materials found</h3>
-            <p className="text-xs text-slate-400 mt-1">Try refining your keyword search or filtering other domains.</p>
-          </div>
-        )}
-      </div>
+          {filteredMaterials.length === 0 && (
+            <div className="col-span-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
+              <Book className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No study materials found</h3>
+              <p className="text-xs text-slate-400 mt-1">Try refining your keyword search or filtering other domains.</p>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Reader Modal / Drawer */}
+      {/* Reader Modal */}
       {activeNote && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -311,6 +382,123 @@ export const StudyMaterial: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-600" />
+                Upload New Study Material
+              </h2>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminUpload} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Reverse Engineering & Malware Analysis Guide"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category *</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="System Security">System Security</option>
+                    <option value="Network Security">Network Security</option>
+                    <option value="Web Security">Web Security</option>
+                    <option value="Cryptography">Cryptography</option>
+                    <option value="Industrial Systems">Industrial Systems</option>
+                    <option value="Cloud Security">Cloud Security</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Difficulty *</label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Description *</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Provide a short summary of key concepts covered in this study guide..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Key Bulletins & Commands (One per line)
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="GDB Debugging: Inspecting memory registers using x/32xw $esp&#10;Ghidra Decompiler: Analyzing assembly functions and cross-references"
+                  value={bulletPoints}
+                  onChange={(e) => setBulletPoints(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">PDF File (Optional)</label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 dark:file:bg-blue-950 dark:file:text-blue-400"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-300 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {uploading ? 'Uploading...' : 'Save & Publish'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
