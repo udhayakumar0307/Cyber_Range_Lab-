@@ -9,10 +9,62 @@ interface NoteItem {
   readTime: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   lastUpdated: string;
+  pdfUrl?: string;
   content: string[];
 }
 
 const STUDY_MATERIALS: NoteItem[] = [
+  {
+    id: 'command-line-guide',
+    title: 'Command Line & Linux Administration Study Guide',
+    category: 'System Security',
+    description: 'Comprehensive study guide covering Linux command line navigation, file permissions, shell scripting, process management, and admin utilities.',
+    readTime: '20 min read',
+    difficulty: 'Beginner',
+    lastUpdated: 'Aug 2026',
+    pdfUrl: '/study-materials/command-line-study-guide.pdf',
+    content: [
+      'Linux Shell Essentials: Master navigation (cd, ls, pwd), file creation (touch, mkdir), and file manipulation (cp, mv, rm).',
+      'Permissions & Ownership: Understand chmod (755, 644), chown, and special SUID/SGID executable flags.',
+      'Process & Network Monitoring: Monitor active processes using ps, top, htop, and network sockets using netstat / ss.',
+      'Text Processing: Master grep, sed, awk, cut, and piping constructs for log analysis.',
+      'Shell Automation: Writing bash scripts for automated system maintenance and log rotation.'
+    ]
+  },
+  {
+    id: 'cryptography-guide',
+    title: 'Cryptography & Network Security Study Guide',
+    category: 'Cryptography',
+    description: 'Essential guide on symmetric/asymmetric encryption, hashing algorithms (SHA-256, MD5), RSA key pairs, and TLS/SSL handshake mechanisms.',
+    readTime: '25 min read',
+    difficulty: 'Intermediate',
+    lastUpdated: 'Aug 2026',
+    pdfUrl: '/study-materials/cryptography-study-guide.pdf',
+    content: [
+      'Symmetric Encryption: Fundamentals of AES (Advanced Encryption Standard) and DES block ciphers using shared secret keys.',
+      'Asymmetric Encryption: Public-key cryptography (RSA, ECC) for digital signatures and key exchange protocols.',
+      'Cryptographic Hashing: One-way functions (SHA-256, SHA-3) for data integrity verification and password hashing (bcrypt, Argon2).',
+      'Public Key Infrastructure (PKI): X.509 digital certificates, Certificate Authorities (CAs), and SSL/TLS secure communication channels.',
+      'Cryptanalysis & Common Flaws: Weak key detection, replay attacks, and side-channel vulnerability mitigations.'
+    ]
+  },
+  {
+    id: 'ot-railroad-guide',
+    title: 'OT & Railroad Industrial Control Systems Security Study Guide',
+    category: 'Industrial Systems',
+    description: 'Specialized study guide on Operational Technology (OT), SCADA networks, railway signaling protocols, Modbus/DNP3, and industrial cybersecurity.',
+    readTime: '30 min read',
+    difficulty: 'Advanced',
+    lastUpdated: 'Aug 2026',
+    pdfUrl: '/study-materials/ot-railroad-study-guide.pdf',
+    content: [
+      'Operational Technology (OT) & ICS: Infrastructure overview of PLCs, RTUs, HMIs, and SCADA control loops in transport networks.',
+      'Railroad Signaling Protocols: Analysis of track circuit telemetry, interlocking control logic, and automatic train control (ATC) security.',
+      'Industrial Protocol Security: Vulnerability assessment of Modbus TCP, DNP3, and Ethernet/IP protocols lacking native authentication.',
+      'Network Segmentation: Purdue Model partitioning, industrial firewall zones, and unidirectional data diodes for safety-critical systems.',
+      'ICS Incident Response: Forensic analysis of PLC ladder logic tamper attempts and anomaly detection in OT network traffic.'
+    ]
+  },
   {
     id: 'active-directory-sec',
     title: 'Active Directory Security & Pentesting Notes',
@@ -43,54 +95,6 @@ const STUDY_MATERIALS: NoteItem[] = [
       'SQL Injection (SQLi): Injecting malicious SQL commands into input fields to bypass authentication or extract backend database information.',
       'Server-Side Request Forgery (SSRF): Forcing the server to make unauthorized requests to internal resources or external services.',
       'Secure Coding Standard: Always sanitize user input, use parameterized queries, enforce strict server-side authorization checks, and implement content security policies (CSP).'
-    ]
-  },
-  {
-    id: 'ot-ics-modbus-sec',
-    title: 'OT/ICS Security & Modbus Protocol Vulnerabilities',
-    category: 'Industrial Systems',
-    description: 'A study on Operational Technology (OT) security, PLC firmware vulnerabilities, Modbus TCP command injection, and firewall zone partitioning.',
-    readTime: '30 min read',
-    difficulty: 'Advanced',
-    lastUpdated: 'Jun 2026',
-    content: [
-      'Operational Technology (OT) comprises industrial control systems (ICS) and SCADA systems.',
-      'Modbus TCP Protocol: A standard industrial protocol that lacks built-in authentication, encryption, or command verification, making it susceptible to injection attacks.',
-      'PLC Injection: Modifying PLC coils and holding registers by spoofing master commands to disrupt physical processes.',
-      'Purdue Model: A reference architecture for industrial control security, partitioning systems into levels (Level 0 physical to Level 5 enterprise network).',
-      'Segmentation Mitigation: Enforce strict firewall rules between the IT and OT networks, deploy industrial IDS, and implement cryptographically signed PLC firmware.'
-    ]
-  },
-  {
-    id: 'linux-privesc-notes',
-    title: 'Linux Privilege Escalation Playbook',
-    category: 'System Security',
-    description: 'Cheat sheet for exploiting misconfigured SUID binaries, wildcard cronjobs, writable /etc/passwd file, and kernel exploits.',
-    readTime: '12 min read',
-    difficulty: 'Intermediate',
-    lastUpdated: 'Aug 2026',
-    content: [
-      'Privilege escalation involves moving from a low-privilege user session to root access.',
-      'SUID Binaries: Binaries that run with owner privileges. Misconfigured SUID binaries (like cp or find) can be used to execute arbitrary root commands (refer to GTFOBins).',
-      'Cron Job Exploitation: Writable cron scripts or wildcard arguments in cron definitions allowing execution of arbitrary scripts.',
-      'Writable Files: Modifying /etc/passwd to add a custom root-level user directly when permission masks are misconfigured.',
-      'Defense: Periodically audit SUID files, run container processes as non-root, and keep the kernel patched to avoid Dirty COW-style vulnerabilities.'
-    ]
-  },
-  {
-    id: 'cloud-aws-iam-notes',
-    title: 'AWS IAM Privilege Escalation & Secure Architecture',
-    category: 'Cloud Security',
-    description: 'Practical study on AWS IAM policies, misconfigured assume-role relationships, metadata service (IMDSv2) attacks, and guardrails.',
-    readTime: '18 min read',
-    difficulty: 'Advanced',
-    lastUpdated: 'May 2026',
-    content: [
-      'Cloud security relies heavily on Identity and Access Management (IAM) permissions.',
-      'IAM Privilege Escalation: Exploiting permissive policies like CreateNewPolicyVersion or AttachUserPolicy to grant admin access to oneself.',
-      'Instance Metadata Service (IMDS): Accessing http://169.254.169.254 to grab IAM role credentials associated with the EC2 instance.',
-      'IMDSv2: Introduces session-oriented requests, mitigating simple SSRF attacks on metadata endpoints.',
-      'Best Practices: Enforce least privilege, use Service Control Policies (SCPs) in AWS Organizations, and transition all instances to IMDSv2.'
     ]
   }
 ];
@@ -202,18 +206,31 @@ export const StudyMaterial: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveNote(item)}
-                  className="px-3.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   View Notes
                 </button>
-                <button
-                  onClick={() => alert(`Downloading ${item.title} PDF template...`)}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
-                  title="Download PDF version"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
+                {item.pdfUrl ? (
+                  <a
+                    href={item.pdfUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all inline-flex items-center"
+                    title={`Download ${item.title} PDF`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => alert(`Downloading ${item.title} PDF playbook...`)}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                    title="Download PDF version"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -272,13 +289,26 @@ export const StudyMaterial: React.FC = () => {
                 >
                   Close Reader
                 </button>
-                <button
-                  onClick={() => alert(`Downloading ${activeNote.title} PDF playbook...`)}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
-                >
-                  <Download className="w-4 h-4" />
-                  Download PDF
-                </button>
+                {activeNote.pdfUrl ? (
+                  <a
+                    href={activeNote.pdfUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => alert(`Downloading ${activeNote.title} PDF playbook...`)}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </button>
+                )}
               </div>
             </div>
           </div>
