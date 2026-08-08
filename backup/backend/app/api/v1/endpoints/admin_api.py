@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.otp import OTPVerification
 from app.models.admin_models import Organization, AdminProfile, BillingAddress, PurchasedLab, Invoice, Order
 from app.models.audit_log import AuditLog
+from app.models.user_affiliation import UserAffiliation as UA
 from app.services.audit_service import log_audit_event
 from app.services.ses_service import ses_service
 
@@ -677,8 +678,8 @@ def get_admin_users(
         if filter_conds:
             valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
             q = q.filter(User.id.in_(valid_user_ids))
-        else:
-            return []
+        elif current_user.organization:
+            q = q.filter(User.organization == current_user.organization)
     if query and query.strip():
         search_term = query.strip()
         search_fmt = f"%{search_term}%"
@@ -960,11 +961,25 @@ def create_admin_user(
         password_hash=get_password_hash(data.password),
         role=data.role.lower() if data.role else "user",
         group_id=data.group_id,
-        is_active=True
+        is_active=True,
+        organization=current_user.organization
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+    for a in admin_affs:
+        aff = UA(
+            user_id=new_user.id,
+            affiliation_type=a.affiliation_type,
+            college_id=a.college_id,
+            organization_id=a.organization_id,
+            is_primary=a.is_primary
+        )
+        db.add(aff)
+    if admin_affs:
+        db.commit()
 
     from app.services.audit_service import log_audit_event
     log_audit_event(

@@ -25,7 +25,8 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   const [groupName, setGroupName] = useState(userToEdit?.groupName || 'Unassigned');
   const [status, setStatus] = useState<AccountStatus>(userToEdit?.status || 'Active');
   const [groupsList, setGroupsList] = useState<any[]>([]);
-  const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; password?: string }>({});
 
   React.useEffect(() => {
     const fetchGroups = async () => {
@@ -44,9 +45,12 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   }, []);
 
   const validate = () => {
-    const errs: { fullName?: string; email?: string } = {};
+    const errs: { fullName?: string; email?: string; password?: string } = {};
     if (!fullName.trim()) errs.fullName = 'Full name is required.';
     if (!email.trim() || !email.includes('@')) errs.email = 'Valid email is required.';
+    if (!isEditMode && password && password.length < 6) {
+      errs.password = 'Password must be at least 6 characters.';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -55,18 +59,24 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
     e.preventDefault();
     if (!validate()) return;
 
+    const selectedGroupObj = groupsList.find(g => g.name === groupName);
+    const selectedGroupId = selectedGroupObj ? (selectedGroupObj.db_id || Number(String(selectedGroupObj.id).replace('grp-', ''))) : null;
+
     onSave({
       id: userToEdit?.id || `usr-${Date.now()}`,
+      db_id: userToEdit?.db_id || userToEdit?.id,
       fullName,
       email,
       role,
       groupName,
+      groupId: selectedGroupId ? `grp-${selectedGroupId}` : undefined,
       status,
+      password: password || 'CyberRange#2026!',
       score: userToEdit?.score || 0,
       completedLabsCount: userToEdit?.completedLabsCount || 0,
       joinedDate: userToEdit?.joinedDate || 'Just now',
       lastActive: 'Active now',
-    });
+    } as any);
 
     onClose();
   };
@@ -127,6 +137,22 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
             </div>
             {errors.email && <p className="text-rose-500 mt-1">{errors.email}</p>}
           </div>
+
+          {!isEditMode && (
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Account Password (Optional)</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave empty for default password (CyberRange#2026!)"
+                  className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                />
+              </div>
+              {errors.password && <p className="text-rose-500 mt-1">{errors.password}</p>}
+            </div>
+          )}
 
           {/* Role & Status Row */}
           <div className="grid grid-cols-2 gap-3">

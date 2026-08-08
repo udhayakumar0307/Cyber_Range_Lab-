@@ -40,8 +40,15 @@ async def start_worker_loops():
             # Verify and inject price_per_hour column to labs table if missing
             from sqlalchemy import text
             with db_engine.connect() as conn:
-                conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS price_per_hour FLOAT DEFAULT 100.0"))
-                conn.commit()
+                if db_engine.dialect.name == "sqlite":
+                    try:
+                        conn.execute(text("ALTER TABLE labs ADD COLUMN price_per_hour FLOAT DEFAULT 100.0"))
+                        conn.commit()
+                    except Exception:
+                        pass
+                else:
+                    conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS price_per_hour FLOAT DEFAULT 100.0"))
+                    conn.commit()
                 logger.info("Database table 'labs' schema verified (price_per_hour column ensured).")
     except Exception as e:
         logger.error(f"Failed database migration assertions on startup: {e}")

@@ -56,28 +56,29 @@ export const UserManagement: React.FC = () => {
 
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchUsersAndGroups = async () => {
-      const token = localStorage.getItem('token');
-      try {
-        const [uRes, gRes] = await Promise.all([
-          fetch('/api/v1/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
-          fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-        ]);
-        if (uRes.ok) {
-          const data = await uRes.json();
-          if (Array.isArray(data)) setUsers(data);
-        }
-        if (gRes.ok) {
-          const gData = await gRes.json();
-          if (Array.isArray(gData)) setAvailableGroups(gData);
-        }
-      } catch (err) {
-        console.error('Error fetching users/groups:', err);
-      } finally {
-        setLoading(false);
+  const fetchUsersAndGroups = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const [uRes, gRes] = await Promise.all([
+        fetch('/api/v1/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+        fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      ]);
+      if (uRes.ok) {
+        const data = await uRes.json();
+        if (Array.isArray(data)) setUsers(data);
       }
-    };
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        if (Array.isArray(gData)) setAvailableGroups(gData);
+      }
+    } catch (err) {
+      console.error('Error fetching users/groups:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUsersAndGroups();
   }, []);
 
@@ -116,36 +117,133 @@ export const UserManagement: React.FC = () => {
     return matchesSearch && matchesGroup && matchesRole && matchesStatus;
   });
 
+  const parseErrorMessage = (errData: any): string => {
+    if (!errData) return 'An unexpected error occurred.';
+    if (typeof errData.detail === 'string') return errData.detail;
+    if (errData.detail && typeof errData.detail === 'object') {
+      if (Array.isArray(errData.detail)) {
+        return errData.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+      }
+      const msg = errData.detail.message || '';
+      const errs = Array.isArray(errData.detail.errors) ? errData.detail.errors.join(' ') : '';
+      return `${msg} ${errs}`.trim() || 'Invalid request payload.';
+    }
+    if (errData.message && typeof errData.message === 'string') return errData.message;
+    return 'Failed to execute action.';
+  };
+
   // Action Handlers
-  const handleSaveUser = (userData: Partial<PlatformUser>) => {
+  const handleSaveUser = async (userData: Partial<PlatformUser> & { password?: string }) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
+    const targetGroupId = userData.groupId ? Number(String(userData.groupId).replace('grp-', '')) : null;
+
     if (userToEdit) {
       // Edit mode update
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userToEdit.id ? ({ ...u, ...userData } as PlatformUser) : u))
-      );
+      const dbId = userToEdit.db_id || Number(String(userToEdit.id).replace('usr-', ''));
+      try {
+        const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name: userData.fullName,
+            role: userData.role ? userData.role.toLowerCase() : undefined,
+            is_active: userData.status === 'Active',
+            group_id: targetGroupId
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert(parseErrorMessage(errData));
+          return;
+        }
+        await fetchUsersAndGroups();
+      } catch (err) {
+        console.error('Error updating user:', err);
+        alert('An error occurred while updating user.');
+      }
     } else {
-      // Add mode append
-      setUsers((prev) => [userData as PlatformUser, ...prev]);
+      // Add mode create
+      try {
+        const res = await fetch('/api/v1/admin/users', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: userData.fullName,
+            email: userData.email,
+            password: userData.password || 'CyberRange#2026!',
+            role: userData.role ? userData.role.toLowerCase() : 'user',
+            group_id: targetGroupId
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert(parseErrorMessage(errData));
+          return;
+        }
+        await fetchUsersAndGroups();
+      } catch (err) {
+        console.error('Error creating user:', err);
+        alert('An error occurred while creating user.');
+      }
     }
   };
 
-  const handleBulkImport = (newUsers: PlatformUser[]) => {
-    setUsers((prev) => [...newUsers, ...prev]);
+  const handleBulkImport = () => {
+    fetchUsersAndGroups();
   };
 
-  const handleConfirmDelete = () => {
-    if (userToDelete) {
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    const token = localStorage.getItem('token');
+    const dbId = userToDelete.db_id || Number(String(userToDelete.id).replace('usr-', ''));
+    try {
+      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id && u.db_id !== dbId));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || 'Failed to delete user.');
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+    } finally {
       setUserToDelete(null);
     }
   };
 
-  const handleToggleStatus = (user: PlatformUser) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === user.id ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' } : u
-      )
-    );
+  const handleToggleStatus = async (user: PlatformUser) => {
+    const token = localStorage.getItem('token');
+    const dbId = user.db_id || Number(String(user.id).replace('usr-', ''));
+    const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          is_active: newStatus === 'Active'
+        })
+      });
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === user.id ? { ...u, status: newStatus } : u
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Error toggling user status:', err);
+    }
   };
 
   return (

@@ -312,7 +312,7 @@ export const ProgressTracking: React.FC = () => {
                   </div>
                   {badge.unlocked ? (
                     <a
-                      href={`/certificate/verify/${badge.display_certificate_id || badge.certificate_id || (userCerts && userCerts[0]?.display_certificate_id) || "CYR-2026-000002"}`}
+                      href={`/certificate/verify/${badge.display_certificate_id || badge.certificate_id || (achievements && achievements[0]?.display_certificate_id) || "CYR-2026-000002"}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800"

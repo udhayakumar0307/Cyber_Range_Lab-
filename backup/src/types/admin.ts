@@ -91,6 +91,7 @@ export interface UserGroup {
 
 export interface PlatformUser {
   id: string;
+  db_id?: number;
   fullName: string;
   email: string;
   role: UserRole;

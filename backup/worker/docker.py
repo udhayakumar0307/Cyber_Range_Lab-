@@ -26,8 +26,19 @@ async def run_docker_container_sync():
 
             # 2. Use Docker SDK
             try:
-                import docker
-                client = docker.from_env()
+                import sys, importlib.util
+                docker_sdk = None
+                for path in sys.path:
+                    if "site-packages" in path:
+                        pkg_file = os.path.join(path, "docker", "__init__.py")
+                        if os.path.exists(pkg_file):
+                            spec = importlib.util.spec_from_file_location("docker_pypi", pkg_file)
+                            docker_sdk = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(docker_sdk)
+                            break
+                if not docker_sdk or not hasattr(docker_sdk, "from_env"):
+                    raise ImportError("Docker SDK not installed or unavailable")
+                client = docker_sdk.from_env()
                 
                 # Check images
                 for lab in labs:
