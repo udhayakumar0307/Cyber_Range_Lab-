@@ -86,21 +86,43 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     return nameMatch || emailMatch || rollMatch || deptMatch;
   });
 
+  const getDbUserId = (sid: string): number => {
+    const found = availableStudents.find(s => String(s.id) === String(sid)) || members.find(m => String(m.id) === String(sid));
+    if (found && found.db_id) return found.db_id;
+    const cleaned = sid.replace('usr-', '');
+    const num = Number(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const getDbGroupId = (): number => {
+    if (group.db_id) return group.db_id;
+    const cleaned = String(group.id).replace('grp-', '');
+    const num = Number(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Single Add student
   const handleSingleAddStudent = async (sid: string) => {
     setActionLoading(true);
     setErrorMsg('');
     const token = localStorage.getItem('token');
+    const targetUserId = getDbUserId(sid);
+    const targetGroupId = getDbGroupId();
+
     try {
-      const res = await fetch(`/api/v1/admin/groups/${group.db_id || group.id.replace('grp-', '')}/members`, {
+      const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ user_id: Number(sid) })
+        body: JSON.stringify({ user_id: targetUserId })
       });
-      if (!res.ok) throw new Error('Failed to add student to cohort.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = typeof errData.detail === 'string' ? errData.detail : (errData.detail?.message || 'Failed to add student to cohort.');
+        throw new Error(msg);
+      }
       fetchGroupMembersAndOrgStudents();
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to add student.');
@@ -113,8 +135,11 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
   const handleSingleRemoveMember = async (sid: string) => {
     setActionLoading(true);
     const token = localStorage.getItem('token');
+    const targetUserId = getDbUserId(sid);
+    const targetGroupId = getDbGroupId();
+
     try {
-      const res = await fetch(`/api/v1/admin/groups/${group.db_id || group.id.replace('grp-', '')}/members/${sid}`, {
+      const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -133,21 +158,26 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     setActionLoading(true);
     setErrorMsg('');
     const token = localStorage.getItem('token');
+    const targetGroupId = getDbGroupId();
 
     try {
       await Promise.all(
-        checkedAvailableIds.map(sid =>
-          fetch(`/api/v1/admin/groups/${group.db_id || group.id.replace('grp-', '')}/members`, {
+        checkedAvailableIds.map(async (sid) => {
+          const targetUserId = getDbUserId(sid);
+          const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...(token ? { Authorization: `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ user_id: Number(sid) })
-          }).then(res => {
-            if (!res.ok) throw new Error('Failed to add some students.');
-          })
-        )
+            body: JSON.stringify({ user_id: targetUserId })
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const msg = typeof errData.detail === 'string' ? errData.detail : (errData.detail?.message || 'Failed to add some students.');
+            throw new Error(msg);
+          }
+        })
       );
       fetchGroupMembersAndOrgStudents();
     } catch (err: any) {
@@ -162,14 +192,17 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     if (checkedMemberIds.length === 0) return;
     setActionLoading(true);
     const token = localStorage.getItem('token');
+    const targetGroupId = getDbGroupId();
+
     try {
       await Promise.all(
-        checkedMemberIds.map(sid =>
-          fetch(`/api/v1/admin/groups/${group.db_id || group.id.replace('grp-', '')}/members/${sid}`, {
+        checkedMemberIds.map(async (sid) => {
+          const targetUserId = getDbUserId(sid);
+          await fetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
             method: 'DELETE',
             headers: token ? { Authorization: `Bearer ${token}` } : {}
-          })
-        )
+          });
+        })
       );
       fetchGroupMembersAndOrgStudents();
     } catch (err) {

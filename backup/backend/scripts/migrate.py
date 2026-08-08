@@ -107,11 +107,14 @@ def run_sqlite_column_migrations(engine):
             ("website", "VARCHAR(200) NULL"),
             ("logo_url", "VARCHAR(500) NULL"),
             ("status", "VARCHAR(50) DEFAULT 'ACTIVE'"),
-            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-            ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("created_at", "TIMESTAMP NULL"),
+            ("updated_at", "TIMESTAMP NULL"),
         ]
         for col, definition in college_cols:
             add_col_if_missing("colleges", col, definition)
+
+        # labs
+        add_col_if_missing("labs", "price_per_hour", "FLOAT DEFAULT 100.0")
 
         # lab_modules
         add_col_if_missing("lab_modules", "track", "VARCHAR(100) DEFAULT 'linux'")
@@ -124,7 +127,7 @@ def run_sqlite_column_migrations(engine):
 
         # audit_logs
         audit_cols = [
-            ("timestamp", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("timestamp", "TIMESTAMP NULL"),
             ("action", "VARCHAR(100) NULL"),
             ("entity", "VARCHAR(100) NULL"),
             ("entity_id", "VARCHAR(100) NULL"),

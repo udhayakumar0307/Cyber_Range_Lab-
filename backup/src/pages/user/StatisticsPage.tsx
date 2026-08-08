@@ -34,8 +34,9 @@ const computeBadgeUnlocks = (rawBadges: any[], totalScore: number) => {
   let cumulative = 0;
   return sorted.map((badge) => {
     cumulative += (badge.reward_points ?? 50);
-    const threshold = Math.round(cumulative * 2);
-    return { ...badge, unlocked: totalScore >= threshold, _threshold: threshold };
+    const threshold = badge._threshold ?? Math.round(cumulative * 2);
+    const isUnlocked = badge.unlocked !== undefined ? badge.unlocked : totalScore >= threshold;
+    return { ...badge, unlocked: isUnlocked, _threshold: threshold };
   });
 };
 
@@ -64,13 +65,15 @@ export const StatisticsPage: React.FC = () => {
   const [lbErrorMsg, setLbErrorMsg] = useState("");
   const limit = 10;
 
+  const [userCerts, setUserCerts] = useState<any[]>([]);
+
   const loadAll = async () => {
     setLoading(true);
     setErrorMsg("");
     const token = localStorage.getItem("token");
     const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const [sRes, gRes, lRes, dashRes, achRes, labsRes, profRes, progRes] = await Promise.all([
+      const [sRes, gRes, lRes, dashRes, achRes, labsRes, profRes, progRes, certsRes] = await Promise.all([
         fetch("/api/v1/user/statistics", { headers: h }),
         fetch("/api/v1/user/activity-graph", { headers: h }),
         fetch("/api/v1/user/completed-labs", { headers: h }),
@@ -79,6 +82,7 @@ export const StatisticsPage: React.FC = () => {
         fetch("/api/v1/labs", { headers: h }),
         fetch("/api/v1/auth/me", { headers: h }),
         fetch("/api/v1/reporting/progress", { headers: h }),
+        fetch("/api/v1/reporting/certificates/my-certificates", { headers: h }),
       ]);
       
       let fetchedStats: any = {};
@@ -90,6 +94,7 @@ export const StatisticsPage: React.FC = () => {
       if (lRes.ok) setCompletedLabs(await lRes.json());
       if (dashRes.ok) setDashboard(await dashRes.json());
       if (achRes.ok) setAchievements(await achRes.json());
+      if (certsRes.ok) setUserCerts(await certsRes.json());
       if (labsRes.ok) {
         const labs = await labsRes.json();
         const seen = new Set<string>();
@@ -480,7 +485,7 @@ export const StatisticsPage: React.FC = () => {
                       </div>
                     </div>
                     {badge.unlocked
-                      ? <a href={`/certificate/verify/CYR-2026-${String(badge.id).replace(/[^0-9]/g, "").padStart(6, "0") || "000001"}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 flex-shrink-0"><ShieldCheck className="w-3.5 h-3.5" />Verify</a>
+                      ? <a href={`/certificate/verify/${badge.display_certificate_id || badge.certificate_id || userCerts[0]?.display_certificate_id || "CYR-2026-000002"}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 hover:underline inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 flex-shrink-0"><ShieldCheck className="w-3.5 h-3.5" />Verify</a>
                       : <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 flex-shrink-0">🔒 Locked</span>}
                   </div>
                 )) : <div className="py-8 text-center text-xs text-slate-400 col-span-2">Complete labs to earn badges.</div>}

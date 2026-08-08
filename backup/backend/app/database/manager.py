@@ -105,8 +105,15 @@ class DatabaseManager:
                     Base.metadata.create_all(bind=self.engine)
                     
                     with self.engine.connect() as conn:
-                        conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS price_per_hour FLOAT DEFAULT 100.0"))
-                        conn.commit()
+                        if self.engine.dialect.name == "sqlite":
+                            try:
+                                conn.execute(text("ALTER TABLE labs ADD COLUMN price_per_hour FLOAT DEFAULT 100.0"))
+                                conn.commit()
+                            except Exception:
+                                pass # Column already exists in SQLite
+                        else:
+                            conn.execute(text("ALTER TABLE labs ADD COLUMN IF NOT EXISTS price_per_hour FLOAT DEFAULT 100.0"))
+                            conn.commit()
                 except Exception as db_init_err:
                     logger.warning(f"Database schema validation checks skipped or failed on startup: {db_init_err}")
 

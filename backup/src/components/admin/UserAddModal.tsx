@@ -24,8 +24,12 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   const [role, setRole] = useState<UserRole>(userToEdit?.role || 'User');
   const [groupName, setGroupName] = useState(userToEdit?.groupName || 'Unassigned');
   const [status, setStatus] = useState<AccountStatus>(userToEdit?.status || 'Active');
+  const [year, setYear] = useState<string>(userToEdit?.year || 'III Year');
+  const [department, setDepartment] = useState<string>(userToEdit?.department || 'Cyber Security');
+  const [rollNumber, setRollNumber] = useState<string>(userToEdit?.rollNumber || '');
   const [groupsList, setGroupsList] = useState<any[]>([]);
-  const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; password?: string }>({});
 
   React.useEffect(() => {
     const fetchGroups = async () => {
@@ -44,9 +48,12 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   }, []);
 
   const validate = () => {
-    const errs: { fullName?: string; email?: string } = {};
+    const errs: { fullName?: string; email?: string; password?: string } = {};
     if (!fullName.trim()) errs.fullName = 'Full name is required.';
     if (!email.trim() || !email.includes('@')) errs.email = 'Valid email is required.';
+    if (!isEditMode && password && password.length < 6) {
+      errs.password = 'Password must be at least 6 characters.';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -55,27 +62,36 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
     e.preventDefault();
     if (!validate()) return;
 
+    const selectedGroupObj = groupsList.find(g => g.name === groupName);
+    const selectedGroupId = selectedGroupObj ? (selectedGroupObj.db_id || Number(String(selectedGroupObj.id).replace('grp-', ''))) : null;
+
     onSave({
       id: userToEdit?.id || `usr-${Date.now()}`,
+      db_id: userToEdit?.db_id || userToEdit?.id,
       fullName,
       email,
       role,
       groupName,
+      groupId: selectedGroupId ? `grp-${selectedGroupId}` : undefined,
       status,
+      password: password || 'CyberRange#2026!',
+      year,
+      department,
+      rollNumber,
       score: userToEdit?.score || 0,
       completedLabsCount: userToEdit?.completedLabsCount || 0,
       joinedDate: userToEdit?.joinedDate || 'Just now',
       lastActive: 'Active now',
-    });
+    } as any);
 
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-100 text-[#0052CC]">
               <UserPlus className="w-5 h-5" />
@@ -84,7 +100,7 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
               <h2 className="text-base font-extrabold text-slate-900">
                 {isEditMode ? 'Edit User Credentials' : 'Add New Platform User'}
               </h2>
-              <p className="text-xs text-slate-500">Assign role permissions and training group</p>
+              <p className="text-xs text-slate-500">Assign academic details, role permissions, and group</p>
             </div>
           </div>
 
@@ -97,7 +113,7 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {/* Full Name */}
           <div>
             <label className="font-bold text-slate-700 block mb-1">Full Name</label>
@@ -127,6 +143,69 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
             </div>
             {errors.email && <p className="text-rose-500 mt-1">{errors.email}</p>}
           </div>
+
+          {/* Academic Year & Department Selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Academic Year</label>
+              <select
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
+              >
+                <option value="I Year">I Year</option>
+                <option value="II Year">II Year</option>
+                <option value="III Year">III Year</option>
+                <option value="IV Year">IV Year</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Department</label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
+              >
+                <option value="Cyber Security">Cyber Security</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics & Communication">Electronics & Communication</option>
+                <option value="Electrical Engineering">Electrical Engineering</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Roll Number Field */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Roll Number / Student ID (Optional)</label>
+            <input
+              type="text"
+              value={rollNumber}
+              onChange={(e) => setRollNumber(e.target.value)}
+              placeholder="e.g. 22BCS015"
+              className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+            />
+          </div>
+
+          {!isEditMode && (
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Account Password (Optional)</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave empty for default password (CyberRange#2026!)"
+                  className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                />
+              </div>
+              {errors.password && <p className="text-rose-500 mt-1">{errors.password}</p>}
+            </div>
+          )}
 
           {/* Role & Status Row */}
           <div className="grid grid-cols-2 gap-3">
