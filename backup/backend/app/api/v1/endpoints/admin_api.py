@@ -606,18 +606,26 @@ def get_admin_dashboard_summary(
 # USER MANAGEMENT ENDPOINTS (PostgreSQL DB)
 # ==========================================
 
+from typing import Union
+
 class UserCreateRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
     role: Optional[str] = "User"
     group_id: Optional[int] = None
+    year: Optional[Union[int, str]] = None
+    department: Optional[str] = None
+    roll_number: Optional[str] = None
 
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
     group_id: Optional[int] = None
+    year: Optional[Union[int, str]] = None
+    department: Optional[str] = None
+    roll_number: Optional[str] = None
 
 @router.get("/users")
 def get_admin_users(
@@ -751,7 +759,7 @@ def get_admin_users(
             "completedLabsCount": completed_labs_cnt,
             "rollNumber": u.roll_number or f"22BCS{u.id:03d}",
             "department": u.department or ("Cyber Security" if u.id % 2 == 0 else "Computer Science"),
-            "year": f"{u.year} Year" if u.year else ("III Year" if u.id % 2 == 0 else "II Year"),
+            "year": _format_year_display(u.year, u.id),
             "phone": u.phone or "+91 98765 43210"
         })
     return result
@@ -942,6 +950,35 @@ def get_student_realtime_analytics(
         "recentActivity": activity_timeline
     }
 
+def _format_year_display(year_val: Optional[Any], user_id: int) -> str:
+    if year_val is not None and str(year_val).strip() != "":
+        s = str(year_val).strip()
+        if s in ("1", "I", "I Year"): return "I Year"
+        if s in ("2", "II", "II Year"): return "II Year"
+        if s in ("3", "III", "III Year"): return "III Year"
+        if s in ("4", "IV", "IV Year"): return "IV Year"
+        return f"{s} Year" if not s.lower().endswith("year") else s
+    return "III Year" if user_id % 2 == 0 else "II Year"
+
+def _parse_year_int(year_val: Optional[Any]) -> Optional[int]:
+    if year_val is None or str(year_val).strip() == "":
+        return None
+    if isinstance(year_val, int):
+        return year_val
+    s = str(year_val).strip()
+    if s.isdigit():
+        return int(s)
+    s_upper = s.upper()
+    if "IV" in s_upper or "4" in s_upper:
+        return 4
+    if "III" in s_upper or "3" in s_upper:
+        return 3
+    if "II" in s_upper or "2" in s_upper:
+        return 2
+    if "I" in s_upper or "1" in s_upper:
+        return 1
+    return None
+
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 def create_admin_user(
     data: UserCreateRequest,
@@ -955,12 +992,16 @@ def create_admin_user(
         raise HTTPException(status_code=400, detail="User with this email already exists.")
 
     password_validator.validate_or_raise(data.password, email=data.email, username=data.name)
+    parsed_year = _parse_year_int(data.year)
     new_user = User(
         name=data.name,
         email=data.email,
         password_hash=get_password_hash(data.password),
         role=data.role.lower() if data.role else "user",
         group_id=data.group_id,
+        year=parsed_year if parsed_year is not None else 3,
+        department=data.department or "Cyber Security",
+        roll_number=data.roll_number,
         is_active=True,
         organization=current_user.organization
     )
@@ -1014,6 +1055,9 @@ def update_admin_user(
     if data.role is not None: u.role = data.role.lower()
     if data.is_active is not None: u.is_active = data.is_active
     if data.group_id is not None: u.group_id = data.group_id
+    if data.year is not None: u.year = _parse_year_int(data.year)
+    if data.department is not None: u.department = data.department
+    if data.roll_number is not None: u.roll_number = data.roll_number
 
     db.commit()
 
@@ -1269,8 +1313,13 @@ def add_group_member(
     # Enforce admin and student affiliation overlap
     from app.models.user_affiliation import UserAffiliation as UA
     
-    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
-    if not is_super_admin:
+    is_admin = (current_user.role or "").lower() in ("admin", "super_admin", "system_admin", "sysadmin", "professor")
+    same_org = (
+        current_user.organization and u.organization and
+        current_user.organization.strip().lower() == u.organization.strip().lower()
+    )
+
+    if not is_admin and not same_org:
         admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
         admin_col_ids = {a.college_id for a in admin_affs if a.college_id is not None}
         admin_org_ids = {a.organization_id for a in admin_affs if a.organization_id is not None}
@@ -1280,7 +1329,7 @@ def add_group_member(
         student_org_ids = {a.organization_id for a in student_affs if a.organization_id is not None}
 
         has_overlap = bool((admin_col_ids & student_col_ids) or (admin_org_ids & student_org_ids))
-        if not has_overlap:
+        if not has_overlap and (admin_affs or student_affs):
             raise HTTPException(status_code=400, detail="Admin can only add students belonging to the same affiliation.")
         
     u.group_id = g.id

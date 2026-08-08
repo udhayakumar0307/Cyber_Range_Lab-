@@ -153,7 +153,10 @@ export const UserManagement: React.FC = () => {
             name: userData.fullName,
             role: userData.role ? userData.role.toLowerCase() : undefined,
             is_active: userData.status === 'Active',
-            group_id: targetGroupId
+            group_id: targetGroupId,
+            year: userData.year,
+            department: userData.department,
+            roll_number: userData.rollNumber
           })
         });
         if (!res.ok) {
@@ -177,7 +180,10 @@ export const UserManagement: React.FC = () => {
             email: userData.email,
             password: userData.password || 'CyberRange#2026!',
             role: userData.role ? userData.role.toLowerCase() : 'user',
-            group_id: targetGroupId
+            group_id: targetGroupId,
+            year: userData.year,
+            department: userData.department,
+            roll_number: userData.rollNumber
           })
         });
         if (!res.ok) {
