@@ -12,6 +12,16 @@ export default defineConfig({
   server: {
     host: true,         // Listen on all network interfaces (0.0.0.0)
     allowedHosts: true, // Allow ngrok host headers
+    watch: {
+      ignored: [
+        '**/workspaces/**',
+        '**/backend/**',
+        '**/*.db*',
+        '**/*.log',
+        '**/scratch/**',
+        '**/.system_generated/**'
+      ]
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
@@ -30,6 +40,7 @@ export default defineConfig({
       },
     },
   },
+
 
   build: {
     // Warn when a single chunk exceeds 500 kB (down from Vite default 500 kB)

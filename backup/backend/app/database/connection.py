@@ -29,12 +29,12 @@ def create_db_engine(url: str):
     For PostgreSQL/MySQL: QueuePool with production-grade settings.
     """
     if url.startswith("sqlite"):
-        from sqlalchemy.pool import StaticPool
+        from sqlalchemy.pool import NullPool
 
         engine = create_engine(
             url,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
+            connect_args={"check_same_thread": False, "timeout": 30.0},
+            poolclass=NullPool,
         )
 
         # Enable WAL mode for SQLite — allows concurrent readers during writes

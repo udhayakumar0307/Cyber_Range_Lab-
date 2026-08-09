@@ -274,14 +274,15 @@ async def notification_websocket_endpoint(websocket: WebSocket, token: Optional[
     try:
         from app.core.security import decode_access_token
         payload = decode_access_token(token)
-        user_id_str = payload.get("sub")
-        if not user_id_str:
+        user_id = payload.get("user_id") or payload.get("sub")
+        if not user_id:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
             return
-        user_id = int(user_id_str)
-    except Exception:
+
+    except Exception as exc:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Token verification failed")
         return
+
 
     await ws_manager.connect(user_id, websocket)
     try:

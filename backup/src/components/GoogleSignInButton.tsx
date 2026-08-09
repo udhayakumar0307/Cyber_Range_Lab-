@@ -70,12 +70,16 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     }
   };
 
+  const isInitializedRef = useRef(false);
+
   useEffect(() => {
     let intervalId: any = null;
 
     const initializeGis = () => {
+      if (isInitializedRef.current) return;
       if (window.google?.accounts?.id) {
         try {
+          isInitializedRef.current = true;
           window.google.accounts.id.initialize({
             client_id: clientId,
             callback: handleCredentialResponse,
@@ -104,15 +108,16 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       intervalId = setInterval(() => {
         if (window.google?.accounts?.id) {
           initializeGis();
-          clearInterval(intervalId);
+          if (intervalId) clearInterval(intervalId);
         }
-      }, 300);
+      }, 500);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [clientId, portal]);
+
 
   const handleCustomClick = () => {
     if (!clientId || clientId.includes('exampleclientid') || clientId.startsWith('your-')) {

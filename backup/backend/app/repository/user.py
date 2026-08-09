@@ -11,6 +11,9 @@ class UserRepository(BaseRepository[User]):
         return db.query(User).filter(User.name == name).first()
 
     def get_by_email(self, db: Session, email: str) -> Optional[User]:
-        return db.query(User).filter(User.email == email).first()
+        if not email:
+            return None
+        return db.query(User).filter(User.email == str(email)).first()
+
 
 user_repository = UserRepository()

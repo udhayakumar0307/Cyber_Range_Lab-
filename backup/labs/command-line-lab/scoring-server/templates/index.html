@@ -356,8 +356,17 @@
   <script src="/static/vendor/xterm/xterm.js"></script>
   <script src="/static/vendor/xterm/xterm-addon-fit.js"></script>
   <script>
+
     let TRACKS_DATA = {{ tracks_json | tojson }};
-    const TERMINAL_WS_URL = "ws://{{ terminal_ws_host }}:{{ terminal_ws_port }}";
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const backendPort = window.location.port === '5173' ? '8000' : (window.location.port || '8000');
+    const TERMINAL_WS_URL = `${wsProtocol}//${window.location.hostname}:${backendPort}/api/v1/cll/ws?token=${encodeURIComponent(token)}`;
+
+
+
+
 
     const tracksView = document.getElementById("tracks-view");
     const tracksGrid = document.getElementById("tracks-grid");
@@ -384,28 +393,27 @@
     // Hint States per module
     let unlockedHintsMap = {};
 
-    // Session Timer logic (persists remaining time across page refreshes)
+    // Session Timer logic (fresh 45-min timer per lab session)
     let sessionStartTimeKey = "cll_session_start_time";
     let sessionStartTime = localStorage.getItem(sessionStartTimeKey);
-    if (!sessionStartTime) {
-      sessionStartTime = Date.now().toString();
+    let now = Date.now();
+    if (!sessionStartTime || (now - parseInt(sessionStartTime, 10)) > (45 * 60 * 1000)) {
+      sessionStartTime = now.toString();
       localStorage.setItem(sessionStartTimeKey, sessionStartTime);
     }
-    let elapsedSeconds = Math.floor((Date.now() - parseInt(sessionStartTime, 10)) / 1000);
+    let elapsedSeconds = Math.max(0, Math.floor((now - parseInt(sessionStartTime, 10)) / 1000));
     let totalSeconds = Math.max(0, (45 * 60) - elapsedSeconds);
 
     setInterval(() => {
-      if (totalSeconds > 0) {
-        totalSeconds--;
-        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-        const s = (totalSeconds % 60).toString().padStart(2, '0');
-        const display = document.getElementById("session-timer-display");
-        if (display) display.textContent = `${m}:${s}`;
-      } else {
-        const display = document.getElementById("session-timer-display");
-        if (display) display.textContent = "00:00";
-      }
+      let currentNow = Date.now();
+      let currentElapsed = Math.max(0, Math.floor((currentNow - parseInt(sessionStartTime, 10)) / 1000));
+      let rem = Math.max(0, (45 * 60) - currentElapsed);
+      const m = Math.floor(rem / 60).toString().padStart(2, '0');
+      const s = (rem % 60).toString().padStart(2, '0');
+      const display = document.getElementById("session-timer-display");
+      if (display) display.textContent = `${m}:${s}`;
     }, 1000);
+
 
     function updateTrackModuleUnlocks(track) {
       if (!track || !track.modules) return;
@@ -690,11 +698,14 @@
       document.getElementById("verify-feedback").className = "text-xs font-semibold min-h-[16px]";
       document.getElementById("key-input").value = "";
 
-      // Send environment preparation command to terminal if connected
+      // Send environment preparation command to terminal if connected, or auto-connect
       if (socket && socket.readyState === WebSocket.OPEN) {
         const cdCmd = `cd /home/student/${currentTrack.id}/${id} 2>/dev/null || cd /home/student/${id} 2>/dev/null || true; clear\r`;
         socket.send(JSON.stringify({ type: "input", data: cdCmd }));
+      } else {
+        connectTerminal();
       }
+
 
       pollProgress();
       if (pollTimer) clearInterval(pollTimer);
@@ -719,7 +730,7 @@
           <span class="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
             o.complete ? "bg-[#10B981] text-white" : "border-2 border-slate-300 text-transparent"
           }">&#10003;</span>
-          <span>${o.label}</span>
+          <span>${o.label || o.text || o.description || o.name || 'Objective'}</span>
         `;
         list.appendChild(li);
       });
@@ -804,32 +815,50 @@
         fontSize: 13, 
         cursorBlink: true,
       });
-      fitAddon = new FitAddon.FitAddon();
-      term.loadAddon(fitAddon);
+      try {
+        if (window.FitAddon && window.FitAddon.FitAddon) {
+          fitAddon = new FitAddon.FitAddon();
+          term.loadAddon(fitAddon);
+        }
+      } catch(e) {
+        console.warn("FitAddon load error:", e);
+      }
       term.open(container);
-      fitAddon.fit();
+      term.focus();
+      container.addEventListener("click", () => { if (term) term.focus(); });
+      setTimeout(() => { try { if (fitAddon) fitAddon.fit(); } catch(e){} }, 100);
+
+
+      term.onData((data) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "input", data }));
+        }
+      });
+      term.onResize(({ cols, rows }) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        }
+      });
 
       socket = new WebSocket(TERMINAL_WS_URL);
       socket.binaryType = "arraybuffer";
 
       socket.onopen = () => {
         setStatus(true);
-        term.onData((data) => {
-          socket.send(JSON.stringify({ type: "input", data }));
-        });
-        term.onResize(({ cols, rows }) => {
-          socket.send(JSON.stringify({ type: "resize", cols, rows }));
-        });
-        fitAddon.fit();
+        term.focus();
+        if (fitAddon) fitAddon.fit();
         socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
 
         if (currentModule && currentTrack) {
           setTimeout(() => {
             const cdCmd = `cd /home/student/${currentTrack.id}/${currentModule.id} 2>/dev/null || cd /home/student/${currentModule.id} 2>/dev/null || true; clear\r`;
-            socket.send(JSON.stringify({ type: "input", data: cdCmd }));
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: "input", data: cdCmd }));
+            }
           }, 300);
         }
       };
+
       socket.onmessage = (event) => {
         const data = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
         term.write(data);
@@ -837,7 +866,10 @@
       socket.onclose = () => setStatus(false);
       socket.onerror = () => setStatus(false);
 
-      window.addEventListener("resize", () => fitAddon && fitAddon.fit());
+      window.addEventListener("resize", () => {
+        if (fitAddon) fitAddon.fit();
+      });
+
     }
 
     function disconnectTerminal() {
@@ -955,11 +987,19 @@
       }
     }
 
-    // BUG6 FIX: On startup, ALWAYS show Track Selection page first
-    // BUG3 FIX: Hide back button, divider, timer, module counter on Track Selection page
+    // On startup, show Track Selection page or auto-open active track if in session view
     closeToTracks();
-    // BUG4+5 FIX: Immediately fetch fresh score and track progress from database
-    syncUserData();
+    syncUserData().then(() => {
+      // Auto-open first track and module if visiting session view
+      const isSessionView = window.location.pathname.includes('/session') || window.location.search.includes('token') || window.location.search.includes('session');
+      if (isSessionView && TRACKS_DATA && TRACKS_DATA.length > 0) {
+        const defaultTrack = TRACKS_DATA[0];
+        if (defaultTrack && defaultTrack.modules && defaultTrack.modules.length > 0) {
+          openTrack(defaultTrack.id);
+        }
+      }
+    });
+
   </script>
 </body>
 </html>

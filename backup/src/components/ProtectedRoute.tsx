@@ -34,13 +34,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   // Onboarding Redirection Guard for students
-  if (user.role !== 'admin' && user.profile_completed === false && location.pathname !== '/onboarding') {
+  const isLabSessionRoute = location.pathname.includes('/labs/') || location.pathname.includes('/session');
+  if (user.role !== 'admin' && user.role !== 'SYSTEM_ADMIN' && user.profile_completed === false && location.pathname !== '/onboarding' && !isLabSessionRoute) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (user.role !== 'admin' && user.profile_completed === true && location.pathname === '/onboarding') {
+  if (user.role !== 'admin' && user.role !== 'SYSTEM_ADMIN' && user.profile_completed === true && location.pathname === '/onboarding') {
     return <Navigate to="/dashboard" replace />;
   }
+
 
   return <>{children}</>;
 };
