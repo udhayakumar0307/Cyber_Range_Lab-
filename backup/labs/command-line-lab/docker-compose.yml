@@ -12,7 +12,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.30.0.0/24
+        - subnet: 10.31.0.0/24
 
 services:
 
@@ -24,7 +24,7 @@ services:
     hostname: cll-workstation
     networks:
       cll-net:
-        ipv4_address: 10.30.0.50
+        ipv4_address: 10.31.0.50
     environment:
       - STUDENT_ID=${STUDENT_ID:-student}
       - LAB_SEED=${LAB_SEED:-defaultseed}
@@ -40,7 +40,7 @@ services:
     hostname: cll-services
     networks:
       cll-net:
-        ipv4_address: 10.30.0.10
+        ipv4_address: 10.31.0.10
     environment:
       - STUDENT_ID=${STUDENT_ID:-student}
       - LAB_SEED=${LAB_SEED:-defaultseed}
@@ -63,12 +63,12 @@ services:
     hostname: scoring
     networks:
       cll-net:
-        ipv4_address: 10.30.0.99
+        ipv4_address: 10.31.0.99
     environment:
       - STUDENT_ID=${STUDENT_ID:-student}
       - LAB_SEED=${LAB_SEED:-defaultseed}
-      - SERVICES_URL=http://10.30.0.10:9500
-      - HINT_SERVICE_URL=http://10.30.0.10:9600
+      - SERVICES_URL=http://10.31.0.10:9500
+      - HINT_SERVICE_URL=http://10.31.0.10:9600
       - TERMINAL_WS_HOST=localhost
       - TERMINAL_WS_PORT=8022
     ports:

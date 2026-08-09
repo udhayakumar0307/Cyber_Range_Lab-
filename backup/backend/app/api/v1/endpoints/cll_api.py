@@ -39,7 +39,21 @@ TRACK_ORDER = list(TRACKS_CONFIG.keys())
 
 SERVICES_URL = os.environ.get("SERVICES_URL", "http://127.0.0.1:9500")
 
-def generate_flag(student_id: str, track_id: str, module_id: str, lab_seed: str = "defaultseed") -> List[str]:
+def get_cll_username(user: Optional[User]) -> str:
+    if not user:
+        return "student"
+    email = user.email or ""
+    if "@" in email:
+        raw_user = email.split("@")[0]
+        clean = "".join(c for c in raw_user if c.isalpha())
+        return clean.lower() if clean else raw_user.lower()
+    return user.name.lower() if user.name else "student"
+
+def generate_flag(student_id: str, track_id: str, module_id: str, lab_seed: str = "") -> List[str]:
+    # Always read from environment so it matches the Docker entrypoint.sh LAB_SEED
+    if not lab_seed:
+        lab_seed = os.environ.get("LAB_SEED", "defaultseed")
+
     raw1 = f"cll_{track_id}_{module_id}_{student_id}_{lab_seed}"
     digest1 = hashlib.sha256(raw1.encode()).hexdigest()[:8]
     flag1 = f"FLAG{{cll_{track_id}_{module_id}_{student_id}_{digest1}}}"
@@ -57,6 +71,7 @@ def generate_flag(student_id: str, track_id: str, module_id: str, lab_seed: str 
     flag4 = f"FLAG{{cll_{module_id}_student_{digest4}}}"
 
     return [flag1, flag2, flag3, flag4]
+
 
 
 from app.services.score_service import reconcile_user_score
@@ -327,34 +342,77 @@ def get_cll_progress(
     objectives = tcfg["modules"][module_id].get("objectives", [])
     workspace_dir = ROOT_DIR / "workspaces" / username
 
+    import re as _re
+    import subprocess as _subprocess
+
+    STUDENT_CONTAINER = "cll-student"
+    LOG_PATH_IN_CONTAINER = "/var/log/session/commands.log"
+
+    # ── Read real command log from Docker container ─────────────────────────
+    # Primary: docker exec cat of the session log (server-authoritative)
+    # Fallback: local .cmd_history written by the WebSocket handler
+    cmd_history_lines = []
+    try:
+        result = _subprocess.run(
+            ["docker", "exec", "-u", "root", STUDENT_CONTAINER, "cat", LOG_PATH_IN_CONTAINER],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Parse timestamp|cwd|cmd format from Docker log and filter by directory context
+            module_path_key = f"{track_id}/{module_id}".lower()
+            for line in result.stdout.splitlines():
+                parts = line.strip().split("|", 2)
+                if len(parts) == 3:
+                    ts, cwd, cmd = parts
+                    if module_path_key in cwd.lower() or not cwd:
+                        cmd_history_lines.append(cmd)
+                else:
+                    cmd_history_lines.append(line.strip())
+    except Exception:
+        pass
+
+    # Fallback to local .cmd_history if docker exec failed or returned nothing
+    if not cmd_history_lines:
+        hist_file = workspace_dir / ".cmd_history"
+        if hist_file.exists():
+            try:
+                cmd_history_lines = hist_file.read_text(encoding="utf-8").splitlines()
+            except Exception:
+                cmd_history_lines = []
+
+    def _check_objective(obj):
+        obj_type = obj.get("type", "log_regex")
+        pattern = obj.get("pattern", "")
+        if obj_type == "log_regex" and pattern:
+            try:
+                regex = _re.compile(pattern)
+                for line in cmd_history_lines:
+                    if regex.search(line):
+                        return True
+            except _re.error:
+                pass
+            return False
+        elif obj_type == "fs_test":
+            test_cmd = obj.get("test_cmd", "")
+            if test_cmd:
+                # Run fs_test inside the Docker container (server-authoritative)
+                try:
+                    result = _subprocess.run(
+                        ["docker", "exec", "-u", "root", STUDENT_CONTAINER, "bash", "-c", test_cmd],
+                        capture_output=True, timeout=5
+                    )
+                    return result.returncode == 0
+                except Exception:
+                    pass
+        return False
+
     updated_objectives = []
     for idx, obj in enumerate(objectives):
-        text = obj.get("text", "")
-        text_lower = text.lower()
-        is_complete = False
-
-        if "pwd" in text_lower or "print your current directory" in text_lower:
-            is_complete = True
-        elif "ls" in text_lower or "list directory" in text_lower:
-            is_complete = True
-        elif "cd" in text_lower or "navigate" in text_lower:
-            is_complete = True
-        elif "cat" in text_lower or "key" in text_lower:
-            is_complete = True
-        elif "mkdir" in text_lower or "create workspace/backup" in text_lower:
-            is_complete = (workspace_dir / "linux" / "module2" / "workspace" / "backup").exists() or (workspace_dir / "backup").exists()
-        elif "manifest" in text_lower or "copy inbox/manifest" in text_lower:
-            is_complete = (workspace_dir / "linux" / "module2" / "workspace" / "backup" / "manifest.txt").exists() or (workspace_dir / "manifest.txt").exists()
-        elif "draft" in text_lower or "move inbox/draft" in text_lower or "final.txt" in text_lower:
-            is_complete = (workspace_dir / "linux" / "module2" / "workspace" / "final.txt").exists() or (workspace_dir / "final.txt").exists()
-        elif "junk.tmp" in text_lower or "remove workspace/junk" in text_lower:
-            is_complete = not (workspace_dir / "linux" / "module2" / "workspace" / "junk.tmp").exists() and not (workspace_dir / "junk.tmp").exists()
-        else:
-            is_complete = False
-
+        label = obj.get("label") or obj.get("text") or obj.get("description") or f"Objective {idx + 1}"
+        is_complete = _check_objective(obj)
         updated_objectives.append({
-            "text": text,
-            "label": text,
+            "text": label,
+            "label": label,
             "complete": is_complete
         })
 
@@ -482,12 +540,14 @@ def submit_cll_flag(
         prog_resp = requests.get(f"{SERVICES_URL}/progress/{user_id_str}/{track_id}/{module_id}", timeout=2)
         if prog_resp.ok:
             prog_data = prog_resp.json()
-            if not prog_data.get("module_complete", True):
-                pass
+            if not prog_data.get("module_complete", False):
+                return {"correct": False, "message": "Please complete all terminal objectives first!"}
     except Exception as e:
         logger.warning(f"Progress service check warning: {e}")
 
-    valid_flags = generate_flag(user_id_str, track_id, module_id)
+    username_str = get_cll_username(current_user)
+    valid_flags = generate_flag(username_str, track_id, module_id)
+
     if submitted_flag not in valid_flags:
         return {"correct": False, "message": "That's not the right key for this module."}
 
@@ -514,7 +574,7 @@ def submit_cll_flag(
     return {
         "correct": True,
         "message": "Correct! Next module unlocked.",
-        "points": earned_module_score,
+        "points": result.points_awarded,
         "total_points": new_total_score,
         "next_module": next_module_id,
         "track": track_id,
@@ -609,28 +669,65 @@ async def cll_terminal_websocket(websocket: WebSocket):
         workspace_dir = Path.cwd()
 
 
-    # Seed flag and mission files in workspace
+    # ── Module 1: Linux Navigation ─ Workspace Scaffold ──────────────────────
+    # Challenge structure:
+    #   ~/
+    #   ├── readme.txt            (orientation note)
+    #   ├── documents/            (decoy folder)
+    #   │   └── notes.txt
+    #   ├── downloads/            (decoy folder)
+    #   │   └── archive.tar.gz.bak
+    #   └── records/              (student must find this)
+    #       └── logs/
+    #           └── archive/
+    #               └── .keyfile  ← hidden file containing the FLAG
     from app.api.v1.endpoints.cll_api import generate_flag
     flags = generate_flag(username, "linux", "module1")
     flag1 = flags[0] if flags else "FLAG{cll_linux_module1_keshika_8a3f9b2d}"
-    (workspace_dir / "onboarding_key.txt").write_text(f"{flag1}\n", encoding="utf-8")
-    (workspace_dir / "key.txt").write_text(f"{flag1}\n", encoding="utf-8")
-    (workspace_dir / "readme.txt").write_text("Welcome to CyberRange Linux Navigation Lab!\nUse 'ls', 'pwd', and 'cat onboarding_key.txt' to complete Mission 1.\n", encoding="utf-8")
 
-    # Interactive PTY Shell Execution
+    # Top-level readme
+    (workspace_dir / "readme.txt").write_text(
+        "Welcome to CyberRange Linux Navigation Lab!\n"
+        "Your mission: Locate the onboarding key hidden inside your home directory.\n"
+        "Hint: Use pwd, ls, and cd to navigate. Hidden files start with a dot (.).\n",
+        encoding="utf-8"
+    )
+
+    # Decoy folders so the student actually has to explore
+    decoy_docs = workspace_dir / "documents"
+    decoy_docs.mkdir(exist_ok=True)
+    (decoy_docs / "notes.txt").write_text("Meeting notes — Q3 review.\n", encoding="utf-8")
+
+    decoy_dl = workspace_dir / "downloads"
+    decoy_dl.mkdir(exist_ok=True)
+    (decoy_dl / "archive.tar.gz.bak").write_text("# backup placeholder\n", encoding="utf-8")
+
+    # Challenge path: records/logs/archive/.keyfile
+    archive_dir = workspace_dir / "records" / "logs" / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    (archive_dir / ".keyfile").write_text(f"{flag1}\n", encoding="utf-8")
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Interactive PTY Shell Execution — routes into cll-student Docker container
     IS_WINDOWS = platform.system() == "Windows"
+    STUDENT_CONTAINER = "cll-student"
     master_fd = None
     proc = None
 
     try:
         if not IS_WINDOWS and pty is not None:
-            exec_cmd = ["/bin/bash", "-l"]
+            exec_cmd = [
+                "docker", "exec", "-it",
+                "-u", "student",
+                "-e", "TERM=xterm-256color",
+                "-e", f"HOME=/home/student",
+                "-e", f"STUDENT_ID={username}",
+                "-w", "/home/student/linux/module1",
+                STUDENT_CONTAINER,
+                "/bin/bash", "-l",
+            ]
             pid, master_fd = pty.fork()
             if pid == 0:
-                os.chdir(str(workspace_dir))
-                os.environ["PS1"] = f"\\[\\e[1;32m\\]{username}@cyberrange\\[\\e[0m\\]:\\[\\e[1;34m\\]\\w\\[\\e[0m\\]$ "
-                os.environ["HOME"] = str(workspace_dir)
-                os.environ["TERM"] = "xterm-256color"
                 os.execvp(exec_cmd[0], exec_cmd)
             else:
                 if fcntl and termios:
@@ -653,6 +750,8 @@ async def cll_terminal_websocket(websocket: WebSocket):
                             break
 
                 async def write_pty():
+                    input_buffer = ""
+                    hist_file = workspace_dir / ".cmd_history"
                     while True:
                         try:
                             msg = await websocket.receive()
@@ -670,7 +769,23 @@ async def cll_terminal_websocket(websocket: WebSocket):
                                             wsz = struct.pack("HHHH", rows, cols, 0, 0)
                                             fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
                                     elif payload.get("type") == "input":
-                                        os.write(master_fd, payload.get("data", "").encode("utf-8"))
+                                        data = payload.get("data", "")
+                                        os.write(master_fd, data.encode("utf-8"))
+                                        # Track each character; save command on Enter
+                                        for ch in data:
+                                            if ch in ('\r', '\n'):
+                                                cmd = input_buffer.strip()
+                                                if cmd:
+                                                    try:
+                                                        with open(hist_file, "a", encoding="utf-8") as hf:
+                                                            hf.write(cmd + "\n")
+                                                    except Exception:
+                                                        pass
+                                                input_buffer = ""
+                                            elif ch in ('\x7f', '\x08'):  # backspace / DEL
+                                                input_buffer = input_buffer[:-1]
+                                            elif ch.isprintable():
+                                                input_buffer += ch
                                 except (json.JSONDecodeError, TypeError):
                                     os.write(master_fd, raw_text.encode("utf-8"))
                             elif raw_bytes:

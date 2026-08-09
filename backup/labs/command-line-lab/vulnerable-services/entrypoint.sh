@@ -108,14 +108,23 @@ DXS bash -c "echo '${FLAG_linux_module2}' > /home/student/linux/module2/.vault/.
 
 # Linux Module 3 (Text Processing & Line Counting: wc, sort, uniq, cut)
 DXS mkdir -p /home/student/linux/module3/data
-docker exec -i -u student "$STUDENT_CONTAINER" bash -c "cat > /home/student/linux/module3/data/server.log" <<LOGDATA
-192.168.1.10:GET /api/v1/health
-192.168.1.10:GET /api/v1/health
-10.0.0.55:POST /api/v1/login
-192.168.1.10:GET /api/v1/health
-10.20.0.99:ACCESS_KEY:${FLAG_linux_module3}
-192.168.1.10:GET /api/v1/health
-LOGDATA
+(
+  ips=("192.168.1.10" "10.0.0.55" "172.16.0.4" "192.168.2.20" "10.0.0.12" "192.168.1.15" "172.16.5.9")
+  methods=("GET" "POST" "GET" "GET" "PUT" "DELETE")
+  endpoints=("/api/v1/health" "/index.html" "/api/v1/login" "/static/main.js" "/dashboard" "/api/v1/users" "/static/style.css" "/favicon.ico")
+
+  for i in $(seq 1 1000); do
+    if [ "$i" -eq 542 ]; then
+      echo "10.20.0.99:ACCESS_KEY:${FLAG_linux_module3}"
+    else
+      # Deterministic pseudo-random generation using sequence index
+      ip_idx=$(( (i * 3 + 7) % 7 ))
+      method_idx=$(( (i * 11 + 2) % 6 ))
+      endpoint_idx=$(( (i * 13 + 5) % 8 ))
+      echo "${ips[ip_idx]}:${methods[method_idx]} ${endpoints[endpoint_idx]}"
+    fi
+  done
+) | docker exec -i -u student "$STUDENT_CONTAINER" bash -c "cat > /home/student/linux/module3/data/server.log"
 
 # Linux Module 4 (Archive Extraction & Binary Inspection: tar, file, strings, base64)
 DXS mkdir -p /home/student/linux/module4/extracted
