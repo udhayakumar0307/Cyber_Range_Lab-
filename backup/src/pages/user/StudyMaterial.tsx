@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Book, Search, Download, FileText, CheckCircle, Clock, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Book, Search, Eye, FileText, CheckCircle, Clock, Plus, Trash2, Upload, X } from 'lucide-react';
 
 interface NoteItem {
   id: string;
@@ -282,23 +283,20 @@ export const StudyMaterial: React.FC = () => {
                     View Notes
                   </button>
                   {item.pdfUrl ? (
-                    <a
-                      href={item.pdfUrl}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all inline-flex items-center"
-                      title={`Download ${item.title} PDF`}
+                    <Link
+                      to={`/study-material/view/${item.id}`}
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition-all inline-flex items-center"
+                      title={`View ${item.title} PDF`}
                     >
-                      <Download className="w-3.5 h-3.5" />
-                    </a>
+                      <Eye className="w-3.5 h-3.5" />
+                    </Link>
                   ) : (
                     <button
-                      onClick={() => alert(`Downloading ${item.title} PDF playbook...`)}
-                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
-                      title="Download PDF version"
+                      onClick={() => alert(`PDF version is currently unavailable for ${item.title}.`)}
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-350 dark:text-slate-700 cursor-not-allowed"
+                      title="PDF version unavailable"
                     >
-                      <Download className="w-3.5 h-3.5" />
+                      <Eye className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -361,23 +359,21 @@ export const StudyMaterial: React.FC = () => {
                   Close Reader
                 </button>
                 {activeNote.pdfUrl ? (
-                  <a
-                    href={activeNote.pdfUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    to={`/study-material/view/${activeNote.id}`}
                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
                   >
-                    <Download className="w-4 h-4" />
-                    Download PDF
-                  </a>
+                    <Eye className="w-4 h-4" />
+                    View Secure PDF
+                  </Link>
                 ) : (
                   <button
-                    onClick={() => alert(`Downloading ${activeNote.title} PDF playbook...`)}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5"
+                    onClick={() => alert(`PDF version is currently unavailable for ${activeNote.title}.`)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 text-xs font-semibold cursor-not-allowed flex items-center gap-1.5"
+                    disabled
                   >
-                    <Download className="w-4 h-4" />
-                    Download PDF
+                    <Eye className="w-4 h-4" />
+                    PDF Unavailable
                   </button>
                 )}
               </div>

@@ -43,3 +43,18 @@ html:not(.dark) {
 html.dark {
   color-scheme: dark;
 }
+
+@media print {
+  .pdf-viewer-container {
+    display: none !important;
+  }
+  body::after {
+    content: "Printing is disabled for secure documents.";
+    font-size: 24px;
+    font-weight: bold;
+    color: red;
+    display: block;
+    text-align: center;
+    margin-top: 20%;
+  }
+}

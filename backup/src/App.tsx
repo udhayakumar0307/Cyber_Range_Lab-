@@ -71,6 +71,7 @@ const LeaderboardPortal    = lazy(() => import('./pages/user/LeaderboardPortal')
 const ProfilePage          = lazy(() => import('./pages/user/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SettingsPage         = lazy(() => import('./pages/user/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const StudyMaterial        = lazy(() => import('./pages/user/StudyMaterial').then(m => ({ default: m.StudyMaterial })));
+const PdfViewerPage        = lazy(() => import('./pages/user/PdfViewerPage').then(m => ({ default: m.PdfViewerPage })));
 const AssignedLabsPage     = lazy(() => import('./pages/user/AssignedLabsPage').then(m => ({ default: m.AssignedLabsPage })));
 const MyLabsPage           = lazy(() => import('./pages/user/MyLabsPage').then(m => ({ default: m.MyLabsPage })));
 const StatisticsPage       = lazy(() => import('./pages/user/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
@@ -456,6 +457,14 @@ export function App() {
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserLayout><StudyMaterial /></UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/study-material/view/:id"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <PdfViewerPage />
                   </ProtectedRoute>
                 }
               />
