@@ -14,9 +14,10 @@ from app.models.user import User
 router = APIRouter()
 
 def send_admin_verification_email(org_id: int, org_name: str, admin_email: str):
+    from app.core.config import settings
     subject = f"Verify New Organization Request: {org_name}"
-    approve_url = f"http://localhost:8000/api/v1/organizations/{org_id}/approve"
-    reject_url = f"http://localhost:8000/api/v1/organizations/{org_id}/reject"
+    approve_url = f"{settings.FRONTEND_URL}/api/v1/organizations/{org_id}/approve"
+    reject_url = f"{settings.FRONTEND_URL}/api/v1/organizations/{org_id}/reject"
     
     body = (
         f"Hello SysAdmin,\n\n"

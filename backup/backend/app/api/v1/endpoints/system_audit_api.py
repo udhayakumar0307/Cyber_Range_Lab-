@@ -200,7 +200,7 @@ def get_system_audit_dashboard(
             "total_users": user_count,
             "total_groups": group_count,
             "total_spent": float(spent),
-            "is_verified": has_verified_admin
+            "is_verified": (org.status in ["APPROVED", "ACTIVE"]) or has_verified_admin
         })
 
     return {
@@ -804,9 +804,16 @@ def verify_system_organization(
     current_admin: User = Depends(get_current_system_admin),
     db: Session = Depends(get_db)
 ):
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if org:
+        org.status = "APPROVED" if data.is_verified else "PENDING"
+        db.add(org)
+
     admins = db.query(AdminProfile).filter(AdminProfile.organization_id == org_id).all()
     for a in admins:
         a.is_verified = data.is_verified
+        db.add(a)
+
     db.commit()
     status_str = "verified" if data.is_verified else "unverified"
     return {"status": "success", "message": f"Organization admin verification toggled to {status_str} successfully."}
