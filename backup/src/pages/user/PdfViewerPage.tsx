@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ShieldAlert } from 'lucide-react';
-// Retrieve pdfjsLib from the global window namespace loaded via index.html CDN script
-const pdfjsLib = (window as any).pdfjsLib;
+import * as pdfjsLib from 'pdfjs-dist';
+// Import the PDF worker using Vite's worker loader to compile it locally
+import PDFWorker from 'pdfjs-dist/build/pdf.worker.js?worker';
 
-// Configure pdfjs worker source dynamically from jsdelivr matching the loaded version
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerPort = new PDFWorker();
 
 interface MaterialItem {
   id: string;
