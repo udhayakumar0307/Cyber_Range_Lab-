@@ -5,8 +5,8 @@ import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ShieldAlert } fr
 // Retrieve pdfjsLib from the global window namespace loaded via index.html CDN script
 const pdfjsLib = (window as any).pdfjsLib;
 
-// Configure pdfjs worker source locally from cdnjs to avoid asset hosting issues (v3.11.174 CDN build match)
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Configure pdfjs worker source dynamically from jsdelivr matching the loaded version
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 interface MaterialItem {
   id: string;
