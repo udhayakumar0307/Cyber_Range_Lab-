@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -13,11 +13,10 @@ from app.models.user import User
 
 router = APIRouter()
 
-def send_admin_verification_email(org_id: int, org_name: str, admin_email: str):
-    from app.core.config import settings
+def send_admin_verification_email(org_id: int, org_name: str, admin_email: str, base_url: str):
     subject = f"Verify New Organization Request: {org_name}"
-    approve_url = f"{settings.FRONTEND_URL}/api/v1/organizations/{org_id}/approve"
-    reject_url = f"{settings.FRONTEND_URL}/api/v1/organizations/{org_id}/reject"
+    approve_url = f"{base_url}/api/v1/organizations/{org_id}/approve"
+    reject_url = f"{base_url}/api/v1/organizations/{org_id}/reject"
     
     body = (
         f"Hello SysAdmin,\n\n"
@@ -184,7 +183,7 @@ def get_my_affiliations(current_user: User = Depends(get_current_user), db: Sess
     return res
 
 @router.post("/me/affiliations", response_model=AffiliationResponse)
-def add_my_affiliation(data: AffiliationCreateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def add_my_affiliation(request: Request, data: AffiliationCreateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if data.affiliation_type not in ("college", "organization"):
         raise HTTPException(status_code=400, detail="Invalid affiliation type")
 
@@ -236,7 +235,8 @@ def add_my_affiliation(data: AffiliationCreateRequest, current_user: User = Depe
     db.refresh(new_aff)
 
     if is_new_org:
-        send_admin_verification_email(new_aff.organization_id, org_name, current_user.email)
+        base_url = str(request.base_url).rstrip("/")
+        send_admin_verification_email(new_aff.organization_id, org_name, current_user.email, base_url)
 
     c_name = new_aff.college.name if new_aff.college else None
     c_code = new_aff.college.code if new_aff.college else None
