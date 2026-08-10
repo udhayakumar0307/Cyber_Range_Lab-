@@ -72,7 +72,7 @@ export const PdfViewerPage: React.FC = () => {
         const pdfBlob = await pdfRes.blob();
         const pdfDataUrl = URL.createObjectURL(pdfBlob);
 
-        const doc = await pdfjsLib.getDocument(pdfDataUrl).promise;
+        const doc = await pdfjsLib.getDocument({ url: pdfDataUrl }).promise;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
         setLoading(false);
