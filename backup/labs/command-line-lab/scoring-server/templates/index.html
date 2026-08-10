@@ -361,8 +361,9 @@
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const backendPort = window.location.port === '5173' ? '8000' : (window.location.port || '8000');
-    const TERMINAL_WS_URL = `${wsProtocol}//${window.location.hostname}:${backendPort}/api/v1/cll/ws?token=${encodeURIComponent(token)}`;
+    const backendPort = window.location.port === '5173' ? '8000' : window.location.port;
+    const portSuffix = backendPort ? `:${backendPort}` : '';
+    const TERMINAL_WS_URL = `${wsProtocol}//${window.location.hostname}${portSuffix}/api/v1/cll/ws?token=${encodeURIComponent(token)}`;
 
 
 
