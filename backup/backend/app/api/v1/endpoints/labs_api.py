@@ -189,8 +189,15 @@ def get_labs(
 
     # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics
+    from app.models.certificate import Certificate
+    from app.services.certificate_manager import certificate_manager
+    
     stats = get_user_lab_statistics(db, str(current_user.id))
     lab_completed = stats["lab_completed_modules"]
+
+    # Fetch existing certificates
+    existing_certs = db.query(Certificate).filter(Certificate.user_id == current_user.id).all()
+    cert_map = {c.lab_id: c.display_certificate_id for c in existing_certs}
 
     result = []
     for lab in active_labs_metadata:
@@ -198,7 +205,49 @@ def get_labs(
         solved = lab_completed.get(lab["id"], 0)
         if cap:
             solved = min(solved, cap)
-        result.append({**lab, "solvedChallenges": solved})
+        
+        # Check completion
+        total_ch = lab["totalChallenges"]
+        is_completed = (total_ch > 0 and solved >= total_ch)
+        
+        cert_id = cert_map.get(lab["id"])
+        if is_completed and not cert_id:
+            # Auto-issue certificate
+            try:
+                from app.models.user_lab_progress import UserLabProgress
+                progress_rows = (
+                    db.query(UserLabProgress)
+                    .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == lab["id"])
+                    .all()
+                )
+                total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
+                if not progress_rows:
+                    from app.models.user_progress import UserProgress
+                    track_id = "linux" if "command-line" in lab["id"].lower() else "crypto"
+                    prog_p = (
+                        db.query(UserProgress)
+                        .filter(UserProgress.user_id == str(current_user.id), UserProgress.track_id == track_id)
+                        .all()
+                    )
+                    total_time = len(prog_p) * 1800
+                
+                cert = certificate_manager.get_or_issue_certificate(
+                    db=db,
+                    user_id=current_user.id,
+                    lab_id=lab["id"],
+                    score=current_user.total_score or 100,
+                    duration_seconds=total_time
+                )
+                cert_id = cert.display_certificate_id
+            except Exception as e:
+                logger.error(f"Failed to auto-issue certificate for lab {lab['id']}: {e}")
+        
+        result.append({
+            **lab,
+            "solvedChallenges": solved,
+            "isCompleted": is_completed,
+            "certificateId": cert_id
+        })
 
     return result
 

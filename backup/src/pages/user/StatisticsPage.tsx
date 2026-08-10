@@ -82,7 +82,7 @@ export const StatisticsPage: React.FC = () => {
         fetch("/api/v1/labs", { headers: h }),
         fetch("/api/v1/auth/me", { headers: h }),
         fetch("/api/v1/reporting/progress", { headers: h }),
-        fetch("/api/v1/reporting/certificates/my-certificates", { headers: h }),
+        fetch("/api/v1/reporting/certificates", { headers: h }),
       ]);
       
       let fetchedStats: any = {};

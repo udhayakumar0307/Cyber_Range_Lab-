@@ -15,6 +15,7 @@ import {
   Play,
   X,
   Star,
+  Award,
 } from 'lucide-react';
 
 interface Lab {
@@ -421,8 +422,29 @@ export const AvailableLabs: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Launch Lab button for free/purchased */}
-                      {isFree && lab.isPurchased ? (
+                      {/* Launch Lab or Completed/Certificate button */}
+                      {lab.isCompleted ? (
+                        <>
+                          <button
+                            disabled
+                            className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] uppercase tracking-wider inline-flex items-center gap-1 cursor-not-allowed"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            Completed
+                          </button>
+                          {lab.certificateId && (
+                            <a
+                              href={`/certificate/verify/${lab.certificateId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition-all inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <Award className="w-3.5 h-3.5" />
+                              Certificate
+                            </a>
+                          )}
+                        </>
+                      ) : isFree && lab.isPurchased ? (
                         <button
                           onClick={() => launchLab(lab)}
                           className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
