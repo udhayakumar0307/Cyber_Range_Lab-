@@ -4,7 +4,7 @@ import { useAuth } from '../../context';
 import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ShieldAlert } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure pdfjs worker source locally from cdnjs to avoid asset hosting issues
+// Configure pdfjs worker source locally from cdnjs to avoid asset hosting issues (v3.11.174 CDN build match)
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 interface MaterialItem {
