@@ -507,9 +507,10 @@ def ensure_lab2_container_running(client):
         return student_container
     except Exception as get_err:
         # Container does not exist: Attempt auto-starting via docker-compose
-        logger.warning(f"lab2-student container not found ({get_err}). Attempting container creation/startup...")
         import subprocess
-        compose_cmd = ["docker", "compose", "up", "-d"]
+        import shutil
+        docker_bin = shutil.which("docker") or "/usr/bin/docker"
+        compose_cmd = [docker_bin, "compose", "up", "-d"]
         try:
             res = subprocess.run(compose_cmd, cwd=str(LAB_PATH), capture_output=True, text=True, timeout=30)
             if res.returncode == 0:

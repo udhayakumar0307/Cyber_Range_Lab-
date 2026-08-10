@@ -22,6 +22,9 @@ router = APIRouter()
 
 IS_WINDOWS = platform.system() == "Windows"
 
+import shutil
+DOCKER_BIN = shutil.which("docker") or "/usr/bin/docker"
+
 # Platform-specific conditional imports for Linux / Unix / macOS
 if not IS_WINDOWS:
     try:
@@ -48,7 +51,7 @@ PUZZLE_NETWORK = "techcorp-labs"
 def _get_running_containers() -> list:
     """Return list of running container names."""
     try:
-        cmd = ["docker", "ps", "--format", "{{.Names}}"]
+        cmd = [DOCKER_BIN, "ps", "--format", "{{.Names}}"]
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore")
         return [c.strip() for c in output.splitlines() if c.strip()]
     except Exception as e:
@@ -59,7 +62,7 @@ def _get_running_containers() -> list:
 def _get_all_containers() -> list:
     """Return list of ALL container names (including stopped)."""
     try:
-        cmd = ["docker", "ps", "-a", "--format", "{{.Names}}"]
+        cmd = [DOCKER_BIN, "ps", "-a", "--format", "{{.Names}}"]
         output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore")
         return [c.strip() for c in output.splitlines() if c.strip()]
     except Exception as e:
@@ -71,7 +74,7 @@ def _image_exists(image: str) -> bool:
     """Check if a Docker image exists locally."""
     try:
         subprocess.check_output(
-            ["docker", "image", "inspect", image],
+            [DOCKER_BIN, "image", "inspect", image],
             stderr=subprocess.DEVNULL
         )
         return True
@@ -110,7 +113,7 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
         logger.info(f"[Puzzle] Container '{container_name}' exists but stopped. Starting...")
         try:
             subprocess.check_call(
-                ["docker", "start", container_name],
+                [DOCKER_BIN, "start", container_name],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
             logger.info(f"[Puzzle] Container '{container_name}' started successfully.")
@@ -123,7 +126,7 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
         logger.info(f"[Puzzle] Container '{alt_container_name}' exists but stopped. Starting...")
         try:
             subprocess.check_call(
-                ["docker", "start", alt_container_name],
+                [DOCKER_BIN, "start", alt_container_name],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
             logger.info(f"[Puzzle] Container '{alt_container_name}' started successfully.")
@@ -140,7 +143,7 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
     logger.info(f"[Puzzle] Container '{container_name}' not found. Creating from '{PUZZLE_IMAGE}'...")
     try:
         create_cmd = [
-            "docker", "run", "-d",
+            DOCKER_BIN, "run", "-d",
             "--name", container_name,
             "--hostname", "techcorp-server",
             "-e", f"STUDENT_ID={level}",
@@ -191,7 +194,7 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
         if not IS_WINDOWS and pty is not None:
             # Linux / macOS / Docker Native PTY Execution
             exec_cmd = [
-                "docker", "exec", "-it",
+                DOCKER_BIN, "exec", "-it",
                 "-e", "TERM=xterm-256color",
                 container_name, "/bin/bash", "-l"
             ]
@@ -247,7 +250,7 @@ async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", l
                 await asyncio.gather(read_pty(), write_pty())
 
             user_name = f"level{level}"
-            cmd = ["docker", "exec", "-i", "-u", user_name, "-e", "TERM=xterm-256color", container_name, "bash", "-l"]
+            cmd = [DOCKER_BIN, "exec", "-i", "-u", user_name, "-e", "TERM=xterm-256color", container_name, "bash", "-l"]
 
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
