@@ -1,14 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
-import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ShieldAlert } from 'lucide-react';
-// Retrieve pdfjsLib from the global window namespace loaded via index.html script
-const pdfjsLib = (window as any).pdfjsLib;
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  ShieldAlert,
+} from 'lucide-react';
 
-// Configure pdfjs worker source locally from public assets to avoid CDN mismatches
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf/pdf.worker.min.js';
-// Override the version property to force version check to pass in cached environments
-pdfjsLib.version = '3.11.174';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface MaterialItem {
   id: string;
@@ -20,7 +25,7 @@ export const PdfViewerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, apiFetch } = useAuth();
-  
+
   const [material, setMaterial] = useState<MaterialItem | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -36,8 +41,8 @@ export const PdfViewerPage: React.FC = () => {
     // Prevent screenshotting/print screen keys and standard copy key combinations
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
-        e.key === 'PrintScreen' || 
-        (e.ctrlKey && e.key === 'p') || 
+        e.key === 'PrintScreen' ||
+        (e.ctrlKey && e.key === 'p') ||
         (e.metaKey && e.key === 'p') ||
         (e.ctrlKey && e.key === 's') ||
         (e.metaKey && e.key === 's')
@@ -64,18 +69,23 @@ export const PdfViewerPage: React.FC = () => {
           throw new Error('Study material not found.');
         }
         setMaterial(found);
-        
+
         if (!found.pdfUrl) {
           throw new Error('No PDF version exists for this material.');
         }
 
         // Fetch PDF file contents as blob and load into pdf.js
         const pdfRes = await fetch(found.pdfUrl);
-        if (!pdfRes.ok) throw new Error('Failed to retrieve PDF document file.');
-        const pdfBlob = await pdfRes.blob();
-        const pdfDataUrl = URL.createObjectURL(pdfBlob);
 
-        const doc = await pdfjsLib.getDocument({ url: pdfDataUrl }).promise;
+        if (!pdfRes.ok) {
+          throw new Error('Failed to retrieve PDF document file.');
+        }
+
+        const pdfBuffer = await pdfRes.arrayBuffer();
+
+        const doc = await pdfjsLib.getDocument({
+          data: new Uint8Array(pdfBuffer),
+        }).promise;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
         setLoading(false);
@@ -165,7 +175,7 @@ export const PdfViewerPage: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       onContextMenu={(e) => e.preventDefault()}
       className="min-h-screen bg-slate-950 text-slate-150 flex flex-col select-none pdf-viewer-container"
