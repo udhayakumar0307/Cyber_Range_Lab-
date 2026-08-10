@@ -1148,3 +1148,24 @@ def delete_system_lab(
     return {"status": "success", "message": f"Lab {lab_id} has been permanently deleted from database."}
 
 
+class UpdateFixedRateRequest(BaseModel):
+    fixed_rate: float
+
+@router.put("/purchased-labs/{purchase_id}/fixed-rate")
+def update_purchased_lab_fixed_rate(
+    purchase_id: int,
+    data: UpdateFixedRateRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    purchase = db.query(PurchasedLab).filter(PurchasedLab.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
+    
+    purchase.fixed_rate = data.fixed_rate
+    db.commit()
+    db.refresh(purchase)
+    return {"status": "success", "message": "Successfully updated fixed rate.", "fixed_rate": purchase.fixed_rate}
+
+
+

@@ -110,6 +110,11 @@ export const SystemPortal: React.FC = () => {
   const [selectedLabForRemoval, setSelectedLabForRemoval] = useState<any>(null);
   const [removeTargetType, setRemoveTargetType] = useState<'student' | 'admin' | 'both' | 'catalog'>('student');
 
+  // Edit Lab Price modal states
+  const [isEditPriceModalOpen, setIsEditPriceModalOpen] = useState(false);
+  const [editingAllocatedLab, setEditingAllocatedLab] = useState<any>(null);
+  const [newFixedRate, setNewFixedRate] = useState<number>(0);
+
   // Check existing session token on mount
   useEffect(() => {
     const isKeyVerified = sessionStorage.getItem('system_key_verified') === 'true';
@@ -410,6 +415,32 @@ export const SystemPortal: React.FC = () => {
       fetchAllocatedLabs();
     } catch (err) {
       console.error('Failed to remove lab:', err);
+    }
+  };
+
+  const handleSaveFixedRate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAllocatedLab) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/system/purchased-labs/${editingAllocatedLab.id}/fixed-rate`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ fixed_rate: newFixedRate })
+      });
+      if (res.ok) {
+        setIsEditPriceModalOpen(false);
+        fetchAllocatedLabs();
+        alert("Fixed rate updated successfully!");
+      } else {
+        alert("Failed to update fixed rate.");
+      }
+    } catch (err) {
+      console.error('Failed to update fixed rate:', err);
     }
   };
 
@@ -1402,16 +1433,28 @@ export const SystemPortal: React.FC = () => {
                             ₹{(al.fixed_rate ?? al.price_per_hour ?? 0).toLocaleString()}
                           </td>
                           <td className="p-4 text-center">
-                            <button
-                              onClick={() => {
-                                setSelectedLabForRemoval({ id: al.lab_id, name: al.lab_title });
-                                setRemoveTargetType(al.assigned_to || (al.organization_id ? 'admin' : 'student'));
-                                setIsRemoveModalOpen(true);
-                              }}
-                              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-250 cursor-pointer transition-colors"
-                            >
-                              Revoke
-                            </button>
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingAllocatedLab(al);
+                                  setNewFixedRate(al.fixed_rate ?? al.price_per_hour ?? 0);
+                                  setIsEditPriceModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] rounded-lg border border-purple-250 cursor-pointer transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedLabForRemoval({ id: al.lab_id, name: al.lab_title });
+                                  setRemoveTargetType(al.assigned_to || (al.organization_id ? 'admin' : 'student'));
+                                  setIsRemoveModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] rounded-lg border border-rose-250 cursor-pointer transition-colors"
+                              >
+                                Revoke
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1944,6 +1987,39 @@ export const SystemPortal: React.FC = () => {
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button type="button" onClick={() => setIsRemoveModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
               <button type="submit" className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl cursor-pointer">Execute Action</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL 6: Edit Assigned Lab Fixed Rate Modal */}
+      {isEditPriceModalOpen && editingAllocatedLab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <form onSubmit={handleSaveFixedRate} className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-base font-extrabold text-slate-900">Edit Lab Fixed Rate</h2>
+              <button type="button" onClick={() => setIsEditPriceModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
+            </div>
+            <div className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                Update the fixed rate for <strong className="text-slate-900">{editingAllocatedLab.lab_title || editingAllocatedLab.lab_id}</strong>.
+              </p>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Fixed Rate (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newFixedRate}
+                  onChange={(e) => setNewFixedRate(Number(e.target.value))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
+                  placeholder="e.g. 500"
+                  required
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setIsEditPriceModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl cursor-pointer">Save Rate</button>
             </div>
           </form>
         </div>
