@@ -147,13 +147,6 @@ export const UserDashboard: React.FC = () => {
               <Play className="w-4 h-4 fill-white" />
               Continue Training
             </button>
-            <a
-              href="#help"
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-4 py-2.5 rounded-xl text-xs transition-all inline-flex items-center gap-2 cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4" />
-              View Handbook
-            </a>
           </div>
         </div>
       </div>

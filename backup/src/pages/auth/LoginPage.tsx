@@ -207,7 +207,7 @@ export const LoginPage: React.FC = () => {
                 if (data.role && (data.role.toLowerCase() === 'admin' || data.role.toLowerCase() === 'super_admin')) {
                   navigate('/admin/dashboard');
                 } else {
-                  navigate('/labs');
+                  navigate('/dashboard');
                 }
               }}
               onError={(err) => setErrorMsg(err)}
