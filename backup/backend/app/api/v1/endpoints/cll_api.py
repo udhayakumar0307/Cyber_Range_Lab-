@@ -727,7 +727,7 @@ async def cll_terminal_websocket(websocket: WebSocket):
                 "-e", "TERM=xterm-256color",
                 "-e", f"HOME=/home/student",
                 "-e", f"STUDENT_ID={username}",
-                "-w", "/home/student/linux/module1",
+                "-w", "/home/student",
                 STUDENT_CONTAINER,
                 "/bin/bash", "-l",
             ]
