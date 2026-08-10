@@ -108,29 +108,6 @@ async def lifespan(app: FastAPI):
             db_session.close()
         except Exception as seed_err:
             logger.warning(f"Skipped study materials seeding: {seed_err}")
-
-        # Ensure Cryptography Lab exists in master Lab table
-        try:
-            from app.models.lab import Lab
-            db_session = db_manager.get_session()
-            crypto_lab = db_session.query(Lab).filter(Lab.id == "cryptography-lab").first()
-            if not crypto_lab:
-                crypto_lab = Lab(
-                    id="cryptography-lab",
-                    name="Cryptography Lab",
-                    category="cryptography",
-                    description="Master Encoding, Hashing, Message Digests, Caesar Cipher, ROT13, and XOR Encryption across 5 hands-on interactive challenges.",
-                    difficulty="beginner",
-                    status="ACTIVE",
-                    price_inr=100.0,
-                    docker_image="cyberrange/cryptography-lab:latest"
-                )
-                db_session.add(crypto_lab)
-                db_session.commit()
-                logger.info("Seeded Cryptography Lab into Lab table.")
-            db_session.close()
-        except Exception as lab_seed_err:
-            logger.warning(f"Skipped Cryptography Lab seeding: {lab_seed_err}")
     except Exception as exc:
         logger.critical(f"Database connection failed: {exc}", exc_info=True)
         raise

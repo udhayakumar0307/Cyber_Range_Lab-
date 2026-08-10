@@ -98,9 +98,11 @@ export const AvailableLabs: React.FC = () => {
           reviewCount: item?.reviewCount ?? 120,
         };
       });
-      // Filter to retain only the 3 specified labs: Command Line Lab, Cryptography Lab, and Cloud Security Lab
-      const ALLOWED_LAB_IDS = ['command-line-lab', 'cryptography-lab', 'cloud-security-lab'];
-      setLabs(normalized.filter(l => ALLOWED_LAB_IDS.includes(l.id.toLowerCase())));
+      // Filter out internal labs
+      setLabs(normalized.filter(l =>
+        !l.id.toLowerCase().includes('puzzle') &&
+        !l.id.toLowerCase().includes('techcorp')
+      ));
     } catch {
       setLabs([]);
     } finally {

@@ -28,6 +28,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     try {
       const { role } = await login(email, password, rememberMe, 'student');
+      setIsLoading(false);
       if (role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'super_admin')) {
         navigate('/admin/dashboard');
       } else {
@@ -35,9 +36,8 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('[LoginPage] Login error:', err);
-      setErrorMsg(err.message || 'Invalid Email or Password.');
-    } finally {
       setIsLoading(false);
+      setErrorMsg(err.message || 'Invalid Email or Password.');
     }
   };
 

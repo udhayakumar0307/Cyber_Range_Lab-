@@ -1,6 +1,5 @@
 import os
 import json
-import asyncio
 import hashlib
 import logging
 from pathlib import Path
@@ -8,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -310,134 +309,11 @@ def exit_cll_session(
     }
 
 
-<<<<<<< Updated upstream
-=======
-import re
-import collections
-import subprocess
-
-cll_command_history = collections.defaultdict(list)
-
-def seed_cll_student_files(user_id_str: str = "student", display_username: str = "student", force_reseed: bool = False):
-    student_home = os.path.expanduser("~/cyberrange_cll_student")
-    os.makedirs(student_home, exist_ok=True)
-
-    marker_file = os.path.join(student_home, f".seeded_{user_id_str}")
-    if os.path.exists(marker_file) and not force_reseed:
-        return
-
-    # 1. Linux Module 1: Navigation
-    m1_dir = os.path.join(student_home, "linux", "module1", "records", "logs", "archive")
-    os.makedirs(m1_dir, exist_ok=True)
-    m1_flags = generate_flag(user_id_str, "linux", "module1")
-    m1_keyfile = os.path.join(m1_dir, ".keyfile")
-    if not os.path.exists(m1_keyfile):
-        with open(m1_keyfile, "w") as f:
-            f.write(f"{m1_flags[0]}\n")
-
-    # 2. Linux Module 2: File Operations
-    m2_inbox = os.path.join(student_home, "linux", "module2", "inbox")
-    m2_workspace = os.path.join(student_home, "linux", "module2", "workspace")
-    m2_vault = os.path.join(student_home, "linux", "module2", "workspace", ".vault")
-    os.makedirs(m2_inbox, exist_ok=True)
-    os.makedirs(m2_workspace, exist_ok=True)
-    os.makedirs(m2_vault, exist_ok=True)
-
-    m2_flags = generate_flag(user_id_str, "linux", "module2")
-    manifest_path = os.path.join(m2_inbox, "manifest.txt")
-    if not os.path.exists(manifest_path):
-        with open(manifest_path, "w") as f:
-            f.write("System manifest record v1.0. Copy to workspace/backup/ to safeguard.\n")
-    draft_path = os.path.join(m2_inbox, "draft.txt")
-    if not os.path.exists(draft_path):
-        with open(draft_path, "w") as f:
-            f.write("Draft notes. Move to workspace/final.txt.\n")
-    junk_path = os.path.join(m2_workspace, "junk.tmp")
-    if not os.path.exists(junk_path):
-        with open(junk_path, "w") as f:
-            f.write("Temporary junk file. Delete with rm.\n")
-    key_path = os.path.join(m2_vault, ".key")
-    if not os.path.exists(key_path):
-        with open(key_path, "w") as f:
-            f.write(f"{m2_flags[0]}\n")
-
-    # 3. Linux Module 3: Text Processing & Line Counting
-    m3_dir = os.path.join(student_home, "linux", "module3")
-    os.makedirs(m3_dir, exist_ok=True)
-    m3_flags = generate_flag(user_id_str, "linux", "module3")
-    m3_log = os.path.join(m3_dir, "server.log")
-    if not os.path.exists(m3_log):
-        with open(m3_log, "w") as f:
-            for i in range(1, 247):
-                ip_suffix = (i % 250) + 1
-                f.write(f"192.168.1.{ip_suffix} - - [09/Aug/2026:10:00:00 +0000] \"GET /api/v1/resource HTTP/1.1\" 200 1024\n")
-            f.write(f"10.0.0.99 - - [09/Aug/2026:10:05:22 +0000] \"GET /secret-vault?ACCESS_KEY={m3_flags[0]} HTTP/1.1\" 200 4096\n")
-            for i in range(248, 501):
-                ip_suffix = (i % 250) + 1
-                f.write(f"192.168.1.{ip_suffix} - - [09/Aug/2026:10:00:00 +0000] \"GET /api/v1/resource HTTP/1.1\" 200 1024\n")
-
-    # 4. Linux Module 4: Archive Extraction & Binary Inspection
-    m4_dir = os.path.join(student_home, "linux", "module4")
-    os.makedirs(m4_dir, exist_ok=True)
-    m4_flags = generate_flag(user_id_str, "linux", "module4")
-    m4_tar = os.path.join(m4_dir, "backup.tar.gz")
-    if not os.path.exists(m4_tar):
-        import tarfile, base64, tempfile
-        b64_payload = base64.b64encode(m4_flags[0].encode()).decode()
-        binary_content = b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 16 + b"ENCRYPTED_HEADER_BLOB\n" + b64_payload.encode() + b"\nEND_BLOB\n"
-        
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            ext_dir = os.path.join(tmp_dir, "extracted")
-            os.makedirs(ext_dir, exist_ok=True)
-            blob_file = os.path.join(ext_dir, "blob.dat")
-            with open(blob_file, "wb") as bf:
-                bf.write(binary_content)
-            with tarfile.open(m4_tar, "w:gz") as tar:
-                tar.add(ext_dir, arcname="extracted")
-
-    # 5. Linux Module 5: System Diagnostics & Stream Redirection
-    m5_dir = os.path.join(student_home, "linux", "module5")
-    os.makedirs(m5_dir, exist_ok=True)
-    m5_flags = generate_flag(user_id_str, "linux", "module5")
-    m5_final_dir = os.path.join(m5_dir, ".final")
-    os.makedirs(m5_final_dir, exist_ok=True)
-    m5_key = os.path.join(m5_final_dir, "key.txt")
-    if not os.path.exists(m5_key):
-        with open(m5_key, "w") as f:
-            f.write(f"{m5_flags[0]} SYSTEM_DIAGNOSTIC_METRIC_OK\n")
-    m5_cfg_old = os.path.join(m5_dir, "config.old")
-    if not os.path.exists(m5_cfg_old):
-        with open(m5_cfg_old, "w") as f:
-            f.write("STATUS=ENABLED\nDEBUG=FALSE\nMODE=NORMAL\n")
-    m5_cfg_new = os.path.join(m5_dir, "config.new")
-    if not os.path.exists(m5_cfg_new):
-        with open(m5_cfg_new, "w") as f:
-            f.write("STATUS=ENABLED\nDEBUG=TRUE\nMODE=CAPSTONE\n")
-    m5_pid = os.path.join(m5_dir, ".runaway_pid")
-    if not os.path.exists(m5_pid):
-        with open(m5_pid, "w") as f:
-            f.write("1337\n")
-
-    bashrc_path = os.path.join(student_home, ".bashrc")
-    with open(bashrc_path, "w") as f:
-        f.write(f"export PS1='{display_username}@cyberrange-cll:\\w\\$ '\nexport PROMPT_EOL_MARK=''\n")
-
-    profile_path = os.path.join(student_home, ".profile")
-    with open(profile_path, "w") as f:
-        f.write(f"export PS1='{display_username}@cyberrange-cll:\\w\\$ '\nexport PROMPT_EOL_MARK=''\n")
-
-    with open(marker_file, "w") as f:
-        f.write("seeded\n")
-
-
-@router.get("/progress/{track_id}/{module_id}")
->>>>>>> Stashed changes
 @router.get("/progress/{module_id}")
 @router.get("/progress/{track_id}/{module_id}")
 def get_cll_progress(
     request: Request,
     module_id: str,
-<<<<<<< Updated upstream
     track_id: str = "linux"
 ):
     token = request.query_params.get("token") or ""
@@ -455,41 +331,13 @@ def get_cll_progress(
                 raw_user = sub.split("@")[0]
                 clean = "".join(c for c in raw_user if c.isalpha())
                 username = clean.lower() if clean else raw_user.lower()
-=======
-    track_id: str = "linux",
-    token: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
-):
-    user_id_str = "student"
-    display_username = "student"
-    if current_user:
-        user_id_str = str(current_user.id)
-        if current_user.name and current_user.name.strip():
-            display_username = current_user.name.strip().split()[0].lower()
-        elif current_user.email:
-            display_username = current_user.email.split("@")[0].lower()
-    elif token:
-        try:
-            from app.core.security import decode_access_token
-            jwt_data = decode_access_token(token)
-            if jwt_data and "user_id" in jwt_data:
-                user_id_str = str(jwt_data["user_id"])
->>>>>>> Stashed changes
         except Exception:
             pass
 
     tcfg = TRACKS_CONFIG.get(track_id)
-    if CONFIG_PATH.exists():
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                tcfg = json.load(f).get("tracks", {}).get(track_id, {})
-        except Exception:
-            pass
     if not tcfg or module_id not in tcfg.get("modules", {}):
         return {"objectives": []}
 
-<<<<<<< Updated upstream
 
     objectives = tcfg["modules"][module_id].get("objectives", [])
     workspace_dir = ROOT_DIR / "workspaces" / username
@@ -570,54 +418,6 @@ def get_cll_progress(
 
     return {"objectives": updated_objectives}
 
-=======
-    rec = db.query(UserProgress).filter(
-        UserProgress.user_id == user_id_str,
-        UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
-    ).first()
-    db_completed = rec.completed if rec else False
-
-    # Ensure virtual sandbox challenge files are seeded
-    seed_cll_student_files(user_id_str, display_username=display_username)
-    all_cmds = cll_command_history.get(user_id_str, []) + cll_command_history.get("student", []) + cll_command_history.get("global", [])
-    user_cmds = " ".join(all_cmds)
-
-    objectives = tcfg["modules"][module_id].get("objectives", [])
-    evaluated_objectives = []
-    student_home = os.path.expanduser("~/cyberrange_cll_student")
-    for obj in objectives:
-        obj_copy = dict(obj)
-        obj_type = obj.get("type")
-        is_complete = db_completed
-
-        if not is_complete:
-            if obj_type == "log_regex":
-                pattern = obj.get("pattern", "")
-                if pattern:
-                    is_complete = bool(re.search(pattern, user_cmds, re.IGNORECASE))
-            elif obj_type == "fs_test":
-                test_cmd = obj.get("test_cmd", "")
-                adjusted_test = test_cmd.replace("/home/student", student_home)
-                try:
-                    res = subprocess.run(adjusted_test, shell=True, capture_output=True)
-                    is_complete = (res.returncode == 0)
-                except Exception:
-                    is_complete = False
-
-        obj_copy["complete"] = is_complete
-        evaluated_objectives.append(obj_copy)
-
-    module_complete = db_completed or (all(o.get("complete") for o in evaluated_objectives) if evaluated_objectives else False)
-
-    return {
-        "user_id": user_id_str,
-        "track_id": track_id,
-        "module_id": module_id,
-        "module_complete": module_complete,
-        "objectives": evaluated_objectives
-    }
->>>>>>> Stashed changes
 
 
 @router.post("/hint")
@@ -774,11 +574,7 @@ def submit_cll_flag(
     return {
         "correct": True,
         "message": "Correct! Next module unlocked.",
-<<<<<<< Updated upstream
         "points": result.points_awarded,
-=======
-        "points": result.earned_points,
->>>>>>> Stashed changes
         "total_points": new_total_score,
         "next_module": next_module_id,
         "track": track_id,
@@ -830,7 +626,6 @@ def reset_cll_progress(
     return {"reset": True, "user_id": user_id_str}
 
 
-<<<<<<< Updated upstream
 import asyncio
 import pty
 import fcntl
@@ -1030,222 +825,4 @@ async def cll_terminal_websocket(websocket: WebSocket):
                 os.close(master_fd)
             except Exception:
                 pass
-
-
-@router.websocket("/terminal")
-async def cll_terminal_websocket(
-    websocket: WebSocket,
-    token: Optional[str] = Query(None)
-):
-    """
-    WebSocket endpoint for Command Line Lab interactive terminal.
-    1. Attempts TCP proxy connection to Docker container service on port 8022 if active.
-    2. If port 8022 is unreachable or Docker is offline, spawns an interactive Virtual PTY/Bash
-       shell in /home/student or default working directory with complete terminal controls.
-    """
-    await websocket.accept()
-
-    # Step 1: Check if port 8022 container service is available
-    import socket as py_socket
-    can_connect_8022 = False
-    try:
-        sock = py_socket.socket(py_socket.AF_INET, py_socket.SOCK_STREAM)
-        sock.settimeout(0.5)
-        res = sock.connect_ex(("127.0.0.1", 8022))
-        sock.close()
-        can_connect_8022 = (res == 0)
-    except Exception:
-        can_connect_8022 = False
-
-    if can_connect_8022:
-        try:
-            import websockets as ws_client
-            async with ws_client.connect("ws://127.0.0.1:8022") as target_ws:
-                async def forward_to_client():
-                    try:
-                        async for msg in target_ws:
-                            if isinstance(msg, bytes):
-                                await websocket.send_bytes(msg)
-                            else:
-                                await websocket.send_text(msg)
-                    except Exception:
-                        pass
-
-                async def forward_to_target():
-                    try:
-                        while True:
-                            msg = await websocket.receive_text()
-                            await target_ws.send(msg)
-                    except Exception:
-                        pass
-
-                await asyncio.gather(forward_to_client(), forward_to_target())
-                return
-        except Exception as proxy_err:
-            logger.warning(f"CLL port 8022 proxy failed: {proxy_err}. Falling back to virtual sandbox shell.")
-
-    user_id_str = "student"
-    display_username = "student"
-    if token:
-        try:
-            from app.core.security import decode_access_token
-            from app.database.session import SessionLocal
-            from app.models.user import User
-
-            jwt_data = decode_access_token(token)
-            if jwt_data:
-                u_id = jwt_data.get("user_id")
-                sub = jwt_data.get("sub", "")
-                if u_id:
-                    user_id_str = str(u_id)
-
-                db_sess = SessionLocal()
-                try:
-                    db_user = None
-                    if u_id:
-                        db_user = db_sess.query(User).filter(User.id == u_id).first()
-                    if not db_user and sub:
-                        db_user = db_sess.query(User).filter(User.email == sub).first()
-
-                    if db_user:
-                        if db_user.name and db_user.name.strip():
-                            clean_name = db_user.name.strip().split()[0]
-                            name_match = re.match(r"([a-zA-Z0-9_-]+)", clean_name)
-                            if name_match:
-                                display_username = name_match.group(1).lower()
-                            else:
-                                display_username = clean_name.lower()
-                        elif db_user.email:
-                            email_prefix = db_user.email.split("@")[0]
-                            name_match = re.match(r"([a-zA-Z0-9_-]+)", email_prefix)
-                            if name_match:
-                                display_username = name_match.group(1).lower()
-                            else:
-                                display_username = email_prefix.lower()
-                finally:
-                    db_sess.close()
-        except Exception:
-            pass
-
-    seed_cll_student_files(user_id_str, display_username=display_username, force_reseed=True)
-
-    student_home = os.path.expanduser("~/cyberrange_cll_student")
-    os.makedirs(student_home, exist_ok=True)
-
-    # Write custom .bashrc and .profile to ensure shell prompt reflects display_username
-    bashrc_path = os.path.join(student_home, ".bashrc")
-    with open(bashrc_path, "w") as f:
-        f.write(f"export PS1='{display_username}@cyberrange-cll:\\w\\$ '\nexport PROMPT_EOL_MARK=''\n")
-
-    profile_path = os.path.join(student_home, ".profile")
-    with open(profile_path, "w") as f:
-        f.write(f"export PS1='{display_username}@cyberrange-cll:\\w\\$ '\nexport PROMPT_EOL_MARK=''\n")
-
-    # Seed initial lab track directories for Linux, Python, Java, C
-    for track in ["linux", "python", "java", "c"]:
-        for mod_num in range(1, 6):
-            mod_dir = os.path.join(student_home, track, f"module{mod_num}")
-            os.makedirs(mod_dir, exist_ok=True)
-
-    shell_cmd = "/bin/bash"
-    if not os.path.exists(shell_cmd):
-        shell_cmd = os.environ.get("SHELL", "/bin/sh")
-
-    env = dict(os.environ)
-    env["TERM"] = "xterm-256color"
-    env["HOME"] = student_home
-    env["ZDOTDIR"] = student_home
-    env["PROMPT_EOL_MARK"] = ""
-    env["COLUMNS"] = "120"
-    env["LINES"] = "30"
-    env["PS1"] = f"{display_username}@cyberrange-cll:\\w\\$ "
-    env["PROMPT"] = f"{display_username}@cyberrange-cll:%~ %# "
-
-    import pty
-    master_fd, slave_fd = pty.openpty()
-
-    proc = await asyncio.create_subprocess_exec(
-        shell_cmd,
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-        cwd=student_home,
-        env=env,
-        close_fds=True
-    )
-    os.close(slave_fd)
-
-    welcome_banner = (
-        "\r\n\033[1;32m===================================================\033[0m\r\n"
-        "\033[1;36m  CyberRange Command Line Lab — Virtual Sandbox Shell \033[0m\r\n"
-        "\033[1;32m===================================================\033[0m\r\n\r\n"
-    )
-    await websocket.send_text(welcome_banner)
-
-    loop = asyncio.get_running_loop()
-
-    async def read_pty():
-        try:
-            while True:
-                try:
-                    data = await loop.run_in_executor(None, lambda: os.read(master_fd, 1024))
-                    if not data:
-                        await asyncio.sleep(0.05)
-                        continue
-                    await websocket.send_text(data.decode("utf-8", errors="replace"))
-                except OSError as os_err:
-                    # On macOS/Linux PTY, os.read throws EIO (Errno 5) when child process has no data or terminates
-                    if os_err.errno in (5, 9):
-                        await asyncio.sleep(0.05)
-                        if proc.returncode is not None:
-                            break
-                        continue
-                    break
-        except Exception:
-            pass
-
-    async def write_pty():
-        user_buffer = ""
-        try:
-            while True:
-                raw_text = await websocket.receive_text()
-                try:
-                    msg_obj = json.loads(raw_text)
-                    msg_type = msg_obj.get("type")
-                    if msg_type == "input":
-                        input_data = msg_obj.get("data", "")
-                        os.write(master_fd, input_data.encode("utf-8"))
-
-                        user_buffer += input_data
-                        if "\r" in user_buffer or "\n" in user_buffer:
-                            lines = re.split(r"[\r\n]+", user_buffer)
-                            for line in lines[:-1]:
-                                cmd_clean = line.strip()
-                                if cmd_clean:
-                                    cll_command_history[user_id_str].append(cmd_clean)
-                                    cll_command_history["global"].append(cmd_clean)
-                            user_buffer = lines[-1]
-                    elif msg_type == "resize":
-                        cols = msg_obj.get("cols", 80)
-                        rows = msg_obj.get("rows", 24)
-                        import fcntl, termios, struct
-                        winsize = struct.pack("HHHH", rows, cols, 0, 0)
-                        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
-                except Exception:
-                    os.write(master_fd, raw_text.encode("utf-8"))
-        except (WebSocketDisconnect, Exception):
-            pass
-
-    try:
-        await asyncio.gather(read_pty(), write_pty())
-    finally:
-        try:
-            proc.terminate()
-            await proc.wait()
-        except Exception:
-            pass
-        try:
-            os.close(master_fd)
-        except Exception:
-            pass
 

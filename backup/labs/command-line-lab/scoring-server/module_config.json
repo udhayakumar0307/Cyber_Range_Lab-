@@ -92,25 +92,25 @@
               "id": "wc",
               "label": "Count lines in server.log using wc -l",
               "type": "log_regex",
-              "pattern": "\\bwc\\b"
+              "pattern": "^wc\\b"
             },
             {
               "id": "sort_uniq",
               "label": "Sort and aggregate unique entries with sort and uniq",
               "type": "log_regex",
-              "pattern": "\\b(sort|uniq)\\b"
+              "pattern": "(sort|uniq)"
             },
             {
               "id": "cut",
               "label": "Extract specific key columns using cut or awk",
               "type": "log_regex",
-              "pattern": "\\b(cut|awk)\\b"
+              "pattern": "(cut|awk)"
             },
             {
               "id": "read_key",
               "label": "Inspect extracted target key line",
               "type": "log_regex",
-              "pattern": "(ACCESS_KEY|FLAG|grep|cat|head|tail|less|more)"
+              "pattern": "ACCESS_KEY"
             }
           ],
           "hints": [
