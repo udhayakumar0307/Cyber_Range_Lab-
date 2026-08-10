@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ShieldAlert } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
+// Retrieve pdfjsLib from the global window namespace loaded via index.html CDN script
+const pdfjsLib = (window as any).pdfjsLib;
 
 // Configure pdfjs worker source locally from cdnjs to avoid asset hosting issues (v3.11.174 CDN build match)
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
