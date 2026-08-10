@@ -34,6 +34,8 @@ interface Lab {
   modules: any[];
   rating?: number;
   reviewCount?: number;
+  isCompleted?: boolean;
+  certificateId?: string;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
