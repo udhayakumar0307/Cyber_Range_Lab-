@@ -426,14 +426,16 @@ export const TechCorpLabSession: React.FC = () => {
         setSolvedLevel(null);
 
         const isFinal = data.all_completed || data.is_completed || (completedLevels.length + 1 >= 34);
-        setCompletionModal({
-          show: true,
-          isLastModule: isFinal,
-          moduleNum: solvedLevel !== null ? solvedLevel : currentLevel,
-          moduleTitle: levelInfo?.level?.title || `Level ${solvedLevel}`,
-          points: 100,
-          totalScore: (completedLevels.length + 1) * 100,
-        });
+        if (isFinal) {
+          setCompletionModal({
+            show: true,
+            isLastModule: true,
+            moduleNum: solvedLevel !== null ? solvedLevel : currentLevel,
+            moduleTitle: levelInfo?.level?.title || `Level ${solvedLevel}`,
+            points: 100,
+            totalScore: (completedLevels.length + 1) * 100,
+          });
+        }
         
         // Soft terminal reset and alert connection upgrade
         if (termInstance.current) {

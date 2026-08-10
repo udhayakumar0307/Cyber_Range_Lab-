@@ -375,7 +375,7 @@ export function App() {
                 }
               />
 
-              {/* CTF Competition Engine */}
+              {/* CTF Competition Engine (Deferred)
               <Route
                 path="/ctf"
                 element={
@@ -400,6 +400,7 @@ export function App() {
                   </ProtectedRoute>
                 }
               />
+              */}
 
               {/* Progress Tracking */}
               <Route
