@@ -132,36 +132,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     portal: 'student' | 'admin' = 'student',
     otpCode?: string
   ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
-    const API_BASE = import.meta.env.VITE_API_URL || "";
-    const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const msg = errData.detail || errData.message || 'Invalid Email or Password';
-      throw new Error(typeof msg === 'string' ? msg : 'Invalid Email or Password');
-    }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const msg = errData.detail || errData.message || 'Invalid Email or Password';
+        throw new Error(typeof msg === 'string' ? msg : 'Invalid Email or Password');
+      }
 
-    const data = await response.json();
-    if (data.status === 'otp_required') {
-      return { role: '', user: null, status: 'otp_required', message: data.message };
-    }
-    if (!data.success) {
-      throw new Error(data.message || 'Invalid Email or Password');
-    }
+      const data = await response.json();
+      if (data.status === 'otp_required') {
+        return { role: '', user: null, status: 'otp_required', message: data.message };
+      }
+      if (!data.success) {
+        throw new Error(data.message || 'Invalid Email or Password');
+      }
 
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      tokenRef.current = data.token;
-      setToken(data.token);
-    }
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        tokenRef.current = data.token;
+        setToken(data.token);
+      }
 
-    setUser(data.user);
-    return { role: data.role, user: data.user, status: 'success' };
+      setUser(data.user);
+      return { role: data.role, user: data.user, status: 'success' };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Authentication request timed out. Please check your connection and try again.');
+      }
+      throw err;
+    }
   }, []);
 
   const refreshUser = useCallback(async () => {

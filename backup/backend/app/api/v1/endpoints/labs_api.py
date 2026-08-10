@@ -73,21 +73,27 @@ def _get_sysadmin_assignments(db: Session) -> list:
 
 def _build_assigned_labs(db: Session, assignments: list) -> list:
     """
-    Given SysAdmin assignment dicts, fetch Lab metadata and build lab cards
-    with the SysAdmin's fixed_rate as the price.
+    Given SysAdmin assignment dicts, fetch Lab metadata and build lab cards.
+    If no custom assignments exist, fall back to querying all active labs.
     """
+    ALLOWED_LAB_IDS = ["command-line-lab", "cryptography-lab", "cloud-security-lab"]
     if not assignments:
-        return []
+        labs = db.query(Lab).filter(Lab.id.in_(ALLOWED_LAB_IDS), Lab.status == "ACTIVE").all()
+        price_map = {}
+        assigned_to_map = {}
+    else:
+        assigned_lab_ids = [a["lab_id"] for a in assignments if a["lab_id"] in ALLOWED_LAB_IDS]
+        price_map = {a["lab_id"]: a["fixed_rate"] for a in assignments if a["lab_id"] in ALLOWED_LAB_IDS}
+        assigned_to_map = {a["lab_id"]: a["assigned_to"] for a in assignments if a["lab_id"] in ALLOWED_LAB_IDS}
+        labs = (
+            db.query(Lab)
+            .filter(Lab.id.in_(ALLOWED_LAB_IDS), Lab.status == "ACTIVE")
+            .all()
+        )
+    # Sort labs deterministically to match specified catalog order
+    lab_order = {lab_id: idx for idx, lab_id in enumerate(ALLOWED_LAB_IDS)}
+    labs = sorted(labs, key=lambda l: lab_order.get(l.id, 99))
 
-    assigned_lab_ids = [a["lab_id"] for a in assignments]
-    price_map = {a["lab_id"]: a["fixed_rate"] for a in assignments}
-    assigned_to_map = {a["lab_id"]: a["assigned_to"] for a in assignments}
-
-    labs = (
-        db.query(Lab)
-        .filter(Lab.id.in_(assigned_lab_ids), Lab.status == "ACTIVE")
-        .all()
-    )
     if not labs:
         return []
 
@@ -111,7 +117,7 @@ def _build_assigned_labs(db: Session, assignments: list) -> list:
             lab_modules = lab_modules[:cap]
 
         is_command_line = "command-line" in lab.id.lower() or "cmd" in lab.id.lower()
-        fixed_rate = price_map.get(lab.id, 0.0)
+        fixed_rate = price_map.get(lab.id, lab.price_inr if getattr(lab, 'price_inr', None) is not None else 0.0)
         is_free = (fixed_rate == 0.0)
 
         duration_str = "6 Hours" if is_command_line else "1.5 Hours"

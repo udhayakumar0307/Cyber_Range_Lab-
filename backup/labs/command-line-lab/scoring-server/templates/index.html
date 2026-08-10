@@ -358,15 +358,14 @@
   <script>
 
     let TRACKS_DATA = {{ tracks_json | tojson }};
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const backendPort = window.location.port === '5173' ? '8000' : (window.location.port || '8000');
-    const TERMINAL_WS_URL = `${wsProtocol}//${window.location.hostname}:${backendPort}/api/v1/cll/ws?token=${encodeURIComponent(token)}`;
-
-
-
-
+    function getTerminalWsUrl() {
+      const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+      const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+      return `${wsProto}//${window.location.host}/api/v1/cll/terminal${tokenQuery}`;
+    }
+    const TERMINAL_WS_URL = getTerminalWsUrl();
 
     const tracksView = document.getElementById("tracks-view");
     const tracksGrid = document.getElementById("tracks-grid");
@@ -698,12 +697,12 @@
       document.getElementById("verify-feedback").className = "text-xs font-semibold min-h-[16px]";
       document.getElementById("key-input").value = "";
 
-      // Send environment preparation command to terminal if connected, or auto-connect
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        const cdCmd = `cd /home/student/${currentTrack.id}/${id} 2>/dev/null || cd /home/student/${id} 2>/dev/null || true; clear\r`;
-        socket.send(JSON.stringify({ type: "input", data: cdCmd }));
-      } else {
+      // Auto-connect terminal if not currently connected
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
         connectTerminal();
+      } else {
+        const cdCmd = `cd ~/cyberrange_cll_student/${currentTrack.id}/${id} 2>/dev/null || cd /home/student/${currentTrack.id}/${id} 2>/dev/null || cd /home/student/${id} 2>/dev/null || true; clear\r`;
+        socket.send(JSON.stringify({ type: "input", data: cdCmd }));
       }
 
 
@@ -811,9 +810,11 @@
           green: "#00FF9D",
           brightGreen: "#10B981"
         },
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         fontSize: 13, 
         cursorBlink: true,
+        convertEol: true,
+        scrollback: 1000,
       });
       try {
         if (window.FitAddon && window.FitAddon.FitAddon) {
@@ -840,7 +841,21 @@
         }
       });
 
-      socket = new WebSocket(TERMINAL_WS_URL);
+      if (window.ResizeObserver && container) {
+        const ro = new ResizeObserver(() => {
+          if (fitAddon && term) {
+            try {
+              fitAddon.fit();
+              if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+              }
+            } catch(e) {}
+          }
+        });
+        ro.observe(container);
+      }
+
+      socket = new WebSocket(getTerminalWsUrl());
       socket.binaryType = "arraybuffer";
 
       socket.onopen = () => {
@@ -851,7 +866,7 @@
 
         if (currentModule && currentTrack) {
           setTimeout(() => {
-            const cdCmd = `cd /home/student/${currentTrack.id}/${currentModule.id} 2>/dev/null || cd /home/student/${currentModule.id} 2>/dev/null || true; clear\r`;
+            const cdCmd = `cd ~/cyberrange_cll_student/${currentTrack.id}/${currentModule.id} 2>/dev/null || cd /home/student/${currentTrack.id}/${currentModule.id} 2>/dev/null || cd /home/student/${currentModule.id} 2>/dev/null || true; clear\r`;
             if (socket && socket.readyState === WebSocket.OPEN) {
               socket.send(JSON.stringify({ type: "input", data: cdCmd }));
             }

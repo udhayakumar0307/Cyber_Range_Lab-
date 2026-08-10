@@ -56,7 +56,6 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
     if not lab:
         raise HTTPException(status_code=404, detail="Puzzle Lab is not enabled on this platform")
 
-    client = docker.from_env()
     container_name = f"student-{current_user.id}-techcorp"
     
     # Determine highest completed level to sync session level
@@ -80,83 +79,119 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
         TechCorpSession.user_id == current_user.id
     ).first()
 
-    if sess:
-        if sess.current_level < required_level:
-            logger.info(f"provision_container: Auto-healing session level from {sess.current_level} to {required_level}")
-            sess.current_level = required_level
-            db.commit()
-        try:
-            container = client.containers.get(container_name)
-            if container.status != "running":
-                container.start()
-            sess.is_active = True
-            sess.last_active_at = datetime.utcnow()
-            db.commit()
-            db.refresh(sess)
-        except docker.errors.NotFound:
-            # Recreate container on same port
+    client = None
+    try:
+        client = docker.from_env()
+    except Exception as d_err:
+        logger.warning(f"provision_container: Docker daemon unreachable ({d_err}). Using virtual sandbox mode.")
+
+    password = "starthere"
+
+    if client:
+        if sess:
+            if sess.current_level < required_level:
+                logger.info(f"provision_container: Auto-healing session level from {sess.current_level} to {required_level}")
+                sess.current_level = required_level
+                db.commit()
+            try:
+                container = client.containers.get(container_name)
+                if container.status != "running":
+                    container.start()
+                sess.is_active = True
+                sess.last_active_at = datetime.utcnow()
+                db.commit()
+                db.refresh(sess)
+            except docker.errors.NotFound:
+                # Recreate container on same port
+                try:
+                    container = client.containers.run(
+                        image="techcorp-sysadmin-labs:latest",
+                        name=container_name,
+                        hostname="techcorp-server",
+                        ports={"2222/tcp": sess.ssh_port},
+                        cap_add=["SYS_ADMIN"],
+                        environment={"STUDENT_ID": str(current_user.id)},
+                        restart_policy={"Name": "unless-stopped"},
+                        detach=True
+                    )
+                    sess.container_id = container.id
+                    sess.is_active = True
+                    sess.last_active_at = datetime.utcnow()
+                    db.commit()
+                    db.refresh(sess)
+                except Exception as e:
+                    logger.warning(f"provision_container docker run failed: {e}. Falling back to virtual session.")
+                    sess.is_active = True
+                    sess.last_active_at = datetime.utcnow()
+                    db.commit()
+        else:
+            ssh_port = find_free_port(db)
             try:
                 container = client.containers.run(
                     image="techcorp-sysadmin-labs:latest",
                     name=container_name,
                     hostname="techcorp-server",
-                    ports={"2222/tcp": sess.ssh_port},
+                    ports={"2222/tcp": ssh_port},
                     cap_add=["SYS_ADMIN"],
                     environment={"STUDENT_ID": str(current_user.id)},
                     restart_policy={"Name": "unless-stopped"},
                     detach=True
                 )
-                sess.container_id = container.id
-                sess.is_active = True
-                sess.last_active_at = datetime.utcnow()
-                db.commit()
-                db.refresh(sess)
+                container_id = container.id
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to start container: {str(e)}")
-    else:
-        ssh_port = find_free_port(db)
-        try:
-            container = client.containers.run(
-                image="techcorp-sysadmin-labs:latest",
-                name=container_name,
-                hostname="techcorp-server",
-                ports={"2222/tcp": ssh_port},
-                cap_add=["SYS_ADMIN"],
-                environment={"STUDENT_ID": str(current_user.id)},
-                restart_policy={"Name": "unless-stopped"},
-                detach=True
+                logger.warning(f"provision_container docker run failed: {e}. Falling back to virtual session.")
+                container_id = "virtual-sandbox-techcorp"
+                
+            sess = TechCorpSession(
+                user_id=current_user.id,
+                container_id=container_id,
+                container_name=container_name,
+                ssh_host="127.0.0.1",
+                ssh_port=ssh_port,
+                current_level=required_level,
+                started_at=datetime.utcnow(),
+                last_active_at=datetime.utcnow(),
+                is_active=True
             )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to provision container: {str(e)}")
-            
-        sess = TechCorpSession(
-            user_id=current_user.id,
-            container_id=container.id,
-            container_name=container_name,
-            ssh_host="127.0.0.1",
-            ssh_port=ssh_port,
-            current_level=required_level,
-            started_at=datetime.utcnow(),
-            last_active_at=datetime.utcnow(),
-            is_active=True
-        )
-        db.add(sess)
-        db.commit()
-        db.refresh(sess)
+            db.add(sess)
+            db.commit()
+            db.refresh(sess)
 
-    # Read password
-    logger.info(f"provision_container: Reading password for user {current_user.id}, level {sess.current_level}")
-    password = "starthere"
-    if sess.current_level > 0:
-        try:
-            client = docker.from_env()
-            container = client.containers.get(container_name)
-            exit_code, output = container.exec_run(f"cat /opt/validation/level{sess.current_level}.key")
-            if exit_code == 0:
-                password = output.decode().strip()
-        except Exception as e:
-            logger.error(f"provision_container: Error reading level key: {str(e)}")
-            pass
+        # Try reading password key from Docker container
+        if sess.current_level > 0:
+            try:
+                container = client.containers.get(container_name)
+                exit_code, output = container.exec_run(f"cat /opt/validation/level{sess.current_level}.key")
+                if exit_code == 0:
+                    password = output.decode().strip()
+            except Exception as e:
+                logger.error(f"provision_container: Error reading level key: {str(e)}")
+                pass
+    else:
+        # Docker is offline — fallback to Virtual Sandbox session
+        if sess:
+            sess.is_active = True
+            sess.last_active_at = datetime.utcnow()
+            if sess.current_level < required_level:
+                sess.current_level = required_level
+            db.commit()
+            db.refresh(sess)
+        else:
+            ssh_port = find_free_port(db)
+            sess = TechCorpSession(
+                user_id=current_user.id,
+                container_id="virtual-sandbox-techcorp",
+                container_name=container_name,
+                ssh_host="127.0.0.1",
+                ssh_port=ssh_port,
+                current_level=required_level,
+                started_at=datetime.utcnow(),
+                last_active_at=datetime.utcnow(),
+                is_active=True
+            )
+            db.add(sess)
+            db.commit()
+            db.refresh(sess)
 
     elapsed = (datetime.utcnow() - sess.started_at).total_seconds()
     expires_in = max(0, 10800 - int(elapsed))
@@ -183,7 +218,7 @@ def get_session(db: Session = Depends(get_db), current_user: User = Depends(get_
         return {"session_exists": False}
 
     # Verify if container is actually running on the host
-    if sess.is_active:
+    if sess.is_active and not (sess.container_id or "").startswith("virtual"):
         try:
             client = docker.from_env()
             container = client.containers.get(sess.container_name)

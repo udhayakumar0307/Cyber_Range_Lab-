@@ -33,19 +33,18 @@ export const AdminLoginPage: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await login(email.trim(), password, rememberMe, 'admin', otpRequired ? otpCode : undefined);
-      setIsLoading(false);
-      
       if (res && res.status === 'otp_required') {
         setOtpRequired(true);
       } else {
         navigate('/admin/dashboard');
       }
     } catch (err: any) {
-      setIsLoading(false);
       if (err.message && err.message.includes('locked')) {
         setIsLockedOut(true);
       }
       setErrorMsg(err.message || 'Invalid Official Administrator Credentials.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
