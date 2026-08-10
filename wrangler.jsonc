@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "yber--ange--ab",
+  "name": "cyber-range-lab",
   "compatibility_date": "2026-08-10",
   "observability": {
     "enabled": true
