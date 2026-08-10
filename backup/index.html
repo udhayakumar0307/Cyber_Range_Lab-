@@ -9,10 +9,13 @@
   <!-- Official Google Identity Services & Razorpay Checkout SDKs -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <!-- Load PDF.js as regular scripts (not ES modules) -->
-  <script src="/lib/pdf/pdf.min.mjs"></script>
+  <!-- Load PDF.js v6.2.108 from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.min.mjs"></script>
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf/pdf.worker.mjs';
+    // Set worker after PDF.js loads
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.mjs';
+    }
   </script>
 </head>
 
