@@ -22,6 +22,9 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+import shutil
+DOCKER_BIN = shutil.which("docker") or "/usr/bin/docker"
+
 ROOT_DIR = Path(settings.root_dir)
 LABS_DIR = Path(settings.LABS_DIRECTORY)
 
@@ -103,7 +106,7 @@ def ensure_cll_containers_running():
         cll_path = LABS_DIR / "command-line-lab"
         if not cll_path.exists():
             cll_path = ROOT_DIR / "command-line-lab"
-        subprocess.run(["docker", "compose", "up", "-d"], cwd=str(cll_path), capture_output=True, text=True, timeout=30)
+        subprocess.run([DOCKER_BIN, "compose", "up", "-d"], cwd=str(cll_path), capture_output=True, text=True, timeout=30)
         _cached_cll_checked = now
     except Exception as err:
         logger.warning(f"Auto-startup of command-line-lab containers error: {err}")
@@ -354,7 +357,7 @@ def get_cll_progress(
     cmd_history_lines = []
     try:
         result = _subprocess.run(
-            ["docker", "exec", "-u", "root", STUDENT_CONTAINER, "cat", LOG_PATH_IN_CONTAINER],
+            [DOCKER_BIN, "exec", "-u", "root", STUDENT_CONTAINER, "cat", LOG_PATH_IN_CONTAINER],
             capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -398,7 +401,7 @@ def get_cll_progress(
                 # Run fs_test inside the Docker container (server-authoritative)
                 try:
                     result = _subprocess.run(
-                        ["docker", "exec", "-u", "root", STUDENT_CONTAINER, "bash", "-c", test_cmd],
+                        [DOCKER_BIN, "exec", "-u", "root", STUDENT_CONTAINER, "bash", "-c", test_cmd],
                         capture_output=True, timeout=5
                     )
                     return result.returncode == 0
@@ -716,8 +719,10 @@ async def cll_terminal_websocket(websocket: WebSocket):
 
     try:
         if not IS_WINDOWS and pty is not None:
+            import shutil
+            docker_bin = shutil.which("docker") or "/usr/bin/docker"
             exec_cmd = [
-                "docker", "exec", "-it",
+                docker_bin, "exec", "-it",
                 "-u", "student",
                 "-e", "TERM=xterm-256color",
                 "-e", f"HOME=/home/student",

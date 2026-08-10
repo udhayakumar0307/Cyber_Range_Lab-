@@ -147,7 +147,6 @@ def _build_assigned_labs(db: Session, assignments: list) -> list:
 
 
 @router.get("", response_model=List[dict])
-@router.get("", response_model=List[dict])
 @router.get("/", response_model=List[dict])
 def get_labs(
     db: Session = Depends(get_db),
@@ -159,103 +158,96 @@ def get_labs(
     Free (fixed_rate=0): isPurchased=True -> Launch Lab directly.
     Priced (fixed_rate>0): isPurchased=False -> Add to Cart -> Razorpay -> Launch.
     """
-    try:
-        # Step 1: Fetch all SysAdmin-assigned labs
-        assignments = _get_sysadmin_assignments(db)
+    # Step 1: Fetch all SysAdmin-assigned labs
+    assignments = _get_sysadmin_assignments(db)
 
-        # Step 2: Build lab cards with SysAdmin pricing
-        labs_metadata = _build_assigned_labs(db, assignments)
-        if not labs_metadata:
-            return []
+    # Step 2: Build lab cards with SysAdmin pricing
+    labs_metadata = _build_assigned_labs(db, assignments)
+    if not labs_metadata:
+        return []
 
-        # No user — return without purchase/progress status
-        if not current_user:
-            return [{**lab, "solvedChallenges": 0} for lab in labs_metadata]
+    # No user — return without purchase/progress status
+    if not current_user:
+        return [{**lab, "solvedChallenges": 0} for lab in labs_metadata]
 
-        # Fetch user's active purchased lab IDs from database
-        from app.models.admin_models import PurchasedLab
-        purchased_records = db.query(PurchasedLab).filter(
-            PurchasedLab.user_id == current_user.id,
-            PurchasedLab.status == "ACTIVE"
-        ).all()
-        user_purchased_ids = {p.lab_id for p in purchased_records}
+    # Fetch user's active purchased lab IDs from database
+    from app.models.admin_models import PurchasedLab
+    purchased_records = db.query(PurchasedLab).filter(
+        PurchasedLab.user_id == current_user.id,
+        PurchasedLab.status == "ACTIVE"
+    ).all()
+    user_purchased_ids = {p.lab_id for p in purchased_records}
 
-        # Show all sysadmin-assigned labs to every student (no SSO/INDIVIDUAL restriction).
-        # Free labs -> Launch. Priced labs -> Add to Cart.
-        active_labs_metadata = []
-        for lab in labs_metadata:
-            # A lab is purchased if it's free OR if the student bought it
-            is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
-            is_purchased = is_free_lab or (lab["id"] in user_purchased_ids)
-            active_labs_metadata.append({**lab, "isPurchased": is_purchased})
+    # Show all sysadmin-assigned labs to every student (no SSO/INDIVIDUAL restriction).
+    # Free labs -> Launch. Priced labs -> Add to Cart.
+    active_labs_metadata = []
+    for lab in labs_metadata:
+        # A lab is purchased if it's free OR if the student bought it
+        is_free_lab = lab["priceInr"] == 0.0 or lab.get("isFree", False)
+        is_purchased = is_free_lab or (lab["id"] in user_purchased_ids)
+        active_labs_metadata.append({**lab, "isPurchased": is_purchased})
 
-        # Step 3: Attach progress
-        from app.services.progress_service import get_user_lab_statistics
-        from app.models.certificate import Certificate
-        from app.services.certificate_manager import certificate_manager
+    # Step 3: Attach progress
+    from app.services.progress_service import get_user_lab_statistics
+    from app.models.certificate import Certificate
+    from app.services.certificate_manager import certificate_manager
+    
+    stats = get_user_lab_statistics(db, str(current_user.id))
+    lab_completed = stats["lab_completed_modules"]
+
+    # Fetch existing certificates
+    existing_certs = db.query(Certificate).filter(Certificate.user_id == current_user.id).all()
+    cert_map = {c.lab_id: c.display_certificate_id for c in existing_certs}
+
+    result = []
+    for lab in active_labs_metadata:
+        cap = _MODULE_CAP.get(lab["id"])
+        solved = lab_completed.get(lab["id"], 0)
+        if cap:
+            solved = min(solved, cap)
         
-        stats = get_user_lab_statistics(db, str(current_user.id))
-        lab_completed = stats["lab_completed_modules"]
-
-        # Fetch existing certificates
-        existing_certs = db.query(Certificate).filter(Certificate.user_id == current_user.id).all()
-        cert_map = {c.lab_id: c.display_certificate_id for c in existing_certs}
-
-        result = []
-        for lab in active_labs_metadata:
-            cap = _MODULE_CAP.get(lab["id"])
-            solved = lab_completed.get(lab["id"], 0)
-            if cap:
-                solved = min(solved, cap)
-            
-            # Check completion
-            total_ch = lab["totalChallenges"]
-            is_completed = (total_ch > 0 and solved >= total_ch)
-            
-            cert_id = cert_map.get(lab["id"])
-            if is_completed and not cert_id:
-                # Auto-issue certificate
-                try:
-                    from app.models.user_lab_progress import UserLabProgress
-                    progress_rows = (
-                        db.query(UserLabProgress)
-                        .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == lab["id"])
+        # Check completion
+        total_ch = lab["totalChallenges"]
+        is_completed = (total_ch > 0 and solved >= total_ch)
+        
+        cert_id = cert_map.get(lab["id"])
+        if is_completed and not cert_id:
+            # Auto-issue certificate
+            try:
+                from app.models.user_lab_progress import UserLabProgress
+                progress_rows = (
+                    db.query(UserLabProgress)
+                    .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == lab["id"])
+                    .all()
+                )
+                total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
+                if not progress_rows:
+                    from app.models.user_progress import UserProgress
+                    track_id = "linux" if "command-line" in lab["id"].lower() else "crypto"
+                    prog_p = (
+                        db.query(UserProgress)
+                        .filter(UserProgress.user_id == str(current_user.id), UserProgress.track_id == track_id)
                         .all()
                     )
-                    total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
-                    if not progress_rows:
-                        from app.models.user_progress import UserProgress
-                        track_id = "linux" if "command-line" in lab["id"].lower() else "crypto"
-                        prog_p = (
-                            db.query(UserProgress)
-                            .filter(UserProgress.user_id == str(current_user.id), UserProgress.track_id == track_id)
-                            .all()
-                        )
-                        total_time = len(prog_p) * 1800
-                    
-                    cert = certificate_manager.get_or_issue_certificate(
-                        db=db,
-                        user_id=current_user.id,
-                        lab_id=lab["id"],
-                        score=current_user.total_score or 100,
-                        duration_seconds=total_time
-                    )
-                    cert_id = cert.display_certificate_id
-                except Exception as e:
-                    logger.error(f"Failed to auto-issue certificate for lab {lab['id']}: {e}")
-            
-            result.append({
-                **lab,
-                "solvedChallenges": solved,
-                "isCompleted": is_completed,
-                "certificateId": cert_id
-            })
+                    total_time = len(prog_p) * 1800
+                
+                cert = certificate_manager.get_or_issue_certificate(
+                    db=db,
+                    user_id=current_user.id,
+                    lab_id=lab["id"],
+                    score=current_user.total_score or 100,
+                    duration_seconds=total_time
+                )
+                cert_id = cert.display_certificate_id
+            except Exception as e:
+                logger.error(f"Failed to auto-issue certificate for lab {lab['id']}: {e}")
+        
+        result.append({
+            **lab,
+            "solvedChallenges": solved,
+            "isCompleted": is_completed,
+            "certificateId": cert_id
+        })
 
-        return result
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        logger.error(f"Error in get_labs: {tb}")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=f"Error in get_labs: {str(e)}\n{tb}")
+    return result
 
