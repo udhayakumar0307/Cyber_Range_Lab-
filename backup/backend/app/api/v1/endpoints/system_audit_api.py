@@ -22,6 +22,7 @@ from app.models.user_lab_progress import UserLabProgress
 from app.services.audit_service import log_audit_event
 from app.database.manager import db_manager
 from app.security.utils import get_client_ip
+from app.core.cache import lab_cache
 
 logger = logging.getLogger(__name__)
 
@@ -926,6 +927,7 @@ def assign_lab_manually(
     )
     db.add(pl)
     db.commit()
+    lab_cache.invalidate("labs:sysadmin_assignments")
     return {"status": "success", "message": f"Successfully configured manual assignment for '{data.lab_title}'."}
 
 
@@ -990,6 +992,7 @@ def revoke_lab_manually(
             raise HTTPException(status_code=404, detail="Purchased lab assignment not found.")
         
     db.commit()
+    lab_cache.invalidate("labs:sysadmin_assignments")
     return {"status": "success", "message": "Successfully revoked purchased lab manually."}
 
 
@@ -1145,6 +1148,7 @@ def delete_system_lab(
         raise HTTPException(status_code=404, detail="Lab not found.")
     db.delete(lab)
     db.commit()
+    lab_cache.invalidate("labs:sysadmin_assignments")
     return {"status": "success", "message": f"Lab {lab_id} has been permanently deleted from database."}
 
 
@@ -1165,6 +1169,7 @@ def update_purchased_lab_fixed_rate(
     purchase.fixed_rate = data.fixed_rate
     db.commit()
     db.refresh(purchase)
+    lab_cache.invalidate("labs:sysadmin_assignments")
     return {"status": "success", "message": "Successfully updated fixed rate.", "fixed_rate": purchase.fixed_rate}
 
 
