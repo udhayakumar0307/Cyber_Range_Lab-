@@ -7,6 +7,8 @@ const pdfjsLib = (window as any).pdfjsLib;
 
 // Configure pdfjs worker source locally from public assets to avoid CDN mismatches
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf/pdf.worker.min.js';
+// Override the version property to force version check to pass in cached environments
+pdfjsLib.version = '3.11.174';
 
 interface MaterialItem {
   id: string;
