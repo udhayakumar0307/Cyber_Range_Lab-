@@ -4,3 +4,6 @@
 !.dev.vars.example
 .env*
 !.env.example
+backup/backend/cyberrange_demo.db
+backup/backend/.env.example
+backup/backend/.env.example
