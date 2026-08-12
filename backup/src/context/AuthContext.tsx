@@ -103,7 +103,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       credentials: 'include',
     });
 
-    if (response.status === 401) {
+    // Only treat 401 on /auth/me (session restore) as a hard session expiry.
+    // For all other endpoints, return the response and let the caller decide —
+    // a single failing background request (e.g. notifications) should never
+    // silently log the user out.
+    if (response.status === 401 && url.includes('/auth/me')) {
       localStorage.removeItem('token');
       document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax;';
       tokenRef.current = null;
@@ -117,7 +121,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ];
       const isPublicPath = publicPaths.some(path => window.location.pathname.toLowerCase().startsWith(path));
       if (!isPublicPath && window.location.pathname !== '/') {
-        alert('Session Expired');
         window.location.href = '/login';
       }
     }

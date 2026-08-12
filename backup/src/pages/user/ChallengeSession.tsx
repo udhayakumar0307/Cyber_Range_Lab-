@@ -1726,21 +1726,21 @@ export const ChallengeSession: React.FC = () => {
                   value={flagInput}
                   onChange={(e) => setFlagInput(e.target.value)}
                   disabled={isSolved}
-                  className={`flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-mono placeholder-slate-400 focus:outline-none transition-all ${
+                  className={`flex-1 px-3.5 py-2.5 bg-slate-50/50 dark:bg-slate-950 border text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none transition-all focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-xs font-mono ${
                     isSolved
                       ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 text-emerald-700 dark:text-emerald-300 cursor-not-allowed'
                       : submissionStatus === 'error'
-                        ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/20 text-rose-800'
-                        : 'border-slate-200 dark:border-slate-700 focus:border-[#2563EB]'
+                        ? 'border-rose-500 bg-rose-500/10 text-rose-805'
+                        : 'border-slate-300 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 />
                 <button
                   type="submit"
                   disabled={isSolved || submissionStatus === 'success'}
-                  className={`font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 ${
+                  className={`font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${
                     isSolved
                       ? 'bg-emerald-100 text-[#10B981] border border-emerald-200 cursor-not-allowed'
-                      : 'bg-[#2563EB] hover:bg-blue-700 text-white cursor-pointer'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-indigo-500/20'
                   }`}
                 >
                   {isSolved ? (

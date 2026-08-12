@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     email_verified: Optional[bool] = True
     tenant_id: Optional[str] = "default"
     is_internal: Optional[bool] = False
+    profile_completed: Optional[bool] = False
     college_id: Optional[int] = None
     department: Optional[str] = None
     year: Optional[int] = None

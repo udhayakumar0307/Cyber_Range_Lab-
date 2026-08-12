@@ -26,20 +26,35 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  // Normalise role: the DB stores 'student' but routes use 'user' as the
+  // canonical non-admin role. Treat them as equivalent here so we don't have
+  // to change every single route definition in App.tsx.
+  const userRole = user.role.toLowerCase();
+  const normalisedUserRole = userRole === 'student' ? 'user' : userRole;
+  const isAllowed = !allowedRoles || allowedRoles.some(r => {
+    const roleLower = r.toLowerCase();
+    if (roleLower === normalisedUserRole) return true;
+    if (roleLower === 'admin' && (userRole === 'super_admin' || userRole === 'system_admin')) return true;
+    return false;
+  });
+
+  if (!isAllowed) {
     if (location.pathname.startsWith('/admin')) {
       return <Navigate to="/admin/login" replace />;
     }
     return <Navigate to="/unauthorized" replace />;
   }
 
+  const ADMIN_ROLES = ['admin', 'super_admin', 'system_admin', 'professor'];
+  const isAdminRole = ADMIN_ROLES.includes((user.role || '').toLowerCase());
+
   // Onboarding Redirection Guard for students
   const isLabSessionRoute = location.pathname.includes('/labs/') || location.pathname.includes('/session');
-  if (user.role !== 'admin' && user.role !== 'SYSTEM_ADMIN' && user.profile_completed === false && location.pathname !== '/onboarding' && !isLabSessionRoute) {
+  if (!isAdminRole && user.profile_completed === false && location.pathname !== '/onboarding' && !isLabSessionRoute) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (user.role !== 'admin' && user.role !== 'SYSTEM_ADMIN' && user.profile_completed === true && location.pathname === '/onboarding') {
+  if (!isAdminRole && user.profile_completed === true && location.pathname === '/onboarding') {
     return <Navigate to="/dashboard" replace />;
   }
 

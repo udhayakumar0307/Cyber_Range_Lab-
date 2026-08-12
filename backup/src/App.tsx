@@ -48,7 +48,11 @@ const LabControlPanel      = lazy(() => import('./pages/admin/LabControlPanel').
 const MonitoringAnalytics  = lazy(() => import('./pages/admin/MonitoringAnalytics').then(m => ({ default: m.MonitoringAnalytics })));
 const AdminSettings        = lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
 const LabSchedulerPage     = lazy(() => import('./pages/admin/LabSchedulerPage').then(m => ({ default: m.LabSchedulerPage })));
-const CtfAdminPage         = lazy(() => import('./pages/admin/CtfAdminPage').then(m => ({ default: m.CtfAdminPage })));
+const CTFListPage          = lazy(() => import('./pages/admin/CTFListPage').then(m => ({ default: m.CTFListPage })));
+const CTFFormPage          = lazy(() => import('./pages/admin/CTFFormPage').then(m => ({ default: m.CTFFormPage })));
+const CTFDetailPage        = lazy(() => import('./pages/admin/CTFDetailPage').then(m => ({ default: m.CTFDetailPage })));
+const CTFProgressPage      = lazy(() => import('./pages/admin/CTFProgressPage').then(m => ({ default: m.CTFProgressPage })));
+const CTFAuditPage         = lazy(() => import('./pages/admin/CTFAuditPage').then(m => ({ default: m.CTFAuditPage })));
 const SystemAuditPortal    = lazy(() => import('./pages/admin/SystemAuditPortal').then(m => ({ default: m.SystemAuditPortal })));
 const SystemPortal         = lazy(() => import('./pages/admin/SystemPortal').then(m => ({ default: m.SystemPortal })));
 const AdminProfilePage     = lazy(() => import('./pages/admin/AdminProfilePage').then(m => ({ default: m.AdminProfilePage })));
@@ -77,7 +81,10 @@ const MyLabsPage           = lazy(() => import('./pages/user/MyLabsPage').then(m
 const StatisticsPage       = lazy(() => import('./pages/user/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
 
 // ─── CTF Chunk ────────────────────────────────────────────────────────────────
-const CtfPortalPage        = lazy(() => import('./pages/user/CtfPortalPage').then(m => ({ default: m.CtfPortalPage })));
+const CtfPortalPage         = lazy(() => import('./pages/user/CtfPortalPage').then(m => ({ default: m.CtfPortalPage })));
+const CTFChallengeBoardPage = lazy(() => import('./pages/user/CTFChallengeBoardPage').then(m => ({ default: m.CTFChallengeBoardPage })));
+const CTFChallengeDetailPage = lazy(() => import('./pages/user/CTFChallengeDetailPage').then(m => ({ default: m.CTFChallengeDetailPage })));
+const CTFLeaderboardPage    = lazy(() => import('./pages/user/CTFLeaderboardPage').then(m => ({ default: m.CTFLeaderboardPage })));
 const CtfArenaPage         = lazy(() => import('./pages/user/CtfArenaPage').then(m => ({ default: m.CtfArenaPage })));
 const CtfScoreboardPage    = lazy(() => import('./pages/user/CtfScoreboardPage').then(m => ({ default: m.CtfScoreboardPage })));
 
@@ -375,7 +382,6 @@ export function App() {
                 }
               />
 
-              {/* CTF Competition Engine (Deferred)
               <Route
                 path="/ctf"
                 element={
@@ -385,22 +391,29 @@ export function App() {
                 }
               />
               <Route
-                path="/ctf/events/:eventId"
+                path="/ctf/:id/challenges"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
-                    <CtfArenaPage />
+                    <CTFChallengeBoardPage />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/ctf/events/:eventId/scoreboard"
+                path="/ctf/:id/challenges/:cid"
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
-                    <CtfScoreboardPage />
+                    <CTFChallengeDetailPage />
                   </ProtectedRoute>
                 }
               />
-              */}
+              <Route
+                path="/ctf/:id/scoreboard"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CTFLeaderboardPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Progress Tracking */}
               <Route
@@ -516,10 +529,51 @@ export function App() {
                 path="/admin/ctf"
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
-                    <ErrorBoundary><CtfAdminPage /></ErrorBoundary>
+                    <ErrorBoundary><CTFListPage /></ErrorBoundary>
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/admin/ctf/new"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary><CTFFormPage /></ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/ctf/:id"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary><CTFDetailPage /></ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/ctf/:id/edit"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary><CTFFormPage /></ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/ctf/:id/progress"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary><CTFProgressPage /></ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/ctf/:id/audit"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary><CTFAuditPage /></ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/admin/labs/:labId/purchase"
                 element={

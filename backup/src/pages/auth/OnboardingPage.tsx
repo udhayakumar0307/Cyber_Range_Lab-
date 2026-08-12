@@ -53,12 +53,27 @@ export const OnboardingPage: React.FC = () => {
         return;
       }
 
+      // 1. Fetch colleges (independent of profile)
       try {
-        const [profileRes, collegeRes] = await Promise.all([
-          fetch('/api/v1/user/profile', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/v1/reporting/colleges')
-        ]);
+        const collegeRes = await fetch('/api/v1/reporting/colleges');
+        if (collegeRes.ok) {
+          const cData = await collegeRes.json();
+          setColleges(cData);
+          if (cData.length > 0 && !form.college_id) {
+            setForm(prev => ({ ...prev, college_id: String(cData[0].id) }));
+          }
+        } else {
+          console.error('Failed to load colleges: status', collegeRes.status);
+        }
+      } catch (err) {
+        console.error('Error fetching colleges:', err);
+      }
 
+      // 2. Fetch profile
+      try {
+        const profileRes = await fetch('/api/v1/user/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if (profileRes.ok) {
           const data = await profileRes.json();
           if (data.profile_completed) {
@@ -75,22 +90,16 @@ export const OnboardingPage: React.FC = () => {
             username: data.email ? data.email.split('@')[0] : (user?.email?.split('@')[0] || ''),
             phone: data.phone || '',
             dob: data.dob || '',
-            college_id: data.college_id ? String(data.college_id) : ''
+            college_id: data.college_id ? String(data.college_id) : prev.college_id
           }));
           if (data.profile_photo) {
             setPhotoPreview(data.profile_photo);
           }
-        }
-
-        if (collegeRes.ok) {
-          const cData = await collegeRes.json();
-          setColleges(cData);
-          if (cData.length > 0 && !form.college_id) {
-            setForm(prev => ({ ...prev, college_id: String(cData[0].id) }));
-          }
+        } else {
+          console.error('Failed to load profile: status', profileRes.status);
         }
       } catch (err) {
-        console.error('Error loading onboarding options:', err);
+        console.error('Error loading profile options:', err);
       }
     };
 

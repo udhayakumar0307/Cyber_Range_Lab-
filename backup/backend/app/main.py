@@ -120,6 +120,13 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"Notification workers failed to start: {exc}")
 
+    # Start CTF background scheduler loop
+    try:
+        from app.jobs.ctf_jobs import ctf_scheduler_loop
+        app.state.ctf_scheduler_task = asyncio.create_task(ctf_scheduler_loop())
+    except Exception as exc:
+        logger.warning(f"CTF scheduler failed to start: {exc}")
+
     # Lazy-validate SES credentials without blocking startup
     try:
         from app.services.ses_service import ses_service  # noqa: F401
@@ -138,6 +145,15 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             pass
+
+    ctf_task = getattr(app.state, "ctf_scheduler_task", None)
+    if ctf_task:
+        ctf_task.cancel()
+        try:
+            await ctf_task
+        except asyncio.CancelledError:
+            pass
+
     db_manager.shutdown()
     logger.info("Server shutdown complete.")
 

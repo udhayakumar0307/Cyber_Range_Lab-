@@ -349,28 +349,26 @@ export const CtfArenaPage: React.FC = () => {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Challenge Modal */}
+              {/* Challenge Modal */}
         {activeChallenge && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto">
               {/* Header */}
-              <div className="flex items-start justify-between border-b border-gray-100 pb-4">
+              <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
-                    <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-700">
+                    <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-355">
                       {activeChallenge.category}
                     </span>
-                    <span className="text-xs font-mono font-bold text-emerald-600">
+                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-455">
                       Value: {activeChallenge.currentPoints} Points
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900">{activeChallenge.title}</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{activeChallenge.title}</h3>
                 </div>
                 <button
                   onClick={() => setActiveChallenge(null)}
-                  className="text-gray-400 hover:text-gray-600 font-bold text-lg"
+                  className="text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 font-bold text-lg"
                 >
                   ✕
                 </button>
@@ -378,14 +376,14 @@ export const CtfArenaPage: React.FC = () => {
 
               {/* Challenge Description */}
               <div className="space-y-3">
-                <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                   {activeChallenge.description}
                 </p>
 
                 {/* Attachments */}
                 {activeChallenge.fileUrls && activeChallenge.fileUrls.length > 0 && (
                   <div className="space-y-1.5">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                       Attached File Assets
                     </span>
                     <div className="flex flex-wrap gap-2">
@@ -397,7 +395,7 @@ export const CtfArenaPage: React.FC = () => {
                             e.preventDefault();
                             alert(`Downloading asset: ${f.name}`);
                           }}
-                          className="inline-flex items-center px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono text-xs rounded-lg border border-blue-200 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 font-mono text-xs rounded-lg border border-blue-200 dark:border-blue-900/40 transition-colors"
                         >
                           <Download className="w-3.5 h-3.5 mr-1.5" /> {f.name}
                         </a>
@@ -409,26 +407,26 @@ export const CtfArenaPage: React.FC = () => {
 
               {/* Hints Accordion */}
               {activeChallenge.hints && activeChallenge.hints.length > 0 && (
-                <div className="space-y-2 border-t border-gray-100 pt-3">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                <div className="space-y-2 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     Available Hints
                   </span>
                   {activeChallenge.hints.map((hint) => (
-                    <div key={hint.id} className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 space-y-2">
+                    <div key={hint.id} className="p-3 bg-amber-50/50 dark:bg-amber-950/10 rounded-xl border border-amber-200 dark:border-amber-900/30 space-y-2">
                       {hint.unlocked ? (
-                        <div className="text-xs text-amber-950 font-medium flex items-start space-x-2">
+                        <div className="text-xs text-amber-950 dark:text-amber-300 font-medium flex items-start space-x-2">
                           <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <span>{hint.text}</span>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-amber-800 font-semibold">
+                          <span className="text-xs text-amber-805 dark:text-amber-400 font-semibold">
                             Hint Locked (Penalty: -{hint.cost} pts)
                           </span>
                           <button
                             type="button"
                             onClick={() => handleUnlockHint(hint.id)}
-                            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+                            className="px-3 py-1 bg-amber-605 hover:bg-amber-705 dark:bg-amber-600 dark:hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
                           >
                             Unlock Hint (-{hint.cost} pts)
                           </button>
@@ -444,10 +442,10 @@ export const CtfArenaPage: React.FC = () => {
                 <div
                   className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center space-x-2 ${
                     feedback.type === 'success'
-                      ? 'bg-emerald-100 border-emerald-300 text-emerald-900'
+                      ? 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-900/30 text-emerald-900 dark:text-emerald-400'
                       : feedback.type === 'already'
-                      ? 'bg-blue-100 border-blue-300 text-blue-900'
-                      : 'bg-rose-100 border-rose-300 text-rose-900'
+                      ? 'bg-blue-100 dark:bg-blue-950/20 border-blue-300 dark:border-blue-900/30 text-blue-900 dark:text-blue-400'
+                      : 'bg-rose-100 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/30 text-rose-900 dark:text-rose-400'
                   }`}
                 >
                   {feedback.type === 'success' ? (
@@ -481,12 +479,12 @@ export const CtfArenaPage: React.FC = () => {
                     }
                     value={flagInput}
                     onChange={(e) => setFlagInput(e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-purple-500 outline-none disabled:bg-gray-100 text-gray-800"
+                    className="flex-1 px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950 rounded-xl text-sm font-mono text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none disabled:bg-slate-100 dark:disabled:bg-slate-900/50"
                   />
                   <button
                     type="submit"
                     disabled={activeChallenge.isSolved || isSubmissionsLocked}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors disabled:opacity-50 cursor-pointer flex-shrink-0 shadow-emerald-500/20"
                   >
                     Submit Flag
                   </button>

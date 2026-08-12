@@ -46,6 +46,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Analytics', path: '/admin/monitoring', icon: Activity },
     { name: 'Reports', path: '/admin/reports', icon: CreditCard },
     { name: 'Study Material', path: '/admin/study-material', icon: BookOpen },
+    { name: 'CTF Manager', path: '/admin/ctf', icon: Trophy },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

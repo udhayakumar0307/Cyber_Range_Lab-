@@ -101,9 +101,9 @@ def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
         return None
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that ensures current user is an admin or SYSTEM_ADMIN."""
+    """Dependency that ensures current user is an admin, SYSTEM_ADMIN, or SUPER_ADMIN."""
     role_upper = (current_user.role or "").upper()
-    if role_upper not in ["ADMIN", "SYSTEM_ADMIN", "PROFESSOR"]:
+    if role_upper not in ["ADMIN", "SYSTEM_ADMIN", "PROFESSOR", "SUPER_ADMIN"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrative privileges required"

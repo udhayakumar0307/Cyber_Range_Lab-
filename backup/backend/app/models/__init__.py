@@ -26,6 +26,15 @@ from app.models.admin_models import (
     Organization, AdminProfile, Cart, CartItem, Order, OrderItem,
     Payment, Invoice, PurchasedLab, License, BillingAddress, Subscription
 )
+from app.models.ctf import (
+    CTF,
+    CTFChallenge,
+    CTFChallengeFile,
+    CTFHint,
+    CTFHintUnlock,
+    CTFSubmission,
+    CTFParticipation,
+)
 
 __all__ = [
     "Base",
@@ -64,5 +73,13 @@ __all__ = [
     "PurchasedLab",
     "License",
     "BillingAddress",
-    "Subscription"
+    "Subscription",
+    # CTF module
+    "CTF",
+    "CTFChallenge",
+    "CTFChallengeFile",
+    "CTFHint",
+    "CTFHintUnlock",
+    "CTFSubmission",
+    "CTFParticipation",
 ]

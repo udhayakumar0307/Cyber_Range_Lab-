@@ -301,6 +301,7 @@ def _execute_login(
             "role": role_name,
             "account_type": getattr(user, "account_type", "student"),
             "is_internal": getattr(user, "is_internal", False),
+            "profile_completed": getattr(user, "profile_completed", False),
             "auth_type": getattr(user, "auth_type", "INDIVIDUAL")
         }
     }
@@ -483,10 +484,10 @@ def logout(request: Request, response: Response, current_user: User = Depends(ge
     db.add(log_entry)
     db.commit()
     
-    is_prod = settings.ENV == "production"
-    if is_prod:
-        response.delete_cookie(key="access_token", httponly=True, secure=True, samesite="lax")
-        response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="lax")
+    # Always clear cookies — in development the stale admin cookie would otherwise
+    # persist and collide with the next user's session.
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax")
+    response.delete_cookie(key="refresh_token", httponly=True, samesite="lax")
 
     return {
         "status": "ok",
@@ -505,6 +506,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         role=role_name,
         account_type=current_user.account_type,
+        profile_completed=getattr(current_user, "profile_completed", False),
         college_id=current_user.college_id,
         department=current_user.department,
         year=current_user.year,

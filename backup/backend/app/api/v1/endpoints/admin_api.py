@@ -23,10 +23,8 @@ from app.services.ses_service import ses_service
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory Rate Limiter for Admin Login (Failed Attempts tracking)
-# Key: email/ip, Value: {"attempts": int, "lockout_until": datetime}
-FAILED_LOGIN_ATTEMPTS: Dict[str, Dict] = {}
 SYNC_RATE_LIMIT: Dict[str, datetime] = {}
+
 
 @router.post("/labs/sync")
 def sync_lab_repository(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
@@ -263,99 +261,6 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
             "email": user.email,
             "role": user.role,
             "org_name": org.name
-        }
-    }
-
-
-@router.post("/login")
-def login_admin(data: AdminLoginRequest, request: Request, db: Session = Depends(get_db)):
-    """
-    Dedicated Admin Login endpoint with 5-attempt rate limiter and 15-minute lockout.
-    """
-    client_ip = request.client.host if request.client else "unknown"
-    rate_key = f"{data.email.lower()}_{client_ip}"
-    now = datetime.utcnow()
-
-    # Rate Limiting Check
-    if rate_key in FAILED_LOGIN_ATTEMPTS:
-        record = FAILED_LOGIN_ATTEMPTS[rate_key]
-        lockout_until = record.get("lockout_until")
-        if lockout_until and now < lockout_until:
-            remaining_mins = int((lockout_until - now).total_seconds() // 60) + 1
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Account temporarily locked due to 5 failed login attempts. Try again in {remaining_mins} minutes."
-            )
-        elif lockout_until and now >= lockout_until:
-            # Reset after lockout period expires
-            FAILED_LOGIN_ATTEMPTS.pop(rate_key, None)
-
-    email_clean = data.email.strip().lower() if data.email else ""
-    user = db.query(User).filter(User.email == email_clean).first()
-
-    # Enforce Enterprise Admin domain & role validation
-    from app.security.domain_validator import validate_admin_login_attempt
-    validate_admin_login_attempt(email_clean, user)
-
-    # Invalid user or incorrect password
-    if not user or not verify_password(data.password, user.password_hash):
-        # Track failed attempt
-        record = FAILED_LOGIN_ATTEMPTS.get(rate_key, {"attempts": 0, "lockout_until": None})
-        attempts = record["attempts"] + 1
-        lockout_until = None
-        if attempts >= 5:
-            lockout_until = now + timedelta(minutes=15)
-
-        FAILED_LOGIN_ATTEMPTS[rate_key] = {"attempts": attempts, "lockout_until": lockout_until}
-
-        # Log failed audit log
-        if user:
-            db.add(AuditLog(
-                user_id=user.id,
-                action="Admin Login Failed",
-                resource="AdminAuth",
-                status="FAILED",
-                ip_address=client_ip,
-                new_value=f"Failed attempt {attempts}/5"
-            ))
-            db.commit()
-
-        if lockout_until:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Maximum failed login attempts reached (5/5). Account locked for 15 minutes."
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid email or password. Attempt {attempts} of 5."
-            )
-
-    # Success: Clear failed attempts
-    FAILED_LOGIN_ATTEMPTS.pop(rate_key, None)
-
-    # Update last login
-    user.last_login = datetime.utcnow()
-    
-    # Audit log
-    db.add(AuditLog(
-        user_id=user.id,
-        action="Admin Login Success",
-        resource="AdminAuth",
-        status="SUCCESS",
-        ip_address=client_ip,
-        new_value=f"Admin {user.email} logged in from {client_ip}"
-    ))
-    token = create_access_token(data={"sub": user.email, "user_id": user.id, "role": "admin", "organization_id": user.organization})
-
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role
         }
     }
 
