@@ -167,6 +167,10 @@ def run_sqlite_column_migrations(engine):
         # order_items
         add_col_if_missing("order_items", "hours_purchased", "FLOAT DEFAULT 40.0")
 
+        # licenses
+        add_col_if_missing("licenses", "hours_allocated", "FLOAT DEFAULT 1.0")
+        add_col_if_missing("licenses", "hours_used", "FLOAT DEFAULT 0.0")
+
 
 
 
