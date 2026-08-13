@@ -78,7 +78,7 @@ class Settings:
             self.RAZORPAY_WEBHOOK_SECRET = razorpay_data.get("RAZORPAY_WEBHOOK_SECRET", "")
 
             # 5. RDS Configuration
-            rds_data = get_secret("rds:db-ac1f3198-b1d8-4fb6-9595-c605f011867c")
+            rds_data = get_secret("rds!db-ac1f3198-b1d8-4fb6-9595-c605f011867c")
             db_user_raw = rds_data.get("username")
             db_pass_raw = rds_data.get("password")
             if not db_user_raw or not db_pass_raw:
