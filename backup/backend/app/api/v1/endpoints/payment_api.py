@@ -862,8 +862,13 @@ def student_verify_payment(
             logger.info(f"[StudentVerify] Duplicate payment detection: ID {data.razorpay_payment_id} already exists")
             return {"status": "success", "message": "Payment already verified and processed.", "lab_id": data.lab_id}
 
-        # Resolve organization
-        org_id = getattr(current_user, 'group_id', None) or None
+        # Resolve organization_id from user's group organization
+        org_id = None
+        if getattr(current_user, 'group_id', None):
+            from app.models.group import Group
+            user_group = db.query(Group).filter(Group.id == current_user.group_id).first()
+            if user_group:
+                org_id = user_group.organization_id
 
         # Create PurchasedLab ownership record
         license_key = f"LIC-{data.lab_id.upper()}-STU-{secrets.token_hex(4).upper()}"
