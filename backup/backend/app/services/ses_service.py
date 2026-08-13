@@ -14,8 +14,6 @@ class SESService:
     def initialize_client(self):
         required_vars = [
             "AWS_REGION",
-            "AWS_ACCESS_KEY_ID",
-            "AWS_SECRET_ACCESS_KEY",
             "SES_FROM_EMAIL"
         ]
         
@@ -35,12 +33,15 @@ class SESService:
             return
 
         try:
-            self.client = boto3.client(
-                "ses",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-            )
+            kwargs = {
+                "region_name": settings.AWS_REGION
+            }
+            # Only provide access keys if explicitly configured (for local dev)
+            if getattr(settings, "AWS_ACCESS_KEY_ID", None) and getattr(settings, "AWS_SECRET_ACCESS_KEY", None):
+                kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+                
+            self.client = boto3.client("ses", **kwargs)
             self.is_enabled = True
             logger.info("SES Service successfully initialized.")
         except Exception as e:

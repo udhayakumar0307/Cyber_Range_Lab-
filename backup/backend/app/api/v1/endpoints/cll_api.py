@@ -630,13 +630,26 @@ def reset_cll_progress(
 
 
 import asyncio
-import pty
-import fcntl
-import termios
 import struct
 import platform
 from fastapi import WebSocket, WebSocketDisconnect
 from app.core.security import decode_access_token
+
+IS_WINDOWS = platform.system() == "Windows"
+if not IS_WINDOWS:
+    try:
+        import pty
+        import fcntl
+        import termios
+    except ImportError:
+        pty = None
+        fcntl = None
+        termios = None
+else:
+    pty = None
+    fcntl = None
+    termios = None
+
 
 
 @router.websocket("/ws")
