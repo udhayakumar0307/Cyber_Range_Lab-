@@ -557,10 +557,17 @@ def get_statistics(
     ).scalar() or 0
 
     # Solved flags / challenges count
-    solved_flags_count = db.query(func.count(UserLabProgress.id)).filter(
+    from app.models.ctf import CTFSubmission
+    lab_flags = db.query(func.count(UserLabProgress.id)).filter(
         UserLabProgress.user_id == current_user.id,
-        UserLabProgress.flag_correct == True
+        UserLabProgress.flag_correct == True,
+        UserLabProgress.lab_id != "puzzle-lab"
     ).scalar() or 0
+    ctf_flags = db.query(func.count(CTFSubmission.id)).filter(
+        CTFSubmission.participant_id == current_user.id,
+        CTFSubmission.is_correct == True
+    ).scalar() or 0
+    solved_flags_count = lab_flags + ctf_flags
 
     # Achievements count
     achievements_count = db.query(func.count(UserAchievement.achievement_id)).filter(
@@ -678,10 +685,17 @@ def get_activity_graph(
     ).scalar() or 0
 
     # Flags solved
-    flags_done = db.query(func.count(UserLabProgress.id)).filter(
+    from app.models.ctf import CTFSubmission
+    lab_flags = db.query(func.count(UserLabProgress.id)).filter(
         UserLabProgress.user_id == current_user.id,
-        UserLabProgress.flag_correct == True
+        UserLabProgress.flag_correct == True,
+        UserLabProgress.lab_id != "puzzle-lab"
     ).scalar() or 0
+    ctf_flags = db.query(func.count(CTFSubmission.id)).filter(
+        CTFSubmission.participant_id == current_user.id,
+        CTFSubmission.is_correct == True
+    ).scalar() or 0
+    flags_done = lab_flags + ctf_flags
 
     # Training hours
     secs = db.query(func.sum(UserLabProgress.time_taken_seconds)).filter(

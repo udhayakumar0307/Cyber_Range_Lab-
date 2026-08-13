@@ -126,7 +126,7 @@ export const SystemPortal: React.FC = () => {
       if (token && storedUserStr) {
         try {
           const u = JSON.parse(storedUserStr);
-          if ((u.role || '').toUpperCase() === 'SYSTEM_ADMIN') {
+          if (['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes((u.role || '').toUpperCase())) {
             setStep('dashboard');
           }
         } catch (e) {}
@@ -514,7 +514,7 @@ export const SystemPortal: React.FC = () => {
         const user = data.user || {};
         const userRole = (user.role || '').toUpperCase();
 
-        if (userRole !== 'SYSTEM_ADMIN') {
+        if (!['SYSTEM_ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
           setLoginError('HTTP 403 Forbidden: Account lacks SYSTEM_ADMIN role permissions.');
           return;
         }

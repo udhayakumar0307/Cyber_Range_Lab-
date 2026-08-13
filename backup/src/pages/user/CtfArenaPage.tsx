@@ -349,7 +349,9 @@ export const CtfArenaPage: React.FC = () => {
               </div>
             </div>
           ))}
-              {/* Challenge Modal */}
+        </div>
+
+        {/* Challenge Modal */}
         {activeChallenge && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto">

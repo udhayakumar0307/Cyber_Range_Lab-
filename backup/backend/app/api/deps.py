@@ -111,9 +111,9 @@ def get_current_admin_user(current_user: User = Depends(get_current_user)) -> Us
     return current_user
 
 def get_current_system_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that ensures current user has SYSTEM_ADMIN role."""
+    """Dependency that ensures current user has SYSTEM_ADMIN or SUPER_ADMIN role."""
     role_upper = (current_user.role or "").upper()
-    if role_upper != "SYSTEM_ADMIN":
+    if role_upper not in ["SYSTEM_ADMIN", "SUPER_ADMIN"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied. System Admin role required."

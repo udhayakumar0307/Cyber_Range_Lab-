@@ -62,13 +62,18 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
     # Determine highest completed level to sync session level
     completed_levels = db.query(UserLabProgress.module_id).filter(
         UserLabProgress.user_id == current_user.id,
-        UserLabProgress.lab_id == "techcorp-sysadmin-labs",
+        UserLabProgress.lab_id == "puzzle-lab",
         UserLabProgress.status == "COMPLETED"
     ).all()
     completed_nums = []
     for c in completed_levels:
         m_id = c[0]
-        if m_id.startswith("techcorp_level"):
+        if m_id.startswith("puzzle-lab_module"):
+            try:
+                completed_nums.append(int(m_id.replace("puzzle-lab_module", "")) - 1)
+            except ValueError:
+                pass
+        elif m_id.startswith("techcorp_level"):
             try:
                 completed_nums.append(int(m_id.replace("techcorp_level", "")))
             except ValueError:
@@ -198,18 +203,26 @@ def get_session(db: Session = Depends(get_db), current_user: User = Depends(get_
         
     completed_levels = db.query(UserLabProgress.module_id).filter(
         UserLabProgress.user_id == current_user.id,
-        UserLabProgress.lab_id == "techcorp-sysadmin-labs",
+        UserLabProgress.lab_id == "puzzle-lab",
         UserLabProgress.status == "COMPLETED"
     ).all()
-    completed_level_ids = [c[0] for c in completed_levels]
     
     # Auto-heal / sync session current_level to highest completed level + 1
     completed_nums = []
+    completed_level_ids = []
     for c in completed_levels:
         m_id = c[0]
-        if m_id.startswith("techcorp_level"):
+        if m_id.startswith("puzzle-lab_module"):
+            try:
+                mod_num = int(m_id.replace("puzzle-lab_module", ""))
+                completed_nums.append(mod_num - 1)
+                completed_level_ids.append(f"techcorp_level{mod_num - 1}")
+            except ValueError:
+                pass
+        elif m_id.startswith("techcorp_level"):
             try:
                 completed_nums.append(int(m_id.replace("techcorp_level", "")))
+                completed_level_ids.append(m_id)
             except ValueError:
                 pass
     highest_completed = max(completed_nums) if completed_nums else -1
@@ -277,17 +290,17 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
     current_lvl = sess.current_level
     
     if current_lvl >= 33:
-        mod_id = "techcorp_level33"
+        mod_id = "puzzle-lab_module34"
         progress = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "techcorp-sysadmin-labs",
+            UserLabProgress.lab_id == "puzzle-lab",
             UserLabProgress.module_id == mod_id
         ).first()
         pts = get_points_for_level(33)
         if not progress:
             progress = UserLabProgress(
                 user_id=current_user.id,
-                lab_id="techcorp-sysadmin-labs",
+                lab_id="puzzle-lab",
                 module_id=mod_id,
                 status="COMPLETED",
                 score=pts,
@@ -330,10 +343,10 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read next level key: {str(e)}")
         
-    mod_id = f"techcorp_level{current_lvl}"
+    mod_id = f"puzzle-lab_module{current_lvl + 1}"
     progress = db.query(UserLabProgress).filter(
         UserLabProgress.user_id == current_user.id,
-        UserLabProgress.lab_id == "techcorp-sysadmin-labs",
+        UserLabProgress.lab_id == "puzzle-lab",
         UserLabProgress.module_id == mod_id
     ).first()
     
@@ -341,7 +354,7 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
     if not progress:
         progress = UserLabProgress(
             user_id=current_user.id,
-            lab_id="techcorp-sysadmin-labs",
+            lab_id="puzzle-lab",
             module_id=mod_id,
             status="COMPLETED",
             score=pts,

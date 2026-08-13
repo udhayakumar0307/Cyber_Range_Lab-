@@ -119,7 +119,7 @@ def _execute_login(
 
 
     # Domain & Role Portal Validation BEFORE Password Inspection
-    is_system_admin = existing_user and getattr(existing_user, "role", "").upper() == "SYSTEM_ADMIN"
+    is_system_admin = existing_user and getattr(existing_user, "role", "").upper() in ["SYSTEM_ADMIN", "SUPER_ADMIN"]
     is_academic_admin = existing_user and getattr(existing_user, "role", "").lower() == "admin" and getattr(existing_user, "account_type", "").lower() == "academic"
     logger.info(f"[AuthLog] Login request email: {email_clean} | env_admin_email: {settings.SYSTEM_ADMIN_EMAIL} | is_system_admin: {is_system_admin} | is_academic_admin: {is_academic_admin}")
 
@@ -145,7 +145,7 @@ def _execute_login(
         raise AuthenticationError("Invalid Email or Password")
 
     # Double-check existing authenticated user record against portal requirements
-    is_authenticated_sys_admin = getattr(user, "role", "").upper() == "SYSTEM_ADMIN"
+    is_authenticated_sys_admin = getattr(user, "role", "").upper() in ["SYSTEM_ADMIN", "SUPER_ADMIN"]
     is_authenticated_academic_admin = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
     logger.info(f"[AuthLog] User Authenticated successfully | role: {getattr(user, 'role', 'user')} | is_system_admin: {is_authenticated_sys_admin} | is_academic_admin: {is_authenticated_academic_admin}")
     
@@ -643,7 +643,7 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
     db.refresh(user)
     # Notify platform administrators of a real registration event. SNS failures are
     # persisted as failed delivery audits and never fabricate a success response.
-    admins = db.query(User).filter(User.is_active.is_(True), User.role.in_(["admin", "SYSTEM_ADMIN"])).all()
+    admins = db.query(User).filter(User.is_active.is_(True), User.role.in_(["admin", "SYSTEM_ADMIN", "SUPER_ADMIN", "super_admin"])).all()
     notification_service.notify_users(db, admins, "New Student Registration",
                                       f"A new student account was registered: {user.email}", "STUDENT_REGISTRATION")
     db.commit()
