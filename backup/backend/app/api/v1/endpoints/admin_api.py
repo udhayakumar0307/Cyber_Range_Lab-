@@ -294,6 +294,13 @@ def get_admin_profile(current_user: User = Depends(get_current_user), db: Sessio
         for log in logs
     ]
 
+    # Fetch total hours
+    from sqlalchemy import func
+    org_id = org.id if org else None
+    total_hours_val = db.query(func.sum(PurchasedLab.hours_purchased)).filter(
+        PurchasedLab.organization_id == org_id if org_id else PurchasedLab.user_id == current_user.id
+    ).scalar() or 0.0
+
     return {
         "basic_info": {
             "id": current_user.id,
@@ -327,7 +334,8 @@ def get_admin_profile(current_user: User = Depends(get_current_user), db: Sessio
             "purchased_labs": purchased_labs_count,
             "invoices": invoices_count,
             "orders": orders_count,
-            "active_licenses": purchased_labs_count
+            "active_licenses": purchased_labs_count,
+            "total_hours": float(total_hours_val)
         },
         "activity_log": activity_log
     }
@@ -417,13 +425,19 @@ def get_admin_dashboard_summary(
     purchased_labs_count = db.query(PurchasedLab).filter(PurchasedLab.organization_id == org_id).count()
     seats_res = db.query(
         func.sum(PurchasedLab.total_seats),
-        func.sum(PurchasedLab.assigned_seats)
+        func.sum(PurchasedLab.assigned_seats),
+        func.sum(PurchasedLab.hours_purchased),
+        func.sum(PurchasedLab.hours_used),
+        func.sum(PurchasedLab.hours_remaining)
     ).filter(PurchasedLab.organization_id == org_id).first()
     
     total_seats = int(seats_res[0] or 0)
     seats_used = int(seats_res[1] or 0)
     seats_remaining = max(total_seats - seats_used, 0)
     utilization_pct = round((seats_used / total_seats) * 100) if total_seats > 0 else 0
+    total_hours = float(seats_res[2] or 0.0)
+    hours_used = float(seats_res[3] or 0.0)
+    hours_remaining = float(seats_res[4] or 0.0)
 
     # 3. Student details counts (Combined query to avoid N+1 / multiple scans)
     from sqlalchemy import case
@@ -477,7 +491,10 @@ def get_admin_dashboard_summary(
             "totalSeats": total_seats,
             "seatsUsed": seats_used,
             "seatsRemaining": seats_remaining,
-            "utilizationPercentage": utilization_pct
+            "utilizationPercentage": utilization_pct,
+            "totalHours": total_hours,
+            "hoursUsed": hours_used,
+            "hoursRemaining": hours_remaining
         },
         "students": {
             "total": total_students,

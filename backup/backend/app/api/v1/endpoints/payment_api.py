@@ -326,165 +326,174 @@ def download_invoice_pdf(
     order = db.query(Order).filter(Order.id == inv.order_id).first()
     payment = db.query(Payment).filter(Payment.id == inv.payment_id).first() if inv.payment_id else None
 
-    # ReportLab PDF Generation
-    import io
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
+    try:
+        # ReportLab PDF Generation
+        import io
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36
-    )
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=36,
+            bottomMargin=36
+        )
 
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'InvoiceTitle',
-        parent=styles['Heading1'],
-        fontSize=24,
-        leading=28,
-        textColor=colors.HexColor('#0052CC'),
-        fontName='Helvetica-Bold'
-    )
-    subtitle_style = ParagraphStyle(
-        'InvoiceSubtitle',
-        parent=styles['Normal'],
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor('#475569')
-    )
-    bold_style = ParagraphStyle(
-        'InvoiceBold',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=12,
-        fontName='Helvetica-Bold'
-    )
-    normal_style = ParagraphStyle(
-        'InvoiceNormal',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=12,
-        textColor=colors.HexColor('#1E293B')
-    )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'InvoiceTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            leading=28,
+            textColor=colors.HexColor('#0052CC'),
+            fontName='Helvetica-Bold'
+        )
+        subtitle_style = ParagraphStyle(
+            'InvoiceSubtitle',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor('#475569')
+        )
+        bold_style = ParagraphStyle(
+            'InvoiceBold',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            fontName='Helvetica-Bold'
+        )
+        normal_style = ParagraphStyle(
+            'InvoiceNormal',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor('#1E293B')
+        )
 
-    elements = []
+        elements = []
 
-    # Header section
-    header_data = [
-        [
-            Paragraph("<b>CyberRange Enterprise</b><br/><font size=9 color='#64748B'>Cybersecurity Virtual Lab Platform</font>", title_style),
-            Paragraph(f"<font size=16 color='#0052CC'><b>TAX INVOICE</b></font><br/><b>Invoice #:</b> {inv.invoice_number}<br/><b>Date:</b> {inv.created_at.strftime('%Y-%m-%d %H:%M')}", normal_style)
+        # Header section
+        inv_date = inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else 'N/A'
+        header_data = [
+            [
+                Paragraph("<b>CyberRange Enterprise</b><br/><font size=9 color='#64748B'>Cybersecurity Virtual Lab Platform</font>", title_style),
+                Paragraph(f"<font size=16 color='#0052CC'><b>TAX INVOICE</b></font><br/><b>Invoice #:</b> {inv.invoice_number}<br/><b>Date:</b> {inv_date}", normal_style)
+            ]
         ]
-    ]
-    header_table = Table(header_data, colWidths=[300, 240])
-    header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-    elements.append(header_table)
-    elements.append(Spacer(1, 15))
-    elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#E2E8F0'), spaceAfter=15))
+        header_table = Table(header_data, colWidths=[300, 240])
+        header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 15))
+        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#E2E8F0'), spaceAfter=15))
 
-    # Customer & Transaction Info
-    info_data = [
-        [
-            Paragraph("<b>Billed To:</b>", bold_style),
-            Paragraph("<b>Payment Telemetry:</b>", bold_style)
-        ],
-        [
-            Paragraph(f"<b>Customer Name:</b> {current_user.name or 'Valued Admin'}<br/><b>Email:</b> {current_user.email}<br/><b>Organization:</b> {order.institution_name if order else 'Enterprise Client'}<br/><b>Address:</b> {inv.billing_address_json or 'N/A'}", normal_style),
-            Paragraph(f"<b>Order ID:</b> {order.id if order else 'N/A'}<br/><b>Razorpay Order ID:</b> {order.razorpay_order_id if order else 'N/A'}<br/><b>Razorpay Payment ID:</b> {payment.transaction_id if payment else 'N/A'}<br/><b>Payment Method:</b> {payment.method if payment else 'Razorpay Online'}<br/><b>Status:</b> <font color='#16A34A'><b>{payment.payment_status if payment else 'SUCCESS'}</b></font>", normal_style)
+        # Customer & Transaction Info
+        info_data = [
+            [
+                Paragraph("<b>Billed To:</b>", bold_style),
+                Paragraph("<b>Payment Telemetry:</b>", bold_style)
+            ],
+            [
+                Paragraph(f"<b>Customer Name:</b> {current_user.name or 'Valued Admin'}<br/><b>Email:</b> {current_user.email}<br/><b>Organization:</b> {order.institution_name if (order and order.institution_name) else 'Enterprise Client'}<br/><b>Address:</b> {inv.billing_address_json or 'N/A'}", normal_style),
+                Paragraph(f"<b>Order ID:</b> {order.id if order else 'N/A'}<br/><b>Razorpay Order ID:</b> {order.razorpay_order_id if (order and order.razorpay_order_id) else 'N/A'}<br/><b>Razorpay Payment ID:</b> {payment.transaction_id if payment else 'N/A'}<br/><b>Payment Method:</b> {payment.method if payment else 'Razorpay Online'}<br/><b>Status:</b> <font color='#16A34A'><b>{payment.payment_status if payment else 'SUCCESS'}</b></font>", normal_style)
+            ]
         ]
-    ]
-    info_table = Table(info_data, colWidths=[270, 270])
-    info_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
-        ('PADDING', (0,0), (-1,-1), 8),
-        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0'))
-    ]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 20))
+        info_table = Table(info_data, colWidths=[270, 270])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
+            ('PADDING', (0,0), (-1,-1), 8),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0'))
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 20))
 
-    # Purchased Items Table
-    item_rows = [[
-        Paragraph("<b>Item Description</b>", bold_style),
-        Paragraph("<b>Quantity</b>", bold_style),
-        Paragraph("<b>Duration</b>", bold_style),
-        Paragraph("<b>Price/Seat</b>", bold_style),
-        Paragraph("<b>Subtotal</b>", bold_style)
-    ]]
+        # Purchased Items Table
+        item_rows = [[
+            Paragraph("<b>Item Description</b>", bold_style),
+            Paragraph("<b>Quantity</b>", bold_style),
+            Paragraph("<b>Duration</b>", bold_style),
+            Paragraph("<b>Price/Seat</b>", bold_style),
+            Paragraph("<b>Subtotal</b>", bold_style)
+        ]]
 
-    if order and order.items:
-        for item in order.items:
+        if order and order.items:
+            for item in order.items:
+                item_rows.append([
+                    Paragraph(item.lab_title or "Lab Subscription", normal_style),
+                    Paragraph(str(item.seats or 0), normal_style),
+                    Paragraph(f"{item.duration_months or 0} Months", normal_style),
+                    Paragraph(f"₹{(item.price or 0.0):,.2f}", normal_style),
+                    Paragraph(f"₹{((item.seats or 0) * (item.price or 0.0)):,.2f}", normal_style)
+                ])
+        else:
             item_rows.append([
-                Paragraph(item.lab_title, normal_style),
-                Paragraph(str(item.seats), normal_style),
-                Paragraph(f"{item.duration_months} Months", normal_style),
-                Paragraph(f"₹{item.price:,.2f}", normal_style),
-                Paragraph(f"₹{(item.seats * item.price):,.2f}", normal_style)
+                Paragraph("Enterprise Lab Seats Subscription", normal_style),
+                Paragraph("1", normal_style),
+                Paragraph("12 Months", normal_style),
+                Paragraph(f"₹{inv.amount:,.2f}", normal_style),
+                Paragraph(f"₹{inv.amount:,.2f}", normal_style)
             ])
-    else:
-        item_rows.append([
-            Paragraph("Enterprise Lab Seats Subscription", normal_style),
-            Paragraph("1", normal_style),
-            Paragraph("12 Months", normal_style),
-            Paragraph(f"₹{inv.amount:,.2f}", normal_style),
-            Paragraph(f"₹{inv.amount:,.2f}", normal_style)
-        ])
 
-    items_table = Table(item_rows, colWidths=[200, 70, 80, 95, 95])
-    items_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0052CC')),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-        ('PADDING', (0,0), (-1,-1), 6)
-    ]))
-    elements.append(items_table)
-    elements.append(Spacer(1, 15))
+        items_table = Table(item_rows, colWidths=[200, 70, 80, 95, 95])
+        items_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0052CC')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('PADDING', (0,0), (-1,-1), 6)
+        ]))
+        elements.append(items_table)
+        elements.append(Spacer(1, 15))
 
-    # Total Breakdown Table
-    subtotal = order.subtotal if (order and order.subtotal) else inv.amount * 0.82
-    tax = order.tax if (order and order.tax) else inv.amount * 0.18
+        # Total Breakdown Table
+        subtotal = order.subtotal if (order and order.subtotal) else inv.amount * 0.82
+        tax = order.tax if (order and order.tax) else inv.amount * 0.18
 
-    total_data = [
-        [Paragraph("Subtotal:", normal_style), Paragraph(f"₹{subtotal:,.2f}", normal_style)],
-        [Paragraph("GST (18%):", normal_style), Paragraph(f"₹{tax:,.2f}", normal_style)],
-        [Paragraph("<b>Grand Total:</b>", bold_style), Paragraph(f"<font color='#0052CC'><b>₹{inv.amount:,.2f}</b></font>", bold_style)]
-    ]
-    totals_table = Table(total_data, colWidths=[445, 95])
-    totals_table.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
-        ('LINEABOVE', (0,2), (-1,2), 1, colors.HexColor('#0052CC')),
-        ('PADDING', (0,0), (-1,-1), 4)
-    ]))
-    elements.append(totals_table)
-    elements.append(Spacer(1, 30))
-
-    # Signature & Footer
-    footer_data = [
-        [
-            Paragraph("<font size=8 color='#64748B'>CyberRange Telemetry Billing Unit<br/>Official Tax Receipt & Order Fulfillment Confirmation</font>", normal_style),
-            Paragraph("<b>Authorized Signature:</b><br/><br/><i>CyberRange Accounts Lead</i>", normal_style)
+        total_data = [
+            [Paragraph("Subtotal:", normal_style), Paragraph(f"₹{subtotal:,.2f}", normal_style)],
+            [Paragraph("GST (18%):", normal_style), Paragraph(f"₹{tax:,.2f}", normal_style)],
+            [Paragraph("<b>Grand Total:</b>", bold_style), Paragraph(f"<font color='#0052CC'><b>₹{inv.amount:,.2f}</b></font>", bold_style)]
         ]
-    ]
-    footer_table = Table(footer_data, colWidths=[340, 200])
-    footer_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
-    elements.append(footer_table)
+        totals_table = Table(total_data, colWidths=[445, 95])
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+            ('LINEABOVE', (0,2), (-1,2), 1, colors.HexColor('#0052CC')),
+            ('PADDING', (0,0), (-1,-1), 4)
+        ]))
+        elements.append(totals_table)
+        elements.append(Spacer(1, 30))
 
-    doc.build(elements)
-    buffer.seek(0)
+        # Signature & Footer
+        footer_data = [
+            [
+                Paragraph("<font size=8 color='#64748B'>CyberRange Telemetry Billing Unit<br/>Official Tax Receipt & Order Fulfillment Confirmation</font>", normal_style),
+                Paragraph("<b>Authorized Signature:</b><br/><br/><i>CyberRange Accounts Lead</i>", normal_style)
+            ]
+        ]
+        footer_table = Table(footer_data, colWidths=[340, 200])
+        footer_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
+        elements.append(footer_table)
 
-    return Response(
-        content=buffer.getvalue(),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="INV-{inv.invoice_number}.pdf"'}
-    )
+        doc.build(elements)
+        buffer.seek(0)
+
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="INV-{inv.invoice_number}.pdf"'}
+        )
+    except Exception as pdf_err:
+        import traceback
+        logger.error(f"[InvoiceDownload] Failed to generate invoice PDF: {pdf_err}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate invoice PDF document: {str(pdf_err)}"
+        )
 
 @router.get("/payments/history")
 def get_payment_history(

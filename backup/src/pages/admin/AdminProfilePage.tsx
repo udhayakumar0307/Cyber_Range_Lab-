@@ -350,17 +350,17 @@ export const AdminProfilePage: React.FC = () => {
   const studentsCount = adminSummary?.students?.total || 0;
   const assignedCount = adminSummary?.assignments?.total || 0;
   const activeGroups = adminSummary?.groups?.total || 0;
-  const activeLicenses = adminSummary?.purchasedLabs?.totalSeats || profileData.summary_counts?.active_licenses || 120;
+  const purchasedHours = adminSummary?.purchasedLabs?.totalHours || profileData.summary_counts?.total_hours || 0;
 
-  const radarLabels = ['Purchased Labs', 'Student Count', 'Assigned Labs', 'Active Groups', 'Licenses Seats'];
+  const radarLabels = ['Purchased Labs', 'Student Count', 'Assigned Labs', 'Active Groups', 'Purchased Hours'];
   const radarRaw = {
     purchased: purchasedCount,
     students: studentsCount,
     assigned: assignedCount,
     groups: activeGroups,
-    licenses: activeLicenses
+    hours: purchasedHours
   };
-  const radarRawKeys = ['purchased', 'students', 'assigned', 'groups', 'licenses'];
+  const radarRawKeys = ['purchased', 'students', 'assigned', 'groups', 'hours'];
 
   // Scale calculations for the 5 points to keep radar looking visually realistic (0-100%)
   const radarValues = [
@@ -368,7 +368,7 @@ export const AdminProfilePage: React.FC = () => {
     Math.min(100, Math.round((studentsCount / 30) * 100)),
     Math.min(100, Math.round((assignedCount / 20) * 100)),
     Math.min(100, Math.round((activeGroups / 10) * 100)),
-    Math.min(100, Math.round((activeLicenses / 150) * 100))
+    Math.min(100, Math.round((purchasedHours / 500) * 100))
   ];
 
   const RadarChart = () => {
