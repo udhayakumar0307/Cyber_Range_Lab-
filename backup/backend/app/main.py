@@ -47,6 +47,21 @@ async def lifespan(app: FastAPI):
     try:
         db_manager.init_db()
         logger.info("Database connection pool ready.")
+
+        # Auto-run schema migrations on application startup
+        try:
+            logger.info("Auto-running schema migrations on application startup...")
+            from scripts.migrate import run_postgres_column_migrations, run_sqlite_column_migrations, apply_indexes
+            engine = db_manager.engine
+            dialect = engine.dialect.name
+            if dialect == "sqlite":
+                run_sqlite_column_migrations(engine)
+            else:
+                run_postgres_column_migrations(engine)
+            apply_indexes(engine)
+            logger.info("Auto-migration complete.")
+        except Exception as exc:
+            logger.error(f"Failed to auto-run database migrations: {exc}", exc_info=True)
         
         # Seed initial study materials if database table is empty
         try:

@@ -739,6 +739,7 @@ def process_refund_request(
 class StudentCreateOrderRequest(BaseModel):
     lab_id: str
     price: float
+    hours: float = 1.0
 
 class StudentVerifyPaymentRequest(BaseModel):
     lab_id: str
@@ -746,6 +747,7 @@ class StudentVerifyPaymentRequest(BaseModel):
     razorpay_payment_id: str
     razorpay_signature: str
     amount: float
+    hours: float = 1.0
 
 @router.post("/student/create-order")
 def student_create_checkout_order(
@@ -881,7 +883,10 @@ def student_verify_payment(
             total_seats=1,
             assigned_seats=1,
             status="ACTIVE",
-            expiry_date=datetime.utcnow() + timedelta(days=365)
+            expiry_date=datetime.utcnow() + timedelta(days=365),
+            hours_purchased=data.hours,
+            hours_remaining=data.hours,
+            hours_used=0.0
         )
         db.add(purchased_record)
         db.flush()
@@ -894,7 +899,9 @@ def student_verify_payment(
             license_key=seat_key,
             allocated_user_email=current_user.email,
             status="ASSIGNED",
-            expiry_date=datetime.utcnow() + timedelta(days=365)
+            expiry_date=datetime.utcnow() + timedelta(days=365),
+            hours_allocated=data.hours,
+            hours_used=0.0
         )
         db.add(lic)
         logger.info(f"[StudentVerify] DB Insert: License key '{seat_key}' provisioned")
