@@ -197,7 +197,9 @@ def get_labs(
     from app.models.score_event import ScoreEvent
     from app.services.certificate_manager import certificate_manager
     
-    stats = get_user_lab_statistics(db, str(current_user.id))
+    # Use the same uncached aggregate as Statistics/Personal Logs so a newly
+    # completed lab is reflected in Available Labs immediately.
+    stats = get_user_lab_statistics(db, str(current_user.id), use_cache=False)
     lab_completed = stats["lab_completed_modules"]
 
     # Fetch existing certificates
@@ -244,6 +246,11 @@ def get_labs(
                 UserProgress.completed == True
             ).scalar() or 0
             completed_count = max(completed_count, legacy_completed)
+
+        # The statistics aggregate normalizes both progress tables to the
+        # canonical lab ID. Keep it as the final source-of-truth fallback for
+        # legacy rows whose stored lab/module identifiers do not line up.
+        completed_count = max(completed_count, lab_completed.get(lab["id"], 0))
 
         cap = _MODULE_CAP.get(lab["id"])
         solved = completed_count
