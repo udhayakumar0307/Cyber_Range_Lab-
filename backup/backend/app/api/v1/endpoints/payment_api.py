@@ -421,7 +421,7 @@ def download_invoice_pdf(
                 Paragraph("<b>Payment Telemetry:</b>", bold_style)
             ],
             [
-                Paragraph(f"<b>Customer Name:</b> {current_user.name or 'Valued Admin'}<br/><b>Email:</b> {current_user.email}<br/><b>Organization:</b> {order.institution_name if (order and order.institution_name) else 'Enterprise Client'}<br/><b>Address:</b> {inv.billing_address_json or 'N/A'}", normal_style),
+                Paragraph(f"<b>Customer Name:</b> {(current_user.name or 'Valued Admin').replace('&', '&amp;')}<br/><b>Email:</b> {current_user.email}<br/><b>Organization:</b> {(order.institution_name if (order and order.institution_name) else 'Enterprise Client').replace('&', '&amp;')}<br/><b>Address:</b> N/A", normal_style),
                 Paragraph(f"<b>Order ID:</b> {order.id if order else 'N/A'}<br/><b>Razorpay Order ID:</b> {order.razorpay_order_id if (order and order.razorpay_order_id) else 'N/A'}<br/><b>Razorpay Payment ID:</b> {payment.transaction_id if payment else 'N/A'}<br/><b>Payment Method:</b> {payment.method if payment else 'Razorpay Online'}<br/><b>Status:</b> <font color='#16A34A'><b>{payment.payment_status if payment else 'SUCCESS'}</b></font>", normal_style)
             ]
         ]
@@ -494,7 +494,7 @@ def download_invoice_pdf(
         # Signature & Footer
         footer_data = [
             [
-                Paragraph("<font size=8 color='#64748B'>CyberRange Telemetry Billing Unit<br/>Official Tax Receipt & Order Fulfillment Confirmation</font>", normal_style),
+                Paragraph("<font size=8 color='#64748B'>CyberRange Telemetry Billing Unit<br/>Official Tax Receipt &amp; Order Fulfillment Confirmation</font>", normal_style),
                 Paragraph("<b>Authorized Signature:</b><br/><br/><i>CyberRange Accounts Lead</i>", normal_style)
             ]
         ]
