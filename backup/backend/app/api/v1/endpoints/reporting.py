@@ -217,6 +217,91 @@ def get_progress(
             ),
         })
 
+    # Recon/CLL completion is also persisted in the legacy UserProgress table.
+    # Merge it into the same history so score events are not missing from the
+    # student's personal log when UserLabProgress was not created by an older
+    # duplicate-safe completion path.
+    from app.core.constants import TRACK_TO_LAB
+    legacy_rows = (
+        db.query(UserProgress)
+        .filter(
+            UserProgress.user_id == str(current_user.id),
+            UserProgress.completed == True,  # noqa: E712
+        )
+        .order_by(desc(UserProgress.completed_at))
+        .all()
+    )
+    module_catalog = {
+        module.id: module
+        for module in db.query(LabModule).all()
+    }
+    for row in legacy_rows:
+        lab_id = TRACK_TO_LAB.get(row.track_id, row.track_id)
+        candidates = (
+            row.module_id,
+            f"{lab_id}_{row.module_id}",
+            f"{lab_id}_{row.track_id}_{row.module_id}",
+        )
+        canonical_id = next(
+            (candidate for candidate in candidates if candidate in module_catalog),
+            candidates[1],
+        )
+        key = (lab_id, canonical_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        module = module_catalog.get(canonical_id)
+        result.append({
+            "id": f"legacy-{row.track_id}-{row.module_id}",
+            "module_id": canonical_id,
+            "module_title": module.title if module else canonical_id,
+            "points": row.module_score or (module.points if module else 0),
+            "attempts": 1,
+            "completed_at": row.completed_at.strftime("%Y-%m-%d %H:%M:%S") if row.completed_at else "",
+        })
+
+    # ScoreEvent is the final fallback for duplicate-safe completion records
+    # that were awarded before a UserProgress/UserLabProgress row was written.
+    from app.models.score_event import ScoreEvent
+    score_rows = (
+        db.query(ScoreEvent)
+        .filter(
+            ScoreEvent.user_id == current_user.id,
+            ScoreEvent.event_type == "MODULE_COMPLETION",
+        )
+        .order_by(desc(ScoreEvent.created_at))
+        .all()
+    )
+    modules_by_lab: dict[str, list] = {}
+    for module in module_catalog.values():
+        modules_by_lab.setdefault(module.lab_id, []).append(module)
+    for row in score_rows:
+        lab_id = TRACK_TO_LAB.get(row.lab_id, row.lab_id)
+        lab_modules = modules_by_lab.get(lab_id, [])
+        module = next(
+            (
+                item for item in lab_modules
+                if row.module_id == item.id
+                or row.module_id.endswith(item.id.split("_", 1)[-1])
+            ),
+            module_catalog.get(row.module_id),
+        )
+        canonical_id = module.id if module else row.module_id
+        key = (lab_id, canonical_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        result.append({
+            "id": f"score-event-{row.id}",
+            "module_id": canonical_id,
+            "module_title": module.title if module else canonical_id,
+            "points": row.points,
+            "attempts": 1,
+            "completed_at": row.created_at.strftime("%Y-%m-%d %H:%M:%S") if row.created_at else "",
+        })
+
+    result.sort(key=lambda item: item.get("completed_at") or "", reverse=True)
+
     return result
 
 

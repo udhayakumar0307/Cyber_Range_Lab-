@@ -91,14 +91,19 @@ def _compute(db: Session, user_id: str) -> dict:
     # For SSO user, denominator (total_labs) is only assigned labs
     total_labs = len(active_labs) if student_auth_type == "SSO" else len([lab for lab in raw_active_labs if lab.id not in ("puzzle-lab", "puzzle")])
 
-    # ── Query 2: Module counts per lab (single GROUP BY) ──────────────────────
-    lab_total_modules_rows = (
-        db.query(LabModule.lab_id, func.count(LabModule.id).label("total"))
+    # ── Query 2: Module IDs/counts per lab ────────────────────────────────────
+    lab_module_rows = (
+        db.query(LabModule.lab_id, LabModule.id)
         .filter(LabModule.lab_id.in_(active_lab_ids))
-        .group_by(LabModule.lab_id)
         .all()
     )
-    lab_total_modules: dict[str, int] = {row.lab_id: row.total for row in lab_total_modules_rows}
+    module_ids_by_lab: dict[str, set[str]] = collections.defaultdict(set)
+    for lab_id, module_id in lab_module_rows:
+        module_ids_by_lab[lab_id].add(module_id)
+    lab_total_modules: dict[str, int] = {
+        lab_id: len(module_ids)
+        for lab_id, module_ids in module_ids_by_lab.items()
+    }
 
     # Apply canonical overrides for labs with legacy stale counts
     for lab_id_override, cap in _CANONICAL_MODULE_COUNTS.items():
@@ -109,16 +114,15 @@ def _compute(db: Session, user_id: str) -> dict:
 
     # ── Query 3: Completed modules per lab for this user (both progress tables) ─
     # UserLabProgress (primary, newer API)
-    lab_progress_distinct = (
+    lab_progress_rows = (
         db.query(
             UserLabProgress.lab_id,
-            func.count(func.distinct(UserLabProgress.module_id)).label("cnt"),
+            UserLabProgress.module_id,
         )
         .filter(
             UserLabProgress.user_id == int(user_id),
             UserLabProgress.status == "COMPLETED",
         )
-        .group_by(UserLabProgress.lab_id)
         .all()
     )
 
@@ -129,16 +133,70 @@ def _compute(db: Session, user_id: str) -> dict:
         .filter(UserProgress.user_id == user_id, UserProgress.completed == True)  # noqa: E712
         .all()
     )
+    from app.models.score_event import ScoreEvent
+    completed_score_rows = (
+        db.query(ScoreEvent.lab_id, ScoreEvent.track_id, ScoreEvent.module_id)
+        .filter(
+            ScoreEvent.user_id == int(user_id),
+            ScoreEvent.event_type == "MODULE_COMPLETION",
+        )
+        .all()
+    )
 
     track_to_lab = TRACK_TO_LAB
-    lab_completed_modules: dict[str, int] = collections.defaultdict(int)
+    completed_module_ids: dict[str, set[str]] = collections.defaultdict(set)
+
+    def add_completed_module(lab_id: str, module_id: str) -> None:
+        """Add a completion only when it maps to a real lab module."""
+        valid_ids = module_ids_by_lab.get(lab_id, set())
+        if module_id in valid_ids:
+            completed_module_ids[lab_id].add(module_id)
+
+    for lab_id, module_id in lab_progress_rows:
+        add_completed_module(track_to_lab.get(lab_id, lab_id), module_id)
+
     for track_id, module_id in completed_progress_rows:
         lid = track_to_lab.get(track_id, track_id)
-        lab_completed_modules[lid] += 1
-    for row in lab_progress_distinct:
-        if row.lab_id:
-            lid = track_to_lab.get(row.lab_id, row.lab_id)
-            lab_completed_modules[lid] = max(lab_completed_modules[lid], row.cnt)
+        valid_ids = module_ids_by_lab.get(lid, set())
+        candidates = (
+            module_id,
+            f"{lid}_{module_id}",
+            f"{lid}_{track_id}_{module_id}",
+        )
+        canonical_id = next((candidate for candidate in candidates if candidate in valid_ids), None)
+        if canonical_id:
+            completed_module_ids[lid].add(canonical_id)
+
+    for event_lab_id, event_track_id, event_module_id in completed_score_rows:
+        lid = track_to_lab.get(event_lab_id, event_lab_id)
+        valid_ids = module_ids_by_lab.get(lid, set())
+        if not valid_ids:
+            lid = next(
+                (
+                    candidate_lab_id
+                    for candidate_lab_id, candidate_ids in module_ids_by_lab.items()
+                    if event_module_id in candidate_ids
+                    or any(event_module_id.endswith(module_id.split("_", 1)[-1]) for module_id in candidate_ids)
+                ),
+                lid,
+            )
+            valid_ids = module_ids_by_lab.get(lid, set())
+        canonical_id = next(
+            (
+                module_id
+                for module_id in valid_ids
+                if event_module_id == module_id
+                or event_module_id.endswith(module_id.split("_", 1)[-1])
+            ),
+            None,
+        )
+        if canonical_id:
+            completed_module_ids[lid].add(canonical_id)
+
+    lab_completed_modules: dict[str, int] = {
+        lab_id: len(module_ids)
+        for lab_id, module_ids in completed_module_ids.items()
+    }
 
     completed_modules_count = sum(lab_completed_modules.values())
 
