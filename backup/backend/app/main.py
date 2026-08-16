@@ -48,7 +48,16 @@ async def lifespan(app: FastAPI):
         db_manager.init_db()
         logger.info("Database connection pool ready.")
 
-        # Auto-run schema migrations on application startup
+        # Ensure reportlab is installed (required for invoice PDF generation)
+        try:
+            import reportlab  # noqa: F401
+        except ImportError:
+            logger.warning("reportlab not found — installing now...")
+            import subprocess, sys
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "reportlab>=4.0.0", "-q"])
+            logger.info("reportlab installed successfully.")
+
+
         try:
             logger.info("Auto-running schema migrations on application startup...")
             from scripts.migrate import run_postgres_column_migrations, run_sqlite_column_migrations, apply_indexes
