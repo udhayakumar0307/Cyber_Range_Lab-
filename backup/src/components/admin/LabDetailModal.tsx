@@ -6,7 +6,8 @@ import {
   Star, 
   ShieldCheck, 
   Layers, 
-  CheckCircle
+  CheckCircle,
+  Download
 } from 'lucide-react';
 
 interface LabDetailModalProps {
@@ -41,6 +42,11 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
               {lab.isPurchased && (
                 <span className="text-xs font-bold bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" /> In Inventory
+                </span>
+              )}
+              {lab.isCompleted && (
+                <span className="text-xs font-bold bg-amber-500/30 text-amber-200 border border-amber-400/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" /> Completed
                 </span>
               )}
             </div>
@@ -152,7 +158,15 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
         {/* Modal Action Footer */}
         <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            {lab.isPurchased ? (
+            {lab.isCompleted && lab.certificatePdfUrl ? (
+              <a
+                href={lab.certificatePdfUrl}
+                download
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors inline-flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Download Certificate
+              </a>
+            ) : lab.isPurchased ? (
               <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-bold">
                 <ShieldCheck className="w-3.5 h-3.5" /> Lab Purchased
               </span>

@@ -53,6 +53,9 @@ export interface SecurityLab {
   dockerImage?: string | null;
   registryPath?: string | null;
   isPurchased?: boolean;
+  isCompleted?: boolean;
+  certificateId?: string | null;
+  certificatePdfUrl?: string | null;
   assignedTo?: string | null;
   activeSessionsCount?: number;
   purchasedDate?: string;

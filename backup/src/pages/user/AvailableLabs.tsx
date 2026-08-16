@@ -15,7 +15,6 @@ import {
   Play,
   X,
   Star,
-  Award,
 } from 'lucide-react';
 
 interface Lab {
@@ -36,6 +35,7 @@ interface Lab {
   reviewCount?: number;
   isCompleted?: boolean;
   certificateId?: string;
+  certificatePdfUrl?: string;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -101,6 +101,7 @@ export const AvailableLabs: React.FC = () => {
           reviewCount: item?.reviewCount ?? 120,
           isCompleted: item?.isCompleted ?? false,
           certificateId: item?.certificateId ?? '',
+          certificatePdfUrl: item?.certificatePdfUrl ?? '',
         };
       });
       // Filter out internal labs
@@ -429,24 +430,16 @@ export const AvailableLabs: React.FC = () => {
                       {/* Launch Lab or Completed/Certificate button */}
                       {lab.isCompleted ? (
                         <>
-                          <button
-                            disabled
-                            className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] uppercase tracking-wider inline-flex items-center gap-1 cursor-not-allowed"
-                          >
+                          <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] uppercase tracking-wider inline-flex items-center gap-1">
                             <Check className="w-3.5 h-3.5" />
                             Completed
+                          </span>
+                          <button
+                            onClick={() => { setSelectedModalLab(lab); setIsModalOpen(true); }}
+                            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
+                          >
+                            View Details
                           </button>
-                          {lab.certificateId && (
-                            <a
-                              href={`/certificate/verify/${lab.certificateId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition-all inline-flex items-center gap-1 shadow-xs cursor-pointer"
-                            >
-                              <Award className="w-3.5 h-3.5" />
-                              Certificate
-                            </a>
-                          )}
                         </>
                       ) : isFree && lab.isPurchased ? (
                         <button
@@ -484,7 +477,7 @@ export const AvailableLabs: React.FC = () => {
                       ) : (
                         <>
                           <button
-                            onClick={() => setSelectedModalLab(lab)}
+                            onClick={() => { setSelectedModalLab(lab); setIsModalOpen(true); }}
                             className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
                           >
                             View Details

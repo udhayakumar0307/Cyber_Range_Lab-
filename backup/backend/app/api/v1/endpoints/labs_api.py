@@ -136,6 +136,9 @@ def _build_assigned_labs(db: Session, assignments: list) -> list:
             "prerequisites": [],
             "dockerImage": lab.docker_image,
             "isPurchased": False,
+            "isCompleted": False,
+            "certificateId": None,
+            "certificatePdfUrl": None,
             "assignedTo": assigned_to_map.get(lab.id, "both"),
             "totalChallenges": len(lab_modules),
             "modules": [
@@ -199,6 +202,7 @@ def get_labs(
     # Fetch existing certificates
     existing_certs = db.query(Certificate).filter(Certificate.user_id == current_user.id).all()
     cert_map = {c.lab_id: c.display_certificate_id for c in existing_certs}
+    cert_pdf_map = {c.lab_id: c.pdf_path for c in existing_certs}
 
     result = []
     for lab in active_labs_metadata:
@@ -260,6 +264,7 @@ def get_labs(
                     duration_seconds=total_time
                 )
                 cert_id = cert.display_certificate_id
+                cert_pdf_map[lab["id"]] = cert.pdf_path
             except Exception as e:
                 logger.error(f"Failed to auto-issue certificate for lab {lab['id']}: {e}")
         
@@ -267,7 +272,8 @@ def get_labs(
             **lab,
             "solvedChallenges": solved,
             "isCompleted": is_completed,
-            "certificateId": cert_id
+            "certificateId": cert_id,
+            "certificatePdfUrl": cert_pdf_map.get(lab["id"]),
         })
 
     return result
