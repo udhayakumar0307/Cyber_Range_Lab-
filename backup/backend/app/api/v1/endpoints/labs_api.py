@@ -201,8 +201,28 @@ def get_labs(
 
     result = []
     for lab in active_labs_metadata:
+        # Direct robust completion check bypassing any cache issues
+        from app.models.user_lab_progress import UserLabProgress
+        completed_count = db.query(func.count(func.distinct(UserLabProgress.module_id))).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab["id"],
+            UserLabProgress.status == "COMPLETED"
+        ).scalar() or 0
+
+        # Also check UserProgress legacy table
+        from app.models.user_progress import UserProgress
+        from app.core.constants import TRACK_TO_LAB
+        legacy_tracks = [track for track, target in TRACK_TO_LAB.items() if target == lab["id"]]
+        if legacy_tracks:
+            legacy_completed = db.query(func.count(func.distinct(UserProgress.module_id))).filter(
+                UserProgress.user_id == str(current_user.id),
+                UserProgress.track_id.in_(legacy_tracks),
+                UserProgress.completed == True
+            ).scalar() or 0
+            completed_count = max(completed_count, legacy_completed)
+
         cap = _MODULE_CAP.get(lab["id"])
-        solved = lab_completed.get(lab["id"], 0)
+        solved = completed_count
         if cap:
             solved = min(solved, cap)
         
