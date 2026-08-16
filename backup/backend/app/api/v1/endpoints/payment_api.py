@@ -1091,7 +1091,177 @@ def get_student_payment_invoice(
 
     # 4. Generate invoice dynamically
     try:
+        import io
         from app.models.admin_models import PurchasedLab
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.pagesizes import letter
+
+        W, H = letter  # 612 x 792
+
+        # ── resolve lab & payment data ─────────────────────────
+        p_lab = None
+        lab_identifier = log.resource_id or log.entity_id
+        if lab_identifier:
+            if str(lab_identifier).isdigit():
+                p_lab = db.query(PurchasedLab).filter(PurchasedLab.id == int(lab_identifier)).first()
+            else:
+                p_lab = db.query(PurchasedLab).filter(
+                    PurchasedLab.user_id == current_user.id,
+                    PurchasedLab.lab_id == str(lab_identifier)
+                ).first()
+
+        lab_name   = str(p_lab.lab_title if p_lab else (log.resource_id or "Lab Subscription"))
+        payment_id = str(log.new_value or "N/A")
+        order_id   = str(log.old_value or "N/A")
+        inv_date   = log.timestamp.strftime('%d %b %Y') if log.timestamp else "N/A"
+        inv_num    = f"INV-STU-{log_id}"
+        amount     = float(p_lab.hours_purchased * (p_lab.fixed_rate or 0) if p_lab and p_lab.fixed_rate else 4999.0)
+        # Try to get amount from audit log metadata
+        try:
+            if log.details:
+                import json as _json
+                _d = _json.loads(log.details)
+                amount = float(_d.get("amount", amount))
+        except Exception:
+            pass
+
+        subtotal = round(amount / 1.18, 2)
+        tax_amt  = round(amount - subtotal, 2)
+
+        cust_name  = str(current_user.name or current_user.email)
+        cust_email = str(current_user.email or "")
+        method     = "Razorpay Online"
+
+        # ── canvas helpers ────────────────────────────────────
+        pdf_buffer = io.BytesIO()
+        c = rl_canvas.Canvas(pdf_buffer, pagesize=letter)
+
+        def safe(val):
+            return str(val if val is not None else "N/A").replace("\u20b9", "Rs.")
+
+        def hline(y, x1=40, x2=572, lw=0.5, r=0.886, g=0.910, b=0.941):
+            c.setStrokeColorRGB(r, g, b)
+            c.setLineWidth(lw)
+            c.line(x1, y, x2, y)
+
+        def txt(x, y, val, font="Helvetica", size=9, r=0.118, g=0.161, b=0.231):
+            c.setFont(font, size)
+            c.setFillColorRGB(r, g, b)
+            c.drawString(x, y, safe(val))
+
+        def rtxt(x, y, val, font="Helvetica", size=9, r=0.118, g=0.161, b=0.231):
+            c.setFont(font, size)
+            c.setFillColorRGB(r, g, b)
+            c.drawRightString(x, y, safe(val))
+
+        def box(x, y, w, h, fr=None, fg=None, fb=None, sr=None, sg=None, sb=None, lw=0.5):
+            c.setLineWidth(lw)
+            if fr is not None:
+                c.setFillColorRGB(fr, fg, fb)
+            if sr is not None:
+                c.setStrokeColorRGB(sr, sg, sb)
+            c.rect(x, y, w, h, fill=1 if fr is not None else 0, stroke=1 if sr is not None else 0)
+
+        # ── HEADER BAND ───────────────────────────────────────
+        box(0, H - 70, W, 70, fr=0.000, fg=0.322, fb=0.800)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawString(40, H - 42, "CyberRange")
+        c.setFont("Helvetica", 10)
+        c.drawString(40, H - 57, "Cybersecurity Virtual Lab Platform")
+        c.setFont("Helvetica-Bold", 18)
+        c.drawRightString(572, H - 38, "TAX INVOICE")
+        c.setFont("Helvetica", 9)
+        c.drawRightString(572, H - 52, "Invoice #: " + inv_num)
+        c.drawRightString(572, H - 64, "Date: " + inv_date)
+
+        y = H - 90
+
+        # ── BILLED TO / PAYMENT DETAILS BOXES ────────────────
+        box(40, y - 84, 256, 90, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941)
+        box(304, y - 84, 268, 90, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941)
+
+        txt(48, y - 12, "BILLED TO", "Helvetica-Bold", 8, r=0.000, g=0.322, b=0.800)
+        txt(312, y - 12, "PAYMENT DETAILS", "Helvetica-Bold", 8, r=0.000, g=0.322, b=0.800)
+
+        txt(48, y - 28, "Name:   " + cust_name, size=8)
+        txt(48, y - 40, "Email:  " + cust_email, size=8)
+
+        txt(312, y - 28, "Invoice ID:   " + inv_num, size=8)
+        txt(312, y - 40, "Order ID:     " + order_id, size=8)
+        txt(312, y - 52, "Payment ID:   " + payment_id, size=8)
+        txt(312, y - 64, "Method:       " + method, size=8)
+        txt(312, y - 76, "Status:       SUCCESS", "Helvetica-Bold", 8, r=0.086, g=0.639, b=0.243)
+
+        y -= 104
+
+        # ── ITEMS TABLE HEADER ────────────────────────────────
+        box(40, y - 18, 532, 18, fr=0.000, fg=0.322, fb=0.800)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(46,  y - 12, "Item Description")
+        c.drawString(286, y - 12, "Qty")
+        c.drawString(326, y - 12, "Duration")
+        c.drawRightString(490, y - 12, "Unit Price")
+        c.drawRightString(568, y - 12, "Subtotal")
+        y -= 18
+
+        # ── SINGLE ITEM ROW ───────────────────────────────────
+        box(40, y - 18, 532, 18, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941, lw=0.3)
+        txt(46,  y - 12, lab_name, size=8)
+        txt(286, y - 12, "1", size=8)
+        txt(326, y - 12, "1 Session", size=8)
+        rtxt(490, y - 12, "Rs. " + f"{subtotal:,.2f}", size=8)
+        rtxt(568, y - 12, "Rs. " + f"{subtotal:,.2f}", size=8)
+        y -= 18
+
+        # ── TOTALS ────────────────────────────────────────────
+        y -= 12
+        hline(y)
+        y -= 16
+        txt(390, y, "Subtotal:", size=9)
+        rtxt(572, y, "Rs. " + f"{subtotal:,.2f}", size=9)
+        y -= 16
+        txt(390, y, "GST (18%):", size=9)
+        rtxt(572, y, "Rs. " + f"{tax_amt:,.2f}", size=9)
+        y -= 4
+        hline(y, x1=385, lw=1, r=0.000, g=0.322, b=0.800)
+        y -= 18
+        txt(390, y, "Grand Total:", "Helvetica-Bold", 12, r=0.000, g=0.322, b=0.800)
+        rtxt(572, y, "Rs. " + f"{amount:,.2f}", "Helvetica-Bold", 12, r=0.000, g=0.322, b=0.800)
+
+        # ── FOOTER ───────────────────────────────────────────
+        hline(60)
+        txt(40, 48, "CyberRange Telemetry Billing Unit", "Helvetica", 8, r=0.392, g=0.455, b=0.545)
+        txt(40, 36, "Official Tax Receipt and Order Fulfillment Confirmation", "Helvetica", 8, r=0.392, g=0.455, b=0.545)
+        txt(400, 48, "Authorized Signature:", "Helvetica-Bold", 8)
+        txt(400, 36, "CyberRange Accounts Lead", "Helvetica-Oblique", 8)
+
+        c.save()
+        pdf_buffer.seek(0)
+
+        # Save to disk for caching
+        try:
+            os.makedirs(storage_dir, exist_ok=True)
+            with open(invoice_path, "wb") as f:
+                f.write(pdf_buffer.getvalue())
+            logger.info(f"[InvoiceDownload] Saved invoice to: {invoice_path}")
+        except Exception as save_err:
+            logger.warning(f"[InvoiceDownload] Could not cache invoice file: {save_err}")
+
+        pdf_buffer.seek(0)
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{inv_num}.pdf"'}
+        )
+
+    except Exception as e:
+        logger.error(f"[InvoiceDownload] Failed to generate invoice PDF. Error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate invoice document: {str(e)}"
+        )
         
         # Safely resolve PurchasedLab record
         p_lab = None
