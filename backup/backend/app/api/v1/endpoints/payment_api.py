@@ -313,9 +313,6 @@ def download_invoice_pdf(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Generates Invoice PDF using ReportLab canvas (no XML parsing — bulletproof).
-    """
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found.")
@@ -328,48 +325,54 @@ def download_invoice_pdf(
 
     try:
         from app.services.invoice_pdf import build_premium_invoice
+        from app.models.admin_models import PurchasedLab
 
         inv_date   = inv.created_at.strftime('%d %b %Y') if inv.created_at else "N/A"
         inv_num    = str(inv.invoice_number or "N/A")
         inv_amount = float(inv.amount or 0.0)
-        subtotal   = float(order.subtotal if order and order.subtotal else inv_amount / 1.18)
-        tax_amt    = float(order.tax    if order and order.tax    else inv_amount - subtotal)
+        subtotal   = float(order.subtotal if order and order.subtotal else round(inv_amount / 1.18, 2))
+        tax_amt    = float(order.tax    if order and order.tax    else round(inv_amount - subtotal, 2))
 
-        # Build items list
         pdf_items = []
         if order and order.items:
             for item in order.items:
+                p_lab = None
+                if hasattr(item, "lab_id") and item.lab_id:
+                    p_lab = db.query(PurchasedLab).filter(
+                        PurchasedLab.lab_id == str(item.lab_id)
+                    ).first()
+                hour_price   = float(p_lab.fixed_rate if p_lab and p_lab.fixed_rate else (item.price or 0.0))
+                hours_bought = float(p_lab.hours_purchased if p_lab and p_lab.hours_purchased else (item.seats or 1))
+                total_price  = round(hour_price * hours_bought, 2)
                 pdf_items.append({
                     "desc":       str(item.lab_title or "Lab Subscription"),
-                    "qty":        str(item.seats or 1),
-                    "duration":   str(item.duration_months or 12) + " Months",
-                    "unit_price": f"Rs. {(item.price or 0.0):,.2f}",
-                    "subtotal":   f"Rs. {((item.seats or 1) * (item.price or 0.0)):,.2f}",
+                    "hour_price": f"Rs. {hour_price:,.2f}",
+                    "hours":      f"{hours_bought:.1f} hrs",
+                    "total":      f"Rs. {total_price:,.2f}",
                 })
         else:
             pdf_items.append({
-                "desc":       "Enterprise Lab Subscription",
-                "qty":        "1",
-                "duration":   "12 Months",
-                "unit_price": f"Rs. {inv_amount:,.2f}",
-                "subtotal":   f"Rs. {inv_amount:,.2f}",
+                "desc":       "Lab Access — Hour-Based Session",
+                "hour_price": f"Rs. {(inv_amount / 1.0):,.2f}" if inv_amount else "N/A",
+                "hours":      "1.0 hrs",
+                "total":      f"Rs. {inv_amount:,.2f}",
             })
 
         pdf_bytes = build_premium_invoice(
-            inv_number   = inv_num,
-            inv_date     = inv_date,
-            cust_name    = str(current_user.name or "Valued Admin"),
-            cust_email   = str(current_user.email or ""),
-            org_name     = str(order.institution_name if order and order.institution_name else ""),
-            order_id     = str(order.id if order else "N/A"),
-            rzp_order    = str(order.razorpay_order_id if order and order.razorpay_order_id else "N/A"),
-            rzp_payment  = str(payment.transaction_id if payment else "N/A"),
-            pay_method   = str(payment.method if payment else "Razorpay Online"),
-            pay_status   = str(payment.payment_status if payment else "SUCCESS"),
-            items        = pdf_items,
-            subtotal     = round(subtotal, 2),
-            tax          = round(tax_amt, 2),
-            grand_total  = round(inv_amount, 2),
+            inv_number  = inv_num,
+            inv_date    = inv_date,
+            cust_name   = str(current_user.name or "Valued Admin"),
+            cust_email  = str(current_user.email or ""),
+            org_name    = str(order.institution_name if order and order.institution_name else ""),
+            order_id    = str(order.id if order else "N/A"),
+            rzp_order   = str(order.razorpay_order_id if order and order.razorpay_order_id else "N/A"),
+            rzp_payment = str(payment.transaction_id if payment else "N/A"),
+            pay_method  = str(payment.method if payment else "Razorpay Online"),
+            pay_status  = str(payment.payment_status if payment else "SUCCESS"),
+            items       = pdf_items,
+            subtotal    = round(subtotal, 2),
+            tax         = round(tax_amt, 2),
+            grand_total = round(inv_amount, 2),
         )
 
         safe_num = inv_num.replace('"', "").replace("'", "")
@@ -381,7 +384,7 @@ def download_invoice_pdf(
     except Exception as pdf_err:
         import traceback
         tb = traceback.format_exc()
-        logger.error(f"[InvoiceDownload] PDF generation failed for invoice {invoice_id}: {pdf_err}\n{tb}")
+        logger.error(f"[InvoiceDownload] PDF generation failed: {pdf_err}\n{tb}")
         raise HTTPException(
             status_code=500,
             detail=f"Invoice PDF generation failed: {str(pdf_err)}"
@@ -937,16 +940,9 @@ def get_student_payment_invoice(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Generates and saves/returns a clean PDF invoice for a student transaction.
-    """
-    import os
-    import traceback
-    from fastapi.responses import FileResponse
-
+    import os, traceback
     logger.info(f"[InvoiceDownload] Request invoice for log_id={log_id} | user={current_user.email}")
 
-    # 1. Look up the payment log with backward-compat fallback (performed_by or user_id)
     log = db.query(AuditLog).filter(
         AuditLog.id == log_id,
         (
@@ -959,36 +955,14 @@ def get_student_payment_invoice(
         logger.warning(f"[InvoiceDownload] No invoice log found for id={log_id} and user={current_user.email}")
         raise HTTPException(status_code=404, detail="Invoice record not found or access denied")
 
-    # 2. Check if invoice directory exists, otherwise create it
     storage_dir = os.path.join("storage", "invoices")
-    try:
-        os.makedirs(storage_dir, exist_ok=True)
-    except Exception as e:
-        logger.error(f"[InvoiceDownload] Failed to create directories: {e}")
-
     invoice_filename = f"Invoice-{log_id}.pdf"
     invoice_path = os.path.join(storage_dir, invoice_filename)
 
-    logger.info(f"[InvoiceDownload] Path check: {invoice_path} | exists={os.path.exists(invoice_path)}")
-
-    # 3. If file already exists, return it directly
-    if os.path.exists(invoice_path):
-        logger.info(f"[InvoiceDownload] Serving cached invoice file: {invoice_path}")
-        return FileResponse(
-            invoice_path,
-            media_type="application/pdf",
-            filename=invoice_filename
-        )
-
-    # 4. Generate invoice dynamically using premium PDF service
     try:
-        import io, os as _os, json as _json
         from app.models.admin_models import PurchasedLab
         from app.services.invoice_pdf import build_premium_invoice
 
-        W, H = letter  # 612 x 792
-
-        # ── resolve lab & payment data ─────────────────────────
         p_lab = None
         lab_identifier = log.resource_id or log.entity_id
         if lab_identifier:
@@ -1006,7 +980,6 @@ def get_student_payment_invoice(
         inv_date   = log.timestamp.strftime('%d %b %Y') if log.timestamp else "N/A"
         inv_num    = f"INV-STU-{log_id}"
         amount     = float(p_lab.hours_purchased * (p_lab.fixed_rate or 0) if p_lab and p_lab.fixed_rate else 4999.0)
-        # Try to get amount from audit log metadata
         try:
             if log.details:
                 import json as _json
@@ -1018,37 +991,34 @@ def get_student_payment_invoice(
         subtotal = round(amount / 1.18, 2)
         tax_amt  = round(amount - subtotal, 2)
 
-        cust_name  = str(current_user.name or current_user.email)
-        cust_email = str(current_user.email or "")
-        method     = "Razorpay Online"
+        hour_price   = float(p_lab.fixed_rate if p_lab and p_lab.fixed_rate else subtotal)
+        hours_bought = float(p_lab.hours_purchased if p_lab and p_lab.hours_purchased else 1.0)
 
         pdf_bytes = build_premium_invoice(
             inv_number  = inv_num,
             inv_date    = inv_date,
-            cust_name   = cust_name,
-            cust_email  = cust_email,
+            cust_name   = str(current_user.name or current_user.email),
+            cust_email  = str(current_user.email or ""),
             order_id    = inv_num,
             rzp_order   = order_id,
             rzp_payment = payment_id,
-            pay_method  = method,
+            pay_method  = "Razorpay Online",
             pay_status  = "SUCCESS",
             items       = [{
                 "desc":       lab_name,
-                "qty":        "1",
-                "duration":   "1 Session",
-                "unit_price": f"Rs. {subtotal:,.2f}",
-                "subtotal":   f"Rs. {subtotal:,.2f}",
+                "hour_price": f"Rs. {hour_price:,.2f}",
+                "hours":      f"{hours_bought:.1f} hrs",
+                "total":      f"Rs. {amount:,.2f}",
             }],
             subtotal    = round(subtotal, 2),
             tax         = round(tax_amt, 2),
             grand_total = round(amount, 2),
         )
 
-        # Cache to disk
         try:
-            _os.makedirs(storage_dir, exist_ok=True)
-            with open(invoice_path, "wb") as _f:
-                _f.write(pdf_bytes)
+            os.makedirs(storage_dir, exist_ok=True)
+            with open(invoice_path, "wb") as f:
+                f.write(pdf_bytes)
         except Exception as _se:
             logger.warning(f"[InvoiceDownload] Could not cache: {_se}")
 
@@ -1057,91 +1027,9 @@ def get_student_payment_invoice(
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{inv_num}.pdf"'}
         )
-
     except Exception as e:
         logger.error(f"[InvoiceDownload] Failed to generate invoice PDF. Error: {e}\n{traceback.format_exc()}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"Failed to generate invoice document: {str(e)}"
         )
-        
-        # Safely resolve PurchasedLab record
-        p_lab = None
-        lab_identifier = log.resource_id or log.entity_id
-        if lab_identifier:
-            if str(lab_identifier).isdigit():
-                # It is a primary key integer
-                p_lab = db.query(PurchasedLab).filter(PurchasedLab.id == int(lab_identifier)).first()
-            else:
-                # It is a string identifier / slug
-                p_lab = db.query(PurchasedLab).filter(
-                    PurchasedLab.user_id == current_user.id,
-                    PurchasedLab.lab_id == str(lab_identifier)
-                ).first()
-
-        lab_name = p_lab.lab_title if p_lab else "OT & ICS Security Simulator Lab"
-        payment_id = log.new_value or "N/A"
-        order_id = log.old_value or "N/A"
-        amount = 4999.0
-
-        # Build reportlab PDF
-        from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib import colors
-
-        # Document Setup
-        doc = SimpleDocTemplate(invoice_path, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-        story = []
-        
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'DocTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#0052CC'), spaceAfter=15
-        )
-        body_style = ParagraphStyle(
-            'BodyText', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor('#334155'), leading=12
-        )
-
-        story.append(Paragraph("CyberRange Academy - Invoice", title_style))
-        story.append(Spacer(1, 10))
-        story.append(Paragraph(f"<b>Invoice Date:</b> {log.timestamp.strftime('%d %b %Y')}", body_style))
-        story.append(Paragraph(f"<b>Student Name:</b> {current_user.name or current_user.email}", body_style))
-        story.append(Paragraph(f"<b>Student Email:</b> {current_user.email}", body_style))
-        story.append(Spacer(1, 15))
-
-        invoice_data = [
-            [Paragraph("<b>Item Description</b>", body_style), Paragraph("<b>Order Details</b>", body_style), Paragraph("<b>Amount</b>", body_style)],
-            [Paragraph(lab_name, body_style), Paragraph(f"Order: {order_id}<br/>Payment ID: {payment_id}", body_style), Paragraph(f"₹{amount:,.2f}", body_style)],
-            ["", Paragraph("<b>Total Amount:</b>", body_style), Paragraph(f"₹{amount:,.2f}", body_style)]
-        ]
-
-        t = Table(invoice_data, colWidths=[200, 200, 100])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
-            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-        story.append(Paragraph("<i>Thank you for your purchase.</i>", body_style))
-
-        doc.build(story)
-        logger.info(f"[InvoiceDownload] Successfully generated & saved invoice to: {invoice_path}")
-
-        return FileResponse(
-            invoice_path,
-            media_type="application/pdf",
-            filename=invoice_filename
-        )
-
-    except Exception as e:
-        logger.error(f"[InvoiceDownload] Failed to generate invoice PDF. Error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate invoice document: {str(e)}"
-        )
-
-

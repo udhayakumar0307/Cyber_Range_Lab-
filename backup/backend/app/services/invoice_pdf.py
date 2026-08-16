@@ -4,15 +4,15 @@ CyberRange Premium Invoice PDF Generator
 Certificate-inspired design language:
   - Navy (#0F172A) primary
   - Cyber Blue (#0057D9) accent
-  - Gold (#F4B400) decorative
-  - Clean A4 layout, thin border, geometric corners
-  - Professional enterprise typography
+  - Gold (#F4B400) decorative accents & separators
+  - Clean A4 layout, thin double border (navy + gold)
+  - No corner triangles — clean and minimal
+  - Hour-based billing columns: Lab Name | Hour Price | Hours Purchased | Total Price
 """
 
 import io
 from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
 
 
 # ─── Brand palette ───────────────────────────────────────────────────────────
@@ -20,10 +20,10 @@ NAVY    = (0.059, 0.090, 0.165)   # #0F172A
 BLUE    = (0.000, 0.341, 0.851)   # #0057D9
 GOLD    = (0.957, 0.706, 0.000)   # #F4B400
 WHITE   = (1.000, 1.000, 1.000)
-LGRAY   = (0.969, 0.973, 0.980)   # #F7F8FA panels
+LGRAY   = (0.969, 0.973, 0.980)   # #F7F8FA
 SLATE   = (0.357, 0.420, 0.490)   # secondary text
 GREEN   = (0.063, 0.631, 0.278)   # SUCCESS
-BORDER  = (0.820, 0.839, 0.863)   # thin rule color
+BORDER  = (0.820, 0.839, 0.863)   # thin rule
 RED_ERR = (0.800, 0.100, 0.100)
 
 W, H = A4   # 595.27 x 841.89 pt
@@ -37,6 +37,29 @@ def _safe(v, maxlen=60):
     return s
 
 
+def _info_row(c, x, y, label, value, maxlen=35):
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColorRGB(*SLATE)
+    c.drawString(x, y, label)
+    c.setFont("Helvetica", 8)
+    c.setFillColorRGB(*NAVY)
+    c.drawString(x + 58, y, ":")
+    c.drawString(x + 66, y, _safe(value, maxlen))
+
+
+def _cell(c, text, cx, cy, cw, align, font="Helvetica", size=8, color=NAVY):
+    c.setFont(font, size)
+    c.setFillColorRGB(*color)
+    pad = 5
+    if align == "right":
+        c.drawRightString(cx + cw - pad, cy, text)
+    elif align == "center":
+        c.drawCentredString(cx + cw / 2, cy, text)
+    else:
+        c.drawString(cx + pad, cy, text)
+
+
+# ─── Main builder ─────────────────────────────────────────────────────────────
 def build_premium_invoice(
     *,
     inv_number: str,
@@ -51,14 +74,15 @@ def build_premium_invoice(
     rzp_payment: str = "N/A",
     pay_method: str = "Razorpay Online",
     pay_status: str = "SUCCESS",
-    # items  list of dicts {desc, qty, duration, unit_price, subtotal}
+    # items — list of dicts:
+    #   { desc, hour_price, hours, total }
     items: list = None,
     # totals
     subtotal: float = 0.0,
     tax: float = 0.0,
     grand_total: float = 0.0,
 ) -> bytes:
-    """Return PDF bytes for a premium CyberRange Tax Invoice."""
+    """Return PDF bytes for a premium CyberRange Tax Invoice (hour-based billing)."""
 
     if items is None:
         items = []
@@ -67,149 +91,128 @@ def build_premium_invoice(
     c = rl_canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"CyberRange Invoice {inv_number}")
 
-    def rgb(triple):
-        c.setFillColorRGB(*triple)
+    def rgb(t):  c.setFillColorRGB(*t)
+    def srgb(t): c.setStrokeColorRGB(*t)
 
-    def srgb(triple):
-        c.setStrokeColorRGB(*triple)
+    margin = 20
 
-    # ── outer border ─────────────────────────────────────────
-    margin = 18
-    srgb(NAVY); c.setLineWidth(1.0)
+    # ── outer navy border ─────────────────────────────────────
+    srgb(NAVY); c.setLineWidth(1.2)
     c.rect(margin, margin, W - 2*margin, H - 2*margin, fill=0, stroke=1)
 
-    # gold inner accent line (3 pt inset)
-    inset = margin + 3
-    srgb(GOLD); c.setLineWidth(0.4)
+    # gold inner accent border (4 pt inset)
+    inset = margin + 4
+    srgb(GOLD); c.setLineWidth(0.45)
     c.rect(inset, inset, W - 2*inset, H - 2*inset, fill=0, stroke=1)
 
-    # ── TOP-RIGHT corner decoration ───────────────────────────
-    _draw_corner_tr(c, W - margin, H - margin)
-
-    # ── BOTTOM-LEFT corner decoration ─────────────────────────
-    _draw_corner_bl(c, margin, margin)
-
-    # ── HEADER (white bg) ─────────────────────────────────────
-    header_top    = H - margin
-    header_bottom = H - 110
-    header_h      = header_top - header_bottom
-
-    # left: brand
-    c.setFont("Helvetica-Bold", 24)
+    # ── HEADER ────────────────────────────────────────────────
+    # Left — brand
+    c.setFont("Helvetica-Bold", 26)
     rgb(NAVY)
-    c.drawString(36, H - 58, "CYBER RANGE")
+    c.drawString(36, H - 60, "CYBER RANGE")
 
     c.setFont("Helvetica", 9)
     rgb(SLATE)
-    c.drawString(36, H - 72, "Cybersecurity Virtual Lab Platform")
+    c.drawString(36, H - 74, "Cybersecurity Virtual Lab Platform")
 
     # gold underline under brand
-    srgb(GOLD); c.setLineWidth(1.2)
-    c.line(36, H - 78, 200, H - 78)
+    srgb(GOLD); c.setLineWidth(1.4)
+    c.line(36, H - 80, 210, H - 80)
 
-    # right: TAX INVOICE
-    c.setFont("Helvetica-Bold", 20)
+    # Right — TAX INVOICE + meta
+    c.setFont("Helvetica-Bold", 22)
     rgb(NAVY)
-    c.drawRightString(W - 36, H - 50, "TAX INVOICE")
+    c.drawRightString(W - 36, H - 52, "TAX INVOICE")
 
-    c.setFont("Helvetica", 8)
+    c.setFont("Helvetica", 8.5)
     rgb(SLATE)
-    c.drawRightString(W - 36, H - 65, "Invoice #:  " + _safe(inv_number, 40))
-    c.drawRightString(W - 36, H - 77, "Date:       " + _safe(inv_date, 30))
+    c.drawRightString(W - 36, H - 67, "Invoice #:  " + _safe(inv_number, 40))
+    c.drawRightString(W - 36, H - 80, "Date:          " + _safe(inv_date, 30))
 
-    # full-width gold separator after header
-    y_sep = H - 95
-    srgb(GOLD); c.setLineWidth(0.8)
-    c.line(margin + 6, y_sep, W - margin - 6, y_sep)
-
-    # thin navy line just below gold
+    # ── double separator after header ─────────────────────────
+    sep_y = H - 96
+    srgb(GOLD); c.setLineWidth(1.0)
+    c.line(margin + 8, sep_y, W - margin - 8, sep_y)
     srgb(NAVY); c.setLineWidth(0.3)
-    c.line(margin + 6, y_sep - 2, W - margin - 6, y_sep - 2)
+    c.line(margin + 8, sep_y - 2.5, W - margin - 8, sep_y - 2.5)
 
     # ── INFO PANELS ───────────────────────────────────────────
-    panel_top = y_sep - 10
-    panel_h   = 100
+    panel_top = sep_y - 12
+    panel_h   = 104
     panel_y   = panel_top - panel_h
-    mid       = W / 2 - 5
-    p_left_x  = margin + 10
-    p_right_x = mid + 10
+    mid       = W / 2 - 4
+    p_lx      = margin + 12
+    p_rx      = mid + 12
 
-    # panel backgrounds
+    # panel boxes
     rgb(LGRAY); srgb(BORDER); c.setLineWidth(0.4)
-    c.rect(p_left_x - 4, panel_y - 4, mid - p_left_x + 4, panel_h, fill=1, stroke=1)
-    c.rect(p_right_x - 4, panel_y - 4, W - margin - p_right_x - 6, panel_h, fill=1, stroke=1)
+    c.rect(p_lx - 5, panel_y - 4, mid - p_lx + 5, panel_h, fill=1, stroke=1)
+    c.rect(p_rx - 5, panel_y - 4, W - margin - p_rx - 8, panel_h, fill=1, stroke=1)
 
-    # BILLED TO heading
-    c.setFont("Helvetica-Bold", 7.5)
-    rgb(BLUE)
-    c.drawString(p_left_x, panel_top - 14, "BILLED TO")
-    # gold accent under heading
-    srgb(GOLD); c.setLineWidth(0.6)
-    c.line(p_left_x, panel_top - 17, p_left_x + 55, panel_top - 17)
-
-    c.setFont("Helvetica", 8.5)
-    ty = panel_top - 30
-    _info_row(c, p_left_x, ty,       "Name",  cust_name)
-    _info_row(c, p_left_x, ty - 14,  "Email", cust_email)
-    if org_name and org_name not in ("Enterprise Client", "N/A"):
-        _info_row(c, p_left_x, ty - 28, "Org",   org_name)
-
-    # PAYMENT DETAILS heading
-    c.setFont("Helvetica-Bold", 7.5)
-    rgb(BLUE)
-    c.drawString(p_right_x, panel_top - 14, "PAYMENT DETAILS")
-    srgb(GOLD); c.setLineWidth(0.6)
-    c.line(p_right_x, panel_top - 17, p_right_x + 90, panel_top - 17)
-
-    c.setFont("Helvetica", 8.5)
-    ty2 = panel_top - 30
-    _info_row(c, p_right_x, ty2,       "Order ID",   order_id,   maxlen=30)
-    _info_row(c, p_right_x, ty2 - 14,  "RZP Order",  rzp_order,  maxlen=30)
-    _info_row(c, p_right_x, ty2 - 28,  "RZP Pay",    rzp_payment,maxlen=30)
-    _info_row(c, p_right_x, ty2 - 42,  "Method",     pay_method, maxlen=25)
-
-    # Status with dot indicator
-    status_y = ty2 - 56
-    c.setFont("Helvetica-Bold", 8)
-    rgb(SLATE)
-    c.drawString(p_right_x, status_y, "Status")
-    rgb(NAVY)
-    c.drawString(p_right_x + 52, status_y, ":")
-    status_col = GREEN if pay_status.upper() == "SUCCESS" else RED_ERR
-    rgb(status_col)
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(p_right_x + 60, status_y, "\u25cf  " + _safe(pay_status, 12))
-
-    # ── gold separator before table ───────────────────────────
-    table_top = panel_y - 18
+    # BILLED TO
+    c.setFont("Helvetica-Bold", 7.5); rgb(BLUE)
+    c.drawString(p_lx, panel_top - 14, "BILLED TO")
     srgb(GOLD); c.setLineWidth(0.7)
-    c.line(margin + 6, table_top, W - margin - 6, table_top)
+    c.line(p_lx, panel_top - 17, p_lx + 58, panel_top - 17)
 
-    # ── ITEMS TABLE ───────────────────────────────────────────
-    TL = margin + 10            # table left x
-    TR = W - margin - 10        # table right x
+    ty = panel_top - 32
+    _info_row(c, p_lx, ty,      "Name",  cust_name)
+    _info_row(c, p_lx, ty - 15, "Email", cust_email)
+    if org_name and org_name not in ("Enterprise Client", "N/A", ""):
+        _info_row(c, p_lx, ty - 30, "Org", org_name)
+
+    # PAYMENT DETAILS
+    c.setFont("Helvetica-Bold", 7.5); rgb(BLUE)
+    c.drawString(p_rx, panel_top - 14, "PAYMENT DETAILS")
+    srgb(GOLD); c.setLineWidth(0.7)
+    c.line(p_rx, panel_top - 17, p_rx + 96, panel_top - 17)
+
+    ty2 = panel_top - 32
+    _info_row(c, p_rx, ty2,        "Order ID",   order_id,    maxlen=28)
+    _info_row(c, p_rx, ty2 - 15,   "RZP Order",  rzp_order,   maxlen=28)
+    _info_row(c, p_rx, ty2 - 30,   "RZP Pay",    rzp_payment, maxlen=28)
+    _info_row(c, p_rx, ty2 - 45,   "Method",     pay_method,  maxlen=22)
+
+    # status row with dot
+    sy = ty2 - 60
+    c.setFont("Helvetica-Bold", 8); rgb(SLATE)
+    c.drawString(p_rx, sy, "Status")
+    rgb(NAVY); c.drawString(p_rx + 58, sy, ":")
+    sc = GREEN if pay_status.upper() == "SUCCESS" else RED_ERR
+    rgb(sc); c.setFont("Helvetica-Bold", 8)
+    c.drawString(p_rx + 66, sy, "\u25cf  " + _safe(pay_status, 12))
+
+    # ── separator before table ────────────────────────────────
+    tbl_sep_y = panel_y - 16
+    srgb(GOLD); c.setLineWidth(0.8)
+    c.line(margin + 8, tbl_sep_y, W - margin - 8, tbl_sep_y)
+    srgb(NAVY); c.setLineWidth(0.25)
+    c.line(margin + 8, tbl_sep_y - 2.5, W - margin - 8, tbl_sep_y - 2.5)
+
+    # ── ITEMS TABLE (hour-based) ───────────────────────────────
+    TL = margin + 12
+    TR = W - margin - 12
     TW = TR - TL
-    col_w = [TW * 0.42, TW * 0.07, TW * 0.14, TW * 0.18, TW * 0.19]
+    ROW_H = 18
+
+    # 4 columns: Lab Name | Hour Price | Hours Purchased | Total Price
+    col_w = [TW * 0.46, TW * 0.18, TW * 0.18, TW * 0.18]
     col_x = [TL]
-    for w in col_w[:-1]:
-        col_x.append(col_x[-1] + w)
+    for cw in col_w[:-1]:
+        col_x.append(col_x[-1] + cw)
+    aligns = ["left", "right", "right", "right"]
 
-    ROW_H = 17
-    header_y = table_top - ROW_H
-
-    # Table header background
+    # Table header row
+    hdr_y = tbl_sep_y - ROW_H - 6
     rgb(NAVY); srgb(NAVY); c.setLineWidth(0)
-    c.rect(TL, header_y, TW, ROW_H, fill=1, stroke=0)
+    c.rect(TL, hdr_y, TW, ROW_H, fill=1, stroke=0)
 
-    headers = ["Item Description", "Qty", "Duration", "Unit Price", "Subtotal"]
-    aligns  = ["left", "center", "center", "right", "right"]
-    c.setFont("Helvetica-Bold", 7.5)
-    rgb(WHITE)
-    for i, (hdr, cx, cw, al) in enumerate(zip(headers, col_x, col_w, aligns)):
-        _cell_text(c, hdr, cx, header_y + 5, cw, al, "Helvetica-Bold", 7.5, WHITE)
+    hdr_labels = ["Lab / Item Description", "Hour Price (Rs.)", "Hours Purchased", "Total Price (Rs.)"]
+    for hdr, cx, cw, al in zip(hdr_labels, col_x, col_w, aligns):
+        _cell(c, hdr, cx, hdr_y + 5, cw, al, "Helvetica-Bold", 7.5, WHITE)
 
-    # Item rows
-    row_y = header_y
+    # Data rows
+    row_y = hdr_y
     for ri, item in enumerate(items):
         row_y -= ROW_H
         fill = LGRAY if ri % 2 == 0 else WHITE
@@ -217,140 +220,71 @@ def build_premium_invoice(
         c.rect(TL, row_y, TW, ROW_H, fill=1, stroke=1)
 
         vals = [
-            _safe(item.get("desc", "Lab Subscription"), 50),
-            _safe(item.get("qty", "1"), 5),
-            _safe(item.get("duration", "12 Months"), 15),
-            _safe(item.get("unit_price", "Rs. 0.00"), 15),
-            _safe(item.get("subtotal", "Rs. 0.00"), 15),
+            _safe(item.get("desc", "Lab Subscription"), 48),
+            _safe(item.get("hour_price", "Rs. 0.00"), 15),
+            _safe(item.get("hours", "0"), 10),
+            _safe(item.get("total", "Rs. 0.00"), 15),
         ]
-        for i, (val, cx, cw, al) in enumerate(zip(vals, col_x, col_w, aligns)):
-            _cell_text(c, val, cx, row_y + 5, cw, al, "Helvetica", 8, NAVY)
+        for val, cx, cw, al in zip(vals, col_x, col_w, aligns):
+            _cell(c, val, cx, row_y + 5, cw, al)
 
-    # fallback if no items
     if not items:
         row_y -= ROW_H
         rgb(LGRAY); srgb(BORDER); c.setLineWidth(0.3)
         c.rect(TL, row_y, TW, ROW_H, fill=1, stroke=1)
         c.setFont("Helvetica", 8); rgb(SLATE)
-        c.drawString(TL + 4, row_y + 5, "No items")
+        c.drawString(TL + 5, row_y + 5, "No items")
 
     # ── TOTALS ────────────────────────────────────────────────
-    totals_y = row_y - 16
-    totals_x_label = TL + TW * 0.60
-    totals_x_value = TR
+    tot_y = row_y - 18
+    lx_tot = TL + TW * 0.58
+    rx_tot = TR
 
+    # light separator line above totals
     srgb(BORDER); c.setLineWidth(0.4)
-    c.line(totals_x_label, totals_y + 12, TR, totals_y + 12)
+    c.line(lx_tot, tot_y + 14, rx_tot, tot_y + 14)
 
     c.setFont("Helvetica", 9); rgb(SLATE)
-    c.drawString(totals_x_label, totals_y, "Subtotal:")
+    c.drawString(lx_tot, tot_y, "Subtotal (excl. GST):")
     c.setFont("Helvetica", 9); rgb(NAVY)
-    c.drawRightString(totals_x_value, totals_y, f"Rs. {subtotal:,.2f}")
+    c.drawRightString(rx_tot, tot_y, f"Rs. {subtotal:,.2f}")
 
-    totals_y -= 14
+    tot_y -= 15
     c.setFont("Helvetica", 9); rgb(SLATE)
-    c.drawString(totals_x_label, totals_y, "GST (18%):")
+    c.drawString(lx_tot, tot_y, "GST @ 18%:")
     c.setFont("Helvetica", 9); rgb(NAVY)
-    c.drawRightString(totals_x_value, totals_y, f"Rs. {tax:,.2f}")
+    c.drawRightString(rx_tot, tot_y, f"Rs. {tax:,.2f}")
 
-    # gold + navy double rule before grand total
-    totals_y -= 6
-    srgb(GOLD); c.setLineWidth(1.2)
-    c.line(totals_x_label, totals_y, TR, totals_y)
+    # gold + navy double rule
+    tot_y -= 7
+    srgb(GOLD); c.setLineWidth(1.3)
+    c.line(lx_tot, tot_y, rx_tot, tot_y)
     srgb(NAVY); c.setLineWidth(0.3)
-    c.line(totals_x_label, totals_y - 2.5, TR, totals_y - 2.5)
+    c.line(lx_tot, tot_y - 3, rx_tot, tot_y - 3)
 
-    totals_y -= 18
-    c.setFont("Helvetica-Bold", 12); rgb(NAVY)
-    c.drawString(totals_x_label, totals_y, "GRAND TOTAL")
-    c.setFont("Helvetica-Bold", 13); rgb(BLUE)
-    c.drawRightString(totals_x_value, totals_y - 1, f"Rs. {grand_total:,.2f}")
+    tot_y -= 20
+    c.setFont("Helvetica-Bold", 13); rgb(NAVY)
+    c.drawString(lx_tot, tot_y, "GRAND TOTAL")
+    c.setFont("Helvetica-Bold", 14); rgb(BLUE)
+    c.drawRightString(rx_tot, tot_y - 1, f"Rs. {grand_total:,.2f}")
 
     # ── FOOTER ───────────────────────────────────────────────
-    footer_y = margin + 30
+    foot_y = margin + 32
 
-    srgb(GOLD); c.setLineWidth(0.7)
-    c.line(margin + 6, footer_y + 18, W - margin - 6, footer_y + 18)
+    srgb(GOLD); c.setLineWidth(0.8)
+    c.line(margin + 8, foot_y + 20, W - margin - 8, foot_y + 20)
     srgb(NAVY); c.setLineWidth(0.3)
-    c.line(margin + 6, footer_y + 20, W - margin - 6, footer_y + 20)
+    c.line(margin + 8, foot_y + 22.5, W - margin - 8, foot_y + 22.5)
 
-    c.setFont("Helvetica-Bold", 8); rgb(NAVY)
-    c.drawString(margin + 10, footer_y + 6, "CYBER RANGE")
+    c.setFont("Helvetica-Bold", 8.5); rgb(NAVY)
+    c.drawString(margin + 12, foot_y + 8, "CYBER RANGE")
     c.setFont("Helvetica", 7.5); rgb(SLATE)
-    c.drawString(margin + 10, footer_y - 5, "Cybersecurity Virtual Lab Platform")
+    c.drawString(margin + 12, foot_y - 4, "Cybersecurity Virtual Lab Platform")
 
     c.setFont("Helvetica", 7.5); rgb(SLATE)
-    c.drawRightString(W - margin - 10, footer_y + 6, "Thank you for using CyberRange.")
-    c.drawRightString(W - margin - 10, footer_y - 5, "This is a computer-generated invoice.")
+    c.drawRightString(W - margin - 12, foot_y + 8, "Thank you for using CyberRange.")
+    c.drawRightString(W - margin - 12, foot_y - 4, "This is a system-generated invoice.")
 
     c.save()
     buf.seek(0)
     return buf.getvalue()
-
-
-# ─── internal draw helpers ────────────────────────────────────────────────────
-
-def _info_row(c, x, y, label, value, maxlen=35):
-    c.setFont("Helvetica-Bold", 8); c.setFillColorRGB(*SLATE)
-    c.drawString(x, y, label)
-    c.setFont("Helvetica", 8); c.setFillColorRGB(*NAVY)
-    c.drawString(x + 52, y, ":")
-    c.drawString(x + 60, y, _safe(value, maxlen))
-
-
-def _cell_text(c, text, cx, cy, cw, align, font, size, color):
-    c.setFont(font, size)
-    c.setFillColorRGB(*color)
-    pad = 4
-    if align == "right":
-        c.drawRightString(cx + cw - pad, cy, text)
-    elif align == "center":
-        c.drawCentredString(cx + cw / 2, cy, text)
-    else:
-        c.drawString(cx + pad, cy, text)
-
-
-def _draw_corner_tr(c, rx, ry):
-    """Top-right navy+gold geometric corner decoration."""
-    size = 55
-    # navy triangle
-    p = c.beginPath()
-    p.moveTo(rx, ry)
-    p.lineTo(rx - size, ry)
-    p.lineTo(rx, ry - size)
-    p.close()
-    c.setFillColorRGB(*NAVY)
-    c.setStrokeColorRGB(*NAVY)
-    c.setLineWidth(0)
-    c.drawPath(p, fill=1, stroke=0)
-
-    # gold accent line inside corner
-    c.setStrokeColorRGB(*GOLD)
-    c.setLineWidth(1.2)
-    c.line(rx - size + 8, ry, rx, ry - size + 8)
-
-    # small white dot at apex
-    c.setFillColorRGB(*WHITE)
-    cx2 = rx - 10; cy2 = ry - 10
-    c.circle(cx2, cy2, 2.5, fill=1, stroke=0)
-
-
-def _draw_corner_bl(c, lx, ly):
-    """Bottom-left navy+gold geometric corner decoration."""
-    size = 55
-    p = c.beginPath()
-    p.moveTo(lx, ly)
-    p.lineTo(lx + size, ly)
-    p.lineTo(lx, ly + size)
-    p.close()
-    c.setFillColorRGB(*NAVY)
-    c.setStrokeColorRGB(*NAVY)
-    c.setLineWidth(0)
-    c.drawPath(p, fill=1, stroke=0)
-
-    c.setStrokeColorRGB(*GOLD)
-    c.setLineWidth(1.2)
-    c.line(lx + size - 8, ly, lx, ly + size - 8)
-
-    c.setFillColorRGB(*WHITE)
-    c.circle(lx + 10, ly + 10, 2.5, fill=1, stroke=0)
