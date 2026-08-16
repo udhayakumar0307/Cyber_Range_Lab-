@@ -35,6 +35,11 @@ _STATS_CACHE_TTL = 60
 _CANONICAL_MODULE_COUNTS = {
     "cloud-security-lab": 5,
     "command-line-lab": 5,
+    "lab1-recon": 5,
+    "recon-lab": 5,
+    "ot-security-lab": 5,
+    "ot-railroad-north": 5,
+    "ot-water-treatment": 5,
 }
 
 
