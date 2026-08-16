@@ -14,6 +14,7 @@ import logging
 import collections
 from typing import List
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user_optional
