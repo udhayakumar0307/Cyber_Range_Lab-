@@ -99,6 +99,8 @@ export const AvailableLabs: React.FC = () => {
           modules: Array.isArray(item?.modules) ? item.modules : [],
           rating: item?.rating ?? 4.9,
           reviewCount: item?.reviewCount ?? 120,
+          isCompleted: item?.isCompleted ?? false,
+          certificateId: item?.certificateId ?? '',
         };
       });
       // Filter out internal labs
