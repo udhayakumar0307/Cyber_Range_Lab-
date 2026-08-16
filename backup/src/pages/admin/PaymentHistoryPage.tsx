@@ -61,36 +61,50 @@ export const PaymentHistoryPage: React.FC = () => {
 
   const handleDownloadInvoice = async (invId: number | string, invNum: string) => {
     const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`/api/v1/payments/invoice/${invId}/pdf`, {
+    const doDownload = async (url: string): Promise<boolean> => {
+      const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) {
-        // Fallback endpoint
-        const res2 = await fetch(`/api/v1/payments/invoices/${invId}/download`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (!res2.ok) throw new Error('Failed to download invoice PDF.');
-        const blob2 = await res2.blob();
-        const url2 = URL.createObjectURL(blob2);
-        const a2 = document.createElement('a');
-        a2.href = url2;
-        a2.download = `${invNum.startsWith('INV-') ? invNum : 'INV-' + invNum}.pdf`;
-        a2.click();
-        URL.revokeObjectURL(url2);
-        return;
+        // Log the exact error from server for debugging
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          detail = body.detail || JSON.stringify(body);
+        } catch { /* non-json body */ }
+        console.error(`[InvoiceDownload] ${url} → ${detail}`);
+        return false;
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      if (blob.size === 0) {
+        console.error(`[InvoiceDownload] Empty PDF blob from ${url}`);
+        return false;
+      }
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = objectUrl;
       a.download = `${invNum.startsWith('INV-') ? invNum : 'INV-' + invNum}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      return true;
+    };
+
+    try {
+      const ok1 = await doDownload(`/api/v1/payments/invoice/${invId}/pdf`);
+      if (!ok1) {
+        const ok2 = await doDownload(`/api/v1/payments/invoices/${invId}/download`);
+        if (!ok2) {
+          alert(`Invoice download failed. Check browser console for details.\nInvoice ID: ${invId}`);
+        }
+      }
     } catch (err: any) {
-      console.error('Invoice download failed:', err);
+      console.error('Invoice download exception:', err);
+      alert(`Invoice download error: ${err.message}`);
     }
   };
+
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
