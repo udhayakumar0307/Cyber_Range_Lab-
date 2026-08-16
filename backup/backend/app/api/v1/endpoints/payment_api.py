@@ -314,7 +314,7 @@ def download_invoice_pdf(
     db: Session = Depends(get_db)
 ):
     """
-    Generates official Invoice PDF document using ReportLab for an organization purchase.
+    Generates Invoice PDF using ReportLab canvas (no XML parsing — bulletproof).
     """
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
@@ -327,195 +327,173 @@ def download_invoice_pdf(
     payment = db.query(Payment).filter(Payment.id == inv.payment_id).first() if inv.payment_id else None
 
     try:
-        # ReportLab PDF Generation
         import io
+        from reportlab.pdfgen import canvas as rl_canvas
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Flowable
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib import colors
 
-        class HRFlowable(Flowable):
-            def __init__(self, width="100%", thickness=1, color=None, spaceAfter=15):
-                Flowable.__init__(self)
-                self.width_pct = width
-                self.thickness = thickness
-                self.color = color or colors.HexColor('#E2E8F0')
-                self.spaceAfter = spaceAfter
+        W, H = letter  # 612 x 792
 
-            def wrap(self, availWidth, availHeight):
-                if isinstance(self.width_pct, str) and self.width_pct.endswith('%'):
-                    pct = float(self.width_pct.replace('%', '')) / 100.0
-                    self.width = availWidth * pct
-                else:
-                    self.width = float(self.width_pct)
-                return self.width, self.thickness + self.spaceAfter
-
-            def draw(self):
-                self.canv.saveState()
-                self.canv.setStrokeColor(self.color)
-                self.canv.setLineWidth(self.thickness)
-                self.canv.line(0, self.spaceAfter, self.width, self.spaceAfter)
-                self.canv.restoreState()
+        def safe(val):
+            """Convert any value to a PDF-safe plain string."""
+            return str(val if val is not None else "N/A").replace("\u20b9", "Rs.")
 
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=letter,
-            rightMargin=36,
-            leftMargin=36,
-            topMargin=36,
-            bottomMargin=36
-        )
+        c = rl_canvas.Canvas(buffer, pagesize=letter)
 
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'InvoiceTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            leading=28,
-            textColor=colors.HexColor('#0052CC'),
-            fontName='Helvetica-Bold'
-        )
-        subtitle_style = ParagraphStyle(
-            'InvoiceSubtitle',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14,
-            textColor=colors.HexColor('#475569')
-        )
-        bold_style = ParagraphStyle(
-            'InvoiceBold',
-            parent=styles['Normal'],
-            fontSize=9,
-            leading=12,
-            fontName='Helvetica-Bold'
-        )
-        normal_style = ParagraphStyle(
-            'InvoiceNormal',
-            parent=styles['Normal'],
-            fontSize=9,
-            leading=12,
-            textColor=colors.HexColor('#1E293B')
-        )
+        def hline(y, x1=40, x2=572, lw=0.5, r=0.886, g=0.910, b=0.941):
+            c.setStrokeColorRGB(r, g, b)
+            c.setLineWidth(lw)
+            c.line(x1, y, x2, y)
 
-        elements = []
+        def txt(x, y, val, font="Helvetica", size=9, r=0.118, g=0.161, b=0.231):
+            c.setFont(font, size)
+            c.setFillColorRGB(r, g, b)
+            c.drawString(x, y, safe(val))
 
-        # Header section
-        inv_date = inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else 'N/A'
-        header_data = [
-            [
-                Paragraph("<b>CyberRange Enterprise</b><br/><font size=9 color='#64748B'>Cybersecurity Virtual Lab Platform</font>", title_style),
-                Paragraph(f"<font size=16 color='#0052CC'><b>TAX INVOICE</b></font><br/><b>Invoice #:</b> {inv.invoice_number}<br/><b>Date:</b> {inv_date}", normal_style)
-            ]
-        ]
-        header_table = Table(header_data, colWidths=[300, 240])
-        header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-        elements.append(header_table)
-        elements.append(Spacer(1, 15))
-        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#E2E8F0'), spaceAfter=15))
+        def rtxt(x, y, val, font="Helvetica", size=9, r=0.118, g=0.161, b=0.231):
+            c.setFont(font, size)
+            c.setFillColorRGB(r, g, b)
+            c.drawRightString(x, y, safe(val))
 
-        # Customer & Transaction Info
-        info_data = [
-            [
-                Paragraph("<b>Billed To:</b>", bold_style),
-                Paragraph("<b>Payment Telemetry:</b>", bold_style)
-            ],
-            [
-                Paragraph(f"<b>Customer Name:</b> {(current_user.name or 'Valued Admin').replace('&', '&amp;')}<br/><b>Email:</b> {current_user.email}<br/><b>Organization:</b> {(order.institution_name if (order and order.institution_name) else 'Enterprise Client').replace('&', '&amp;')}<br/><b>Address:</b> N/A", normal_style),
-                Paragraph(f"<b>Order ID:</b> {order.id if order else 'N/A'}<br/><b>Razorpay Order ID:</b> {order.razorpay_order_id if (order and order.razorpay_order_id) else 'N/A'}<br/><b>Razorpay Payment ID:</b> {payment.transaction_id if payment else 'N/A'}<br/><b>Payment Method:</b> {payment.method if payment else 'Razorpay Online'}<br/><b>Status:</b> <font color='#16A34A'><b>{payment.payment_status if payment else 'SUCCESS'}</b></font>", normal_style)
-            ]
-        ]
-        info_table = Table(info_data, colWidths=[270, 270])
-        info_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
-            ('PADDING', (0,0), (-1,-1), 8),
-            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0'))
-        ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 20))
+        def box(x, y, w, h, fr=None, fg=None, fb=None, sr=None, sg=None, sb=None, lw=0.5):
+            c.setLineWidth(lw)
+            if fr is not None:
+                c.setFillColorRGB(fr, fg, fb)
+            if sr is not None:
+                c.setStrokeColorRGB(sr, sg, sb)
+            c.rect(x, y, w, h, fill=1 if fr is not None else 0, stroke=1 if sr is not None else 0)
 
-        # Purchased Items Table
-        item_rows = [[
-            Paragraph("<b>Item Description</b>", bold_style),
-            Paragraph("<b>Quantity</b>", bold_style),
-            Paragraph("<b>Duration</b>", bold_style),
-            Paragraph("<b>Price/Seat</b>", bold_style),
-            Paragraph("<b>Subtotal</b>", bold_style)
-        ]]
+        # ── data ─────────────────────────────────────────────
+        inv_date   = inv.created_at.strftime('%d %b %Y') if inv.created_at else "N/A"
+        inv_num    = str(inv.invoice_number or "N/A")
+        inv_amount = float(inv.amount or 0.0)
 
+        cust_name  = str(current_user.name or "Valued Admin")
+        cust_email = str(current_user.email or "")
+        org_name   = str(order.institution_name if order and order.institution_name else "Enterprise Client")
+        ord_id     = str(order.id if order else "N/A")
+        rzp_oid    = str(order.razorpay_order_id if order and order.razorpay_order_id else "N/A")
+        rzp_pid    = str(payment.transaction_id if payment else "N/A")
+        pay_method = str(payment.method if payment else "Razorpay Online")
+        pay_status = str(payment.payment_status if payment else "SUCCESS")
+        subtotal   = float(order.subtotal if order and order.subtotal else inv_amount * 0.82)
+        tax_amt    = float(order.tax if order and order.tax else inv_amount * 0.18)
+
+        # ── HEADER BAND ───────────────────────────────────────
+        box(0, H - 70, W, 70, fr=0.000, fg=0.322, fb=0.800)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawString(40, H - 42, "CyberRange")
+        c.setFont("Helvetica", 10)
+        c.drawString(40, H - 57, "Cybersecurity Virtual Lab Platform")
+        c.setFont("Helvetica-Bold", 18)
+        c.drawRightString(572, H - 38, "TAX INVOICE")
+        c.setFont("Helvetica", 9)
+        c.drawRightString(572, H - 52, "Invoice #: " + inv_num)
+        c.drawRightString(572, H - 64, "Date: " + inv_date)
+
+        y = H - 90
+
+        # ── BILLING / PAYMENT BOXES ───────────────────────────
+        box(40, y - 84, 256, 90, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941)
+        box(304, y - 84, 268, 90, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941)
+
+        txt(48, y - 12, "BILLED TO", "Helvetica-Bold", 8, r=0.000, g=0.322, b=0.800)
+        txt(312, y - 12, "PAYMENT DETAILS", "Helvetica-Bold", 8, r=0.000, g=0.322, b=0.800)
+
+        txt(48, y - 28, "Name:   " + cust_name, size=8)
+        txt(48, y - 40, "Email:  " + cust_email, size=8)
+        txt(48, y - 52, "Org:    " + org_name, size=8)
+
+        txt(312, y - 28, "Order ID:     " + ord_id, size=8)
+        txt(312, y - 40, "RZP Order:    " + rzp_oid, size=8)
+        txt(312, y - 52, "RZP Payment:  " + rzp_pid, size=8)
+        txt(312, y - 64, "Method:       " + pay_method, size=8)
+        txt(312, y - 76, "Status:       " + pay_status, "Helvetica-Bold", 8, r=0.086, g=0.639, b=0.243)
+
+        y -= 104
+
+        # ── ITEMS TABLE HEADER ────────────────────────────────
+        box(40, y - 18, 532, 18, fr=0.000, fg=0.322, fb=0.800)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(46,  y - 12, "Item Description")
+        c.drawString(286, y - 12, "Qty")
+        c.drawString(326, y - 12, "Duration")
+        c.drawRightString(490, y - 12, "Unit Price")
+        c.drawRightString(568, y - 12, "Subtotal")
+        y -= 18
+
+        # ── ITEM ROWS ─────────────────────────────────────────
+        row_items = []
         if order and order.items:
             for item in order.items:
-                item_rows.append([
-                    Paragraph(item.lab_title or "Lab Subscription", normal_style),
-                    Paragraph(str(item.seats or 0), normal_style),
-                    Paragraph(f"{item.duration_months or 0} Months", normal_style),
-                    Paragraph(f"₹{(item.price or 0.0):,.2f}", normal_style),
-                    Paragraph(f"₹{((item.seats or 0) * (item.price or 0.0)):,.2f}", normal_style)
-                ])
+                row_items.append({
+                    "desc": str(item.lab_title or "Lab Subscription"),
+                    "qty":  str(item.seats or 1),
+                    "dur":  str(item.duration_months or 12) + " Months",
+                    "price":    "Rs. " + f"{(item.price or 0.0):,.2f}",
+                    "subtotal": "Rs. " + f"{((item.seats or 1) * (item.price or 0.0)):,.2f}",
+                })
         else:
-            item_rows.append([
-                Paragraph("Enterprise Lab Seats Subscription", normal_style),
-                Paragraph("1", normal_style),
-                Paragraph("12 Months", normal_style),
-                Paragraph(f"₹{inv.amount:,.2f}", normal_style),
-                Paragraph(f"₹{inv.amount:,.2f}", normal_style)
-            ])
+            row_items.append({
+                "desc": "Enterprise Lab Subscription",
+                "qty":  "1",
+                "dur":  "12 Months",
+                "price":    "Rs. " + f"{inv_amount:,.2f}",
+                "subtotal": "Rs. " + f"{inv_amount:,.2f}",
+            })
 
-        items_table = Table(item_rows, colWidths=[200, 70, 80, 95, 95])
-        items_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0052CC')),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-            ('PADDING', (0,0), (-1,-1), 6)
-        ]))
-        elements.append(items_table)
-        elements.append(Spacer(1, 15))
+        for i, row in enumerate(row_items):
+            if i % 2 == 0:
+                box(40, y - 18, 532, 18, fr=0.973, fg=0.980, fb=0.988, sr=0.886, sg=0.910, sb=0.941, lw=0.3)
+            else:
+                box(40, y - 18, 532, 18, sr=0.886, sg=0.910, sb=0.941, lw=0.3)
+            txt(46,  y - 12, row["desc"], size=8)
+            txt(286, y - 12, row["qty"],  size=8)
+            txt(326, y - 12, row["dur"],  size=8)
+            rtxt(490, y - 12, row["price"],    size=8)
+            rtxt(568, y - 12, row["subtotal"], size=8)
+            y -= 18
 
-        # Total Breakdown Table
-        subtotal = order.subtotal if (order and order.subtotal) else inv.amount * 0.82
-        tax = order.tax if (order and order.tax) else inv.amount * 0.18
+        # ── TOTALS ────────────────────────────────────────────
+        y -= 12
+        hline(y)
+        y -= 16
+        txt(390, y, "Subtotal:", size=9)
+        rtxt(572, y, "Rs. " + f"{subtotal:,.2f}", size=9)
+        y -= 16
+        txt(390, y, "GST (18%):", size=9)
+        rtxt(572, y, "Rs. " + f"{tax_amt:,.2f}", size=9)
+        y -= 4
+        hline(y, x1=385, lw=1, r=0.000, g=0.322, b=0.800)
+        y -= 18
+        txt(390, y, "Grand Total:", "Helvetica-Bold", 12, r=0.000, g=0.322, b=0.800)
+        rtxt(572, y, "Rs. " + f"{inv_amount:,.2f}", "Helvetica-Bold", 12, r=0.000, g=0.322, b=0.800)
 
-        total_data = [
-            [Paragraph("Subtotal:", normal_style), Paragraph(f"₹{subtotal:,.2f}", normal_style)],
-            [Paragraph("GST (18%):", normal_style), Paragraph(f"₹{tax:,.2f}", normal_style)],
-            [Paragraph("<b>Grand Total:</b>", bold_style), Paragraph(f"<font color='#0052CC'><b>₹{inv.amount:,.2f}</b></font>", bold_style)]
-        ]
-        totals_table = Table(total_data, colWidths=[445, 95])
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
-            ('LINEABOVE', (0,2), (-1,2), 1, colors.HexColor('#0052CC')),
-            ('PADDING', (0,0), (-1,-1), 4)
-        ]))
-        elements.append(totals_table)
-        elements.append(Spacer(1, 30))
+        # ── FOOTER ───────────────────────────────────────────
+        hline(60)
+        txt(40, 48, "CyberRange Telemetry Billing Unit", "Helvetica", 8, r=0.392, g=0.455, b=0.545)
+        txt(40, 36, "Official Tax Receipt and Order Fulfillment Confirmation", "Helvetica", 8, r=0.392, g=0.455, b=0.545)
+        txt(400, 48, "Authorized Signature:", "Helvetica-Bold", 8)
+        txt(400, 36, "CyberRange Accounts Lead", "Helvetica-Oblique", 8)
 
-        # Signature & Footer
-        footer_data = [
-            [
-                Paragraph("<font size=8 color='#64748B'>CyberRange Telemetry Billing Unit<br/>Official Tax Receipt &amp; Order Fulfillment Confirmation</font>", normal_style),
-                Paragraph("<b>Authorized Signature:</b><br/><br/><i>CyberRange Accounts Lead</i>", normal_style)
-            ]
-        ]
-        footer_table = Table(footer_data, colWidths=[340, 200])
-        footer_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
-        elements.append(footer_table)
-
-        doc.build(elements)
+        c.save()
         buffer.seek(0)
 
+        safe_num = inv_num.replace('"', "").replace("'", "")
         return Response(
             content=buffer.getvalue(),
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="INV-{inv.invoice_number}.pdf"'}
+            headers={"Content-Disposition": 'attachment; filename="Invoice-' + safe_num + '.pdf"'}
         )
     except Exception as pdf_err:
         import traceback
-        logger.error(f"[InvoiceDownload] Failed to generate invoice PDF: {pdf_err}\n{traceback.format_exc()}")
+        tb = traceback.format_exc()
+        logger.error(f"[InvoiceDownload] PDF generation failed for invoice {invoice_id}: {pdf_err}\n{tb}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate invoice PDF document: {str(pdf_err)}"
+            detail=f"Invoice PDF generation failed: {str(pdf_err)}"
         )
 
 @router.get("/payments/history")
