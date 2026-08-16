@@ -115,7 +115,7 @@ def _compute(db: Session, user_id: str) -> dict:
             func.count(func.distinct(UserLabProgress.module_id)).label("cnt"),
         )
         .filter(
-            UserLabProgress.user_id == user_id,
+            UserLabProgress.user_id == int(user_id),
             UserLabProgress.status == "COMPLETED",
         )
         .group_by(UserLabProgress.lab_id)
@@ -153,15 +153,16 @@ def _compute(db: Session, user_id: str) -> dict:
 
     # ── Query 4 (consolidated): Training time + session stats + weekly graph ──
     # Sub-query 4a: time from UserLabProgress
+    user_id_int = int(user_id) if user_id.isdigit() else 0
     progress_secs = (
         db.query(func.sum(UserLabProgress.time_taken_seconds))
-        .filter(UserLabProgress.user_id == user_id)
+        .filter(UserLabProgress.user_id == user_id_int)
         .scalar() or 0
     )
 
     completed_progress_count = (
         db.query(func.count(UserLabProgress.id))
-        .filter(UserLabProgress.user_id == user_id, UserLabProgress.status == "COMPLETED")
+        .filter(UserLabProgress.user_id == user_id_int, UserLabProgress.status == "COMPLETED")
         .scalar() or 0
     )
 
@@ -197,7 +198,7 @@ def _compute(db: Session, user_id: str) -> dict:
             func.count(UserLabProgress.id).label("count"),
         )
         .filter(
-            UserLabProgress.user_id == user_id,
+            UserLabProgress.user_id == user_id_int,
             UserLabProgress.status == "COMPLETED",
             UserLabProgress.completed_at >= seven_days_ago,
         )
