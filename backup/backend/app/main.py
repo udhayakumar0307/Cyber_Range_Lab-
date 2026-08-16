@@ -244,7 +244,7 @@ cll_static_dir = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "labs", "command-line-lab", "scoring-server", "static")
 )
 if os.path.exists(cll_static_dir):
-    app.mount("/static", StaticFiles(directory=cll_static_dir), name="cll_static")
+    app.mount("/cll-static", StaticFiles(directory=cll_static_dir), name="cll_static")
 
 
 # Backward-compatible health endpoint (supports both /api/v1/health and /api/health)
