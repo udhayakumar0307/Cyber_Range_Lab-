@@ -389,7 +389,10 @@ const RECON_MODULES: ReconModule[] = [
 export const ChallengeSession: React.FC = () => {
   const navigate = useNavigate();
   const { user, apiFetch } = useAuth();
-  const { labId } = useParams<{ labId?: string }>();
+  // Available Labs navigates with `:labSlug`, while older routes use `:labId`.
+  // Normalize both so the session always uses the lab-specific progress API.
+  const { labId: routeLabId, labSlug } = useParams<{ labId?: string; labSlug?: string }>();
+  const labId = routeLabId || labSlug;
 
   const isReconLab = labId === 'lab1-recon' || labId === 'recon-lab';
 
