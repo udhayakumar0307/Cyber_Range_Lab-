@@ -330,10 +330,32 @@ def download_invoice_pdf(
         # ReportLab PDF Generation
         import io
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        from reportlab.platypus.flowables import HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Flowable
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
+
+        class HRFlowable(Flowable):
+            def __init__(self, width="100%", thickness=1, color=None, spaceAfter=15):
+                Flowable.__init__(self)
+                self.width_pct = width
+                self.thickness = thickness
+                self.color = color or colors.HexColor('#E2E8F0')
+                self.spaceAfter = spaceAfter
+
+            def wrap(self, availWidth, availHeight):
+                if isinstance(self.width_pct, str) and self.width_pct.endswith('%'):
+                    pct = float(self.width_pct.replace('%', '')) / 100.0
+                    self.width = availWidth * pct
+                else:
+                    self.width = float(self.width_pct)
+                return self.width, self.thickness + self.spaceAfter
+
+            def draw(self):
+                self.canv.saveState()
+                self.canv.setStrokeColor(self.color)
+                self.canv.setLineWidth(self.thickness)
+                self.canv.line(0, self.spaceAfter, self.width, self.spaceAfter)
+                self.canv.restoreState()
 
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
