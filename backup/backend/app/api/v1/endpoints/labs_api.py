@@ -14,7 +14,7 @@ import logging
 import collections
 from typing import List
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user_optional
@@ -194,6 +194,7 @@ def get_labs(
     # Step 3: Attach progress
     from app.services.progress_service import get_user_lab_statistics
     from app.models.certificate import Certificate
+    from app.models.score_event import ScoreEvent
     from app.services.certificate_manager import certificate_manager
     
     stats = get_user_lab_statistics(db, str(current_user.id))
@@ -206,13 +207,31 @@ def get_labs(
 
     result = []
     for lab in active_labs_metadata:
-        # Direct robust completion check bypassing any cache issues
+        # Match progress by the lab's canonical module IDs as well as lab_id.
+        # Older completion rows may have a legacy lab_id, while the module ID
+        # remains the stable identifier shown in the student's solve history.
         from app.models.user_lab_progress import UserLabProgress
+        module_ids = [module["id"] for module in lab["modules"]]
+        progress_filters = [UserLabProgress.lab_id == lab["id"]]
+        if module_ids:
+            progress_filters.append(UserLabProgress.module_id.in_(module_ids))
         completed_count = db.query(func.count(func.distinct(UserLabProgress.module_id))).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == lab["id"],
-            UserLabProgress.status == "COMPLETED"
+            UserLabProgress.status == "COMPLETED",
+            or_(*progress_filters),
         ).scalar() or 0
+
+        # ScoreEvent is the immutable completion ledger and covers rows saved
+        # by the track-based lab flows before UserLabProgress was synchronized.
+        event_filters = [ScoreEvent.lab_id == lab["id"]]
+        if module_ids:
+            event_filters.append(ScoreEvent.module_id.in_(module_ids))
+        event_completed = db.query(func.count(func.distinct(ScoreEvent.module_id))).filter(
+            ScoreEvent.user_id == current_user.id,
+            ScoreEvent.event_type == "MODULE_COMPLETION",
+            or_(*event_filters),
+        ).scalar() or 0
+        completed_count = max(completed_count, event_completed)
 
         # Also check UserProgress legacy table
         from app.models.user_progress import UserProgress
@@ -242,7 +261,10 @@ def get_labs(
                 from app.models.user_lab_progress import UserLabProgress
                 progress_rows = (
                     db.query(UserLabProgress)
-                    .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == lab["id"])
+                    .filter(
+                        UserLabProgress.user_id == current_user.id,
+                        or_(*progress_filters),
+                    )
                     .all()
                 )
                 total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
