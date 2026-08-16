@@ -14,6 +14,11 @@ from app.api.v1.endpoints.recon_api import (
     submit_recon_flag,
 )
 from app.api.v1.endpoints.reporting import get_progress
+from app.api.v1.endpoints.user_profile import (
+    get_activity_graph,
+    get_completed_labs,
+    get_statistics,
+)
 from app.services.progress_service import get_user_lab_statistics
 
 
@@ -93,6 +98,12 @@ def test_recon_five_module_completion_appears_in_statistics():
         stats = get_user_lab_statistics(session, str(user.id), use_cache=False)
         assert stats["lab_completed_modules"]["lab1-recon"] == 5
         assert stats["completedLabs"] == 1
+
+        profile_stats = get_statistics(current_user=user, db=session)
+        assert profile_stats["modules_completed"] == 5
+        assert profile_stats["labs_completed"] == 1
+        assert get_completed_labs(current_user=user, db=session)[0]["lab_id"] == "lab1-recon"
+        assert get_activity_graph(current_user=user, db=session)["raw"]["modules"] == 5
     finally:
         session.close()
         engine.dispose()

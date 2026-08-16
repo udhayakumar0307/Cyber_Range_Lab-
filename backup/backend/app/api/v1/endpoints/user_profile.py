@@ -550,11 +550,11 @@ def get_statistics(
     """
     Computes and returns REAL PostgreSQL statistics for the logged-in user.
     """
+    from app.services.progress_service import get_user_lab_statistics
+    progress_stats = get_user_lab_statistics(db, str(current_user.id), use_cache=False)
+
     # Solved modules count
-    solved_modules_count = db.query(func.count(UserLabProgress.id)).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).scalar() or 0
+    solved_modules_count = progress_stats.get("completedModules", 0)
 
     # Solved flags / challenges count
     from app.models.ctf import CTFSubmission
@@ -618,7 +618,7 @@ def get_statistics(
     ).distinct().count()
 
     return {
-        "labs_completed": 1 if solved_modules_count > 0 else 0,
+        "labs_completed": progress_stats.get("completedLabs", 0),
         "modules_completed": solved_modules_count,
         "challenges_solved": solved_flags_count,
         "achievements": achievements_count,
@@ -644,28 +644,42 @@ def get_completed_labs(
     """
     Returns the list of distinct labs completed by the logged-in user.
     """
-    rows = (
-        db.query(UserLabProgress.lab_id, Lab.name, Lab.category, Lab.difficulty,
-                 func.max(UserLabProgress.completed_at).label("completed_at"),
-                 func.sum(UserLabProgress.score).label("score"))
-        .join(Lab, Lab.id == UserLabProgress.lab_id)
+    from app.services.progress_service import get_user_lab_statistics
+    progress_stats = get_user_lab_statistics(db, str(current_user.id), use_cache=False)
+    completed_by_lab = progress_stats.get("lab_completed_modules", {})
+    total_by_lab = progress_stats.get("lab_total_modules", {})
+    progress_details = (
+        db.query(
+            UserLabProgress.lab_id,
+            func.max(UserLabProgress.completed_at).label("completed_at"),
+            func.sum(UserLabProgress.score).label("score"),
+        )
         .filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.status == "COMPLETED"
+            UserLabProgress.status == "COMPLETED",
         )
-        .group_by(UserLabProgress.lab_id, Lab.name, Lab.category, Lab.difficulty)
+        .group_by(UserLabProgress.lab_id)
+        .all()
+    )
+    details_by_lab = {row.lab_id: row for row in progress_details}
+    rows = (
+        db.query(Lab)
+        .filter(Lab.status == "ACTIVE")
         .all()
     )
 
     result = []
-    for r in rows:
+    for lab in rows:
+        if total_by_lab.get(lab.id, 0) <= 0 or completed_by_lab.get(lab.id, 0) < total_by_lab[lab.id]:
+            continue
+        details = details_by_lab.get(lab.id)
         result.append({
-            "lab_id": r.lab_id,
-            "name": r.name,
-            "category": r.category,
-            "difficulty": r.difficulty,
-            "completed_at": r.completed_at.strftime("%Y-%m-%d") if r.completed_at else None,
-            "score": r.score or 0
+            "lab_id": lab.id,
+            "name": lab.name,
+            "category": lab.category,
+            "difficulty": lab.difficulty,
+            "completed_at": details.completed_at.strftime("%Y-%m-%d") if details and details.completed_at else None,
+            "score": details.score or 0 if details else 0,
         })
     return result
 
@@ -678,11 +692,11 @@ def get_activity_graph(
     """
     Returns radar/spider chart data for user activity dimensions.
     """
+    from app.services.progress_service import get_user_lab_statistics
+    progress_stats = get_user_lab_statistics(db, str(current_user.id), use_cache=False)
+
     # Modules completed
-    modules_done = db.query(func.count(UserLabProgress.id)).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.status == "COMPLETED"
-    ).scalar() or 0
+    modules_done = progress_stats.get("completedModules", 0)
 
     # Flags solved
     from app.models.ctf import CTFSubmission
