@@ -509,6 +509,7 @@ export const ChallengeSession: React.FC = () => {
   const [unlockedHints, setUnlockedHints] = useState<Record<string, string[]>>({});
 
   // Terminal
+  const [terminalConnected, setTerminalConnected] = useState(false);
   const [terminalHistory, setTerminalHistory] = useState<string[]>(() => {
     if (labId === 'ot-water-treatment') {
       return [
@@ -1855,20 +1856,37 @@ export const ChallengeSession: React.FC = () => {
                 </button>
               )}
               {!isReconLab && (
-                <button
-                  onClick={() => {
-                    setIsRoot(false);
-                    setTerminalHistory([
-                      'CyberRange Secure Linux Sandbox v1.08',
-                      'Type "help" to see available commands.',
-                      'operator@cyberrange-sandbox:~$ ',
-                    ]);
-                  }}
-                  className="hover:text-white p-1 hover:bg-slate-800 rounded-md transition-colors text-slate-400"
-                  title="Reset console state"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
+                <>
+                  <button
+                    onClick={() => setTerminalConnected(true)}
+                    disabled={terminalConnected}
+                    className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Start Terminal</span>
+                  </button>
+                  <button
+                    onClick={() => setTerminalConnected(false)}
+                    disabled={!terminalConnected}
+                    className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
+                  >
+                    <span>Disconnect</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsRoot(false);
+                      setTerminalHistory([
+                        'CyberRange Secure Linux Sandbox v1.08',
+                        'Type "help" to see available commands.',
+                        'operator@cyberrange-sandbox:~$ ',
+                      ]);
+                    }}
+                    className="hover:text-white p-1 hover:bg-slate-800 rounded-md transition-colors text-slate-400"
+                    title="Reset console state"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1909,7 +1927,7 @@ export const ChallengeSession: React.FC = () => {
                 </button>
               </div>
             )
-          ) : (
+          ) : terminalConnected ? (
             <>
               {/* Simulated terminal output (OT labs + fallback) */}
               <div className="flex-1 p-5 overflow-y-auto font-mono text-xs text-[#00FF9D] space-y-2 selection:bg-blue-900 selection:text-white">
@@ -1937,6 +1955,16 @@ export const ChallengeSession: React.FC = () => {
                 />
               </form>
             </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center">
+                <TerminalSquare className="w-6 h-6 text-slate-500" />
+              </div>
+              <p className="text-slate-400 font-mono text-sm">
+                Click <span className="text-[#00FF9D] font-bold">"Start Terminal"</span> to connect to your execution
+                workstation environment.
+              </p>
+            </div>
           )}
         </div>
       </div>
