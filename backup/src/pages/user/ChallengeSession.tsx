@@ -588,6 +588,15 @@ export const ChallengeSession: React.FC = () => {
       .finally(() => setReconProvisioning(false));
   };
 
+  const disconnectReconLab = () => {
+    if (!reconProvisioned && !reconStarted) return;
+    reconStartedRef.current = false;
+    setReconProvisioned(false);
+    setReconStarted(false);
+    setReconProvisionError(null);
+    apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
+  };
+
   useEffect(() => {
     if (!isReconLab) return;
     return () => {
@@ -1845,15 +1854,24 @@ export const ChallengeSession: React.FC = () => {
                   ? (reconProvisioned ? 'CONTAINER LIVE' : reconProvisionError ? 'PROVISION FAILED' : reconProvisioning ? 'PROVISIONING...' : 'NOT STARTED')
                   : 'INFRASTRUCTURE ONLINE'}
               </span>
-              {isReconLab && !reconProvisioned && (
-                <button
-                  onClick={startReconLab}
-                  disabled={reconProvisioning}
-                  className="flex items-center gap-1.5 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
-                >
-                  {reconProvisioning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                  <span>{reconProvisioning ? 'Starting...' : reconStarted ? 'Retry Start Lab' : 'Start Lab'}</span>
-                </button>
+              {isReconLab && (
+                <>
+                  <button
+                    onClick={startReconLab}
+                    disabled={reconProvisioning || reconProvisioned}
+                    className="flex items-center gap-1.5 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
+                  >
+                    {reconProvisioning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                    <span>{reconProvisioning ? 'Starting...' : 'Start Terminal'}</span>
+                  </button>
+                  <button
+                    onClick={disconnectReconLab}
+                    disabled={!reconProvisioned && !reconStarted}
+                    className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
+                  >
+                    <span>Disconnect</span>
+                  </button>
+                </>
               )}
               {!isReconLab && (
                 <>
@@ -1914,17 +1932,13 @@ export const ChallengeSession: React.FC = () => {
               />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
-                <TerminalSquare className="w-8 h-8 text-slate-500" />
-                <p className="text-slate-300 font-mono text-sm font-bold">Your Recon Lab environment is not running.</p>
-                <p className="text-slate-500 text-xs max-w-xs">Click "Start Lab" to provision your isolated target and workstation containers.</p>
-                <button
-                  onClick={startReconLab}
-                  disabled={reconProvisioning}
-                  className="flex items-center gap-2 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
-                >
-                  {reconProvisioning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                  {reconProvisioning ? 'Starting...' : 'Start Lab'}
-                </button>
+                <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center">
+                  <TerminalSquare className="w-6 h-6 text-slate-500" />
+                </div>
+                <p className="text-slate-400 font-mono text-sm">
+                  Click <span className="text-[#00FF9D] font-bold">"Start Terminal"</span> to provision your isolated
+                  target and workstation containers.
+                </p>
               </div>
             )
           ) : terminalConnected ? (
