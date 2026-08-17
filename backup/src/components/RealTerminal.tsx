@@ -37,9 +37,11 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
       socketRef.current.close();
     }
 
-    // New token for this socket — captured by the closures below
-    const token = { cancelled: false };
-    cancelTokenRef.current = token;
+    // New cancellation token for this socket — captured by the closures below.
+    // Renamed to avoid shadowing the `token` prop (the actual auth token string),
+    // which was previously never sent to the WebSocket due to the shadowing.
+    const cancelToken = { cancelled: false };
+    cancelTokenRef.current = cancelToken;
 
     setConnectionState('connecting');
 
@@ -55,7 +57,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     socketRef.current = socket;
 
     socket.onopen = () => {
-      if (token.cancelled) return;
+      if (cancelToken.cancelled) return;
       console.log('[RealTerminal] WebSocket Connected');
       setConnectionState('connected');
 
@@ -69,7 +71,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     };
 
     socket.onmessage = (event) => {
-      if (token.cancelled) return;
+      if (cancelToken.cancelled) return;
       if (termInstanceRef.current) {
         if (typeof event.data === 'string') {
           termInstanceRef.current.write(event.data);
@@ -81,12 +83,12 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     };
 
     socket.onerror = () => {
-      if (token.cancelled) return;
+      if (cancelToken.cancelled) return;
       setConnectionState('error');
     };
 
     socket.onclose = () => {
-      if (token.cancelled) return;
+      if (cancelToken.cancelled) return;
       setConnectionState('disconnected');
     };
   };
