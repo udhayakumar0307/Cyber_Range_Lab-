@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Zap,
   Lock,
-  LogOut
+  LogOut,
+  Play,
+  TerminalSquare
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -557,31 +559,41 @@ export const ChallengeSession: React.FC = () => {
   const [isRoot, setIsRoot] = useState(false);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
-  // ── Recon lab: provision ephemeral containers on mount, tear down on exit ──
+  // ── Recon lab: student starts containers explicitly via "Start Lab", tear down on exit ──
+  const [reconStarted, setReconStarted] = useState(false);
+  const [reconProvisioning, setReconProvisioning] = useState(false);
   const [reconProvisioned, setReconProvisioned] = useState(false);
   const [reconProvisionError, setReconProvisionError] = useState<string | null>(null);
+  const reconStartedRef = useRef(false);
 
-  useEffect(() => {
-    if (!isReconLab) return;
-    let torn = false;
+  const startReconLab = () => {
+    if (!isReconLab || reconProvisioning) return;
+    setReconStarted(true);
+    reconStartedRef.current = true;
+    setReconProvisioning(true);
+    setReconProvisionError(null);
     apiFetch('/api/v1/recon/provision', { method: 'POST' })
       .then((r) => r.json())
       .then((d) => {
-        if (!torn) {
-          if (d.status === 'provisioned') {
-            setReconProvisioned(true);
-          } else {
-            setReconProvisionError(d.detail || 'Could not start lab environment.');
-          }
+        if (d.status === 'provisioned') {
+          setReconProvisioned(true);
+        } else {
+          setReconProvisionError(d.detail || 'Could not start lab environment.');
         }
       })
       .catch(() => {
-        if (!torn) setReconProvisionError('Server unreachable. Please refresh.');
-      });
+        setReconProvisionError('Server unreachable. Please refresh.');
+      })
+      .finally(() => setReconProvisioning(false));
+  };
+
+  useEffect(() => {
+    if (!isReconLab) return;
     return () => {
-      torn = true;
-      // Best-effort teardown on unmount (navigate away / session end)
-      apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
+      // Best-effort teardown on unmount (navigate away / session end), only if we started one
+      if (reconStartedRef.current) {
+        apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReconLab]);
@@ -1829,9 +1841,19 @@ export const ChallengeSession: React.FC = () => {
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-[#00FF9D] bg-emerald-950/60 border border-emerald-800/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00FF9D] animate-pulse" />
                 {isReconLab
-                  ? (reconProvisioned ? 'CONTAINER LIVE' : reconProvisionError ? 'PROVISION FAILED' : 'PROVISIONING...')
+                  ? (reconProvisioned ? 'CONTAINER LIVE' : reconProvisionError ? 'PROVISION FAILED' : reconProvisioning ? 'PROVISIONING...' : 'NOT STARTED')
                   : 'INFRASTRUCTURE ONLINE'}
               </span>
+              {isReconLab && !reconProvisioned && (
+                <button
+                  onClick={startReconLab}
+                  disabled={reconProvisioning}
+                  className="flex items-center gap-1.5 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-extrabold px-3 py-1 rounded-lg transition-colors"
+                >
+                  {reconProvisioning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                  <span>{reconProvisioning ? 'Starting...' : reconStarted ? 'Retry Start Lab' : 'Start Lab'}</span>
+                </button>
+              )}
               {!isReconLab && (
                 <button
                   onClick={() => {
@@ -1858,25 +1880,34 @@ export const ChallengeSession: React.FC = () => {
                 <AlertTriangle className="w-8 h-8 text-rose-500" />
                 <p className="text-rose-400 font-mono text-sm font-bold">{reconProvisionError}</p>
                 <button
-                  onClick={() => {
-                    setReconProvisionError(null);
-                    apiFetch('/api/v1/recon/provision', { method: 'POST' })
-                      .then((r) => r.json())
-                      .then((d) => { if (d.status === 'provisioned') setReconProvisioned(true); else setReconProvisionError(d.detail || 'Retry failed.'); })
-                      .catch(() => setReconProvisionError('Server unreachable.'));
-                  }}
-                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                  onClick={startReconLab}
+                  disabled={reconProvisioning}
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" /> Retry Provisioning
+                  <RefreshCw className={`w-3.5 h-3.5 ${reconProvisioning ? 'animate-spin' : ''}`} /> Retry Start Lab
                 </button>
               </div>
-            ) : (
+            ) : reconProvisioned ? (
               <RealTerminal
                 labId="lab1-recon"
                 token={token ?? undefined}
                 height="100%"
                 className="flex-1"
               />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+                <TerminalSquare className="w-8 h-8 text-slate-500" />
+                <p className="text-slate-300 font-mono text-sm font-bold">Your Recon Lab environment is not running.</p>
+                <p className="text-slate-500 text-xs max-w-xs">Click "Start Lab" to provision your isolated target and workstation containers.</p>
+                <button
+                  onClick={startReconLab}
+                  disabled={reconProvisioning}
+                  className="flex items-center gap-2 bg-[#2563EB] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  {reconProvisioning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                  {reconProvisioning ? 'Starting...' : 'Start Lab'}
+                </button>
+              </div>
             )
           ) : (
             <>
