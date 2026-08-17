@@ -1,0 +1,22 @@
+name: Sync to Fork
+
+on:
+  push:
+    branches:
+      - main # Or master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push changes to fork
+        env:
+          FORK_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+        run: |
+          git remote add fork https://x-access-token:${FORK_TOKEN}@github.com/umadhatri/Cyber_Range_Lab-.git
+          git push fork main --force
