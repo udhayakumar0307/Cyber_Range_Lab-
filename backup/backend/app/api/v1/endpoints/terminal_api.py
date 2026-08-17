@@ -14,7 +14,7 @@ import select
 import uuid
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query, status
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,13 @@ else:
 # ---------------------------------------------------------------------------
 PUZZLE_IMAGE = "techcorp-sysadmin-labs:latest"
 PUZZLE_NETWORK = "techcorp-labs"
+
+# ---------------------------------------------------------------------------
+# Recon lab import (lazy to avoid circular imports at module load time)
+# ---------------------------------------------------------------------------
+def _get_recon_student_container(user_id: str) -> str:
+    from app.api.v1.endpoints.recon_api import get_student_container_name
+    return get_student_container_name(user_id)
 
 
 def _get_running_containers() -> list:
@@ -162,16 +169,190 @@ def _ensure_puzzle_container(level: int = 0) -> Optional[str]:
 
 @router.websocket("/ws/{lab_id}")
 @router.websocket("/ws")
-async def terminal_websocket(websocket: WebSocket, lab_id: str = "puzzle-lab", level: int = 0):
+async def terminal_websocket(
+    websocket: WebSocket,
+    lab_id: str = "puzzle-lab",
+    level: int = 0,
+    token: Optional[str] = Query(default=None),
+):
     """
     Real Interactive Terminal WebSocket Endpoint.
     Bridges browser xterm.js to a real Linux PTY / bash session inside Docker container or sandbox.
     Supports real-time bidirectional streaming, stdin forwarding, and terminal resize events.
+
+    Routes:
+      - lab1-recon  → per-user ephemeral student container (JWT auth required)
+      - puzzle-lab  → shared puzzle container (level-based, no auth)
     """
     client_ip = websocket.client.host if websocket.client else "unknown"
     logger.info(f"[WS] WebSocket request received | client_ip={client_ip} | lab_id={lab_id} | level={level}")
     await websocket.accept()
     logger.info(f"[WS] WebSocket Accepted | client_ip={client_ip}")
+
+    # =========================================================================
+    # Task 2: lab1-recon branch — JWT auth + per-user container PTY bridge
+    # =========================================================================
+    if lab_id == "lab1-recon":
+        # 2.1 Authenticate via JWT token passed as query param
+        if not token:
+            await websocket.send_text(
+                "\r\n\x1b[1;31m[ERROR] Authentication token required for Recon Lab.\x1b[0m\r\n"
+                "\x1b[33mPlease reload the lab page to obtain a fresh session token.\x1b[0m\r\n\r\n"
+            )
+            await websocket.close(code=1008, reason="Token required")
+            return
+
+        try:
+            from app.core.security import decode_access_token
+            payload = decode_access_token(token)
+            if not payload:
+                raise ValueError("Invalid token payload")
+            user_id = payload.get("user_id") or payload.get("sub")
+            if not user_id:
+                raise ValueError("Token missing user_id")
+        except Exception as auth_err:
+            logger.warning(f"[Recon WS] Auth failed from {client_ip}: {auth_err}")
+            await websocket.send_text(
+                "\r\n\x1b[1;31m[ERROR] Invalid or expired session token.\x1b[0m\r\n"
+                "\x1b[33mPlease log in again and reload the lab.\x1b[0m\r\n\r\n"
+            )
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+
+        # 2.2 Resolve the user-specific student container (Task 2.2)
+        container_name = _get_recon_student_container(str(user_id))
+        logger.info(f"[Recon WS] user_id={user_id} | container={container_name}")
+
+        running = _get_running_containers()
+        if container_name not in running:
+            await websocket.send_text(
+                "\r\n\x1b[1;31m[ERROR] Your Recon Lab environment is not running.\x1b[0m\r\n"
+                "\x1b[33mClick \"Start Lab\" on the lab page to provision your environment first.\x1b[0m\r\n\r\n"
+            )
+            await websocket.close(code=1011, reason="Recon container not provisioned")
+            return
+
+        # 2.3 Bridge WebSocket to real PTY inside the student container (Task 2.3)
+        proc = None
+        master_fd = None
+        try:
+            if not IS_WINDOWS and pty is not None:
+                exec_cmd = [
+                    DOCKER_BIN, "exec", "-it",
+                    "-e", "TERM=xterm-256color",
+                    container_name, "/bin/bash", "-l",
+                ]
+                pid, master_fd = pty.fork()
+                if pid == 0:
+                    os.execvp(exec_cmd[0], exec_cmd)  # child: become docker exec
+                else:
+                    # Parent: set initial terminal window size
+                    if fcntl and termios:
+                        try:
+                            winsize = struct.pack("HHHH", 32, 120, 0, 0)
+                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+                        except Exception:
+                            pass
+
+                    loop = asyncio.get_event_loop()
+
+                    async def recon_read_pty():
+                        while True:
+                            try:
+                                data = await loop.run_in_executor(None, os.read, master_fd, 4096)
+                                if not data:
+                                    break
+                                await websocket.send_bytes(data)
+                            except Exception:
+                                break
+
+                    async def recon_write_pty():
+                        while True:
+                            try:
+                                raw = await websocket.receive_text()
+                                try:
+                                    msg = json.loads(raw)
+                                    if msg.get("type") == "resize":
+                                        rows = msg.get("rows", 32)
+                                        cols = msg.get("cols", 120)
+                                        if fcntl and termios:
+                                            wsz = struct.pack("HHHH", rows, cols, 0, 0)
+                                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
+                                    elif msg.get("type") == "input":
+                                        os.write(master_fd, msg.get("data", "").encode("utf-8"))
+                                except (json.JSONDecodeError, TypeError):
+                                    os.write(master_fd, raw.encode("utf-8"))
+                            except WebSocketDisconnect:
+                                break
+                            except Exception as e:
+                                logger.debug(f"[Recon WS] Write error: {e}")
+                                break
+
+                    await asyncio.gather(recon_read_pty(), recon_write_pty())
+            else:
+                # Windows / no-PTY fallback: subprocess pipe (no resize support)
+                exec_cmd = [
+                    DOCKER_BIN, "exec", "-i",
+                    "-e", "TERM=xterm-256color",
+                    container_name, "/bin/bash", "-l",
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *exec_cmd,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+
+                async def recon_read_proc():
+                    while True:
+                        try:
+                            data = await proc.stdout.read(4096)
+                            if not data:
+                                break
+                            await websocket.send_bytes(data)
+                        except Exception:
+                            break
+
+                async def recon_write_proc():
+                    while True:
+                        try:
+                            raw = await websocket.receive_text()
+                            try:
+                                msg = json.loads(raw)
+                                if msg.get("type") == "input" and proc.stdin:
+                                    proc.stdin.write(msg.get("data", "").encode("utf-8"))
+                            except (json.JSONDecodeError, TypeError):
+                                if proc.stdin:
+                                    proc.stdin.write(raw.encode("utf-8"))
+                        except WebSocketDisconnect:
+                            break
+                        except Exception as e:
+                            logger.debug(f"[Recon WS] Win write error: {e}")
+                            break
+
+                await asyncio.gather(recon_read_proc(), recon_write_proc())
+
+        except WebSocketDisconnect:
+            logger.info(f"[Recon WS] Disconnected | user_id={user_id}")
+        except Exception as exc:
+            logger.error(f"[Recon WS] Exception | user_id={user_id}: {exc}")
+        finally:
+            if proc:
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=1.0)
+                except Exception:
+                    pass
+            if master_fd is not None:
+                try:
+                    os.close(master_fd)
+                except Exception:
+                    pass
+        return  # done — do not fall through to puzzle logic
+
+    # =========================================================================
+    # Existing puzzle-lab / fallback path (unchanged)
+    # =========================================================================
 
     container_name = _ensure_puzzle_container(level)
     logger.info(f"[WS] Terminal WS Session Active | lab_id={lab_id} | level={level} | container={container_name}")

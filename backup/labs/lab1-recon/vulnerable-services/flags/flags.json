@@ -1,11 +1,11 @@
 {
-  "student_id": "student",
+  "student_id": "uma",
   "lab": 1,
   "flags": {
-    "module1": "FLAG{techcorp_lab1_mod1_student_8174a95c}",
-    "module2": "FLAG{techcorp_lab1_mod2_student_96d002eb}",
-    "module3": "FLAG{techcorp_lab1_mod3_student_64a4931c}",
-    "module4": "FLAG{techcorp_lab1_mod4_student_8d64e323}",
-    "module5": "FLAG{techcorp_lab1_mod5_student_cd328a67}"
+    "module1": "FLAG{techcorp_lab1_mod1_uma_b3e572e0}",
+    "module2": "FLAG{techcorp_lab1_mod2_uma_f3742218}",
+    "module3": "FLAG{techcorp_lab1_mod3_uma_9cc2d611}",
+    "module4": "FLAG{techcorp_lab1_mod4_uma_ad16f013}",
+    "module5": "FLAG{techcorp_lab1_mod5_uma_ed26098b}"
   }
 }

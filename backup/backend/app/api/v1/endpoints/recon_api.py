@@ -1,12 +1,14 @@
 import hashlib
 import logging
+import os
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user_optional
+from app.api.deps import get_db, get_current_user, get_current_user_optional
 from app.models.lab_module import LabModule
 from app.models.user import User
 from app.models.user_lab_progress import UserLabProgress
@@ -16,6 +18,20 @@ from app.services.completion_service import CompletionService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ── Docker SDK (optional import — gracefully degrades if docker not installed) ─
+try:
+    import docker as docker_sdk
+    _docker_available = True
+except ImportError:
+    docker_sdk = None
+    _docker_available = False
+
+# ── Recon lab Docker constants ────────────────────────────────────────────────
+RECON_STUDENT_IMAGE  = "lab1-recon-student:latest"   # built from student-env/Dockerfile
+RECON_TARGET_IMAGE   = "lab1-recon-target:latest"    # built from vulnerable-services/Dockerfile
+RECON_SUBNET_PREFIX  = "10.10"                        # student subnets: 10.10.<uid_slot>.0/24
+RECON_TARGET_IP_LAST = "10"                           # always .10 inside the student subnet
 
 LAB_ID = "lab1-recon"
 TRACK_ID = "recon"
@@ -31,6 +47,214 @@ RECON_MODULES: List[Dict[str, Any]] = [
 MODULE_IDS = [m["id"] for m in RECON_MODULES]
 MODULE_POINTS = {m["id"]: m["points"] for m in RECON_MODULES}
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 1: Docker SDK Container & Network Provisioning Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _recon_names(user_id: str) -> Dict[str, str]:
+    """Return consistent Docker resource names for a given user session."""
+    uid = str(user_id)
+    return {
+        "network":  f"lab1-net-{uid}",
+        "student":  f"lab1-student-{uid}",
+        "target":   f"lab1-target-{uid}",
+    }
+
+
+def _derive_lab_seed(user_id: str) -> str:
+    """Derive a deterministic LAB_SEED from the user_id.
+
+    The seed must be stable across provision/teardown cycles so that the flags
+    embedded in the target container always match what _generate_recon_flag()
+    produces for the same user.
+    """
+    return hashlib.sha256(f"recon_seed_{user_id}_cyberrange2026".encode()).hexdigest()[:16]
+
+
+def _ensure_recon_images_exist() -> bool:
+    """Check that both lab images are present locally.
+
+    Returns True if both images exist, False otherwise. Building is left to the
+    operator — we do not auto-build here to avoid blocking the HTTP request.
+    """
+    if not _docker_available:
+        logger.warning("[Recon] Docker SDK not available — skipping image check.")
+        return False
+    try:
+        client = docker_sdk.from_env()
+        client.images.get(RECON_STUDENT_IMAGE)
+        client.images.get(RECON_TARGET_IMAGE)
+        return True
+    except Exception as exc:
+        logger.error(f"[Recon] Required Docker image missing: {exc}")
+        return False
+
+
+def provision_recon_session(user_id: str) -> Dict[str, Any]:
+    """Provision an isolated Docker network and ephemeral container pair for user.
+
+    Workflow (Task 1.1 – 1.3):
+      1. Create a dedicated bridge network ``lab1-net-<user_id>``.
+      2. Start the vulnerable-services target container at a fixed IP.
+      3. Start the student workspace container on the same network.
+      4. Inject STUDENT_ID and deterministic LAB_SEED into both containers.
+
+    Returns a dict with keys ``network``, ``student_container``, ``target_container``
+    and ``lab_seed`` on success, or raises RuntimeError on failure.
+    """
+    if not _docker_available:
+        raise RuntimeError("Docker SDK is not installed on this host.")
+
+    names    = _recon_names(user_id)
+    lab_seed = _derive_lab_seed(user_id)
+    client   = docker_sdk.from_env()
+
+    # ── 1. Tear down any leftover resources from a prior session ────────────
+    _teardown_recon_session(user_id, _client=client)
+
+    # ── 2. Create isolated bridge network (Task 1.1) ────────────────────────
+    logger.info(f"[Recon] Creating network {names['network']}")
+    network = client.networks.create(
+        names["network"],
+        driver="bridge",
+        check_duplicate=True,
+        labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
+    )
+
+    # ── 3. Start vulnerable-services target container (Task 1.2 & 1.3) ──────
+    logger.info(f"[Recon] Starting target container {names['target']}")
+    target = client.containers.run(
+        RECON_TARGET_IMAGE,
+        name=names["target"],
+        hostname="techcorp-internal",
+        detach=True,
+        network=names["network"],
+        environment={
+            "STUDENT_ID": str(user_id),   # Task 1.3 — seed injection
+            "LAB_SEED":   lab_seed,
+            "TERM":       "xterm-256color",
+        },
+        restart_policy={"Name": "no"},
+        labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
+    )
+    # Give target services (MariaDB, FTP, SSH, Apache) time to initialise
+    time.sleep(3)
+
+    # ── 4. Start student workspace container (Task 1.2 & 1.3) ───────────────
+    logger.info(f"[Recon] Starting student container {names['student']}")
+    student = client.containers.run(
+        RECON_STUDENT_IMAGE,
+        name=names["student"],
+        hostname="secureguard-kali",
+        detach=True,
+        stdin_open=True,
+        tty=True,
+        network=names["network"],
+        environment={
+            "STUDENT_ID":  str(user_id),  # Task 1.3 — seed injection
+            "LAB_SEED":    lab_seed,
+            "TARGET_IP":   "10.10.0.10",  # well-known address within subnet
+            "TERM":        "xterm-256color",
+        },
+        restart_policy={"Name": "no"},
+        labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
+    )
+
+    logger.info(
+        f"[Recon] Session provisioned for user {user_id} | "
+        f"network={names['network']} target={names['target']} student={names['student']}"
+    )
+    return {
+        "network":           names["network"],
+        "student_container": names["student"],
+        "target_container":  names["target"],
+        "lab_seed":          lab_seed,
+    }
+
+
+def _teardown_recon_session(user_id: str, _client=None) -> None:
+    """Stop and remove all containers and the network for a user session (Task 1.4).
+
+    Idempotent — safe to call even if resources don't exist.
+    """
+    if not _docker_available:
+        return
+    names  = _recon_names(user_id)
+    client = _client or docker_sdk.from_env()
+
+    for cname in (names["student"], names["target"]):
+        try:
+            container = client.containers.get(cname)
+            container.stop(timeout=5)
+            container.remove(force=True)
+            logger.info(f"[Recon] Removed container {cname}")
+        except docker_sdk.errors.NotFound:
+            pass
+        except Exception as exc:
+            logger.warning(f"[Recon] Could not remove container {cname}: {exc}")
+
+    try:
+        net = client.networks.get(names["network"])
+        net.remove()
+        logger.info(f"[Recon] Removed network {names['network']}")
+    except docker_sdk.errors.NotFound:
+        pass
+    except Exception as exc:
+        logger.warning(f"[Recon] Could not remove network {names['network']}: {exc}")
+
+
+def get_student_container_name(user_id: str) -> str:
+    """Return the Docker container name for the student workspace."""
+    return _recon_names(user_id)["student"]
+
+
+
+
+
+
+@router.post("/provision")
+def provision_session(
+    db: DBSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Provision an ephemeral Docker environment for the current student."""
+    if not _docker_available:
+        raise HTTPException(status_code=503, detail="Docker not available on this host.")
+    if not _ensure_recon_images_exist():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Docker images '{RECON_STUDENT_IMAGE}' or '{RECON_TARGET_IMAGE}' are missing. "
+                "Run: docker build -t lab1-recon-student ./labs/lab1-recon/student-env && "
+                "docker build -t lab1-recon-target ./labs/lab1-recon/vulnerable-services"
+            ),
+        )
+    try:
+        result = provision_recon_session(str(current_user.id))
+        return {"status": "provisioned", **result}
+    except Exception as exc:
+        logger.error(f"[Recon] Provision failed for user {current_user.id}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Provisioning failed: {exc}")
+
+
+@router.post("/teardown")
+def teardown_session(
+    db: DBSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stop and remove the ephemeral Docker environment for the current student."""
+    try:
+        _teardown_recon_session(str(current_user.id))
+        return {"status": "torn_down"}
+    except Exception as exc:
+        logger.error(f"[Recon] Teardown failed for user {current_user.id}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Teardown failed: {exc}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Flag generation (unchanged)
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _generate_recon_flag(user_id: str, module_id: str) -> List[str]:
     """Generate the canonical flag for a recon lab module.

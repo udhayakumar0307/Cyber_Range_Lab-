@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context';
+import { RealTerminal } from '../../components/RealTerminal';
 import { 
   Clock, 
   CheckCircle2, 
@@ -388,7 +389,7 @@ const RECON_MODULES: ReconModule[] = [
 
 export const ChallengeSession: React.FC = () => {
   const navigate = useNavigate();
-  const { user, apiFetch } = useAuth();
+  const { user, token, apiFetch } = useAuth();
   // Available Labs navigates with `:labSlug`, while older routes use `:labId`.
   // Normalize both so the session always uses the lab-specific progress API.
   const { labId: routeLabId, labSlug } = useParams<{ labId?: string; labSlug?: string }>();
@@ -556,6 +557,35 @@ export const ChallengeSession: React.FC = () => {
   const [isRoot, setIsRoot] = useState(false);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
+  // ── Recon lab: provision ephemeral containers on mount, tear down on exit ──
+  const [reconProvisioned, setReconProvisioned] = useState(false);
+  const [reconProvisionError, setReconProvisionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isReconLab) return;
+    let torn = false;
+    apiFetch('/api/v1/recon/provision', { method: 'POST' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!torn) {
+          if (d.status === 'provisioned') {
+            setReconProvisioned(true);
+          } else {
+            setReconProvisionError(d.detail || 'Could not start lab environment.');
+          }
+        }
+      })
+      .catch(() => {
+        if (!torn) setReconProvisionError('Server unreachable. Please refresh.');
+      });
+    return () => {
+      torn = true;
+      // Best-effort teardown on unmount (navigate away / session end)
+      apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReconLab]);
+
   // ── Load progress from backend (Recon & OT labs) ─────────────────────────
   useEffect(() => {
     // Recon lab: use dedicated /recon/progress endpoint
@@ -672,17 +702,20 @@ export const ChallengeSession: React.FC = () => {
     const submittedFlag = flagInput.trim();
     const currentLabId = labId || 'lab1-recon';
 
-    // Issue #1 Fix: Enforce strict objective completion requirement before flag submission
-    const currentObjs = objProgress[activeModule.id] || [];
-    const allObjectivesCompleted = activeModule.objectives.length > 0 && 
-      currentObjs.length === activeModule.objectives.length && 
-      currentObjs.every(Boolean);
+    // For the real-container recon lab, students find flags inside the live
+    // terminal — there are no simulated objectives to tick off.
+    if (!isReconLab) {
+      const currentObjs = objProgress[activeModule.id] || [];
+      const allObjectivesCompleted = activeModule.objectives.length > 0 && 
+        currentObjs.length === activeModule.objectives.length && 
+        currentObjs.every(Boolean);
 
-    if (!allObjectivesCompleted) {
-      setSubmissionStatus('error');
-      setSubmissionMessage('Complete all required stage objectives in the terminal before submitting the flag!');
-      setTimeout(() => setSubmissionStatus('idle'), 3000);
-      return;
+      if (!allObjectivesCompleted) {
+        setSubmissionStatus('error');
+        setSubmissionMessage('Complete all required stage objectives in the terminal before submitting the flag!');
+        setTimeout(() => setSubmissionStatus('idle'), 3000);
+        return;
+      }
     }
 
     try {
@@ -1789,56 +1822,91 @@ export const ChallengeSession: React.FC = () => {
                 <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
               </div>
               <span className="font-mono text-xs font-bold text-slate-300">
-                Terminal Emulator — Execution Environment
+                {isReconLab ? 'SecureGuard Red Team Workstation — Live Container' : 'Terminal Emulator — Execution Environment'}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-[#00FF9D] bg-emerald-950/60 border border-emerald-800/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00FF9D] animate-pulse" />
-                INFRASTRUCTURE ONLINE
+                {isReconLab
+                  ? (reconProvisioned ? 'CONTAINER LIVE' : reconProvisionError ? 'PROVISION FAILED' : 'PROVISIONING...')
+                  : 'INFRASTRUCTURE ONLINE'}
               </span>
-              <button
-                onClick={() => {
-                  setIsRoot(false);
-                  setTerminalHistory([
-                    'CyberRange Secure Linux Sandbox v1.08',
-                    'Type "help" to see available commands.',
-                    'operator@cyberrange-sandbox:~$ ',
-                  ]);
-                }}
-                className="hover:text-white p-1 hover:bg-slate-800 rounded-md transition-colors text-slate-400"
-                title="Reset console state"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+              {!isReconLab && (
+                <button
+                  onClick={() => {
+                    setIsRoot(false);
+                    setTerminalHistory([
+                      'CyberRange Secure Linux Sandbox v1.08',
+                      'Type "help" to see available commands.',
+                      'operator@cyberrange-sandbox:~$ ',
+                    ]);
+                  }}
+                  className="hover:text-white p-1 hover:bg-slate-800 rounded-md transition-colors text-slate-400"
+                  title="Reset console state"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Terminal output */}
-          <div className="flex-1 p-5 overflow-y-auto font-mono text-xs text-[#00FF9D] space-y-2 selection:bg-blue-900 selection:text-white">
-            {terminalHistory.map((line, idx) => (
-              <div key={idx} className="whitespace-pre-wrap leading-relaxed">{line}</div>
-            ))}
-            <div ref={terminalBottomRef} />
-          </div>
+          {/* Terminal body: real xterm for recon, simulated div for OT/others */}
+          {isReconLab ? (
+            reconProvisionError ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+                <AlertTriangle className="w-8 h-8 text-rose-500" />
+                <p className="text-rose-400 font-mono text-sm font-bold">{reconProvisionError}</p>
+                <button
+                  onClick={() => {
+                    setReconProvisionError(null);
+                    apiFetch('/api/v1/recon/provision', { method: 'POST' })
+                      .then((r) => r.json())
+                      .then((d) => { if (d.status === 'provisioned') setReconProvisioned(true); else setReconProvisionError(d.detail || 'Retry failed.'); })
+                      .catch(() => setReconProvisionError('Server unreachable.'));
+                  }}
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Retry Provisioning
+                </button>
+              </div>
+            ) : (
+              <RealTerminal
+                labId="lab1-recon"
+                token={token ?? undefined}
+                height="100%"
+                className="flex-1"
+              />
+            )
+          ) : (
+            <>
+              {/* Simulated terminal output (OT labs + fallback) */}
+              <div className="flex-1 p-5 overflow-y-auto font-mono text-xs text-[#00FF9D] space-y-2 selection:bg-blue-900 selection:text-white">
+                {terminalHistory.map((line, idx) => (
+                  <div key={idx} className="whitespace-pre-wrap leading-relaxed">{line}</div>
+                ))}
+                <div ref={terminalBottomRef} />
+              </div>
 
-          {/* Terminal input */}
-          <form
-            onSubmit={handleCommandSubmit}
-            className="h-11 bg-[#0F172A] border-t border-slate-800 flex items-center px-4 flex-shrink-0"
-          >
-            <span className="font-mono text-xs text-[#00FF9D] font-bold mr-2 flex-shrink-0">
-              {isRoot ? 'root@cyberrange-sandbox:~#' : 'operator@cyberrange-sandbox:~$'}
-            </span>
-            <input
-              type="text"
-              value={commandInput}
-              onChange={(e) => setCommandInput(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none font-mono text-xs text-[#00FF9D] focus:ring-0 placeholder-slate-600"
-              placeholder='Type commands here... (e.g. "help", "ls", "nmap 10.10.12.5")'
-              autoFocus
-            />
-          </form>
+              {/* Simulated terminal input */}
+              <form
+                onSubmit={handleCommandSubmit}
+                className="h-11 bg-[#0F172A] border-t border-slate-800 flex items-center px-4 flex-shrink-0"
+              >
+                <span className="font-mono text-xs text-[#00FF9D] font-bold mr-2 flex-shrink-0">
+                  {isRoot ? 'root@cyberrange-sandbox:~#' : 'operator@cyberrange-sandbox:~$'}
+                </span>
+                <input
+                  type="text"
+                  value={commandInput}
+                  onChange={(e) => setCommandInput(e.target.value)}
+                  className="flex-1 bg-transparent border-none outline-none font-mono text-xs text-[#00FF9D] focus:ring-0 placeholder-slate-600"
+                  placeholder='Type commands here... (e.g. "help", "ls", "nmap 10.10.12.5")'
+                  autoFocus
+                />
+              </form>
+            </>
+          )}
         </div>
       </div>
 

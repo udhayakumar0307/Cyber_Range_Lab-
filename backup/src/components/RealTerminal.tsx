@@ -7,6 +7,7 @@ import { RefreshCw, Terminal as TerminalIcon, Maximize2, Minimize2, CheckCircle2
 interface RealTerminalProps {
   labId?: string;
   levelNum?: number;
+  token?: string;
   height?: string;
   className?: string;
 }
@@ -14,6 +15,7 @@ interface RealTerminalProps {
 export const RealTerminal: React.FC<RealTerminalProps> = ({
   labId = 'puzzle-lab',
   levelNum = 0,
+  token,
   height = '450px',
   className = ''
 }) => {
@@ -43,7 +45,9 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/v1/terminal/ws/${labId}?level=${levelNum}`;
+    const params = new URLSearchParams({ level: String(levelNum) });
+    if (token) params.set('token', token);
+    const wsUrl = `${protocol}//${host}/api/v1/terminal/ws/${labId}?${params.toString()}`;
 
     console.log('[RealTerminal] Connecting to WebSocket:', wsUrl);
     const socket = new WebSocket(wsUrl);
@@ -167,7 +171,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
       }
       term.dispose();
     };
-  }, [labId, levelNum]);
+  }, [labId, levelNum, token]);
 
   return (
     <div className={`w-full flex flex-col bg-[#0B0F17] rounded-xl border border-slate-800 shadow-xl overflow-hidden ${isFullscreen ? 'fixed inset-4 z-50 h-[calc(100vh-2rem)]' : ''} ${className}`}>
@@ -181,7 +185,11 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
           </div>
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 pl-2">
             <TerminalIcon className="w-3.5 h-3.5 text-blue-400" />
-            <span>Puzzle Infrastructure Shell — Level {levelNum} (student{levelNum})</span>
+            <span>
+              {labId === 'lab1-recon'
+                ? 'SecureGuard Red Team — Kali Linux Shell'
+                : `Puzzle Infrastructure Shell — Level ${levelNum} (student${levelNum})`}
+            </span>
           </div>
         </div>
 
