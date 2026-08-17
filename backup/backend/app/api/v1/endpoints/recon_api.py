@@ -215,7 +215,7 @@ def get_student_container_name(user_id: str) -> str:
 
 @router.post("/provision")
 def provision_session(
-    db: DBSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Provision an ephemeral Docker environment for the current student."""
@@ -240,7 +240,7 @@ def provision_session(
 
 @router.post("/teardown")
 def teardown_session(
-    db: DBSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Stop and remove the ephemeral Docker environment for the current student."""
