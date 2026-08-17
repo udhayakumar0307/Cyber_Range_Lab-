@@ -341,6 +341,24 @@ export const CloudSecurityLabPage: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({ command: cmd, module: activeModuleNum }),
       });
+
+      if (!res.ok) {
+        // Non-2xx with a non-JSON body (e.g. a 502/504 gateway page) — surface
+        // the status instead of masking it as a generic "server error".
+        let detail = '';
+        try {
+          const errBody = await res.json();
+          detail = errBody?.detail || errBody?.output || '';
+        } catch {
+          // body wasn't JSON (proxy/timeout error page) — fall through with status only
+        }
+        setTerminalLines((prev) => [
+          ...prev,
+          { type: 'err', text: detail || `Request failed (HTTP ${res.status}). The lab environment may still be starting — try again in a few seconds.` },
+        ]);
+        return;
+      }
+
       const data = await res.json();
       const output = (data.output || '').trim();
       if (output) {
@@ -358,10 +376,10 @@ export const CloudSecurityLabPage: React.FC = () => {
           return next;
         });
       }
-    } catch {
+    } catch (err) {
       setTerminalLines((prev) => [
         ...prev,
-        { type: 'err', text: 'Error executing command on server.' },
+        { type: 'err', text: `Could not reach the server (${err instanceof Error ? err.message : 'network error'}). Check your connection and try again.` },
       ]);
     } finally {
       setTermBusy(false);

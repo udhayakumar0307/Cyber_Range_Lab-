@@ -28,7 +28,7 @@ router = APIRouter()
 # Labs that require capped module counts due to legacy DB noise
 _MODULE_CAP = {
     "cloud-security-lab": 5,
-    "command-line-lab": 5,
+    "command-line-lab": 20,  # 4 tracks (linux/python/java/c) x 5 modules each
     "lab1-recon": 5,
     "recon-lab": 5,
     "ot-security-lab": 5,

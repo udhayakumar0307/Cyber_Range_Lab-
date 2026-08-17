@@ -419,9 +419,9 @@ def submit_crypto_flag(
     matched_objective_id = None
     total_objectives = 0
     try:
-        import json
-        from pathlib import Path
-        answers_path = Path("d:/IITM ASTRA/cyberrange-main/cyberrange/backup/labs/cryptography-lab/scoring-server/answers.json")
+        answers_path = LABS_DIR / "cryptography-lab" / "scoring-server" / "answers.json"
+        if not answers_path.exists():
+            answers_path = ROOT_DIR / "cryptography-lab" / "scoring-server" / "answers.json"
         if answers_path.exists():
             with open(answers_path, "r", encoding="utf-8") as f:
                 ans_data = json.load(f)
