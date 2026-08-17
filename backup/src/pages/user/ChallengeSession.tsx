@@ -578,6 +578,10 @@ export const ChallengeSession: React.FC = () => {
             if (solved.has(mod.id)) pre[mod.id] = mod.objectives.map(() => true);
           });
           setObjProgress(pre);
+          const firstUnsolvedIdx = RECON_MODULES.findIndex((m) => !solved.has(m.id));
+          if (firstUnsolvedIdx !== -1) {
+            setActiveChallengeIdx(firstUnsolvedIdx);
+          }
         })
         .catch(() => { /* offline — degrade silently */ });
       return;
@@ -603,6 +607,10 @@ export const ChallengeSession: React.FC = () => {
             if (solved.has(mod.id)) pre[mod.id] = mod.objectives.map(() => true);
           });
           setObjProgress(pre);
+          const firstUnsolvedIdx = currentModules.findIndex((m) => !solved.has(m.id));
+          if (firstUnsolvedIdx !== -1) {
+            setActiveChallengeIdx(firstUnsolvedIdx);
+          }
         })
         .catch(() => { /* offline — degrade silently */ });
     }

@@ -473,15 +473,15 @@ export const AvailableLabs: React.FC = () => {
                           className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
                         >
                           <ArrowRight className="w-3.5 h-3.5" />
-                          Launch Lab
+                          {(lab.solvedChallenges ?? 0) > 0 ? 'Resume Lab' : 'Launch Lab'}
                         </button>
                       ) : isFree ? (
                         <button
                           onClick={() => launchLab(lab)}
                           className="px-3 py-2 rounded-lg bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
                         >
-                          <Play className="w-3.5 h-3.5 fill-white" />
-                          Launch Lab
+                          {(lab.solvedChallenges ?? 0) > 0 ? <ArrowRight className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
+                          {(lab.solvedChallenges ?? 0) > 0 ? 'Resume Lab' : 'Launch Lab'}
                         </button>
                       ) : lab.isPurchased ? (
                         <>
@@ -497,7 +497,7 @@ export const AvailableLabs: React.FC = () => {
                             className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
                           >
                             <ArrowRight className="w-3.5 h-3.5" />
-                            Launch
+                            {(lab.solvedChallenges ?? 0) > 0 ? 'Resume' : 'Launch'}
                           </button>
                         </>
                       ) : (
