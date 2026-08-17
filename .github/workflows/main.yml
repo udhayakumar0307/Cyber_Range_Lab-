@@ -8,6 +8,7 @@ on:
 
 jobs:
   sync:
+    if: github.repository == 'udhayakumar0307/Cyber_Range_Lab-'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout upstream
@@ -20,9 +21,6 @@ jobs:
         env:
           FORK_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
         run: |
-          # Clear any leftover default authorization headers set by actions/checkout
           git config --local --unset-all http.https://github.com/.extraheader || true
-          
-          # Add remote and push using the PAT
           git remote add fork https://x-access-token:${FORK_TOKEN}@github.com/umadhatri/Cyber_Range_Lab-.git
           git push fork main --force
