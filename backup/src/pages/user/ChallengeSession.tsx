@@ -599,14 +599,32 @@ export const ChallengeSession: React.FC = () => {
 
   useEffect(() => {
     if (!isReconLab) return;
+
+    // SPA-navigation cleanup (unmount) does NOT run on a tab close/refresh, which
+    // previously left provisioned Docker containers running forever on the host
+    // and slowly starving it of CPU/RAM. `pagehide` fires in both cases, and a
+    // `keepalive` fetch is allowed to outlive the page teardown.
+    const teardownOnLeave = () => {
+      if (!reconStartedRef.current) return;
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      fetch(`${API_BASE}/api/v1/recon/teardown`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: 'include',
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener('pagehide', teardownOnLeave);
+
     return () => {
+      window.removeEventListener('pagehide', teardownOnLeave);
       // Best-effort teardown on unmount (navigate away / session end), only if we started one
       if (reconStartedRef.current) {
         apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReconLab]);
+  }, [isReconLab, token]);
 
   // ── Load progress from backend (Recon & OT labs) ─────────────────────────
   useEffect(() => {
