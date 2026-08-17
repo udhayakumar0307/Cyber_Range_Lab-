@@ -36,6 +36,7 @@ interface Lab {
   isCompleted?: boolean;
   certificateId?: string;
   certificatePdfUrl?: string;
+  solvedChallenges?: number;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -102,6 +103,7 @@ export const AvailableLabs: React.FC = () => {
           isCompleted: item?.isCompleted ?? false,
           certificateId: item?.certificateId ?? '',
           certificatePdfUrl: item?.certificatePdfUrl ?? '',
+          solvedChallenges: item?.solvedChallenges ?? 0,
         };
       });
       // Filter out internal labs
@@ -401,6 +403,30 @@ export const AvailableLabs: React.FC = () => {
                         {moduleCount} Modules
                       </span>
                     </div>
+
+                    {/* Progress indicator — shows when user has started the lab */}
+                    {((lab.solvedChallenges ?? 0) > 0 || lab.isCompleted) && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <span className={lab.isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#2563EB] dark:text-blue-400'}>
+                            {lab.isCompleted ? '✓ All modules completed' : `${lab.solvedChallenges ?? 0} of ${moduleCount} modules done`}
+                          </span>
+                          <span className={lab.isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}>
+                            {lab.isCompleted ? '100%' : `${Math.round(((lab.solvedChallenges ?? 0) / moduleCount) * 100)}%`}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              lab.isCompleted
+                                ? 'bg-emerald-500'
+                                : 'bg-[#2563EB]'
+                            }`}
+                            style={{ width: `${lab.isCompleted ? 100 : Math.round(((lab.solvedChallenges ?? 0) / moduleCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-1">
                       {lab.tags.slice(0, 2).map((tag, idx) => (

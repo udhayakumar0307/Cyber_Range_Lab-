@@ -162,17 +162,59 @@ def submit_recon_flag(
     logger.info(f"[RECON-AUDIT] Module 5 Submission SUCCESS | User: {user_id_str} | Module: {module_id} | Flag Verified: {submitted_flag}")
 
     # Calculate earned points via CompletionService (single source of truth)
-    result = CompletionService.complete_lab_module(
-        db=db,
-        user=current_user,
-        lab_id=LAB_ID,
-        module_id=f"{LAB_ID}_{module_id}",
-        track_id=TRACK_ID,
-        base_points=MODULE_POINTS[module_id],
-        hint1_used=record.hint1_used if record else False,
-        hint2_used=record.hint2_used if record else False,
-        submitted_flag=submitted_flag,
-    )
+    from sqlalchemy.exc import IntegrityError
+    try:
+        result = CompletionService.complete_lab_module(
+            db=db,
+            user=current_user,
+            lab_id=LAB_ID,
+            module_id=f"{LAB_ID}_{module_id}",
+            track_id=TRACK_ID,
+            base_points=MODULE_POINTS[module_id],
+            hint1_used=record.hint1_used if record else False,
+            hint2_used=record.hint2_used if record else False,
+            submitted_flag=submitted_flag,
+        )
+    except IntegrityError as e:
+        db.rollback()
+        logger.warning(f"[RECON] IntegrityError on module {module_id} for user {user_id_str}: {e}")
+        # Re-fetch or re-create the result assuming it was a duplicate event
+        current_total = reconcile_user_score(db, user_id_str)
+        next_mid = MODULE_IDS[idx + 1] if idx + 1 < len(MODULE_IDS) else None
+        # Still mark user_progress completed in a fresh transaction
+        try:
+            record = (
+                db.query(UserProgress)
+                .filter(
+                    UserProgress.user_id == user_id_str,
+                    UserProgress.track_id == TRACK_ID,
+                    UserProgress.module_id == module_id,
+                )
+                .first()
+            )
+            if not record:
+                record = UserProgress(
+                    user_id=user_id_str,
+                    track_id=TRACK_ID,
+                    module_id=module_id,
+                )
+                db.add(record)
+            record.completed = True
+            record.module_score = MODULE_POINTS[module_id]
+            record.flag_submitted = submitted_flag
+            record.completed_at = datetime.utcnow()
+            record.updated_at = datetime.utcnow()
+            db.commit()
+        except Exception as inner_e:
+            db.rollback()
+            logger.error(f"[RECON] Failed to save user_progress for {module_id}: {inner_e}")
+        return {
+            "correct": True,
+            "message": "Already solved.",
+            "points": 0,
+            "total_points": current_total,
+            "next_module": next_mid,
+        }
 
     # Also mark the UserProgress record for sequential locking
     if not record:
@@ -188,7 +230,22 @@ def submit_recon_flag(
     record.completed_at = datetime.utcnow()
     record.updated_at = datetime.utcnow()
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        logger.warning(f"[RECON] Commit IntegrityError for {module_id}: {e} — retrying user_progress only")
+        try:
+            record.completed = True
+            record.module_score = result.points_awarded
+            record.flag_submitted = submitted_flag
+            record.completed_at = datetime.utcnow()
+            record.updated_at = datetime.utcnow()
+            db.merge(record)
+            db.commit()
+        except Exception as inner_e:
+            db.rollback()
+            logger.error(f"[RECON] Final commit failed for {module_id}: {inner_e}")
 
     next_mid = MODULE_IDS[idx + 1] if idx + 1 < len(MODULE_IDS) else None
 
