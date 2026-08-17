@@ -3,7 +3,7 @@ name: Sync to Fork
 on:
   push:
     branches:
-      - main # Or master
+      - main
 
 jobs:
   sync:
@@ -13,6 +13,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Push changes to fork
         env:
