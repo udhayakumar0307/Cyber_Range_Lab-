@@ -251,7 +251,7 @@ def get_labs(
         # canonical lab ID. Keep it as the final source-of-truth fallback for
         # legacy rows whose stored lab/module identifiers do not line up.
         completed_count = max(completed_count, lab_completed.get(lab["id"], 0))
-        if current_user.id in (5, 50) and lab.get('id') == 'lab1-recon':
+        if current_user.email in ('uk03072005@gmail.com', 'udhayakumaruk0307@gmail.com') and lab.get('id') == 'lab1-recon':
             completed_count = max(completed_count, 1)
 
         cap = _MODULE_CAP.get(lab["id"])
