@@ -422,9 +422,11 @@ export const ChallengeSession: React.FC = () => {
   };
 
   // ── Session state ────────────────────────────────────────────────────────
-  // OT labs: 90 min (5400s), Recon: 3 hrs (10800s)
   const isOTLabSession = labId === 'ot-water-treatment' || labId === 'ot-railroad-north' || labId === 'ot-security-lab';
-  const [timeRemaining, setTimeRemaining] = useState(isOTLabSession ? 5400 : 10800);
+  // null while loading; undefined-equivalent "no timer" for free labs (isFreeLab=true)
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [isFreeLab, setIsFreeLab] = useState(false);
+  const unsyncedSecondsRef = useRef(0);
   const [score, setScore] = useState(0);
 
   // Per-module solve state (from backend)
@@ -687,10 +689,69 @@ export const ChallengeSession: React.FC = () => {
   }, [isReconLab, isOTLabSession, labId, apiFetch]);
 
   // ── Session clock ────────────────────────────────────────────────────────
+  // Free labs show no timer at all. Priced labs bill against the student's
+  // purchased hours, persisted server-side: fetch the true remaining balance
+  // on mount (so exiting mid-session and returning resumes correctly), tick
+  // it down locally for a smooth UI, and periodically flush elapsed seconds
+  // back to the server so the balance is never lost.
   useEffect(() => {
-    const t = setInterval(() => setTimeRemaining((p) => (p > 0 ? p - 1 : 0)), 1000);
-    return () => clearInterval(t);
-  }, []);
+    if (!labId) return;
+    let cancelled = false;
+    apiFetch(`/api/v1/labs/${labId}/session-time`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setIsFreeLab(!!d.is_free);
+        if (!d.is_free) setTimeRemaining(d.seconds_remaining ?? 0);
+      })
+      .catch(() => { /* offline — leave timer hidden rather than show a wrong value */ });
+    return () => { cancelled = true; };
+  }, [labId, apiFetch]);
+
+  const flushSessionTime = useCallback((useKeepalive: boolean) => {
+    if (!labId || isFreeLab || unsyncedSecondsRef.current <= 0) return;
+    const elapsed = unsyncedSecondsRef.current;
+    unsyncedSecondsRef.current = 0;
+    if (useKeepalive) {
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      fetch(`${API_BASE}/api/v1/labs/${labId}/session-tick`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        keepalive: true,
+        body: JSON.stringify({ elapsed_seconds: elapsed }),
+      }).catch(() => {});
+    } else {
+      apiFetch(`/api/v1/labs/${labId}/session-tick`, {
+        method: 'POST',
+        body: JSON.stringify({ elapsed_seconds: elapsed }),
+      }).catch(() => {});
+    }
+  }, [labId, isFreeLab, apiFetch, token]);
+
+  useEffect(() => {
+    if (isFreeLab || timeRemaining === null) return;
+    const t = setInterval(() => {
+      setTimeRemaining((p) => (p !== null && p > 0 ? p - 1 : 0));
+      unsyncedSecondsRef.current += 1;
+    }, 1000);
+    // Persist elapsed time to the server every 30s so a crash/tab-kill loses
+    // at most 30s of billed time instead of the whole session.
+    const sync = setInterval(() => flushSessionTime(false), 30000);
+    return () => { clearInterval(t); clearInterval(sync); };
+  }, [isFreeLab, timeRemaining === null, flushSessionTime]);
+
+  useEffect(() => {
+    const onLeave = () => flushSessionTime(true);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      window.removeEventListener('pagehide', onLeave);
+      flushSessionTime(false);
+    };
+  }, [flushSessionTime]);
 
   // ── Auto-scroll terminal ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1630,10 +1691,12 @@ export const ChallengeSession: React.FC = () => {
             <span className="text-blue-400">Score:</span>
             <span className="text-[#2563EB] dark:text-blue-300 font-black">{score} pts</span>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Session: {formatTime(timeRemaining)}</span>
-          </div>
+          {!isFreeLab && timeRemaining !== null && (
+            <div className="flex items-center gap-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Session: {formatTime(timeRemaining)}</span>
+            </div>
+          )}
           <button
             onClick={() => { if (window.confirm('Exit this challenge session?')) handleReturn(); }}
             className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all cursor-pointer"

@@ -133,7 +133,7 @@ interface TerminalLine {
 
 export const CloudSecurityLabPage: React.FC = () => {
   const navigate = useNavigate();
-  const { apiFetch } = useAuth();
+  const { apiFetch, token } = useAuth();
 
   const [activeModuleNum, setActiveModuleNum] = useState<number>(1);
   // totalScore is read-only from the backend — never mutated client-side
@@ -181,13 +181,12 @@ export const CloudSecurityLabPage: React.FC = () => {
   const [termBusy, setTermBusy] = useState<boolean>(false);
   const termScreenRef = useRef<HTMLDivElement>(null);
 
-  // Timer
-  const LAB_KEY = 'lab_timer_cloud-security-lab';
-  const savedTimeStr = localStorage.getItem(LAB_KEY);
-  const initialTime = savedTimeStr ? parseInt(savedTimeStr, 10) : 5400;
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(
-    !isNaN(initialTime) && initialTime > 0 ? initialTime : 5400
-  );
+  // Timer — server-persisted against the student's purchased hours (see
+  // /api/v1/labs/{lab_id}/session-time). Free labs show no timer at all.
+  const LAB_ID = 'cloud-security-lab';
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [isFreeLab, setIsFreeLab] = useState(false);
+  const unsyncedSecondsRef = useRef(0);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -227,20 +226,60 @@ export const CloudSecurityLabPage: React.FC = () => {
   }, [loadStatus]);
 
   useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/api/v1/labs/${LAB_ID}/session-time`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setIsFreeLab(!!d.is_free);
+        if (!d.is_free) setRemainingSeconds(d.seconds_remaining ?? 0);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [apiFetch]);
+
+  const flushSessionTime = useCallback((useKeepalive: boolean) => {
+    if (isFreeLab || unsyncedSecondsRef.current <= 0) return;
+    const elapsed = unsyncedSecondsRef.current;
+    unsyncedSecondsRef.current = 0;
+    if (useKeepalive) {
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      fetch(`${API_BASE}/api/v1/labs/${LAB_ID}/session-tick`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        keepalive: true,
+        body: JSON.stringify({ elapsed_seconds: elapsed }),
+      }).catch(() => {});
+    } else {
+      apiFetch(`/api/v1/labs/${LAB_ID}/session-tick`, {
+        method: 'POST',
+        body: JSON.stringify({ elapsed_seconds: elapsed }),
+      }).catch(() => {});
+    }
+  }, [isFreeLab, apiFetch, token]);
+
+  useEffect(() => {
+    if (isFreeLab || remainingSeconds === null) return;
     const interval = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          localStorage.setItem(LAB_KEY, '0');
-          return 0;
-        }
-        const next = prev - 1;
-        localStorage.setItem(LAB_KEY, next.toString());
-        return next;
-      });
+      setRemainingSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+      unsyncedSecondsRef.current += 1;
     }, 1000);
-    return () => clearInterval(interval);
-  }, [LAB_KEY]);
+    const sync = setInterval(() => flushSessionTime(false), 30000);
+    return () => { clearInterval(interval); clearInterval(sync); };
+  }, [isFreeLab, remainingSeconds === null, flushSessionTime]);
+
+  useEffect(() => {
+    const onLeave = () => flushSessionTime(true);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      window.removeEventListener('pagehide', onLeave);
+      flushSessionTime(false);
+    };
+  }, [flushSessionTime]);
 
   useEffect(() => {
     if (termScreenRef.current) {
@@ -257,10 +296,11 @@ export const CloudSecurityLabPage: React.FC = () => {
   const currentMod = CLOUD_MODULES.find((m) => m.num === activeModuleNum) || CLOUD_MODULES[0];
 
   const formatTimer = () => {
-    const h = Math.floor(remainingSeconds / 3600);
-    const m = Math.floor((remainingSeconds % 3600) / 60).toString().padStart(2, '0');
-    const s = (remainingSeconds % 60).toString().padStart(2, '0');
-    return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+    const s = remainingSeconds ?? 0;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return h > 0 ? `${h}:${m}:${sec}` : `${m}:${sec}`;
   };
 
   const handleFlagSubmit = async (e: React.FormEvent) => {
@@ -452,13 +492,15 @@ export const CloudSecurityLabPage: React.FC = () => {
               Score: <span className="font-extrabold">{totalScore}</span> pts
             </div>
 
-            {/* Session Timer Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono font-semibold">
-              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Session: <span>{formatTimer()}</span>
-            </div>
+            {/* Session Timer Badge — hidden for free labs, hidden until the real balance loads */}
+            {!isFreeLab && remainingSeconds !== null && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-mono font-semibold">
+                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Session: <span>{formatTimer()}</span>
+              </div>
+            )}
 
             {/* Exit Session Button */}
             <button

@@ -12,12 +12,12 @@ Key design:
 
 import logging
 import collections
-from typing import List
-from fastapi import APIRouter, Depends
+from typing import List, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user_optional
+from app.api.deps import get_db, get_current_user, get_current_user_optional
 from app.models.lab import Lab
 from app.models.lab_module import LabModule
 from app.core.cache import lab_cache
@@ -306,4 +306,82 @@ def get_labs(
         })
 
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hour-based session timer
+# ─────────────────────────────────────────────────────────────────────────────
+# Free labs (fixed_rate == 0) never show or consume a timer. Priced labs are
+# billed against the student's PurchasedLab.hours_remaining, persisted server
+# side so exiting mid-session and coming back resumes from the true remaining
+# balance instead of resetting a client-only countdown.
+
+def _is_free_lab(db: Session, lab_id: str) -> bool:
+    assignments = _get_sysadmin_assignments(db)
+    for a in assignments:
+        if a["lab_id"] == lab_id:
+            return a["fixed_rate"] == 0.0
+    # Not a SysAdmin-priced assignment at all — treat as free rather than
+    # blocking access, matching get_labs()'s "unassigned == free" default.
+    return True
+
+
+def _get_purchased_lab(db: Session, user_id: int, lab_id: str):
+    from app.models.admin_models import PurchasedLab
+    return db.query(PurchasedLab).filter(
+        PurchasedLab.user_id == user_id,
+        PurchasedLab.lab_id == lab_id,
+        PurchasedLab.status == "ACTIVE",
+    ).first()
+
+
+@router.get("/{lab_id}/session-time")
+def get_lab_session_time(
+    lab_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Returns whether this lab is timed, and if so how many seconds remain."""
+    if _is_free_lab(db, lab_id):
+        return {"is_free": True, "seconds_remaining": None}
+
+    purchased = _get_purchased_lab(db, current_user.id, lab_id)
+    hours_remaining = purchased.hours_remaining if purchased else 0.0
+    seconds_remaining = max(0, int((hours_remaining or 0.0) * 3600))
+    return {"is_free": False, "seconds_remaining": seconds_remaining}
+
+
+@router.post("/{lab_id}/session-tick")
+def consume_lab_session_time(
+    lab_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Deducts `elapsed_seconds` of active session time from the student's
+    purchased balance for this lab. Called periodically (and on exit) by the
+    client so the remaining balance is always correct even if the tab is
+    closed without a clean disconnect. No-op for free labs.
+    """
+    if _is_free_lab(db, lab_id):
+        return {"is_free": True, "seconds_remaining": None}
+
+    elapsed_seconds = max(0, int(payload.get("elapsed_seconds") or 0))
+    purchased = _get_purchased_lab(db, current_user.id, lab_id)
+    if not purchased:
+        raise HTTPException(status_code=404, detail="No active purchase found for this lab.")
+
+    elapsed_hours = elapsed_seconds / 3600.0
+    purchased.hours_remaining = max(0.0, (purchased.hours_remaining or 0.0) - elapsed_hours)
+    purchased.hours_used = (purchased.hours_used or 0.0) + elapsed_hours
+    if purchased.hours_remaining <= 0:
+        purchased.status = "EXPIRED"
+    db.commit()
+
+    return {
+        "is_free": False,
+        "seconds_remaining": max(0, int(purchased.hours_remaining * 3600)),
+        "expired": purchased.status == "EXPIRED",
+    }
 
