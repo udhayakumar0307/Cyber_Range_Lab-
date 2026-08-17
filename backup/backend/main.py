@@ -12,11 +12,18 @@ import uvicorn
 
 if __name__ == "__main__":
     app_dir = os.path.join(backend_dir, "app")
+    # Bind to 0.0.0.0 (not 127.0.0.1) so the process is reachable from outside
+    # its own container/host — required behind any reverse proxy or PaaS
+    # (Render/Railway/Docker etc.), otherwise upstream returns 502 Bad Gateway.
+    # HOST/PORT are overridable via env vars; PORT defaults to the platform-
+    # provided value when set (e.g. Render/Railway inject $PORT).
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
     # Restrict reloading strictly to the 'app' source folder, ignoring logs and database files
     uvicorn.run(
         "app.main:app",
-        host="127.0.0.1",
-        port=8000,
+        host=host,
+        port=port,
         reload=False
     )
 

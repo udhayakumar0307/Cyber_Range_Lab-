@@ -137,19 +137,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
     const API_BASE = import.meta.env.VITE_API_URL || "";
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
+      });
+    } catch {
+      throw new Error('Unable to reach the server. Please check your connection and try again.');
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const msg = errData.detail || errData.message || 'Invalid Email or Password';
+      const errData = isJson ? await response.json().catch(() => ({})) : {};
+      const msg = errData.detail || errData.message ||
+        (isJson ? 'Invalid Email or Password' : `Server error (${response.status}). Please try again later.`);
       throw new Error(typeof msg === 'string' ? msg : 'Invalid Email or Password');
     }
 
-    const data = await response.json();
+    if (!isJson) {
+      throw new Error('Unexpected response from server. Please try again later.');
+    }
+
+    const data = await response.json().catch(() => {
+      throw new Error('Unexpected response from server. Please try again later.');
+    });
     if (data.status === 'otp_required') {
       return { role: '', user: null, status: 'otp_required', message: data.message };
     }

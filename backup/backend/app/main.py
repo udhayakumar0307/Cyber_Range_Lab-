@@ -19,6 +19,7 @@ creation are NOT performed at runtime. Run the dedicated scripts once:
   python scripts/scan_labs.py      # sync lab filesystem metadata
 """
 
+import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
@@ -193,10 +194,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow the Vite dev server and any configured frontend origins
+# CORS — allow the Vite dev server plus any configured production frontend origins.
+# CORS_ORIGINS env var accepts a comma-separated list, e.g.
+#   CORS_ORIGINS=https://cyberrange.dev,https://www.cyberrange.dev
+_default_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]
+_extra_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+    allow_origins=_default_origins + _extra_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
