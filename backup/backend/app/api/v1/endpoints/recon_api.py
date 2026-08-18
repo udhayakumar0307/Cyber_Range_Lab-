@@ -155,9 +155,9 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
     
     # Give target services (MariaDB, FTP, SSH, Apache) time to initialise
     time.sleep(3)
-    # Try configuring loopback IP on target using ip, with ifconfig as a fallback
-    res_ip = target.exec_run("ip addr add 10.10.0.10/32 dev lo")
-    res_ifconfig = target.exec_run("ifconfig lo:0 10.10.0.10 netmask 255.255.255.255 up")
+    # Try configuring IP alias on target eth0 using ip, with ifconfig as a fallback
+    res_ip = target.exec_run("ip addr add 10.10.0.10/32 dev eth0")
+    res_ifconfig = target.exec_run("ifconfig eth0:0 10.10.0.10 netmask 255.255.255.255 up")
     logger.info(
         f"[Recon] target IP config (ip): exit={res_ip.exit_code} output={res_ip.output.decode('utf-8', errors='ignore').strip()}"
     )
