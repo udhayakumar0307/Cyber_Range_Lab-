@@ -260,31 +260,37 @@ def get_labs(
         # Check completion
         total_ch = lab["totalChallenges"]
         is_completed = (total_ch > 0 and solved >= total_ch)
-        
+
+        # Actual time spent in this lab (not the marketing "estimated hours"),
+        # used for both the certificate duration and the "time spent" shown
+        # in the lab detail view — computed for every lab, not just completed
+        # ones, so in-progress / free-lab sessions also report real elapsed time.
+        from app.models.user_lab_progress import UserLabProgress
+        progress_rows = (
+            db.query(UserLabProgress)
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                or_(*progress_filters),
+            )
+            .all()
+        )
+        total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
+        if not progress_rows:
+            from app.models.user_progress import UserProgress
+            track_id = "linux" if "command-line" in lab["id"].lower() else "crypto"
+            prog_p = (
+                db.query(UserProgress)
+                .filter(UserProgress.user_id == str(current_user.id), UserProgress.track_id == track_id)
+                .all()
+            )
+            total_time = len(prog_p) * 1800
+
         cert_id = cert_map.get(lab["id"])
-        if is_completed and not cert_id:
-            # Auto-issue certificate
+        # Retry issuance whenever the lab is completed but there's no usable
+        # PDF yet — covers both "never issued" (cert_id is None) and "issued
+        # but rendering failed last time" (cert_id set, pdf_path empty).
+        if is_completed and not cert_pdf_map.get(lab["id"]):
             try:
-                from app.models.user_lab_progress import UserLabProgress
-                progress_rows = (
-                    db.query(UserLabProgress)
-                    .filter(
-                        UserLabProgress.user_id == current_user.id,
-                        or_(*progress_filters),
-                    )
-                    .all()
-                )
-                total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
-                if not progress_rows:
-                    from app.models.user_progress import UserProgress
-                    track_id = "linux" if "command-line" in lab["id"].lower() else "crypto"
-                    prog_p = (
-                        db.query(UserProgress)
-                        .filter(UserProgress.user_id == str(current_user.id), UserProgress.track_id == track_id)
-                        .all()
-                    )
-                    total_time = len(prog_p) * 1800
-                
                 cert = certificate_manager.get_or_issue_certificate(
                     db=db,
                     user_id=current_user.id,
@@ -296,13 +302,17 @@ def get_labs(
                 cert_pdf_map[lab["id"]] = cert.pdf_path
             except Exception as e:
                 logger.error(f"Failed to auto-issue certificate for lab {lab['id']}: {e}")
-        
+
+        time_spent_hours = round(total_time / 3600.0, 2) if total_time else 0
+
         result.append({
             **lab,
             "solvedChallenges": solved,
             "isCompleted": is_completed,
             "certificateId": cert_id,
             "certificatePdfUrl": cert_pdf_map.get(lab["id"]),
+            "timeSpentSeconds": total_time,
+            "timeSpentDisplay": f"{time_spent_hours} Hours" if time_spent_hours else "Not started",
         })
 
     return result

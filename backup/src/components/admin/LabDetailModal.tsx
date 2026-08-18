@@ -1,13 +1,14 @@
 import React from 'react';
 import type { SecurityLab } from '../../types/admin';
-import { 
-  X, 
-  Clock, 
-  Star, 
-  ShieldCheck, 
-  Layers, 
+import {
+  X,
+  Clock,
+  Star,
+  ShieldCheck,
+  Layers,
   CheckCircle,
-  Download
+  Download,
+  Share2
 } from 'lucide-react';
 
 interface LabDetailModalProps {
@@ -24,6 +25,31 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
     Intermediate: 'bg-blue-50 text-[#0052CC] border-blue-200',
     Advanced: 'bg-amber-50 text-amber-700 border-amber-200',
     Expert: 'bg-purple-50 text-[#6F42C1] border-purple-200',
+  };
+
+  const handleShareCertificate = async () => {
+    const verifyUrl = lab.certificateId
+      ? `${window.location.origin}/certificate/verify/${lab.certificateId}`
+      : window.location.href;
+    const shareData = {
+      title: `CyberRange Certificate — ${lab.title}`,
+      text: `I completed ${lab.title} on CyberRange!`,
+      url: verifyUrl,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // user cancelled or share failed — fall through to clipboard copy
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(verifyUrl);
+      alert('Certificate verification link copied to clipboard.');
+    } catch {
+      alert(verifyUrl);
+    }
   };
 
   return (
@@ -64,6 +90,12 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 {lab.durationHours} Hours Estimated
               </span>
+              {!!lab.timeSpentDisplay && lab.timeSpentDisplay !== 'Not started' && (
+                <span className="flex items-center gap-1 text-emerald-300 font-semibold">
+                  <Clock className="w-3.5 h-3.5" />
+                  {lab.timeSpentDisplay} Spent
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
                 {(lab.modules ?? []).length} Security Modules
@@ -159,13 +191,28 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
         <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             {lab.isCompleted && lab.certificatePdfUrl ? (
-              <a
-                href={lab.certificatePdfUrl}
-                download
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors inline-flex items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4" /> Download Certificate
-              </a>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <a
+                  href={lab.certificatePdfUrl}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors inline-flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Download Certificate
+                </a>
+                <button
+                  type="button"
+                  onClick={handleShareCertificate}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-100 transition-colors inline-flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-4 h-4" /> Share Certificate
+                </button>
+              </div>
+            ) : lab.isCompleted ? (
+              <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full text-xs font-bold">
+                <CheckCircle className="w-3.5 h-3.5" /> Completed — certificate generating, check back shortly
+              </span>
             ) : lab.isPurchased ? (
               <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-bold">
                 <ShieldCheck className="w-3.5 h-3.5" /> Lab Purchased

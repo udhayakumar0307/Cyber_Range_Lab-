@@ -32,12 +32,17 @@ class CertificateManager:
         completed_at: Optional[datetime] = None
     ) -> Certificate:
         # 1. Idempotency Check: Return existing certificate if already generated
+        # AND its files actually rendered — a certificate row with an empty
+        # pdf_path means a previous render attempt failed. Do not treat that
+        # as "already issued", or the broken record gets returned forever and
+        # the download/share button never appears. Retry rendering for it
+        # instead of creating a duplicate row.
         existing = (
             db.query(Certificate)
             .filter(Certificate.user_id == user_id, Certificate.lab_id == lab_id)
             .first()
         )
-        if existing:
+        if existing and existing.pdf_path:
             logger.info(f"Certificate reused for user_id={user_id}, lab_id={lab_id}: {existing.display_certificate_id}")
             return existing
 
@@ -49,11 +54,15 @@ class CertificateManager:
         lab_title = (lab.name if getattr(lab, 'name', None) else getattr(lab, 'title', None)) if lab else lab_id.replace("-", " ").title()
         category = lab.category if (lab and lab.category) else "Cyber Security"
 
-        # 3. Generate Display ID & UUID
-        cert_uuid = str(uuid.uuid4())
-        count = db.query(func.count(Certificate.uuid)).scalar() or 0
-        year = datetime.utcnow().year
-        display_id = f"CYR-{year}-{count + 1:06d}"
+        # 3. Generate Display ID & UUID (reuse the existing broken row's ID on retry
+        # so we don't burn a new display sequence number for the same completion)
+        cert_uuid = existing.uuid if existing else str(uuid.uuid4())
+        if existing:
+            display_id = existing.display_certificate_id
+        else:
+            count = db.query(func.count(Certificate.uuid)).scalar() or 0
+            year = datetime.utcnow().year
+            display_id = f"CYR-{year}-{count + 1:06d}"
 
         date_str = (completed_at or datetime.utcnow()).strftime("%d %b %Y")
         hours = max(0.5, round(duration_seconds / 3600.0, 1))
@@ -81,18 +90,36 @@ class CertificateManager:
         except Exception as e:
             logger.error(f"Rendering failed for certificate {display_id}: {e}", exc_info=True)
 
-        # 5. Persist record in database
-        cert_record = Certificate(
-            uuid=cert_uuid,
-            display_certificate_id=display_id,
-            user_id=user_id,
-            lab_id=lab_id,
-            pdf_path=pdf_path,
-            png_path=png_path,
-            created_at=completed_at or datetime.utcnow()
-        )
+        if not pdf_path:
+            # Rendering failed again — do not persist a broken/empty record.
+            # Return an existing (still-broken) row if there is one so callers
+            # don't crash, but this cert will be retried on the next request
+            # instead of being permanently stuck with no download link.
+            if existing:
+                return existing
+            logger.error(f"Certificate rendering failed for user_id={user_id}, lab_id={lab_id}; not persisting an empty record.")
+            raise RuntimeError(f"Certificate rendering failed for lab_id={lab_id}")
 
+        # 5. Persist record in database — update the existing (previously broken)
+        # row in place if there is one, otherwise insert a new one.
         try:
+            if existing:
+                existing.pdf_path = pdf_path
+                existing.png_path = png_path
+                db.commit()
+                db.refresh(existing)
+                logger.info(f"Certificate repaired & stored: {display_id}")
+                return existing
+
+            cert_record = Certificate(
+                uuid=cert_uuid,
+                display_certificate_id=display_id,
+                user_id=user_id,
+                lab_id=lab_id,
+                pdf_path=pdf_path,
+                png_path=png_path,
+                created_at=completed_at or datetime.utcnow()
+            )
             db.add(cert_record)
             db.commit()
             db.refresh(cert_record)

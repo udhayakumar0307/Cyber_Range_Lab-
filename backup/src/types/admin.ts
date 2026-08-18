@@ -56,6 +56,8 @@ export interface SecurityLab {
   isCompleted?: boolean;
   certificateId?: string | null;
   certificatePdfUrl?: string | null;
+  timeSpentSeconds?: number | null;
+  timeSpentDisplay?: string | null;
   assignedTo?: string | null;
   activeSessionsCount?: number;
   purchasedDate?: string;

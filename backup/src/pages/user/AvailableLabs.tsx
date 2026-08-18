@@ -36,6 +36,8 @@ interface Lab {
   isCompleted?: boolean;
   certificateId?: string;
   certificatePdfUrl?: string;
+  timeSpentSeconds?: number;
+  timeSpentDisplay?: string;
   solvedChallenges?: number;
 }
 
@@ -103,6 +105,8 @@ export const AvailableLabs: React.FC = () => {
           isCompleted: item?.isCompleted ?? false,
           certificateId: item?.certificateId ?? '',
           certificatePdfUrl: item?.certificatePdfUrl ?? '',
+          timeSpentSeconds: item?.timeSpentSeconds ?? 0,
+          timeSpentDisplay: item?.timeSpentDisplay ?? '',
           solvedChallenges: item?.solvedChallenges ?? 0,
         };
       });

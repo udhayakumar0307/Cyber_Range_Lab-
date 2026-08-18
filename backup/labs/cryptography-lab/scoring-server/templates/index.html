@@ -337,10 +337,25 @@
         &#10003;
       </div>
       <div class="space-y-1">
-        <h3 class="text-xl font-extrabold text-slate-900">Module Complete!</h3>
+        <h3 class="text-xl font-extrabold text-slate-900" id="success-title">Module Complete!</h3>
         <p class="text-xs text-slate-600" id="success-message"></p>
       </div>
       <div class="font-mono text-xs bg-slate-900 text-[#00FF9D] p-3 rounded-xl break-all border border-slate-800" id="flag-display"></div>
+
+      <!-- Track-completion certificate panel — hidden until the final module is solved -->
+      <div id="certificate-panel" class="hidden space-y-3 pt-1">
+        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-3 text-left">
+          <div>
+            <p class="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Total Score</p>
+            <p class="text-lg font-black text-slate-900" id="certificate-total-points">0 pts</p>
+          </div>
+          <span class="text-2xl">🏆</span>
+        </div>
+        <div id="certificate-actions" class="flex flex-col gap-2">
+          <p class="text-xs text-slate-500" id="certificate-status">Generating your certificate…</p>
+        </div>
+      </div>
+
       <button id="popup-close-btn" class="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer">
         Continue to Next Module
       </button>
@@ -920,15 +935,33 @@
         if (data.module_completed) {
           currentModule.solved = true;
           nextModuleToLoad = data.next_module;
+          const trackCompleted = !nextModuleToLoad;
 
           document.getElementById("success-message").textContent =
-            `You earned ${data.points} points for ${currentModule.title}.${nextModuleToLoad ? ' Next module unlocked!' : ' Track completed!'}`;
+            `You earned ${data.points} points for ${currentModule.title}.${trackCompleted ? ' Track completed!' : ' Next module unlocked!'}`;
           document.getElementById("flag-display").textContent = flag;
-          
+
+          const titleEl = document.getElementById("success-title");
+          const certPanel = document.getElementById("certificate-panel");
+          const closeBtn = document.getElementById("popup-close-btn");
+
+          if (trackCompleted) {
+            titleEl.textContent = "Track Completed! 🎉";
+            certPanel.classList.remove("hidden");
+            document.getElementById("certificate-total-points").textContent =
+              `${data.total_points} pts`;
+            closeBtn.textContent = "Close";
+            loadCertificateForCompletedTrack();
+          } else {
+            titleEl.textContent = "Module Complete!";
+            certPanel.classList.add("hidden");
+            closeBtn.textContent = "Continue to Next Module";
+          }
+
           const overlay = document.getElementById("success-overlay");
           overlay.classList.remove("hidden");
           overlay.classList.add("flex");
-          
+
           updateTrackModuleUnlocks(currentTrack);
           renderModuleNavButtons();
           renderTracksGrid();
@@ -938,6 +971,76 @@
         feedback.className = "text-xs font-semibold min-h-[16px] text-rose-600";
       }
     });
+
+    // ── Certificate: fetch (with a couple of retries, since the backend
+    // renders the PDF asynchronously right after the last module completes)
+    // and render Download / Share actions once available.
+    async function loadCertificateForCompletedTrack(attempt) {
+      attempt = attempt || 0;
+      const statusEl = document.getElementById("certificate-status");
+      const actionsEl = document.getElementById("certificate-actions");
+
+      try {
+        const res = await fetch("/api/v1/certificates", { headers: getAuthHeaders() });
+        if (res.ok) {
+          const certs = await res.json();
+          const cert = Array.isArray(certs)
+            ? certs.find((c) => c.lab_id === "cryptography-lab")
+            : null;
+
+          if (cert && cert.pdf_url) {
+            actionsEl.innerHTML = "";
+
+            const downloadBtn = document.createElement("a");
+            downloadBtn.href = cert.pdf_url;
+            downloadBtn.target = "_blank";
+            downloadBtn.rel = "noreferrer";
+            downloadBtn.download = "";
+            downloadBtn.className =
+              "w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer text-center";
+            downloadBtn.textContent = "⬇ Download Certificate";
+
+            const shareBtn = document.createElement("button");
+            shareBtn.type = "button";
+            shareBtn.className =
+              "w-full py-2.5 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all cursor-pointer";
+            shareBtn.textContent = "↗ Share Certificate";
+            shareBtn.addEventListener("click", async () => {
+              const verifyUrl = window.location.origin + (cert.verification_url || "");
+              const shareData = {
+                title: "CyberRange Certificate — Cryptography Lab",
+                text: "I completed the Cryptography Lab on CyberRange!",
+                url: verifyUrl,
+              };
+              if (navigator.share) {
+                try { await navigator.share(shareData); return; } catch (e) {}
+              }
+              try {
+                await navigator.clipboard.writeText(verifyUrl);
+                statusEl.textContent = "Verification link copied to clipboard.";
+                statusEl.classList.remove("hidden");
+              } catch (e) {
+                alert(verifyUrl);
+              }
+            });
+
+            actionsEl.appendChild(downloadBtn);
+            actionsEl.appendChild(shareBtn);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Certificate fetch failed:", e);
+      }
+
+      // Not ready yet — retry a few times (rendering happens right after this call)
+      if (attempt < 4) {
+        statusEl.textContent = "Generating your certificate…";
+        setTimeout(() => loadCertificateForCompletedTrack(attempt + 1), 1500);
+      } else {
+        statusEl.textContent = "Certificate is taking longer than usual — check My Certificates shortly.";
+      }
+    }
 
     document.getElementById("popup-close-btn").addEventListener("click", () => {
       const overlay = document.getElementById("success-overlay");
