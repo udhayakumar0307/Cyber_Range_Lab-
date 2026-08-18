@@ -1,0 +1,64 @@
+============================================================
+OT WATER TREATMENT PLANT — ICS/SCADA LAB - ANSWER KEY
+============================================================
+(Source of truth: MODULE_FLAGS in scoring-server/app.py — keep in sync)
+
+==========================
+MODULE 1 - Network Recon (100 pts)
+==========================
+Expected Flag:
+172.28.0.10
+
+==========================
+MODULE 2 - Protocol Identification (100 pts)
+==========================
+Expected Flag:
+3
+
+==========================
+MODULE 3 - Register Mapping (150 pts)
+==========================
+Expected Flag:
+31337
+
+==========================
+MODULE 4 - Pump Manipulation (200 pts)
+==========================
+Expected Flag:
+5
+
+==========================
+MODULE 5 - Emergency Shutdown (200 pts)
+==========================
+Expected Flag:
+99
+
+==========================
+MODULE 6 - Chemical Dosing Sabotage (250 pts)
+==========================
+Expected Flag:
+2
+
+==========================
+MODULE 7 - Stealthy Register Tampering (250 pts)
+==========================
+Expected Flag:
+0x06
+
+==========================
+MODULE 8 - Intrusion Detection - Coils (200 pts)
+==========================
+Expected Flag:
+2
+
+==========================
+MODULE 9 - Intrusion Detection - Registers (200 pts)
+==========================
+Expected Flag:
+7
+
+==========================
+MODULE 10 - Incident Response (350 pts)
+==========================
+Expected Flag:
+0_45_40

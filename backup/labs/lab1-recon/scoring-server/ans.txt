@@ -1,0 +1,14 @@
+============================================================
+LAB 1 — TECHCORP RECON LAB - ANSWER KEY
+============================================================
+This lab does NOT use static per-module flags. Flags are generated
+deterministically per student in generate_flag() (scoring-server/app.py):
+
+    FLAG{{techcorp_lab{lab}_mod{module}_{student_id}_{hash_digest}}}
+
+hash_digest = first 8 hex chars of sha256(f"{student_id}:{lab}:{module}:{lab_seed}")
+
+There is no fixed answer to list here — each student's correct flag depends
+on their student_id and the lab_seed for their session. To verify a flag
+for a specific student, call generate_flag(student_id, lab, module, lab_seed)
+with the same values the student's environment was provisioned with.

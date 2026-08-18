@@ -1,0 +1,65 @@
+============================================================
+OT RAILROAD NORTH — SIGNALING & TRACK CONTROL LAB - ANSWER KEY
+============================================================
+(Source of truth: MODULE_FLAGS in scoring-server/app.py — keep in sync)
+
+==========================
+MODULE 1 - Network Recon (100 pts)
+==========================
+Expected Flag:
+172.25.0.10
+
+==========================
+MODULE 2 - Protocol Identification (100 pts)
+==========================
+Expected Flag:
+502
+
+==========================
+MODULE 3 - API Endpoint Discovery (150 pts)
+==========================
+Expected Flag:
+4
+
+==========================
+MODULE 4 - Unauthorized Track Switch (200 pts)
+==========================
+Expected Flag:
+ROUTE_C
+
+==========================
+MODULE 5 - Alarm Flooding (200 pts)
+==========================
+Expected Flag:
+dynamic_gte_50
+(Dynamic check: any submitted integer >= 50 is accepted — see validate_flag() in app.py)
+
+==========================
+MODULE 6 - Safety Interlock Bypass (300 pts)
+==========================
+Expected Flag:
+Conflicting routes at junction
+
+==========================
+MODULE 7 - API Fuzzing (300 pts)
+==========================
+Expected Flag:
+Invalid route: ROUTE_XYZ
+
+==========================
+MODULE 8 - Packet Capture Analysis (250 pts)
+==========================
+Expected Flag:
+segment_id
+
+==========================
+MODULE 9 - Emergency Recovery (200 pts)
+==========================
+Expected Flag:
+emergency_cleared
+
+==========================
+MODULE 10 - Deep Memory Forensics (400 pts)
+==========================
+Expected Flag:
+FLAG{modbus_master_pwned}
