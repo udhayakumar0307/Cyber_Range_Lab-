@@ -114,6 +114,50 @@ class CertificateService:
         draw.text((int(x), f_cfg["y"]), text, fill=f_cfg.get("color", "#0F172A"), font=font)
         return int(x), tw
 
+    def _draw_wrapped_text(
+        self,
+        draw: ImageDraw.ImageDraw,
+        val: str,
+        f_cfg: dict,
+        font: ImageFont.FreeTypeFont,
+        max_width: int,
+        line_gap: int = 8,
+    ) -> tuple[int, int]:
+        """
+        Like _draw_text, but wraps onto a second centered line instead of
+        shrinking the font indefinitely when a long value doesn't fit — a
+        long lab title stays readable at full size across two lines rather
+        than shrinking to the point of looking like an afterthought.
+        Returns (x_start, text_width) of the widest line drawn.
+        """
+        text = str(val)
+        bb = font.getbbox(text)
+        if bb[2] - bb[0] <= max_width:
+            return self._draw_text(draw, text, f_cfg, font, max_width=max_width)
+
+        words = text.split()
+        line1, line2 = words, []
+        # Greedily move words to line 2 until line 1 fits max_width.
+        while line1 and font.getbbox(" ".join(line1))[2] > max_width:
+            line2.insert(0, line1.pop())
+        if not line1:
+            # A single word wider than max_width — fall back to font shrink.
+            return self._draw_text(draw, text, f_cfg, font, max_width=max_width)
+        lines = [" ".join(line1)] + ([" ".join(line2)] if line2 else [])
+
+        line_h = f_cfg.get("size", 28) + line_gap
+        total_h = line_h * len(lines)
+        start_y = f_cfg["y"] - (total_h - (f_cfg.get("size", 28))) // 2
+        best_x0, best_w = f_cfg["x"], 0
+        for i, line in enumerate(lines):
+            lb = font.getbbox(line)
+            lw = lb[2] - lb[0]
+            lx = f_cfg["x"] - lw // 2
+            draw.text((int(lx), int(start_y + i * line_h)), line, fill=f_cfg.get("color", "#0F172A"), font=font)
+            if lw > best_w:
+                best_w, best_x0 = lw, int(lx)
+        return best_x0, best_w
+
     # ── QR Generation ──────────────────────────────────────────────────────────
 
     def generate_qr_image(self, verify_url: str, size: tuple[int, int]) -> Image.Image:
@@ -169,22 +213,29 @@ class CertificateService:
         # Max widths per field to prevent overflow
         max_widths = {
             "recipient_name": W - 300,   # 1100px wide zone
-            "lab_title":      W - 200,   # 1200px wide zone
+            "lab_title":      780,       # matches the certificate's inner content margins
             "completion_date": 300,
             "certificate_id":  300,
         }
 
         name_x0 = name_tw = None
-        lab_x0 = lab_tw = None
         for key, val in field_values.items():
-            if key in fields:
-                f_cfg = fields[key]
-                font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
-                x0, tw = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
-                if key == "recipient_name":
-                    name_x0, name_tw = x0, tw
-                elif key == "lab_title":
-                    lab_x0, lab_tw = x0, tw
+            if key not in fields or key == "lab_title":
+                continue
+            f_cfg = fields[key]
+            font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
+            x0, tw = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
+            if key == "recipient_name":
+                name_x0, name_tw = x0, tw
+
+        # Lab title wraps onto a second line instead of shrinking indefinitely
+        # — matches the reference design, where a long track name ("OT
+        # Railroad Signaling & Control Security Lab") reads as two full-size
+        # lines rather than one tiny squeezed-down line.
+        if "lab_title" in fields:
+            f_cfg = fields["lab_title"]
+            font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
+            self._draw_wrapped_text(draw, field_values["lab_title"], f_cfg, font, max_width=max_widths["lab_title"])
 
         # Gold underline + diamond centered under the recipient name, sized to
         # the actual rendered width (with headroom on each side) rather than a
@@ -205,24 +256,6 @@ class CertificateService:
                 [(mid_x, underline_y - d), (mid_x + d, underline_y), (mid_x, underline_y + d), (mid_x - d, underline_y)],
                 fill="#C5A059",
             )
-
-        # Flanking gold line + dot markers either side of the lab title,
-        # echoing the same "○──── OF COMPLETION ────○" motif used under the
-        # main heading — sized to the panel width minus the actual rendered
-        # text width, so it stays balanced for both short and long lab names.
-        if lab_x0 is not None and "lab_title" in fields:
-            lab_cfg = fields["lab_title"]
-            mid_y = lab_cfg["y"] + lab_cfg.get("size", 28) // 2
-            panel_x0, panel_x1 = 340, 1060
-            text_gap = 18
-            r = 4
-            if lab_x0 - text_gap - panel_x0 > 2 * r + 10:
-                draw.line([(panel_x0, mid_y), (lab_x0 - text_gap, mid_y)], fill="#C5A059", width=2)
-                draw.ellipse([panel_x0 - r, mid_y - r, panel_x0 + r, mid_y + r], outline="#C5A059", width=2)
-            text_end = lab_x0 + lab_tw
-            if panel_x1 - (text_end + text_gap) > 2 * r + 10:
-                draw.line([(text_end + text_gap, mid_y), (panel_x1, mid_y)], fill="#C5A059", width=2)
-                draw.ellipse([panel_x1 - r, mid_y - r, panel_x1 + r, mid_y + r], outline="#C5A059", width=2)
 
         buffer = io.BytesIO()
         # Create a solid white background to blend RGBA channels properly (prevent black backgrounds)
