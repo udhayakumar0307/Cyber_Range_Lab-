@@ -7,25 +7,23 @@
     "recipient_name": {
       "x": 700,
       "y": 455,
-      "font": "Tinos-Bold.ttf",
+      "font": "Gelasio-Regular.ttf",
       "size": 52,
       "color": "#0F172A",
-      "align": "center",
-      "stroke_width": 1
+      "align": "center"
     },
     "lab_title": {
       "x": 700,
       "y": 605,
-      "font": "Tinos-Bold.ttf",
+      "font": "Gelasio-Regular.ttf",
       "size": 28,
       "color": "#0B1F3A",
-      "align": "center",
-      "stroke_width": 1
+      "align": "center"
     },
     "completion_date": {
       "x": 520,
       "y": 755,
-      "font": "Tinos-Bold.ttf",
+      "font": "Gelasio-Regular.ttf",
       "size": 20,
       "color": "#0F172A",
       "align": "center"
@@ -33,7 +31,7 @@
     "certificate_id": {
       "x": 912,
       "y": 755,
-      "font": "Tinos-Bold.ttf",
+      "font": "Gelasio-Regular.ttf",
       "size": 20,
       "color": "#0F172A",
       "align": "center"
