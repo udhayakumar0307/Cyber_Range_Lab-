@@ -37,6 +37,8 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  AreaChart,
+  Area,
 } from 'recharts';
 
 // Severity → color mapping shared by the SOC ring and the timeline bars,
@@ -974,6 +976,8 @@ export const SystemPortal: React.FC = () => {
   const counters = dashboardData?.counters || {};
   const recentLogs = dashboardData?.recent_activity || [];
   const organizations = dashboardData?.organizations || [];
+  const liveUserActivity = dashboardData?.live_user_activity || [];
+  const platformSpeed = dashboardData?.platform_speed || { avg_response_ms: 0, requests_tracked: 0, slow_endpoint_count: 0 };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans">
@@ -1073,6 +1077,67 @@ export const SystemPortal: React.FC = () => {
                   <p className={`text-2xl font-black ${c.color}`}>{c.val ?? 0}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Live User Activity + Platform Usage Speed */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-600" /> Live User Activity
+                  </h3>
+                  <span className="text-xs text-slate-500">Distinct active users / hour — last 24h</span>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={liveUserActivity} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="liveUserFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#2563EB" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EEF2F7" vertical={false} />
+                    <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} interval={2} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #E2E8F0' }}
+                      labelFormatter={(label) => `Hour: ${label}`}
+                      formatter={(value) => [value as number, 'Active users']}
+                    />
+                    <Area type="monotone" dataKey="active_users" stroke="#2563EB" strokeWidth={2} fill="url(#liveUserFill)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                    <Server className="w-5 h-5 text-emerald-600" /> Platform Usage Speed
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 block mb-1">Avg. API Response Time</span>
+                    <p className={`text-3xl font-black ${platformSpeed.avg_response_ms > 200 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {platformSpeed.avg_response_ms}
+                      <span className="text-sm font-bold text-slate-400 ml-1">ms</span>
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 block">Requests Tracked</span>
+                      <p className="text-lg font-extrabold text-slate-800">{platformSpeed.requests_tracked.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 block">Slow Endpoints</span>
+                      <p className={`text-lg font-extrabold ${platformSpeed.slow_endpoint_count > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                        {platformSpeed.slow_endpoint_count}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1">Live since last backend restart — resets on deploy.</p>
+                </div>
+              </div>
             </div>
 
             {/* Quick Audit Logs Preview */}

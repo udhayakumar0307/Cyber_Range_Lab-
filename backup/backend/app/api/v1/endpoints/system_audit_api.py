@@ -88,7 +88,13 @@ def get_system_audit_dashboard(
     total_groups = db.query(Group).count()
     total_purchases = db.query(PurchasedLab).count()
     
-    rev_result = db.query(func.sum(Payment.amount)).filter(Payment.payment_status == "SUCCESS").scalar()
+    # Revenue counts only real Razorpay-gateway payments — "mock" rows are
+    # test/manual data (seeded during development, ₹0 or placeholder amounts)
+    # that were inflating the platform's reported revenue.
+    rev_result = db.query(func.sum(Payment.amount)).filter(
+        Payment.payment_status == "SUCCESS",
+        Payment.gateway == "razorpay",
+    ).scalar()
     total_revenue = float(rev_result or 0.0)
 
     # Time-scoped SaaS Revenue Metrics
@@ -98,11 +104,13 @@ def get_system_audit_dashboard(
 
     monthly_rev = db.query(func.sum(Payment.amount)).filter(
         Payment.payment_status == "SUCCESS",
+        Payment.gateway == "razorpay",
         Payment.created_at >= month_start
     ).scalar() or 0.0
 
     yearly_rev = db.query(func.sum(Payment.amount)).filter(
         Payment.payment_status == "SUCCESS",
+        Payment.gateway == "razorpay",
         Payment.created_at >= year_start
     ).scalar() or 0.0
 
@@ -113,6 +121,49 @@ def get_system_audit_dashboard(
     total_running_containers = db.query(StudySession).filter(StudySession.logout_time.is_(None)).count()
     total_sessions = db.query(StudySession).count()
     total_active_users = db.query(User).filter(User.is_active == True).count()
+
+    # Live user activity — distinct users active per hour over the last 24h,
+    # derived from the audit log (every login/action writes one), so this
+    # reflects real traffic rather than the static is_active account flag.
+    window_start = now - timedelta(hours=24)
+    hourly_rows = (
+        db.query(
+            func.date_trunc('hour', AuditLog.timestamp).label('hour'),
+            func.count(func.distinct(AuditLog.user_id)).label('active_users'),
+        )
+        .filter(AuditLog.timestamp >= window_start, AuditLog.user_id.isnot(None))
+        .group_by('hour')
+        .order_by('hour')
+        .all()
+    )
+    hourly_map = {row.hour.strftime("%Y-%m-%dT%H:00:00"): row.active_users for row in hourly_rows}
+    live_user_activity = []
+    for i in range(24, -1, -1):
+        bucket = (now - timedelta(hours=i)).replace(minute=0, second=0, microsecond=0)
+        key = bucket.strftime("%Y-%m-%dT%H:00:00")
+        live_user_activity.append({
+            "hour": bucket.strftime("%H:00"),
+            "timestamp": key,
+            "active_users": hourly_map.get(key, 0),
+        })
+
+    # Platform usage speed — live from the in-process request timing
+    # middleware (average response time across all tracked API endpoints
+    # since the backend process started).
+    platform_speed = {"avg_response_ms": 0.0, "requests_tracked": 0, "slow_endpoint_count": 0}
+    try:
+        from app.middleware.timing import timing_middleware_instance
+        if timing_middleware_instance is not None:
+            stats = timing_middleware_instance.get_stats()
+            total_requests = sum(s["count"] for s in stats)
+            total_ms = sum(s["total_ms"] for s in stats)
+            platform_speed = {
+                "avg_response_ms": round(total_ms / total_requests, 1) if total_requests else 0.0,
+                "requests_tracked": total_requests,
+                "slow_endpoint_count": sum(1 for s in stats if s["avg_ms"] > 200),
+            }
+    except Exception as e:
+        logger.warning(f"Could not read timing middleware stats: {e}")
 
     audit_query = db.query(AuditLog)
     if org_id:
@@ -223,7 +274,9 @@ def get_system_audit_dashboard(
         },
         "recent_activity": recent_activity,
         "platform_admins": platform_admins,
-        "organizations": organizations
+        "organizations": organizations,
+        "live_user_activity": live_user_activity,
+        "platform_speed": platform_speed
     }
 
 @router.get("/users")
@@ -685,6 +738,12 @@ def read_only_database_viewer(
     columns = [column.key for column in mapper.columns]
 
     query = db.query(model_cls)
+
+    # The payments table is used for financial governance review — mock/manual
+    # test rows (seeded during development) shouldn't appear alongside real
+    # Razorpay transactions here.
+    if table_name == "payments":
+        query = query.filter(Payment.gateway == "razorpay")
 
     if search:
         s = f"%{search}%"
