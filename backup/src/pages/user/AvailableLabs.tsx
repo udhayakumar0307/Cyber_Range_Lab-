@@ -159,6 +159,29 @@ export const AvailableLabs: React.FC = () => {
     }
   };
 
+  /* ─── Detail Modal ─────────────────────────────────────────
+     Certificate PDF rendering happens synchronously server-side, but a
+     transient render failure leaves certificatePdfUrl empty until the next
+     /labs call retries it (see certificate_manager.get_or_issue_certificate).
+     If the cached lab list still shows a completed lab with no cert yet,
+     refetch on open so a since-repaired certificate shows up without the
+     student needing to reload the page. */
+  const openLabDetails = async (lab: Lab) => {
+    setSelectedModalLab(lab);
+    setIsModalOpen(true);
+    if (!lab.isCompleted || lab.certificatePdfUrl) return;
+    try {
+      const res = await apiFetch('/api/v1/labs');
+      if (!res.ok) return;
+      const items: any[] = await res.json();
+      const fresh = (Array.isArray(items) ? items : []).find((i) => i?.id === lab.id);
+      if (!fresh) return;
+      const patch = { certificatePdfUrl: fresh.certificatePdfUrl ?? '', certificateId: fresh.certificateId ?? '' };
+      setSelectedModalLab((prev: any) => (prev && prev.id === lab.id ? { ...prev, ...patch } : prev));
+      setLabs((prev) => prev.map((l) => (l.id === lab.id ? { ...l, ...patch } : l)));
+    } catch { /* keep showing the "generating" state — next open will retry */ }
+  };
+
   /* ─── Cart Operations (mirror admin LabMarketplace) ──────── */
   const handleAddToCart = async (lab: Lab) => {
     if (cartItems.some(i => i.lab_id === lab.id)) { setIsCartOpen(true); return; }
@@ -465,7 +488,7 @@ export const AvailableLabs: React.FC = () => {
                             Completed
                           </span>
                           <button
-                            onClick={() => { setSelectedModalLab(lab); setIsModalOpen(true); }}
+                            onClick={() => openLabDetails(lab)}
                             className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
                           >
                             View Details
@@ -507,7 +530,7 @@ export const AvailableLabs: React.FC = () => {
                       ) : (
                         <>
                           <button
-                            onClick={() => { setSelectedModalLab(lab); setIsModalOpen(true); }}
+                            onClick={() => openLabDetails(lab)}
                             className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
                           >
                             View Details
