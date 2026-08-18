@@ -46,6 +46,11 @@ EOF
 
 # ── Start MySQL/MariaDB ───────────────────────────────────
 echo "==> Starting MariaDB..."
+if [ ! -d "/var/lib/mysql/mysql" ] || [ ! -f "/var/lib/mysql/ibdata1" ] || [ ! -s "/var/lib/mysql/ibdata1" ]; then
+    echo "==> Re-initializing MariaDB data directory..."
+    rm -rf /var/lib/mysql/*
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql
+fi
 # Bind to all interfaces so nmap/students can reach port 3306
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 service mariadb start
