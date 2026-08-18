@@ -4,7 +4,7 @@ import {
   Activity, BookOpen, Star, CheckCircle2, Medal,
   Globe, Smartphone, Calendar, ChevronRight,
   User, Users, Crown, Target, TrendingUp,
-  AlertCircle, RefreshCw, Puzzle
+  AlertCircle, RefreshCw, Puzzle, Download, Share2
 } from "lucide-react";
 import { VectorBadge } from "../../components/user/VectorBadge";
 import { useAuth } from "../../context";
@@ -510,20 +510,61 @@ export const StatisticsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Certificates */}
-          {completedLabs.length > 0 && (
+          {/* Certificates — sourced from the actual issued certificate records
+              (userCerts, /api/v1/reporting/certificates) so Download/Share/date
+              are real, instead of the completedLabs list which has none of that. */}
+          {userCerts.length > 0 && (
             <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-[#E2E8F0] dark:border-[#334155] p-5 shadow-xs">
               <h2 className="text-sm font-bold text-[#0F172A] dark:text-white flex items-center gap-2 mb-4"><Star className="w-4 h-4 text-amber-500" /> Certificates</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedLabs.slice(0, 6).map((lab, idx) => (
-                  <div key={idx} className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 p-4 flex gap-3 items-start hover:shadow-md transition-shadow">
-                    <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0"><Medal className="w-4 h-4 text-amber-600" /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-[#0F172A] dark:text-white truncate">{lab.name}</p>
-                      <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold mt-0.5">Certificate of Completion</p>
-                      <p className="text-[9px] text-slate-400">{lab.completed_at || "--"}</p>
+                {userCerts.slice(0, 6).map((cert, idx) => (
+                  <div key={cert.uuid || idx} className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
+                    <div className="flex gap-3 items-start">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0"><Medal className="w-4 h-4 text-amber-600" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black text-[#0F172A] dark:text-white truncate">{cert.lab_title}</p>
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold mt-0.5">Certificate of Completion</p>
+                        <p className="text-[9px] text-slate-400">{cert.completion_date || "--"}</p>
+                      </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-amber-400 flex-shrink-0 mt-1" />
+                    {cert.pdf_url ? (
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={cert.pdf_url}
+                          download
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 text-[10px] font-bold text-white bg-amber-500 hover:bg-amber-600 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Download
+                        </a>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const verifyUrl = `${window.location.origin}${cert.verification_url || `/certificate/verify/${cert.display_certificate_id}`}`;
+                            const shareData = {
+                              title: `CyberRange Certificate — ${cert.lab_title}`,
+                              text: `I completed ${cert.lab_title} on CyberRange!`,
+                              url: verifyUrl,
+                            };
+                            if (navigator.share) {
+                              try { await navigator.share(shareData); return; } catch { /* fall through */ }
+                            }
+                            try {
+                              await navigator.clipboard.writeText(verifyUrl);
+                              alert('Certificate verification link copied to clipboard.');
+                            } catch {
+                              alert(verifyUrl);
+                            }
+                          }}
+                          className="inline-flex items-center justify-center gap-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Share2 className="w-3.5 h-3.5" /> Share
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-semibold">Certificate generating — check back shortly</p>
+                    )}
                   </div>
                 ))}
               </div>
