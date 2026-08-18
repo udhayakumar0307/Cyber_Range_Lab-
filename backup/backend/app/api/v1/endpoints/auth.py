@@ -635,9 +635,14 @@ def register(register_data: UserRegister, db: Session = Depends(get_db)):
         )
         db.add(rollback_log)
         db.commit()
+        # Log the full AWS error server-side only — it can contain account IDs,
+        # IAM role ARNs, and other infra details that must never reach the client.
         logger.error(f"SES error: {e}")
         logger.info("Registration rollback")
-        raise AppError(f"Registration failed: {str(e)}", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(
+            "We couldn't send your verification email right now. Please try again in a few minutes.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
         
     db.commit()
     db.refresh(user)
@@ -813,9 +818,13 @@ def forgot_password(request_data: ForgotPasswordRequest, db: Session = Depends(g
         )
         db.add(rollback_log)
         db.commit()
+        # Log the full AWS error server-side only — never echo it to the client.
         logger.error(f"SES error: {e}")
         logger.info("Rollback")
-        raise AppError(f"Email dispatch failed: {str(e)}", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(
+            "We couldn't send the recovery email right now. Please try again in a few minutes.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
     # 7. Commit database transaction only after successful email send
     db.commit()
