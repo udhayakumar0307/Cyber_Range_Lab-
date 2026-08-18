@@ -93,8 +93,7 @@ class AchievementManager:
             cert_data = {
                 "uuid": cert.uuid,
                 "display_certificate_id": cert.display_certificate_id,
-                "pdf_path": cert.pdf_path,
-                "png_path": cert.png_path,
+                "download_url": f"/api/v1/reporting/certificates/{cert.display_certificate_id}/download" if cert.png_path else None,
                 "verification_url": f"/certificate/verify/{cert.display_certificate_id}"
             }
         except Exception as cert_err:

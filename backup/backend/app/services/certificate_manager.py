@@ -31,8 +31,8 @@ class CertificateManager:
         completed_at: Optional[datetime] = None
     ) -> Certificate:
         # 1. Idempotency Check: Return existing certificate if already generated
-        # AND its files actually rendered — a certificate row with an empty
-        # pdf_path means a previous render attempt failed. Do not treat that
+        # AND its file actually rendered — a certificate row with an empty
+        # png_path means a previous render attempt failed. Do not treat that
         # as "already issued", or the broken record gets returned forever and
         # the download/share button never appears. Retry rendering for it
         # instead of creating a duplicate row.
@@ -41,7 +41,7 @@ class CertificateManager:
             .filter(Certificate.user_id == user_id, Certificate.lab_id == lab_id)
             .first()
         )
-        if existing and existing.pdf_path:
+        if existing and existing.png_path:
             logger.info(f"Certificate reused for user_id={user_id}, lab_id={lab_id}: {existing.display_certificate_id}")
             return existing
 
@@ -89,11 +89,10 @@ class CertificateManager:
         frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
         verify_url = f"{frontend_base}/certificate/verify/{display_id}"
 
-        # 4. Render Files via CertificateService
-        pdf_path = ""
+        # 4. Render the PNG via CertificateService
         png_path = ""
         try:
-            pdf_path, png_path = certificate_service.generate_and_save_certificate(
+            png_path = certificate_service.generate_and_save_certificate(
                 display_id=display_id,
                 recipient_name=recipient_name,
                 lab_title=lab_title,
@@ -108,7 +107,7 @@ class CertificateManager:
         except Exception as e:
             logger.error(f"Rendering failed for certificate {display_id}: {e}", exc_info=True)
 
-        if not pdf_path:
+        if not png_path:
             # Rendering failed again — do not persist a broken/empty record.
             # Return an existing (still-broken) row if there is one so callers
             # don't crash, but this cert will be retried on the next request
@@ -122,7 +121,6 @@ class CertificateManager:
         # row in place if there is one, otherwise insert a new one.
         try:
             if existing:
-                existing.pdf_path = pdf_path
                 existing.png_path = png_path
                 db.commit()
                 db.refresh(existing)
@@ -134,7 +132,6 @@ class CertificateManager:
                 display_certificate_id=display_id,
                 user_id=user_id,
                 lab_id=lab_id,
-                pdf_path=pdf_path,
                 png_path=png_path,
                 created_at=completed_at or datetime.utcnow()
             )
@@ -146,8 +143,6 @@ class CertificateManager:
         except Exception as db_err:
             db.rollback()
             logger.error(f"Database insertion failed for certificate {display_id}, cleaning up files: {db_err}")
-            if pdf_path:
-                storage_provider.delete(f"pdf/{display_id}.pdf")
             if png_path:
                 storage_provider.delete(f"png/{display_id}.png")
             raise db_err

@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, case, or_, not_, text
@@ -969,8 +970,8 @@ def get_user_certificates(
             "lab_id": c.lab_id,
             "lab_title": (lab.name if getattr(lab, "name", None) else getattr(lab, "title", None)) if lab else c.lab_id.replace("-", " ").title(),
             "category": lab.category if (lab and lab.category) else "Cyber Security",
-            "pdf_url": c.pdf_path,
-            "png_url": c.png_path,
+            "pdf_url": f"/api/v1/reporting/certificates/{c.display_certificate_id}/download" if c.png_path else None,
+            "png_url": f"/api/v1/reporting/certificates/{c.display_certificate_id}/download" if c.png_path else None,
             "completion_date": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "",
             "duration": f"{hours} Hours",
             "score": current_user.total_score or 100,
@@ -1035,9 +1036,45 @@ def verify_certificate(
         "percentage": 100,
         "badge_earned": "CyberRange Master Badge",
         "issued_by": "CyberRange Official Telemetry Platform",
-        "pdf_url": cert.pdf_path,
-        "png_url": cert.png_path
+        "pdf_url": f"/api/v1/reporting/certificates/{cert.display_certificate_id}/download" if cert.png_path else None,
+        "png_url": f"/api/v1/reporting/certificates/{cert.display_certificate_id}/download" if cert.png_path else None
     }
+
+
+@router.get("/certificates/{certificate_id}/download")
+def download_certificate_png(certificate_id: str, db: Session = Depends(get_db)):
+    """
+    PUBLIC certificate download — served under /api/v1 so it goes through the
+    same reverse-proxy path already proven to work for every other endpoint.
+    The raw /uploads/... static path certificates previously linked to isn't
+    reachable through the deployed proxy config and falls back to serving the
+    SPA's index.html, so "downloading" a certificate silently produced an
+    .htm file of the frontend shell instead of the actual image.
+    """
+    from fastapi.responses import FileResponse
+    from app.models.certificate import Certificate
+
+    cert = (
+        db.query(Certificate)
+        .filter(Certificate.display_certificate_id == certificate_id)
+        .first()
+    )
+    if not cert:
+        cert = db.query(Certificate).filter(Certificate.uuid == certificate_id).first()
+    if not cert or not cert.png_path:
+        raise HTTPException(status_code=404, detail="Certificate not found or not yet generated.")
+
+    from app.services.storage_provider import storage_provider
+    relative = f"png/{cert.display_certificate_id}.png"
+    if not storage_provider.exists(relative):
+        raise HTTPException(status_code=404, detail="Certificate file missing on disk.")
+
+    full_path = os.path.join(storage_provider.base_dir, relative)
+    return FileResponse(
+        full_path,
+        media_type="image/png",
+        filename=f"{cert.display_certificate_id}.png",
+    )
 
 
 # ==========================================================

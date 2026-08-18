@@ -137,22 +137,13 @@ export const VerificationPage: React.FC = () => {
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
                 <div className="flex items-center gap-2">
-                  {data.pdf_url && (
-                    <a
-                      href={data.pdf_url}
-                      download
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
-                    >
-                      <Download className="w-4 h-4" /> Download PDF
-                    </a>
-                  )}
                   {data.png_url && (
                     <a
                       href={data.png_url}
                       download
-                      className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5 border border-slate-700"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
                     >
-                      <Download className="w-4 h-4 text-blue-400" /> Download PNG
+                      <Download className="w-4 h-4" /> Download Certificate
                     </a>
                   )}
                 </div>

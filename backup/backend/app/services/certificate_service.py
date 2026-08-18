@@ -182,33 +182,13 @@ class CertificateService:
         buffer.seek(0)
         return buffer.getvalue()
 
-    # ── PDF Export ──────────────────────────────────────────────────────────────
-
-    def render_pdf(
-        self,
-        display_id: str,
-        recipient_name: str,
-        lab_title: str,
-        category: str,
-        score: int,
-        percentage: int,
-        points: int,
-        date_str: str,
-        duration_str: str,
-        verify_url: str,
-    ) -> bytes:
-        """Converts rendered PNG to 300 DPI landscape PDF via Pillow."""
-        png_bytes = self.render_png(
-            display_id, recipient_name, lab_title, category,
-            score, percentage, points, date_str, duration_str, verify_url,
-        )
-        img        = Image.open(io.BytesIO(png_bytes))
-        pdf_buffer = io.BytesIO()
-        img.save(pdf_buffer, format="PDF", resolution=300.0)
-        pdf_buffer.seek(0)
-        return pdf_buffer.getvalue()
-
     # ── Orchestration ────────────────────────────────────────────────────────────
+    # PNG only — the previously offered "Download PDF" was just this same PNG
+    # re-wrapped via Pillow's PDF writer, served from a raw /uploads/... static
+    # path that isn't reachable through the deployed reverse proxy (it falls
+    # through to the SPA's index.html, so "downloads" were silently .htm files
+    # of the frontend shell). Certificates are now PNG-only, served through a
+    # dedicated /api/v1 download route that's proven to be proxied correctly.
 
     def generate_and_save_certificate(
         self,
@@ -222,24 +202,17 @@ class CertificateService:
         date_str: str,
         duration_str: str,
         verify_url: str,
-    ) -> tuple[str, str]:
+    ) -> str:
         png_bytes = self.render_png(
-            display_id, recipient_name, lab_title, category,
-            score, percentage, points, date_str, duration_str, verify_url,
-        )
-        pdf_bytes = self.render_pdf(
             display_id, recipient_name, lab_title, category,
             score, percentage, points, date_str, duration_str, verify_url,
         )
 
         png_rel = f"png/{display_id}.png"
-        pdf_rel = f"pdf/{display_id}.pdf"
-
         png_path = storage_provider.save(png_bytes, png_rel)
-        pdf_path = storage_provider.save(pdf_bytes, pdf_rel)
 
         logger.info(f"V3 certificate rendered & saved: {display_id}")
-        return pdf_path, png_path
+        return png_path
 
 
 certificate_service = CertificateService()
