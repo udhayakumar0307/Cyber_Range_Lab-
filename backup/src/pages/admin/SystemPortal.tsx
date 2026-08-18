@@ -330,9 +330,13 @@ export const SystemPortal: React.FC = () => {
       const sev = (a.severity || 'LOW').toUpperCase();
       counts[sev] = (counts[sev] || 0) + 1;
     });
-    return order
+    const breakdown = order
       .filter((sev) => counts[sev])
       .map((sev) => ({ name: sev, value: counts[sev], color: SEVERITY_COLORS[sev] || '#94a3b8' }));
+    // Fallback slice so the ring never renders blank when the platform is quiet.
+    return breakdown.length > 0
+      ? breakdown
+      : [{ name: 'ALL CLEAR', value: 1, color: '#d1fae5' }];
   }, [securityAlerts]);
 
   const blockedStats = useMemo(() => {
@@ -1242,7 +1246,7 @@ export const SystemPortal: React.FC = () => {
               <p className="text-xs text-slate-500">Live monitoring of security logs (DDoS attacks, brute force, role violations)</p>
             </div>
 
-            {!securityLoading && securityAlerts.length > 0 && (
+            {!securityLoading && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* SOC Ring — severity breakdown + blocked/active status */}
                 <div className="lg:col-span-1 border border-slate-200 rounded-2xl p-5 shadow-xs bg-white">
@@ -1285,16 +1289,23 @@ export const SystemPortal: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {severityBreakdown.map((s) => (
-                      <span
-                        key={s.name}
-                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: `${s.color}1A`, color: s.color }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
-                        {s.name} · {s.value}
+                    {blockedStats.total === 0 ? (
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        No threats detected
                       </span>
-                    ))}
+                    ) : (
+                      severityBreakdown.map((s) => (
+                        <span
+                          key={s.name}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${s.color}1A`, color: s.color }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                          {s.name} · {s.value}
+                        </span>
+                      ))
+                    )}
                   </div>
                 </div>
 
