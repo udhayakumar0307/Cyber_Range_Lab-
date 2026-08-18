@@ -110,26 +110,38 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
     lab_seed = _derive_lab_seed(user_id)
     client   = docker_sdk.from_env()
 
-    # ── 1. Tear down any leftover resources from a prior session ────────────
     _teardown_recon_session(user_id, _client=client)
+    uid_slot = int(user_id) % 250 if str(user_id).isdigit() else 9
+    subnet = f"10.10.{uid_slot}.0/24"
+    gateway = f"10.10.{uid_slot}.1"
+    target_ip = f"10.10.{uid_slot}.10"
+    student_ip = f"10.10.{uid_slot}.2"
 
     # ── 2. Create isolated bridge network (Task 1.1) ────────────────────────
-    logger.info(f"[Recon] Creating network {names['network']}")
+    logger.info(f"[Recon] Creating network {names['network']} with subnet {subnet}")
+    ipam_pool = docker_sdk.types.IPAMPool(
+        subnet=subnet,
+        gateway=gateway
+    )
+    ipam_config = docker_sdk.types.IPAMConfig(
+        pool_configs=[ipam_pool]
+    )
     network = client.networks.create(
         names["network"],
         driver="bridge",
+        ipam=ipam_config,
         check_duplicate=True,
         labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
     )
 
     # ── 3. Start vulnerable-services target container (Task 1.2 & 1.3) ──────
-    logger.info(f"[Recon] Starting target container {names['target']}")
-    target = client.containers.run(
+    logger.info(f"[Recon] Creating target container {names['target']}")
+    target = client.containers.create(
         RECON_TARGET_IMAGE,
         name=names["target"],
         hostname="techcorp-internal",
         detach=True,
-        network=names["network"],
+        cap_add=["NET_ADMIN"],
         environment={
             "STUDENT_ID": str(user_id),   # Task 1.3 — seed injection
             "LAB_SEED":   lab_seed,
@@ -138,19 +150,23 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
         restart_policy={"Name": "no"},
         labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
     )
+    network.connect(target, ipv4_address=target_ip)
+    target.start()
+    
     # Give target services (MariaDB, FTP, SSH, Apache) time to initialise
     time.sleep(3)
+    target.exec_run("ip addr add 10.10.0.10/32 dev lo")
 
     # ── 4. Start student workspace container (Task 1.2 & 1.3) ───────────────
-    logger.info(f"[Recon] Starting student container {names['student']}")
-    student = client.containers.run(
+    logger.info(f"[Recon] Creating student container {names['student']}")
+    student = client.containers.create(
         RECON_STUDENT_IMAGE,
         name=names["student"],
         hostname="secureguard-kali",
         detach=True,
         stdin_open=True,
         tty=True,
-        network=names["network"],
+        cap_add=["NET_ADMIN"],
         environment={
             "STUDENT_ID":  str(user_id),  # Task 1.3 — seed injection
             "LAB_SEED":    lab_seed,
@@ -160,6 +176,11 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
         restart_policy={"Name": "no"},
         labels={"managed_by": "cyberrange", "lab": LAB_ID, "user_id": str(user_id)},
     )
+    network.connect(student, ipv4_address=student_ip)
+    student.start()
+    
+    # Configure loopback routing
+    student.exec_run(f"ip route add 10.10.0.10 via {target_ip}")
 
     logger.info(
         f"[Recon] Session provisioned for user {user_id} | "
