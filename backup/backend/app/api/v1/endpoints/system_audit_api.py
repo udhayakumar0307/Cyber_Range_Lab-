@@ -591,6 +591,57 @@ def cleanup_mock_payments(
         "message": "Mock payment rows permanently deleted."
     }
 
+@router.delete("/payments/by-id")
+def delete_payments_by_id(
+    ids: str = Query(..., description="Comma-separated list of payment IDs, e.g. 21,28,39"),
+    confirm: bool = Query(False, description="Set to true to actually delete rows; otherwise this only previews them"),
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview (default) or permanently delete specific Payment rows by ID.
+    Call with no confirm param first to preview, then again with ?confirm=true to delete.
+    """
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ids must be a comma-separated list of integers")
+
+    if not id_list:
+        raise HTTPException(status_code=400, detail="No valid ids provided")
+
+    matching_query = db.query(Payment).filter(Payment.id.in_(id_list))
+    matches = matching_query.all()
+    found_ids = [p.id for p in matches]
+    missing_ids = [i for i in id_list if i not in found_ids]
+    total = sum(float(p.amount or 0.0) for p in matches)
+
+    if not confirm:
+        return {
+            "dry_run": True,
+            "requested_ids": id_list,
+            "found_ids": found_ids,
+            "missing_ids": missing_ids,
+            "total_amount": total,
+            "rows": [
+                {"id": p.id, "amount": float(p.amount or 0.0), "gateway": p.gateway, "payment_status": p.payment_status}
+                for p in matches
+            ],
+            "message": "No rows deleted. Re-call with ?confirm=true to permanently delete these rows."
+        }
+
+    deleted = matching_query.delete(synchronize_session=False)
+    db.commit()
+    logger.warning(f"System admin {current_admin.email} permanently deleted payment rows by id: {found_ids} (total amount {total})")
+    return {
+        "dry_run": False,
+        "deleted_rows": deleted,
+        "deleted_ids": found_ids,
+        "missing_ids": missing_ids,
+        "total_amount": total,
+        "message": "Payment rows permanently deleted."
+    }
+
 @router.get("/payments")
 def get_system_payments(
     page: int = Query(1, ge=1),
