@@ -155,7 +155,15 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
     
     # Give target services (MariaDB, FTP, SSH, Apache) time to initialise
     time.sleep(3)
-    target.exec_run("ip addr add 10.10.0.10/32 dev lo")
+    # Try configuring loopback IP on target using ip, with ifconfig as a fallback
+    res_ip = target.exec_run("ip addr add 10.10.0.10/32 dev lo")
+    res_ifconfig = target.exec_run("ifconfig lo:0 10.10.0.10 netmask 255.255.255.255 up")
+    logger.info(
+        f"[Recon] target IP config (ip): exit={res_ip.exit_code} output={res_ip.output.decode('utf-8', errors='ignore').strip()}"
+    )
+    logger.info(
+        f"[Recon] target IP config (ifconfig): exit={res_ifconfig.exit_code} output={res_ifconfig.output.decode('utf-8', errors='ignore').strip()}"
+    )
 
     # ── 4. Start student workspace container (Task 1.2 & 1.3) ───────────────
     logger.info(f"[Recon] Creating student container {names['student']}")
@@ -180,7 +188,10 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
     student.start()
     
     # Configure loopback routing
-    student.exec_run(f"ip route add 10.10.0.10 via {target_ip}")
+    res_route = student.exec_run(f"ip route add 10.10.0.10 via {target_ip}")
+    logger.info(
+        f"[Recon] student route config (ip route): exit={res_route.exit_code} output={res_route.output.decode('utf-8', errors='ignore').strip()}"
+    )
 
     logger.info(
         f"[Recon] Session provisioned for user {user_id} | "
