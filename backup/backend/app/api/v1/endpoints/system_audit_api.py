@@ -558,6 +558,39 @@ def get_system_labs(
         ]
     }
 
+@router.delete("/payments/mock")
+def cleanup_mock_payments(
+    confirm: bool = Query(False, description="Set to true to actually delete rows; otherwise this only previews the count/sum"),
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview (default) or permanently delete Payment rows with gateway == 'mock'.
+    Call with no query params first to preview, then again with ?confirm=true to delete.
+    """
+    mock_query = db.query(Payment).filter(Payment.gateway == "mock")
+    count = mock_query.count()
+    total = db.query(func.sum(Payment.amount)).filter(Payment.gateway == "mock").scalar()
+    total = float(total or 0.0)
+
+    if not confirm:
+        return {
+            "dry_run": True,
+            "matching_rows": count,
+            "total_amount": total,
+            "message": "No rows deleted. Re-call with ?confirm=true to permanently delete these rows."
+        }
+
+    deleted = mock_query.delete(synchronize_session=False)
+    db.commit()
+    logger.warning(f"System admin {current_admin.email} permanently deleted {deleted} mock payment rows (total amount {total})")
+    return {
+        "dry_run": False,
+        "deleted_rows": deleted,
+        "total_amount": total,
+        "message": "Mock payment rows permanently deleted."
+    }
+
 @router.get("/payments")
 def get_system_payments(
     page: int = Query(1, ge=1),
