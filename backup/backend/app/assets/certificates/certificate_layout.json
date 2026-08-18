@@ -28,17 +28,15 @@
       "font": "Tinos-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
-      "align": "center",
-      "stroke_width": 1
+      "align": "center"
     },
     "certificate_id": {
-      "x": 909,
+      "x": 912,
       "y": 755,
       "font": "Tinos-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
-      "align": "center",
-      "stroke_width": 1
+      "align": "center"
     }
   }
 }
