@@ -86,13 +86,14 @@ class CertificateService:
         f_cfg: dict,
         font: ImageFont.FreeTypeFont,
         max_width: int = 0,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
         """
         Draw text with center / right / left alignment.
         If max_width > 0 and text is wider, auto-scales font down (up to 30% reduction).
-        Returns (x_start, text_width) of the text actually drawn, so callers can
-        size decoration (e.g. an underline) to the real rendered width instead
-        of a fixed guess that breaks for very short or very long dynamic values.
+        Returns (x_start, text_width, bottom_y) of the text actually drawn, so
+        callers can size decoration (e.g. an underline) to the real rendered
+        width/position instead of a fixed guess that breaks for very short or
+        very long dynamic values.
         """
         text = str(val)
         if max_width > 0:
@@ -112,7 +113,7 @@ class CertificateService:
         elif align == "right":
             x = f_cfg["x"] - tw
         draw.text((int(x), f_cfg["y"]), text, fill=f_cfg.get("color", "#0F172A"), font=font)
-        return int(x), tw
+        return int(x), tw, f_cfg["y"] + font.size
 
     def _draw_wrapped_text(
         self,
@@ -122,13 +123,13 @@ class CertificateService:
         font: ImageFont.FreeTypeFont,
         max_width: int,
         line_gap: int = 8,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
         """
         Like _draw_text, but wraps onto a second centered line instead of
         shrinking the font indefinitely when a long value doesn't fit — a
         long lab title stays readable at full size across two lines rather
         than shrinking to the point of looking like an afterthought.
-        Returns (x_start, text_width) of the widest line drawn.
+        Returns (x_start, text_width, bottom_y) of the widest line drawn.
         """
         text = str(val)
         bb = font.getbbox(text)
@@ -156,7 +157,8 @@ class CertificateService:
             draw.text((int(lx), int(start_y + i * line_h)), line, fill=f_cfg.get("color", "#0F172A"), font=font)
             if lw > best_w:
                 best_w, best_x0 = lw, int(lx)
-        return best_x0, best_w
+        bottom_y = int(start_y + (len(lines) - 1) * line_h + f_cfg.get("size", 28))
+        return best_x0, best_w, bottom_y
 
     # ── QR Generation ──────────────────────────────────────────────────────────
 
@@ -218,15 +220,16 @@ class CertificateService:
             "certificate_id":  300,
         }
 
-        name_x0 = name_tw = None
+        name_x0 = name_tw = name_bottom = None
+        lab_x0 = lab_tw = lab_bottom = None
         for key, val in field_values.items():
             if key not in fields or key == "lab_title":
                 continue
             f_cfg = fields[key]
             font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
-            x0, tw = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
+            x0, tw, bottom = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
             if key == "recipient_name":
-                name_x0, name_tw = x0, tw
+                name_x0, name_tw, name_bottom = x0, tw, bottom
 
         # Lab title wraps onto a second line instead of shrinking indefinitely
         # — matches the reference design, where a long track name ("OT
@@ -235,27 +238,29 @@ class CertificateService:
         if "lab_title" in fields:
             f_cfg = fields["lab_title"]
             font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
-            self._draw_wrapped_text(draw, field_values["lab_title"], f_cfg, font, max_width=max_widths["lab_title"])
+            lab_x0, lab_tw, lab_bottom = self._draw_wrapped_text(draw, field_values["lab_title"], f_cfg, font, max_width=max_widths["lab_title"])
 
-        # Gold underline + diamond centered under the recipient name, sized to
-        # the actual rendered width (with headroom on each side) rather than a
-        # fixed guess — a static-width line looks disconnected from very short
-        # names and gets overrun by very long ones.
-        if name_x0 is not None and "recipient_name" in fields:
-            name_cfg = fields["recipient_name"]
-            underline_y = name_cfg["y"] + name_cfg.get("size", 52) + 15
-            pad = 40
-            line_x0 = name_x0 - pad
-            line_x1 = name_x0 + name_tw + pad
+        # Gold underline + diamond centered under a field, sized to the actual
+        # rendered text width (with headroom either side) rather than a fixed
+        # guess — a static-width line looks disconnected from very short
+        # values and gets overrun by very long ones. Used under both the
+        # recipient name and the lab title, matching the reference design.
+        def _draw_gold_underline(x0: int, tw: int, y: int, pad: int = 40, gap: int = 10, d: int = 6):
+            line_x0 = x0 - pad
+            line_x1 = x0 + tw + pad
             mid_x = (line_x0 + line_x1) // 2
-            gap = 10
-            draw.line([(line_x0, underline_y), (mid_x - gap, underline_y)], fill="#C5A059", width=2)
-            draw.line([(mid_x + gap, underline_y), (line_x1, underline_y)], fill="#C5A059", width=2)
-            d = 6
+            draw.line([(line_x0, y), (mid_x - gap, y)], fill="#C5A059", width=2)
+            draw.line([(mid_x + gap, y), (line_x1, y)], fill="#C5A059", width=2)
             draw.polygon(
-                [(mid_x, underline_y - d), (mid_x + d, underline_y), (mid_x, underline_y + d), (mid_x - d, underline_y)],
+                [(mid_x, y - d), (mid_x + d, y), (mid_x, y + d), (mid_x - d, y)],
                 fill="#C5A059",
             )
+
+        if name_x0 is not None:
+            _draw_gold_underline(name_x0, name_tw, name_bottom + 15)
+
+        if lab_x0 is not None:
+            _draw_gold_underline(lab_x0, lab_tw, lab_bottom + 12, pad=30, gap=8, d=5)
 
         buffer = io.BytesIO()
         # Create a solid white background to blend RGBA channels properly (prevent black backgrounds)
