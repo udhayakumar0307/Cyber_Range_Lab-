@@ -153,9 +153,11 @@ class CertificateService:
         # 2. Dynamic text fields from DB
         W = self.layout_cfg.get("canvas", {}).get("width", 1400)
 
+        # Uppercased to match the design (and the on-screen React certificate
+        # preview, which renders both of these fields in caps).
         field_values = {
-            "recipient_name":  recipient_name,
-            "lab_title":       lab_title,
+            "recipient_name":  str(recipient_name).upper(),
+            "lab_title":       str(lab_title).upper(),
             "completion_date": date_str,
             "certificate_id":  display_id,
         }
