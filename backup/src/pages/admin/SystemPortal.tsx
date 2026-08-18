@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-   ShieldCheck, 
-   Key, 
-   Lock, 
-   Database, 
-   Activity, 
-   Server, 
-   Search, 
-   FileText, 
-   Users, 
-   Building2, 
-   CreditCard, 
-   AlertTriangle, 
-   ChevronLeft, 
-   ChevronRight, 
+import {
+   ShieldCheck,
+   Key,
+   Lock,
+   Database,
+   Activity,
+   Server,
+   Search,
+   FileText,
+   Users,
+   Building2,
+   CreditCard,
+   AlertTriangle,
+   ChevronLeft,
+   ChevronRight,
    LogOut,
    RefreshCw,
    CheckCircle2,
@@ -22,8 +22,31 @@ import {
    GraduationCap,
    Eye,
    BookOpen,
-   Trash2
+   Trash2,
+   Radar as RadarIcon,
+   Clock
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from 'recharts';
+
+// Severity → color mapping shared by the SOC ring and the timeline bars,
+// matching the badge colors already used in the alerts table.
+const SEVERITY_COLORS: Record<string, string> = {
+  CRITICAL: '#e11d48', // rose-600
+  HIGH: '#f97316',      // orange-500
+  MEDIUM: '#eab308',    // yellow-500
+  LOW: '#94a3b8',        // slate-400
+};
 
 export const SystemPortal: React.FC = () => {
   const navigate = useNavigate();
@@ -296,6 +319,50 @@ export const SystemPortal: React.FC = () => {
       setSecurityLoading(false);
     }
   };
+
+  // SOC ring: breakdown of alerts by severity, with blocked (RESOLVED) vs
+  // active (UNRESOLVED) counts per slice — derived client-side from the
+  // already-fetched securityAlerts, no extra API calls needed.
+  const severityBreakdown = useMemo(() => {
+    const order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+    const counts: Record<string, number> = {};
+    securityAlerts.forEach((a) => {
+      const sev = (a.severity || 'LOW').toUpperCase();
+      counts[sev] = (counts[sev] || 0) + 1;
+    });
+    return order
+      .filter((sev) => counts[sev])
+      .map((sev) => ({ name: sev, value: counts[sev], color: SEVERITY_COLORS[sev] || '#94a3b8' }));
+  }, [securityAlerts]);
+
+  const blockedStats = useMemo(() => {
+    const total = securityAlerts.length;
+    const blocked = securityAlerts.filter((a) => a.status === 'RESOLVED').length;
+    return { total, blocked, active: total - blocked };
+  }, [securityAlerts]);
+
+  // Timeline: alerts bucketed by hour (last 24 buckets), stacked by severity —
+  // gives a SOC-style "activity over time" view of DDoS / brute force / RBAC events.
+  const alertTimeline = useMemo(() => {
+    const buckets: Record<string, any> = {};
+    const now = new Date();
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+      const key = `${String(d.getHours()).padStart(2, '0')}:00`;
+      buckets[key] = { hour: key, CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    }
+    securityAlerts.forEach((a) => {
+      if (!a.timestamp) return;
+      const d = new Date(a.timestamp.replace(' ', 'T'));
+      if (isNaN(d.getTime())) return;
+      const key = `${String(d.getHours()).padStart(2, '0')}:00`;
+      if (buckets[key]) {
+        const sev = (a.severity || 'LOW').toUpperCase();
+        buckets[key][sev] = (buckets[key][sev] || 0) + 1;
+      }
+    });
+    return Object.values(buckets);
+  }, [securityAlerts]);
 
   const handleResolveAlert = async (alertId: number) => {
     const token = localStorage.getItem('token');
@@ -1174,6 +1241,99 @@ export const SystemPortal: React.FC = () => {
               </h3>
               <p className="text-xs text-slate-500">Live monitoring of security logs (DDoS attacks, brute force, role violations)</p>
             </div>
+
+            {!securityLoading && securityAlerts.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* SOC Ring — severity breakdown + blocked/active status */}
+                <div className="lg:col-span-1 border border-slate-200 rounded-2xl p-5 shadow-xs bg-white">
+                  <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 mb-1">
+                    <RadarIcon className="w-4 h-4 text-rose-600" /> SOC Threat Ring
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mb-3">Malicious activity by severity</p>
+                  <div className="relative h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={severityBreakdown}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={55}
+                          outerRadius={78}
+                          paddingAngle={3}
+                          strokeWidth={0}
+                        >
+                          {severityBreakdown.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 11, fontWeight: 600 }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl font-black text-slate-800">{blockedStats.total}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Total Events</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {blockedStats.blocked} Blocked
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-600">
+                      <AlertTriangle className="w-3.5 h-3.5" /> {blockedStats.active} Active
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {severityBreakdown.map((s) => (
+                      <span
+                        key={s.name}
+                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${s.color}1A`, color: s.color }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.name} · {s.value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Timeline — attack/vuln activity over the last 24h, stacked by severity */}
+                <div className="lg:col-span-2 border border-slate-200 rounded-2xl p-5 shadow-xs bg-white">
+                  <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 mb-1">
+                    <Clock className="w-4 h-4 text-rose-600" /> 24h Threat Timeline
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mb-3">Detected attack &amp; vulnerability activity, blocked status by hour</p>
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={alertTimeline} barGap={0} barCategoryGap={2}>
+                        <CartesianGrid vertical={false} stroke="#F1F5F9" />
+                        <XAxis
+                          dataKey="hour"
+                          tick={{ fill: '#94A3B8', fontSize: 9, fontWeight: 700 }}
+                          axisLine={{ stroke: '#E2E8F0' }}
+                          tickLine={false}
+                          interval={2}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fill: '#94A3B8', fontSize: 9, fontWeight: 700 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 11, fontWeight: 600 }}
+                        />
+                        <Bar dataKey="CRITICAL" stackId="sev" fill={SEVERITY_COLORS.CRITICAL} radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="HIGH" stackId="sev" fill={SEVERITY_COLORS.HIGH} />
+                        <Bar dataKey="MEDIUM" stackId="sev" fill={SEVERITY_COLORS.MEDIUM} />
+                        <Bar dataKey="LOW" stackId="sev" fill={SEVERITY_COLORS.LOW} radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {securityLoading ? (
               <div className="text-center py-12 text-slate-500">Querying security telemetry...</div>
