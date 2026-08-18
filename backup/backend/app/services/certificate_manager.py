@@ -3,7 +3,6 @@ import logging
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.models.certificate import Certificate
 from app.models.user import User
@@ -60,9 +59,28 @@ class CertificateManager:
         if existing:
             display_id = existing.display_certificate_id
         else:
-            count = db.query(func.count(Certificate.uuid)).scalar() or 0
+            # Derived from the highest existing number for this year, not a row
+            # COUNT — COUNT drifts from the true max the moment any row is
+            # missing from the sequence (a failed/rolled-back insert, a
+            # manually seeded row, a deletion), and once it does, every future
+            # issuance recomputes the same already-taken ID and fails on the
+            # unique constraint forever, since a failed insert never
+            # increments the count either.
             year = datetime.utcnow().year
-            display_id = f"CYR-{year}-{count + 1:06d}"
+            prefix = f"CYR-{year}-"
+            last = (
+                db.query(Certificate.display_certificate_id)
+                .filter(Certificate.display_certificate_id.like(f"{prefix}%"))
+                .order_by(Certificate.display_certificate_id.desc())
+                .first()
+            )
+            next_num = 1
+            if last and last[0]:
+                try:
+                    next_num = int(last[0].rsplit("-", 1)[-1]) + 1
+                except ValueError:
+                    next_num = 1
+            display_id = f"{prefix}{next_num:06d}"
 
         date_str = (completed_at or datetime.utcnow()).strftime("%d %b %Y")
         hours = max(0.5, round(duration_seconds / 3600.0, 1))
