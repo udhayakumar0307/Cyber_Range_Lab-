@@ -187,10 +187,14 @@ def provision_recon_session(user_id: str) -> Dict[str, Any]:
     network.connect(student, ipv4_address=student_ip)
     student.start()
     
-    # Configure loopback routing
+    # Configure loopback routing - try ip route first, fallback to traditional route command
     res_route = student.exec_run(f"ip route add 10.10.0.10 via {target_ip}")
+    res_route_fallback = student.exec_run(f"route add -host 10.10.0.10 gw {target_ip}")
     logger.info(
         f"[Recon] student route config (ip route): exit={res_route.exit_code} output={res_route.output.decode('utf-8', errors='ignore').strip()}"
+    )
+    logger.info(
+        f"[Recon] student route config (route gw): exit={res_route_fallback.exit_code} output={res_route_fallback.output.decode('utf-8', errors='ignore').strip()}"
     )
 
     logger.info(
