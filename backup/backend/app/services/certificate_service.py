@@ -175,6 +175,7 @@ class CertificateService:
         }
 
         name_x0 = name_tw = None
+        lab_x0 = lab_tw = None
         for key, val in field_values.items():
             if key in fields:
                 f_cfg = fields[key]
@@ -182,6 +183,8 @@ class CertificateService:
                 x0, tw = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
                 if key == "recipient_name":
                     name_x0, name_tw = x0, tw
+                elif key == "lab_title":
+                    lab_x0, lab_tw = x0, tw
 
         # Gold underline + diamond centered under the recipient name, sized to
         # the actual rendered width (with headroom on each side) rather than a
@@ -202,6 +205,24 @@ class CertificateService:
                 [(mid_x, underline_y - d), (mid_x + d, underline_y), (mid_x, underline_y + d), (mid_x - d, underline_y)],
                 fill="#C5A059",
             )
+
+        # Flanking gold line + dot markers either side of the lab title,
+        # echoing the same "○──── OF COMPLETION ────○" motif used under the
+        # main heading — sized to the panel width minus the actual rendered
+        # text width, so it stays balanced for both short and long lab names.
+        if lab_x0 is not None and "lab_title" in fields:
+            lab_cfg = fields["lab_title"]
+            mid_y = lab_cfg["y"] + lab_cfg.get("size", 28) // 2
+            panel_x0, panel_x1 = 340, 1060
+            text_gap = 18
+            r = 4
+            if lab_x0 - text_gap - panel_x0 > 2 * r + 10:
+                draw.line([(panel_x0, mid_y), (lab_x0 - text_gap, mid_y)], fill="#C5A059", width=2)
+                draw.ellipse([panel_x0 - r, mid_y - r, panel_x0 + r, mid_y + r], outline="#C5A059", width=2)
+            text_end = lab_x0 + lab_tw
+            if panel_x1 - (text_end + text_gap) > 2 * r + 10:
+                draw.line([(text_end + text_gap, mid_y), (panel_x1, mid_y)], fill="#C5A059", width=2)
+                draw.ellipse([panel_x1 - r, mid_y - r, panel_x1 + r, mid_y + r], outline="#C5A059", width=2)
 
         buffer = io.BytesIO()
         # Create a solid white background to blend RGBA channels properly (prevent black backgrounds)
