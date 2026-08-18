@@ -22,7 +22,7 @@
     },
     "completion_date": {
       "x": 520,
-      "y": 765,
+      "y": 756,
       "font": "PlusJakartaSans-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
@@ -30,7 +30,7 @@
     },
     "certificate_id": {
       "x": 907,
-      "y": 765,
+      "y": 756,
       "font": "PlusJakartaSans-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
