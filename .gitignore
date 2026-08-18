@@ -7,3 +7,11 @@
 backup/backend/cyberrange_demo.db
 backup/backend/.env.example
 backup/backend/.env.example
+# Production build output
+backup/dist/
+
+# Generated certificates
+backup/backend/uploads/certificates/
+
+# Runtime/local data
+backup/workspaces/
