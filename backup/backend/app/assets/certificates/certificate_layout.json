@@ -25,18 +25,20 @@
     "completion_date": {
       "x": 520,
       "y": 755,
-      "font": "Tinos-Regular.ttf",
+      "font": "Tinos-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
-      "align": "center"
+      "align": "center",
+      "stroke_width": 1
     },
     "certificate_id": {
       "x": 909,
       "y": 755,
-      "font": "Tinos-Regular.ttf",
+      "font": "Tinos-Bold.ttf",
       "size": 20,
       "color": "#0F172A",
-      "align": "center"
+      "align": "center",
+      "stroke_width": 1
     }
   }
 }
