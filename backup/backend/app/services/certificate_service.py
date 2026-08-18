@@ -240,27 +240,10 @@ class CertificateService:
             font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
             lab_x0, lab_tw, lab_bottom = self._draw_wrapped_text(draw, field_values["lab_title"], f_cfg, font, max_width=max_widths["lab_title"])
 
-        # Gold underline + diamond centered under a field, sized to the actual
-        # rendered text width (with headroom either side) rather than a fixed
-        # guess — a static-width line looks disconnected from very short
-        # values and gets overrun by very long ones. Used under both the
-        # recipient name and the lab title, matching the reference design.
-        def _draw_gold_underline(x0: int, tw: int, y: int, pad: int = 40, gap: int = 10, d: int = 6):
-            line_x0 = x0 - pad
-            line_x1 = x0 + tw + pad
-            mid_x = (line_x0 + line_x1) // 2
-            draw.line([(line_x0, y), (mid_x - gap, y)], fill="#C5A059", width=2)
-            draw.line([(mid_x + gap, y), (line_x1, y)], fill="#C5A059", width=2)
-            draw.polygon(
-                [(mid_x, y - d), (mid_x + d, y), (mid_x, y + d), (mid_x - d, y)],
-                fill="#C5A059",
-            )
-
-        if name_x0 is not None:
-            _draw_gold_underline(name_x0, name_tw, name_bottom + 15)
-
-        if lab_x0 is not None:
-            _draw_gold_underline(lab_x0, lab_tw, lab_bottom + 12, pad=30, gap=8, d=5)
+        # No underline drawn here — the current certificate_master.png already
+        # has its own baked-in gold underlines under the name, lab title,
+        # date, and certificate ID zones as part of the template art itself.
+        # Drawing another one on top produced a visible double-line.
 
         buffer = io.BytesIO()
         # Create a solid white background to blend RGBA channels properly (prevent black backgrounds)
