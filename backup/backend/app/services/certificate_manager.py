@@ -31,17 +31,19 @@ class CertificateManager:
         completed_at: Optional[datetime] = None
     ) -> Certificate:
         # 1. Idempotency Check: Return existing certificate if already generated
-        # AND its file actually rendered — a certificate row with an empty
-        # png_path means a previous render attempt failed. Do not treat that
-        # as "already issued", or the broken record gets returned forever and
-        # the download/share button never appears. Retry rendering for it
-        # instead of creating a duplicate row.
+        # AND its file actually exists on disk — a row with an empty png_path
+        # means a previous render attempt failed, and a row with a png_path
+        # but a missing file means the file was deleted/lost out from under a
+        # DB row that still thinks it's issued (e.g. clearing the uploads dir
+        # without also clearing this column). Neither should be treated as
+        # "already issued", or the download link 404s forever with nothing
+        # re-rendering it. Retry rendering instead of creating a duplicate row.
         existing = (
             db.query(Certificate)
             .filter(Certificate.user_id == user_id, Certificate.lab_id == lab_id)
             .first()
         )
-        if existing and existing.png_path:
+        if existing and existing.png_path and storage_provider.exists(f"png/{existing.display_certificate_id}.png"):
             logger.info(f"Certificate reused for user_id={user_id}, lab_id={lab_id}: {existing.display_certificate_id}")
             return existing
 

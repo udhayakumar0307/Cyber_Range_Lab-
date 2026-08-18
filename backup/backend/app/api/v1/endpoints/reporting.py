@@ -1053,6 +1053,7 @@ def download_certificate_png(certificate_id: str, db: Session = Depends(get_db))
     """
     from fastapi.responses import FileResponse
     from app.models.certificate import Certificate
+    from app.services.storage_provider import storage_provider
 
     cert = (
         db.query(Certificate)
@@ -1061,13 +1062,25 @@ def download_certificate_png(certificate_id: str, db: Session = Depends(get_db))
     )
     if not cert:
         cert = db.query(Certificate).filter(Certificate.uuid == certificate_id).first()
-    if not cert or not cert.png_path:
-        raise HTTPException(status_code=404, detail="Certificate not found or not yet generated.")
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found.")
 
-    from app.services.storage_provider import storage_provider
     relative = f"png/{cert.display_certificate_id}.png"
-    if not storage_provider.exists(relative):
-        raise HTTPException(status_code=404, detail="Certificate file missing on disk.")
+    if not cert.png_path or not storage_provider.exists(relative):
+        # File missing on disk (e.g. uploads dir was cleared) but the DB row
+        # still references it — self-heal by regenerating on the spot instead
+        # of 404ing on a certificate that should exist.
+        from app.services.certificate_manager import certificate_manager
+        try:
+            cert = certificate_manager.get_or_issue_certificate(
+                db=db,
+                user_id=cert.user_id,
+                lab_id=cert.lab_id,
+            )
+        except Exception as e:
+            logger.error(f"On-demand certificate regeneration failed for {certificate_id}: {e}")
+        if not cert.png_path or not storage_provider.exists(relative):
+            raise HTTPException(status_code=404, detail="Certificate not found or not yet generated.")
 
     full_path = os.path.join(storage_provider.base_dir, relative)
     return FileResponse(
