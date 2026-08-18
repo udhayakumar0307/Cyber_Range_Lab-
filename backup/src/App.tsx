@@ -95,6 +95,7 @@ const ServerErrorPage      = lazy(() => import('./pages/shared/ServerErrorPage')
 const MaintenancePage      = lazy(() => import('./pages/shared/MaintenancePage').then(m => ({ default: m.MaintenancePage })));
 const UnauthorizedPage     = lazy(() => import('./pages/shared/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })));
 const NotificationCenterPage = lazy(() => import('./pages/shared/NotificationCenterPage').then(m => ({ default: m.NotificationCenterPage })));
+const HelpFAQPage          = lazy(() => import('./pages/shared/HelpFAQPage').then(m => ({ default: m.HelpFAQPage })));
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export function App() {
@@ -115,6 +116,9 @@ export function App() {
               {/* ── Public Verification Portal ───────────────────────────── */}
               <Route path="/certificate/verify/:certificateId" element={<VerificationPage />} />
               <Route path="/verify/:certificateId" element={<VerificationPage />} />
+
+              {/* ── Help / FAQ ────────────────────────────────────────────── */}
+              <Route path="/help" element={<HelpFAQPage />} />
 
               {/* ── Auth Flow ─────────────────────────────────────────────── */}
               <Route path="/login" element={<LoginPage />} />

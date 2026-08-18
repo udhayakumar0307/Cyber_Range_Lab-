@@ -601,5 +601,43 @@ class SESService:
         except Exception as e:
             logger.error(f"Failed to send account created email: {e}")
 
+    def send_feedback_notification_email(self, category: str, subject: str, description: str, submitter_email: str = ""):
+        """
+        Sends a feedback/bug-report notification to the system admin, triggered by a
+        Google Form submission (via Apps Script webhook) or the in-app feedback form.
+        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
+    <h2>New Platform Feedback Received</h2>
+    <ul>
+        <li><strong>Category:</strong> {category}</li>
+        <li><strong>Subject:</strong> {subject}</li>
+        <li><strong>Submitted by:</strong> {submitter_email or 'Not provided'}</li>
+    </ul>
+    <p><strong>Description:</strong></p>
+    <p style="background:#f4f6f8;border:1px dashed #0052cc;padding:15px;white-space:pre-wrap;">{description}</p>
+</body>
+</html>
+"""
+        text_body = f"New Platform Feedback\nCategory: {category}\nSubject: {subject}\nSubmitted by: {submitter_email or 'Not provided'}\n\n{description}"
+        try:
+            if not self.is_enabled or not self.client:
+                logger.warning(f"[SES Sandbox Mode Bypass] Feedback notification bypass. Category={category} Subject={subject}")
+                return
+            self.client.send_email(
+                Source=settings.SES_FROM_EMAIL,
+                Destination={"ToAddresses": [settings.SYSTEM_ADMIN_EMAIL]},
+                Message={
+                    "Subject": {"Data": f"[CyberRange Feedback] {category}: {subject}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"}
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send feedback notification email: {e}")
+
 ses_service = SESService()
 

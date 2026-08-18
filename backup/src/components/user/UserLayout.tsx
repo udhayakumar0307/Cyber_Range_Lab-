@@ -206,13 +206,13 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
 
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Documentation Quick Link */}
-            <a
-              href="#help"
+            <Link
+              to="/help"
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden sm:block"
               title="Documentation & Guide"
             >
               <HelpCircle className="w-5 h-5" />
-            </a>
+            </Link>
 
 
             {/* Notifications Dropdown */}

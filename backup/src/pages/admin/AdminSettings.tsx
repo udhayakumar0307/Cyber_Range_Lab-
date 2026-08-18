@@ -11,19 +11,24 @@ import {
   Save, 
   CheckCircle2,
   AlertTriangle,
-  Monitor
+  Monitor,
+  ExternalLink
 } from 'lucide-react';
+import { FEEDBACK_GOOGLE_FORM_URL, FEEDBACK_FORM_CONFIGURED } from '../../config/feedbackForm';
+
+const FEEDBACK_CATEGORIES = ['Lab', 'Puzzle', 'CTF', 'Other'] as const;
 
 export const AdminSettings: React.FC = () => {
   const { user, logout } = useAuth();
-  
+
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-  
+
   // Change password state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<typeof FEEDBACK_CATEGORIES[number]>('Lab');
 
   // Feedback form state
   const [subject, setSubject] = useState('');
@@ -110,7 +115,7 @@ export const AdminSettings: React.FC = () => {
       const res = await fetch('/api/v1/reporting/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ subject, feedback })
+        body: JSON.stringify({ subject: `[${feedbackCategory}] ${subject}`, feedback })
       });
 
       if (res.ok) {
@@ -280,7 +285,40 @@ export const AdminSettings: React.FC = () => {
             <MessageSquare className="w-4 h-4 text-[#0052CC] dark:text-blue-400" />
             Platform Feedback & Bug Reports
           </h3>
+          {FEEDBACK_FORM_CONFIGURED && (
+            <a
+              href={FEEDBACK_GOOGLE_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-3 p-3.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl hover:bg-blue-100/70 dark:hover:bg-blue-950/50 transition-colors"
+            >
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">Open the full feedback form</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Covers Lab, Puzzle, CTF, and other issues in one place.</span>
+              </div>
+              <ExternalLink className="w-4 h-4 text-[#0052CC] shrink-0" />
+            </a>
+          )}
           <form onSubmit={handleSubmitFeedback} className="space-y-4">
+            <div>
+              <label className="font-bold text-slate-500 block mb-1">Category</label>
+              <div className="flex flex-wrap gap-2">
+                {FEEDBACK_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setFeedbackCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                      feedbackCategory === cat
+                        ? 'bg-[#0052CC] text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="font-bold text-slate-500 block mb-1">Subject</label>
               <input

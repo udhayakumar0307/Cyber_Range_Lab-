@@ -1881,7 +1881,41 @@ def submit_admin_feedback(
     )
     db.add(log_entry)
     db.commit()
+
+    from app.services.ses_service import ses_service
+    portal_label = "Admin Portal" if current_user.role in ("admin", "system_admin") else "Student Portal"
+    ses_service.send_feedback_notification_email(
+        category=portal_label,
+        subject=subject,
+        description=feedback,
+        submitter_email=current_user.email
+    )
+
     return {"status": "success", "message": "Feedback submitted successfully"}
+
+
+@router.post("/feedback/google-form-notify")
+def notify_feedback_from_google_form(
+    payload: dict,
+    secret: str = Query(..., description="Shared webhook secret configured in the Apps Script trigger"),
+):
+    """
+    Public webhook called by a Google Apps Script onFormSubmit trigger attached to the
+    platform feedback Google Form. Not user-authenticated (Google's servers call this) -
+    protected instead by a shared secret compared against settings.FEEDBACK_WEBHOOK_SECRET.
+    """
+    from app.core.config import settings
+    if not getattr(settings, "FEEDBACK_WEBHOOK_SECRET", None) or secret != settings.FEEDBACK_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+    from app.services.ses_service import ses_service
+    ses_service.send_feedback_notification_email(
+        category=payload.get("category", "Other"),
+        subject=payload.get("subject", "Feedback form submission"),
+        description=payload.get("description", ""),
+        submitter_email=payload.get("email", "")
+    )
+    return {"status": "success"}
 
 @router.get("/login-history")
 def get_login_history(
