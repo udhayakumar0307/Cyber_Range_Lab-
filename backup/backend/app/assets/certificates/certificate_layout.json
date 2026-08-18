@@ -10,7 +10,8 @@
       "font": "Tinos-Bold.ttf",
       "size": 52,
       "color": "#0F172A",
-      "align": "center"
+      "align": "center",
+      "stroke_width": 1
     },
     "lab_title": {
       "x": 700,
@@ -18,7 +19,8 @@
       "font": "Tinos-Bold.ttf",
       "size": 28,
       "color": "#0B1F3A",
-      "align": "center"
+      "align": "center",
+      "stroke_width": 1
     },
     "completion_date": {
       "x": 520,

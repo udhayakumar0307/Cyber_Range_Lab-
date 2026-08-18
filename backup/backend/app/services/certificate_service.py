@@ -112,7 +112,11 @@ class CertificateService:
             x = f_cfg["x"] - tw // 2
         elif align == "right":
             x = f_cfg["x"] - tw
-        draw.text((int(x), f_cfg["y"]), text, fill=f_cfg.get("color", "#0F172A"), font=font)
+        stroke_width = f_cfg.get("stroke_width", 0)
+        draw.text(
+            (int(x), f_cfg["y"]), text, fill=f_cfg.get("color", "#0F172A"), font=font,
+            stroke_width=stroke_width, stroke_fill=f_cfg.get("color", "#0F172A"),
+        )
         return int(x), tw, f_cfg["y"] + font.size
 
     def _draw_wrapped_text(
@@ -149,12 +153,16 @@ class CertificateService:
         line_h = f_cfg.get("size", 28) + line_gap
         total_h = line_h * len(lines)
         start_y = f_cfg["y"] - (total_h - (f_cfg.get("size", 28))) // 2
+        stroke_width = f_cfg.get("stroke_width", 0)
         best_x0, best_w = f_cfg["x"], 0
         for i, line in enumerate(lines):
             lb = font.getbbox(line)
             lw = lb[2] - lb[0]
             lx = f_cfg["x"] - lw // 2
-            draw.text((int(lx), int(start_y + i * line_h)), line, fill=f_cfg.get("color", "#0F172A"), font=font)
+            draw.text(
+                (int(lx), int(start_y + i * line_h)), line, fill=f_cfg.get("color", "#0F172A"), font=font,
+                stroke_width=stroke_width, stroke_fill=f_cfg.get("color", "#0F172A"),
+            )
             if lw > best_w:
                 best_w, best_x0 = lw, int(lx)
         bottom_y = int(start_y + (len(lines) - 1) * line_h + f_cfg.get("size", 28))
