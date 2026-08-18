@@ -86,10 +86,13 @@ class CertificateService:
         f_cfg: dict,
         font: ImageFont.FreeTypeFont,
         max_width: int = 0,
-    ):
+    ) -> tuple[int, int]:
         """
         Draw text with center / right / left alignment.
         If max_width > 0 and text is wider, auto-scales font down (up to 30% reduction).
+        Returns (x_start, text_width) of the text actually drawn, so callers can
+        size decoration (e.g. an underline) to the real rendered width instead
+        of a fixed guess that breaks for very short or very long dynamic values.
         """
         text = str(val)
         if max_width > 0:
@@ -109,6 +112,7 @@ class CertificateService:
         elif align == "right":
             x = f_cfg["x"] - tw
         draw.text((int(x), f_cfg["y"]), text, fill=f_cfg.get("color", "#0F172A"), font=font)
+        return int(x), tw
 
     # ── QR Generation ──────────────────────────────────────────────────────────
 
@@ -170,11 +174,34 @@ class CertificateService:
             "certificate_id":  300,
         }
 
+        name_x0 = name_tw = None
         for key, val in field_values.items():
             if key in fields:
                 f_cfg = fields[key]
                 font  = self._get_font(f_cfg.get("font", "PlusJakartaSans-Bold.ttf"), f_cfg.get("size", 18))
-                self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
+                x0, tw = self._draw_text(draw, val, f_cfg, font, max_width=max_widths.get(key, 0))
+                if key == "recipient_name":
+                    name_x0, name_tw = x0, tw
+
+        # Gold underline + diamond centered under the recipient name, sized to
+        # the actual rendered width (with headroom on each side) rather than a
+        # fixed guess — a static-width line looks disconnected from very short
+        # names and gets overrun by very long ones.
+        if name_x0 is not None and "recipient_name" in fields:
+            name_cfg = fields["recipient_name"]
+            underline_y = name_cfg["y"] + name_cfg.get("size", 52) + 15
+            pad = 40
+            line_x0 = name_x0 - pad
+            line_x1 = name_x0 + name_tw + pad
+            mid_x = (line_x0 + line_x1) // 2
+            gap = 10
+            draw.line([(line_x0, underline_y), (mid_x - gap, underline_y)], fill="#C5A059", width=2)
+            draw.line([(mid_x + gap, underline_y), (line_x1, underline_y)], fill="#C5A059", width=2)
+            d = 6
+            draw.polygon(
+                [(mid_x, underline_y - d), (mid_x + d, underline_y), (mid_x, underline_y + d), (mid_x - d, underline_y)],
+                fill="#C5A059",
+            )
 
         buffer = io.BytesIO()
         # Create a solid white background to blend RGBA channels properly (prevent black backgrounds)
