@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, case, or_, not_, text
 from datetime import datetime, timedelta
 from typing import Optional, List
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, get_current_admin_user
 from app.models.user import User
 from app.models.college import College
 from app.models.lab import Lab
@@ -1088,6 +1088,31 @@ def download_certificate_png(certificate_id: str, db: Session = Depends(get_db))
         media_type="image/png",
         filename=f"{cert.display_certificate_id}.png",
     )
+
+
+@router.post("/certificates/regenerate-all")
+def regenerate_all_certificates(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin_user),
+):
+    """
+    Deletes every rendered certificate PNG and clears each row's png_path, so
+    the next view/download re-renders from whatever certificate_master.png
+    currently is on disk. Equivalent to `rm uploads/certificates/png/*.png`
+    but callable from the admin UI instead of requiring server SSH access —
+    this has had to happen after nearly every template design iteration.
+    """
+    from app.models.certificate import Certificate
+    from app.services.storage_provider import storage_provider
+
+    certs = db.query(Certificate).all()
+    deleted = 0
+    for cert in certs:
+        if storage_provider.delete(f"png/{cert.display_certificate_id}.png"):
+            deleted += 1
+        cert.png_path = None
+    db.commit()
+    return {"status": "ok", "certificates_cleared": len(certs), "files_deleted": deleted}
 
 
 # ==========================================================
