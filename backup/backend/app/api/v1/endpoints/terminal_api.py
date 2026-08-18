@@ -272,15 +272,18 @@ async def terminal_websocket(
                                 raw = await websocket.receive_text()
                                 try:
                                     msg = json.loads(raw)
-                                    if msg.get("type") == "resize":
-                                        rows = msg.get("rows", 32)
-                                        cols = msg.get("cols", 120)
-                                        if fcntl and termios:
-                                            wsz = struct.pack("HHHH", rows, cols, 0, 0)
-                                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
-                                    elif msg.get("type") == "input":
-                                        os.write(master_fd, msg.get("data", "").encode("utf-8"))
-                                except (json.JSONDecodeError, TypeError):
+                                    if isinstance(msg, dict):
+                                        if msg.get("type") == "resize":
+                                            rows = msg.get("rows", 32)
+                                            cols = msg.get("cols", 120)
+                                            if fcntl and termios:
+                                                wsz = struct.pack("HHHH", rows, cols, 0, 0)
+                                                fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
+                                        elif msg.get("type") == "input":
+                                            os.write(master_fd, msg.get("data", "").encode("utf-8"))
+                                    else:
+                                        os.write(master_fd, raw.encode("utf-8"))
+                                except (json.JSONDecodeError, TypeError, AttributeError):
                                     os.write(master_fd, raw.encode("utf-8"))
                             except WebSocketDisconnect:
                                 break
@@ -319,9 +322,12 @@ async def terminal_websocket(
                             raw = await websocket.receive_text()
                             try:
                                 msg = json.loads(raw)
-                                if msg.get("type") == "input" and proc.stdin:
+                                if isinstance(msg, dict) and msg.get("type") == "input" and proc.stdin:
                                     proc.stdin.write(msg.get("data", "").encode("utf-8"))
-                            except (json.JSONDecodeError, TypeError):
+                                else:
+                                    if proc.stdin:
+                                        proc.stdin.write(raw.encode("utf-8"))
+                            except (json.JSONDecodeError, TypeError, AttributeError):
                                 if proc.stdin:
                                     proc.stdin.write(raw.encode("utf-8"))
                         except WebSocketDisconnect:
@@ -412,15 +418,18 @@ async def terminal_websocket(
                             raw_text = await websocket.receive_text()
                             try:
                                 payload = json.loads(raw_text)
-                                if payload.get("type") == "resize":
-                                    rows = payload.get("rows", 32)
-                                    cols = payload.get("cols", 120)
-                                    if fcntl and termios:
-                                        wsz = struct.pack("HHHH", rows, cols, 0, 0)
-                                        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
-                                elif payload.get("type") == "input":
-                                    os.write(master_fd, payload.get("data", "").encode("utf-8"))
-                            except (json.JSONDecodeError, TypeError):
+                                if isinstance(payload, dict):
+                                    if payload.get("type") == "resize":
+                                        rows = payload.get("rows", 32)
+                                        cols = payload.get("cols", 120)
+                                        if fcntl and termios:
+                                            wsz = struct.pack("HHHH", rows, cols, 0, 0)
+                                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, wsz)
+                                    elif payload.get("type") == "input":
+                                        os.write(master_fd, payload.get("data", "").encode("utf-8"))
+                                else:
+                                    os.write(master_fd, raw_text.encode("utf-8"))
+                            except (json.JSONDecodeError, TypeError, AttributeError):
                                 os.write(master_fd, raw_text.encode("utf-8"))
                         except WebSocketDisconnect:
                             break
@@ -458,11 +467,14 @@ async def terminal_websocket(
                         data_to_write = None
                         try:
                             payload = json.loads(raw_text)
-                            if payload.get("type") == "input":
-                                data_to_write = payload.get("data", "")
-                            elif payload.get("type") == "resize":
-                                pass
-                        except (json.JSONDecodeError, TypeError):
+                            if isinstance(payload, dict):
+                                if payload.get("type") == "input":
+                                    data_to_write = payload.get("data", "")
+                                elif payload.get("type") == "resize":
+                                    pass
+                            else:
+                                data_to_write = raw_text
+                        except (json.JSONDecodeError, TypeError, AttributeError):
                             data_to_write = raw_text
 
                         if data_to_write and proc.stdin:
