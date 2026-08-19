@@ -2,8 +2,6 @@ import React from 'react';
 import type { SecurityLab } from '../../types/admin';
 import {
   X,
-  Clock,
-  Star,
   ShieldCheck,
   Layers,
   CheckCircle,
@@ -82,20 +80,6 @@ export const LabDetailModal: React.FC<LabDetailModalProps> = ({ lab, isOpen, onC
             </h2>
 
             <div className="flex items-center gap-4 text-xs text-slate-300 mt-2">
-              <span className="flex items-center gap-1 text-amber-400 font-semibold">
-                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                {lab.rating} ({lab.reviewCount} reviews)
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {lab.durationHours} Hours Estimated
-              </span>
-              {!!lab.timeSpentDisplay && lab.timeSpentDisplay !== 'Not started' && (
-                <span className="flex items-center gap-1 text-emerald-300 font-semibold">
-                  <Clock className="w-3.5 h-3.5" />
-                  {lab.timeSpentDisplay} Spent
-                </span>
-              )}
               <span className="flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
                 {(lab.modules ?? []).length} Security Modules

@@ -6,7 +6,6 @@ import { LabDetailModal } from '../../components/admin/LabDetailModal';
 import type { CartItem } from '../../types/cart';
 import {
   Search,
-  Clock,
   Layers,
   ShoppingCart,
   HelpCircle,
@@ -14,7 +13,6 @@ import {
   Check,
   Play,
   X,
-  Star,
 } from 'lucide-react';
 
 interface Lab {
@@ -385,8 +383,6 @@ export const AvailableLabs: React.FC = () => {
             {filteredLabs.map(lab => {
               const isFree = lab.isFree || lab.priceInr === 0;
               const isInCart = cartItems.some(i => i.lab_id === lab.id);
-              const isCommandLine = lab.id.toLowerCase().includes('command-line');
-              const durationText = isCommandLine ? '6 Hours' : `${lab.durationHours} Hours`;
               const moduleCount = lab.modules.length || lab.totalChallenges || 5;
 
               return (
@@ -417,14 +413,6 @@ export const AvailableLabs: React.FC = () => {
                   {/* Card middle */}
                   <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 flex-1 flex flex-col justify-between">
                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        {durationText}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        {lab.rating || 4.9}
-                      </span>
                       <span className="flex items-center gap-1">
                         <Layers className="w-3.5 h-3.5 text-slate-400" />
                         {moduleCount} Modules
