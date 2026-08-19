@@ -1628,7 +1628,8 @@ def get_scheduled_assignments(
         lab_title = lab_names.get(a.lab_id) or a.lab_id
         
         # Calculate derived status
-        now = datetime.now()
+        from app.core.timezone_utils import now_ist
+        now = now_ist()
         if a.status == "Completed":
             derived_status = "Completed"
         elif a.paused_at is not None:

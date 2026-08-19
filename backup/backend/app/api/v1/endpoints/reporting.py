@@ -1159,7 +1159,8 @@ def get_analytics_groups(
 
     groups = db.query(Group).all()
     res = []
-    now = datetime.now()
+    from app.core.timezone_utils import now_ist
+    now = now_ist()
     for g in groups:
         db_id = g.id
         assignments = db.query(Assignment).filter(
@@ -1282,7 +1283,8 @@ def get_analytics_group_details(
     valid_scores_count = 0
     
     labs_list = []
-    now = datetime.now()
+    from app.core.timezone_utils import now_ist
+    now = now_ist()
     for a in assignments:
         lab_title = db.query(Lab.name).filter(Lab.id == a.lab_id).scalar() or a.lab_id
         

@@ -958,9 +958,9 @@ def get_user_assignments(
             if g:
                 group_name = g.name
 
-        from datetime import datetime
+        from app.core.timezone_utils import now_ist
         remaining_minutes = 0
-        now = datetime.now()
+        now = now_ist()
         if assoc.start_datetime <= now <= assoc.end_datetime:
             delta = assoc.end_datetime - now
             remaining_minutes = int(delta.total_seconds() / 60)

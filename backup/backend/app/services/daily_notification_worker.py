@@ -101,7 +101,8 @@ async def check_assignment_reminders() -> None:
 
     db = db_manager.get_session()
     try:
-        now = datetime.now()
+        from app.core.timezone_utils import now_ist
+        now = now_ist()
         active_assigns = db.query(Assignment).filter(
             or_(Assignment.status != "Completed", Assignment.status.is_(None))
         ).all()
