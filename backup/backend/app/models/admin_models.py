@@ -63,6 +63,8 @@ class CartItem(Base):
     quantity = Column(Integer, nullable=False, default=1)  # Student seats count
     license_duration_months = Column(Integer, default=12)
     hours_purchased = Column(Float, default=40.0, nullable=True)
+    item_type = Column(String(20), default="lab", nullable=False)  # "lab" or "ctf"
+    ctf_id = Column(Integer, ForeignKey("ctf.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     cart = relationship("Cart", back_populates="items")
@@ -97,6 +99,8 @@ class OrderItem(Base):
     duration_months = Column(Integer, default=12)
     price = Column(Float, default=0.0)
     hours_purchased = Column(Float, default=40.0, nullable=True)
+    item_type = Column(String(20), default="lab", nullable=False)  # "lab" or "ctf"
+    ctf_id = Column(Integer, ForeignKey("ctf.id", ondelete="CASCADE"), nullable=True)
 
     order = relationship("Order", back_populates="items")
 

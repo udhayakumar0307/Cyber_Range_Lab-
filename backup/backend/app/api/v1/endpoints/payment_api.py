@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.admin_models import (
     Cart, CartItem, Order, OrderItem, Payment, Invoice,
-    PurchasedLab, License, AdminProfile, Organization
+    PurchasedLab, License, AdminProfile, Organization, PurchasedCTF
 )
 from app.models.audit_log import AuditLog
 from app.services.audit_service import log_audit_event
@@ -85,7 +85,9 @@ def create_checkout_order(
             seats=1,
             duration_months=12,
             price=item.price_inr,
-            hours_purchased=item.hours_purchased or 40
+            hours_purchased=item.hours_purchased or 40,
+            item_type=item.item_type or "lab",
+            ctf_id=item.ctf_id
         )
         db.add(order_item)
 
@@ -241,6 +243,26 @@ def verify_payment(
 
     for item in order.items:
         expiry = datetime.utcnow() + timedelta(days=365) # 1 Year expiry default
+
+        if item.item_type == "ctf" and item.ctf_id:
+            license_key = f"LIC-CTF{item.ctf_id}-{secrets.token_hex(6).upper()}"
+            purchased_ctf = PurchasedCTF(
+                user_id=current_user.id,
+                organization_id=resolved_org_id,
+                ctf_id=item.ctf_id,
+                ctf_title=item.lab_title,
+                license_key=license_key,
+                total_team_slots=10,
+                assigned_team_slots=0,
+                status="ACTIVE",
+                expiry_date=expiry,
+                assigned_to="admin",
+                fixed_rate=item.price
+            )
+            db.add(purchased_ctf)
+            db.flush()
+            continue
+
         license_key = f"LIC-{item.lab_id.upper()}-{secrets.token_hex(6).upper()}"
         hours = item.hours_purchased or 40
 
@@ -493,6 +515,60 @@ def get_purchased_labs(
             "is_sysadmin_assigned": lab.organization_id is None,
             "purchased_date": lab.purchased_date.strftime("%Y-%m-%d") if lab.purchased_date else "",
             "expiry_date": lab.expiry_date.strftime("%Y-%m-%d") if lab.expiry_date else ""
+        })
+
+    return result
+
+@router.get("/admin/purchased-ctfs")
+def get_purchased_ctfs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Lists organization purchased CTF events - mirrors /admin/purchased-labs."""
+    user_org_id = None
+    if current_user.group:
+        user_org_id = current_user.group.organization_id
+
+    admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
+    if admin_prof:
+        user_org_id = admin_prof.organization_id
+
+    paid_ctfs = db.query(PurchasedCTF).filter(
+        PurchasedCTF.user_id == current_user.id,
+        PurchasedCTF.organization_id.isnot(None),
+        PurchasedCTF.status == "ACTIVE"
+    ).order_by(PurchasedCTF.purchased_date.desc()).all()
+
+    if user_org_id is not None:
+        org_ctfs = db.query(PurchasedCTF).filter(
+            PurchasedCTF.organization_id == user_org_id,
+            PurchasedCTF.status == "ACTIVE"
+        ).order_by(PurchasedCTF.purchased_date.desc()).all()
+    else:
+        org_ctfs = []
+
+    seen = set()
+    ctfs = []
+    for c in paid_ctfs + org_ctfs:
+        if c.ctf_id not in seen:
+            seen.add(c.ctf_id)
+            ctfs.append(c)
+
+    result = []
+    for c in ctfs:
+        result.append({
+            "id": c.id,
+            "ctf_id": c.ctf_id,
+            "ctf_title": c.ctf_title,
+            "license_key": c.license_key,
+            "total_team_slots": c.total_team_slots,
+            "assigned_team_slots": c.assigned_team_slots,
+            "status": c.status,
+            "fixed_rate": c.fixed_rate if c.fixed_rate is not None else 0.0,
+            "assigned_to": c.assigned_to or "both",
+            "is_sysadmin_assigned": c.organization_id is None,
+            "purchased_date": c.purchased_date.strftime("%Y-%m-%d") if c.purchased_date else "",
+            "expiry_date": c.expiry_date.strftime("%Y-%m-%d") if c.expiry_date else ""
         })
 
     return result

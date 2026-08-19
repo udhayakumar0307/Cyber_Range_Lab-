@@ -17,6 +17,11 @@ class AddToCartRequest(BaseModel):
     lab_image: Optional[str] = None
     hours_purchased: int = 1
 
+class AddCTFToCartRequest(BaseModel):
+    ctf_id: int
+    ctf_title: str
+    price_inr: float
+
 class UpdateCartItemRequest(BaseModel):
     hours_purchased: Optional[int] = None
 
@@ -67,6 +72,23 @@ def get_cart(current_user: User = Depends(get_current_user), db: Session = Depen
     subtotal = 0.0
 
     for item in cart.items:
+        if item.item_type == "ctf":
+            # CTF items are a flat per-team-package price, not an hourly rate.
+            item_total = item.price_inr or 0.0
+            subtotal += item_total
+            items.append({
+                "id": item.id,
+                "lab_id": item.lab_id,
+                "lab_title": item.lab_title,
+                "lab_image": item.lab_image or "",
+                "item_type": "ctf",
+                "ctf_id": item.ctf_id,
+                "price_inr": item_total,
+                "hours_purchased": None,
+                "item_total": item_total
+            })
+            continue
+
         hours = item.hours_purchased or 1
 
         # Always resolve rate from SysAdmin's PurchasedLab.fixed_rate
@@ -84,6 +106,7 @@ def get_cart(current_user: User = Depends(get_current_user), db: Session = Depen
             "lab_id": item.lab_id,
             "lab_title": item.lab_title,
             "lab_image": item.lab_image or "",
+            "item_type": "lab",
             "price_inr": rate,       # Per-hour rate (SysAdmin fixed_rate)
             "hours_purchased": hours,
             "item_total": item_total
@@ -143,6 +166,46 @@ def add_item_to_cart(
     db.commit()
     logger.info(f"[Cart] User {current_user.email} added lab '{data.lab_id}' at ₹{rate}/hr for {hours}hr(s).")
     return {"status": "success", "message": f"Added '{data.lab_title}' to cart.", "rate": rate}
+
+@router.post("/ctf-items")
+def add_ctf_to_cart(
+    data: AddCTFToCartRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Adds a CTF event to the user's cart as a flat-priced package
+    (10 team slots / 40 participants), mirroring add_item_to_cart for labs.
+    """
+    cart = get_or_create_user_cart(db, current_user.id)
+    synthetic_id = f"ctf-{data.ctf_id}"
+
+    existing_item = db.query(CartItem).filter(
+        CartItem.cart_id == cart.id,
+        CartItem.item_type == "ctf",
+        CartItem.ctf_id == data.ctf_id
+    ).first()
+    if existing_item:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"'{data.ctf_title}' is already in your cart."
+        )
+
+    new_item = CartItem(
+        cart_id=cart.id,
+        lab_id=synthetic_id,
+        lab_title=data.ctf_title,
+        price_inr=data.price_inr,
+        quantity=1,
+        license_duration_months=12,
+        hours_purchased=None,
+        item_type="ctf",
+        ctf_id=data.ctf_id
+    )
+    db.add(new_item)
+    db.commit()
+    logger.info(f"[Cart] User {current_user.email} added CTF '{data.ctf_id}' at flat rate ₹{data.price_inr}.")
+    return {"status": "success", "message": f"Added '{data.ctf_title}' to cart."}
 
 @router.put("/items/{item_id}")
 def update_cart_item(

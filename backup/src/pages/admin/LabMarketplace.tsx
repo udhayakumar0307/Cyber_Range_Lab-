@@ -21,7 +21,10 @@ import { PaymentHistoryPage } from './PaymentHistoryPage';
 
 export const LabMarketplace: React.FC = () => {
   const navigate = useNavigate();
-  const [activeMarketTab, setActiveMarketTab] = useState<'browse' | 'purchased' | 'history'>('browse');
+  const [activeMarketTab, setActiveMarketTab] = useState<'browse' | 'ctf' | 'purchased' | 'ctf-purchased' | 'history'>('browse');
+  const [ctfEvents, setCtfEvents] = useState<any[]>([]);
+  const [purchasedCtfIds, setPurchasedCtfIds] = useState<Set<number>>(new Set());
+  const [purchasedCtfs, setPurchasedCtfs] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -75,6 +78,26 @@ export const LabMarketplace: React.FC = () => {
           const labsData = await labsRes.json();
           setLabs(labsData || []);
         }
+
+        // Fetch CTF catalog
+        const ctfRes = await fetch('/api/v1/ctf', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (ctfRes.ok) {
+          const ctfData = await ctfRes.json();
+          setCtfEvents(Array.isArray(ctfData) ? ctfData : []);
+        }
+
+        if (token) {
+          const purchasedCtfRes = await fetch('/api/v1/admin/purchased-ctfs', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (purchasedCtfRes.ok) {
+            const purchasedCtfData = await purchasedCtfRes.json();
+            if (Array.isArray(purchasedCtfData)) {
+              setPurchasedCtfs(purchasedCtfData);
+              setPurchasedCtfIds(new Set(purchasedCtfData.map((item: any) => item.ctf_id)));
+            }
+          }
+        }
       } catch (err) {
         console.error('Error fetching cart/labs:', err);
       } finally {
@@ -84,6 +107,36 @@ export const LabMarketplace: React.FC = () => {
 
     fetchCartAndLabs();
   }, []);
+
+  const handleAddCtfToCart = async (ctf: any) => {
+    const existingIndex = cartItems.some((i: any) => i.item_type === 'ctf' && i.ctf_id === ctf.id);
+    if (existingIndex) {
+      setIsCartOpen(true);
+      return;
+    }
+    const price = 14999;
+    setIsCartOpen(true);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await fetch('/api/v1/cart/ctf-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ctf_id: ctf.id, ctf_title: ctf.title, price_inr: price })
+        });
+        if (res.ok) {
+          const cartRes = await fetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
+          if (cartRes.ok) {
+            const data = await cartRes.json();
+            setCartItems(Array.isArray(data?.items) ? data.items : []);
+          }
+        }
+      } catch (err) {
+        console.error('Error adding CTF to cart:', err);
+      }
+    }
+  };
 
   const syncLabRepository = async () => {
     setSyncing(true);
@@ -354,6 +407,16 @@ export const LabMarketplace: React.FC = () => {
           Browse Labs
         </button>
         <button
+          onClick={() => setActiveMarketTab('ctf')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeMarketTab === 'ctf'
+              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Browse CTF
+        </button>
+        <button
           onClick={() => setActiveMarketTab('purchased')}
           className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeMarketTab === 'purchased'
@@ -362,6 +425,16 @@ export const LabMarketplace: React.FC = () => {
           }`}
         >
           Purchased Labs ({purchasedLabIds.size})
+        </button>
+        <button
+          onClick={() => setActiveMarketTab('ctf-purchased')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeMarketTab === 'ctf-purchased'
+              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Purchased CTF ({purchasedCtfIds.size})
         </button>
         <button
           onClick={() => setActiveMarketTab('history')}
@@ -516,6 +589,126 @@ export const LabMarketplace: React.FC = () => {
                 </div>
               );
             })
+          )}
+        </div>
+      )}
+
+      {/* Tab: Browse CTF */}
+      {activeMarketTab === 'ctf' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {ctfEvents.length === 0 ? (
+            <div className="col-span-full py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+              <Store className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">No CTF Events Found</h3>
+            </div>
+          ) : (
+            ctfEvents.map((ctf: any) => {
+              const isPurchased = purchasedCtfIds.has(ctf.id);
+              const isInCart = cartItems.some((i: any) => i.item_type === 'ctf' && i.ctf_id === ctf.id);
+              return (
+                <div
+                  key={ctf.id}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
+                >
+                  <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-[11px] font-bold border px-2.5 py-0.5 rounded-full uppercase ${
+                        ctf.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        ctf.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                        'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}>
+                        {ctf.status}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0052CC] transition-colors line-clamp-1">
+                      {ctf.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      {ctf.description}
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4 flex-1 flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                        10 teams x 4 (40 max)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase block">
+                        Price / Package
+                      </span>
+                      {isPurchased ? (
+                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">INCLUDED</span>
+                      ) : (
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹14,999</span>
+                      )}
+                    </div>
+
+                    {isPurchased ? (
+                      <button
+                        disabled
+                        className="px-3 py-2 rounded-lg bg-emerald-50 text-[#28A745] border border-emerald-200 font-bold text-xs inline-flex items-center gap-1.5 cursor-not-allowed"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Purchased</span>
+                      </button>
+                    ) : (
+                      <button
+                        disabled={isInCart}
+                        onClick={() => handleAddCtfToCart(ctf)}
+                        className={`px-3 py-2 rounded-lg font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-xs ${
+                          isInCart
+                            ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            : 'bg-[#0052CC] hover:bg-blue-700 text-white cursor-pointer'
+                        }`}
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                        <span>{isInCart ? 'In Cart' : 'Add to Cart'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Tab: Purchased CTF */}
+      {activeMarketTab === 'ctf-purchased' && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+          {purchasedCtfs.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 text-sm font-bold">No CTF events purchased yet.</div>
+          ) : (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="p-4">CTF Title</th>
+                  <th className="p-4">License Key</th>
+                  <th className="p-4 text-center">Team Slots</th>
+                  <th className="p-4 text-center">Fixed Rate</th>
+                  <th className="p-4">Purchased</th>
+                  <th className="p-4">Expires</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                {purchasedCtfs.map((c: any) => (
+                  <tr key={c.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                    <td className="p-4 font-bold text-slate-900 dark:text-slate-100">{c.ctf_title}</td>
+                    <td className="p-4 font-mono text-[11px]">{c.license_key}</td>
+                    <td className="p-4 text-center">{c.assigned_team_slots} / {c.total_team_slots}</td>
+                    <td className="p-4 text-center">₹{c.fixed_rate?.toLocaleString('en-IN')}</td>
+                    <td className="p-4">{c.purchased_date}</td>
+                    <td className="p-4">{c.expiry_date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}
