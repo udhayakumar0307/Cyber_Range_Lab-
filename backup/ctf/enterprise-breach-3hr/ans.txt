@@ -1,0 +1,20 @@
+Enterprise Breach - Answer Key (ADMIN ONLY - do not distribute)
+=================================================================
+
+1. Cryptography - "Vintage Cipher"           100 pts
+   Vigenere cipher, key = CYBER
+   Ciphertext file: crypto/cipher.txt
+   Flag: flag{v1gn3r3_cl4ss1c_cryp70_7f21}
+   (verified round-trip: encrypt(flag, CYBER) -> decrypt(ct, CYBER) == flag)
+
+2. Web - "Hidden Admin Panel"                100 pts
+   IDOR / broken access control on /profile/<id>
+   Hint path: HTML comment on homepage -> /profile/1337
+   Flag: flag{w3b_1d0r_h1dd3n_fl4g_9c3a}
+
+3. Network - "Port Scan Secret"              100 pts
+   nmap scan of challenge_net finds netsvc:7331
+   nc netsvc 7331  -> banner contains the flag
+   Flag: flag{n3tw0rk_p0rt_5c4n_f0und_it_5b88}
+
+Total: 300 pts across 3 challenges.

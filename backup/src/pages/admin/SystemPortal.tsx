@@ -138,6 +138,7 @@ export const SystemPortal: React.FC = () => {
   const [ctfLoading, setCtfLoading] = useState(false);
   const [ctfSyncing, setCtfSyncing] = useState(false);
   const [ctfSyncResult, setCtfSyncResult] = useState<any>(null);
+  const [ctfTabMode, setCtfTabMode] = useState<'catalog' | 'arrivals' | 'assigned'>('catalog');
 
   // Custom Revoke / Remove Lab modal states
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
@@ -1760,22 +1761,53 @@ export const SystemPortal: React.FC = () => {
         {/* TAB: CTF Catalog */}
         {activeTab === 'ctf' && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
-                  <Flag className="w-5 h-5 text-purple-600" /> CTF Event Catalog
+                  <Flag className="w-5 h-5 text-purple-600" /> Platform CTF Management
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Auto-synced from the <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> folder. Drop a new event folder with an <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> in it, then sync.
+                <p className="text-xs text-slate-500">
+                  Auto-synced from the <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> folder — drop a folder with <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> in it, then sync.
                 </p>
               </div>
-              <button
-                onClick={handleSyncCtf}
-                disabled={ctfSyncing}
-                className="px-4 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 disabled:opacity-60 cursor-pointer whitespace-nowrap"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${ctfSyncing ? 'animate-spin' : ''}`} /> {ctfSyncing ? 'Syncing...' : 'Sync Now'}
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setCtfTabMode('catalog')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      ctfTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    CTF ({ctfEvents.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCtfTabMode('arrivals')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      ctfTabMode === 'arrivals' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    New Arrivals ({ctfEvents.filter((c: any) => c.status === 'scheduled').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCtfTabMode('assigned')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      ctfTabMode === 'assigned' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                    }`}
+                  >
+                    Assigned (0)
+                  </button>
+                </div>
+                <button
+                  onClick={handleSyncCtf}
+                  disabled={ctfSyncing}
+                  className="px-4 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 disabled:opacity-60 cursor-pointer whitespace-nowrap"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${ctfSyncing ? 'animate-spin' : ''}`} /> {ctfSyncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
             </div>
 
             {ctfSyncResult && (
@@ -1788,47 +1820,62 @@ export const SystemPortal: React.FC = () => {
               </div>
             )}
 
-            {ctfLoading ? (
-              <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading CTF events...</div>
-            ) : ctfEvents.length === 0 ? (
+            {ctfTabMode === 'assigned' ? (
               <div className="py-12 text-center space-y-2">
                 <Flag className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-400">No CTF events yet. Add a folder to <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> and click Sync Now.</p>
+                <p className="text-xs font-bold text-slate-400">Team-based purchase &amp; assignment is coming soon.</p>
               </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-4">Title</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4">Start</th>
-                      <th className="p-4">End</th>
-                      <th className="p-4 text-center">Public</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {ctfEvents.map((c: any) => (
-                      <tr key={c.id} className="hover:bg-slate-50/60">
-                        <td className="p-4 font-bold text-slate-900">{c.title}</td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${
-                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                            c.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                            'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-slate-500 font-mono">{c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</td>
-                        <td className="p-4 text-slate-500 font-mono">{c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</td>
-                        <td className="p-4 text-center">{c.is_public ? 'Yes' : 'No'}</td>
+            ) : ctfLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading CTF events...</div>
+            ) : (() => {
+              const visibleEvents = ctfTabMode === 'arrivals'
+                ? ctfEvents.filter((c: any) => c.status === 'scheduled')
+                : ctfEvents;
+              return visibleEvents.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <Flag className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs font-bold text-slate-400">
+                    {ctfTabMode === 'arrivals'
+                      ? 'No new arrivals. Add a folder to '
+                      : 'No CTF events yet. Add a folder to '}
+                    <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> and click Sync Now.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Title</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Start</th>
+                        <th className="p-4">End</th>
+                        <th className="p-4 text-center">Public</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {visibleEvents.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-slate-50/60">
+                          <td className="p-4 font-bold text-slate-900">{c.title}</td>
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${
+                              c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              c.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                              'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-slate-500 font-mono">{c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</td>
+                          <td className="p-4 text-slate-500 font-mono">{c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</td>
+                          <td className="p-4 text-center">{c.is_public ? 'Yes' : 'No'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 

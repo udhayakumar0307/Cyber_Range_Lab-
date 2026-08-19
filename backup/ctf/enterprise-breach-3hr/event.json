@@ -1,0 +1,40 @@
+{
+  "title": "Enterprise Breach",
+  "description": "A 3-hour team CTF covering Cryptography, Web Exploitation, and Network Reconnaissance. Format: 10 teams of 4 (40 participants max). Each team gets an isolated Linux desktop VM (Chrome, terminal, file manager) with access to the challenge network.",
+  "start_time": "2026-09-05T10:00:00",
+  "end_time": "2026-09-05T13:00:00",
+  "status": "scheduled",
+  "is_public": true,
+  "team_format": "4 members per team, 10 teams max (40 participants total)",
+  "duration_hours": 3,
+  "challenges": [
+    {
+      "title": "Vintage Cipher",
+      "category": "Cryptography",
+      "description": "An old intercepted transmission was found in the archives. See crypto/README.md in this event folder for the ciphertext and how to reach the team VM. Decrypt it to recover the flag.",
+      "scoring_mode": "static",
+      "static_points": 100,
+      "flag": "flag{v1gn3r3_cl4ss1c_cryp70_7f21}",
+      "is_hidden": false
+    },
+    {
+      "title": "Hidden Admin Panel",
+      "category": "Web",
+      "description": "A vulnerable internal portal is running at http://webapp:5000 inside the team VM's network. Find the flag hidden behind broken access control.",
+      "challenge_url": "http://webapp:5000",
+      "scoring_mode": "static",
+      "static_points": 100,
+      "flag": "flag{w3b_1d0r_h1dd3n_fl4g_9c3a}",
+      "is_hidden": false
+    },
+    {
+      "title": "Port Scan Secret",
+      "category": "Network",
+      "description": "Something is listening on the internal challenge network besides the web app. Scan it, connect to what you find, and read the flag it returns.",
+      "scoring_mode": "static",
+      "static_points": 100,
+      "flag": "flag{n3tw0rk_p0rt_5c4n_f0und_it_5b88}",
+      "is_hidden": false
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+version: "3.8"
+
+# One stack = one team's isolated environment: a desktop VM (Chrome, terminal,
+# file manager via noVNC), the vulnerable webapp, and the network-recon target.
+# To run multiple teams simultaneously, launch this same file multiple times
+# with a different -p <project_name> and a different HOST_VNC_PORT, e.g.:
+#
+#   HOST_VNC_PORT=6081 docker compose -p team01 up -d --build
+#   HOST_VNC_PORT=6082 docker compose -p team02 up -d --build
+#   ... up to team10 (10 teams x 4 members = 40 participants)
+#
+# Each team then opens http://<server-ip>:<their port> in a browser to reach
+# their own desktop VM. Nothing is shared between teams - each project gets
+# its own isolated Docker network.
+
+services:
+  vm:
+    build:
+      context: ..
+      dockerfile: docker/vm/Dockerfile
+    ports:
+      - "${HOST_VNC_PORT:-6080}:6080"
+    networks:
+      - challenge_net
+    depends_on:
+      - webapp
+      - netsvc
+    restart: unless-stopped
+
+  webapp:
+    build:
+      context: ./webapp
+    networks:
+      - challenge_net
+    restart: unless-stopped
+
+  netsvc:
+    build:
+      context: ./netsvc
+    networks:
+      - challenge_net
+    restart: unless-stopped
+
+networks:
+  challenge_net:
+    driver: bridge

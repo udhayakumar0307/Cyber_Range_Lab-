@@ -108,11 +108,8 @@ export const CtfPortalPage: React.FC = () => {
               Capture The Flag Platform
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Test your security skills in Jeopardy tournaments
+              CTF Competitions
             </h1>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Analyze targets, exploit real web vulnerability templates, bypass buffer overflows, decrypt cryptography systems, and search for flags to top the leaderboard.
-            </p>
           </div>
         </div>
 
