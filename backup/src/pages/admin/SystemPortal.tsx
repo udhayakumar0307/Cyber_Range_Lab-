@@ -1857,8 +1857,6 @@ export const SystemPortal: React.FC = () => {
                         </div>
                         <p className="text-xs text-slate-500 line-clamp-2">{c.description}</p>
                         <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
-                          <p><strong>Start:</strong> {c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</p>
-                          <p><strong>End:</strong> {c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</p>
                           <p><strong>Format:</strong> 10 teams x 4 (40 max)</p>
                         </div>
                       </div>

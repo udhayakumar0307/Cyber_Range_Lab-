@@ -39,7 +39,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   };
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Lab Marketplace', path: '/admin/labs', icon: Store },
+    { name: 'Marketplace', path: '/admin/labs', icon: Store },
     { name: 'Student Management', path: '/admin/users', icon: Users },
     { name: 'Groups', path: '/admin/groups', icon: UsersRound },
     { name: 'Assignments', path: '/admin/allocations', icon: Layers },
