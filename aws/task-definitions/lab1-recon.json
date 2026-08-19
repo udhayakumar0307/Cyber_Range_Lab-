@@ -1,0 +1,98 @@
+{
+  "family": "lab1-recon",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "1024",
+  "memory": "768",
+  "containerDefinitions": [
+    {
+      "name": "lab1-target",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/lab1-recon-target:latest",
+      "essential": true,
+      "linuxParameters": {
+        "capabilities": {
+          "add": [
+            "NET_ADMIN"
+          ]
+        }
+      },
+      "environment": [
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 21,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 22,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 3306,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 8888,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9000,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/lab1-recon",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "target",
+          "awslogs-create-group": "true"
+        }
+      }
+    },
+    {
+      "name": "lab1-student",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/lab1-recon-student:latest",
+      "essential": true,
+      "linuxParameters": {
+        "capabilities": {
+          "add": [
+            "NET_ADMIN"
+          ]
+        }
+      },
+      "environment": [
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 22,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/lab1-recon",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "student",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
