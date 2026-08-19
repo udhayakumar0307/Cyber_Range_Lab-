@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldCheck, Download, Share2, Award, Clock, CheckCircle2, ArrowLeft, AlertCircle } from 'lucide-react';
-import { CertificateTemplate, CertificatePreviewWrapper } from '../../components/user/CertificateTemplate';
 
 interface VerificationData {
   status: string;
@@ -119,22 +118,19 @@ export const VerificationPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Certificate Preview */}
-              <div className="mb-8 overflow-hidden">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Official Certificate Document</h3>
-                <CertificatePreviewWrapper
-                  recipientName={data.recipient_name}
-                  labTitle={data.lab_title}
-                  category={data.category}
-                  score={data.score}
-                  percentage={data.percentage}
-                  points={data.score}
-                  completedAt={data.completion_date}
-                  duration={data.duration}
-                  certificateId={data.display_certificate_id}
-                  badgeTitle={`${data.lab_title.slice(0, 18)} Master`}
-                />
-              </div>
+              {/* Certificate Preview - the actual generated PNG, not a hand-coded
+                  replica, so this can never drift out of sync with the real
+                  downloadable certificate again. */}
+              {data.png_url && (
+                <div className="mb-8 overflow-hidden">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Official Certificate Document</h3>
+                  <img
+                    src={data.png_url}
+                    alt={`Certificate of completion for ${data.lab_title}`}
+                    className="w-full rounded-xl border border-slate-800 shadow-lg"
+                  />
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
                 <div className="flex items-center gap-2">
                   {data.png_url && (
