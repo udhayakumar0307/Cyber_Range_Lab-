@@ -4,6 +4,15 @@ from zoneinfo import ZoneInfo
 IST = ZoneInfo("Asia/Kolkata")
 
 
+def to_ist(dt: datetime) -> datetime:
+    """
+    Converts a naive UTC datetime (the app-wide convention - see datetime.utcnow()
+    usage throughout the codebase) to naive IST wall-clock time, for display
+    purposes such as the completion date printed on a certificate.
+    """
+    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(IST).replace(tzinfo=None)
+
+
 def now_ist() -> datetime:
     """
     Naive current IST wall-clock time.

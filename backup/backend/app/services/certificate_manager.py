@@ -84,7 +84,8 @@ class CertificateManager:
                     next_num = 1
             display_id = f"{prefix}{next_num:06d}"
 
-        date_str = (completed_at or datetime.utcnow()).strftime("%d %b %Y")
+        from app.core.timezone_utils import to_ist
+        date_str = to_ist(completed_at or datetime.utcnow()).strftime("%d %b %Y")
         hours = max(0.5, round(duration_seconds / 3600.0, 1))
         duration_str = f"{hours} Hours"
 
