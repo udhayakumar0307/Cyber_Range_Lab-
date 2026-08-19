@@ -627,7 +627,7 @@ class SESService:
                 return
             self.client.send_email(
                 Source=settings.SES_FROM_EMAIL,
-                Destination={"ToAddresses": [settings.SYSTEM_ADMIN_EMAIL]},
+                Destination={"ToAddresses": [getattr(settings, "FEEDBACK_NOTIFY_EMAIL", settings.SYSTEM_ADMIN_EMAIL)]},
                 Message={
                     "Subject": {"Data": f"[CyberRange Feedback] {category}: {subject}", "Charset": "UTF-8"},
                     "Body": {

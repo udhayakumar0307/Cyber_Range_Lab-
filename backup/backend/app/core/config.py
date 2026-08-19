@@ -57,6 +57,7 @@ class Settings:
             self.SYSTEM_ADMIN_EMAIL = admin_data.get("SYSTEM_ADMIN_EMAIL", "sysadmin@cyberrange.in")
             self.SYSTEM_ADMIN_PASSWORD = admin_data.get("SYSTEM_ADMIN_PASSWORD", "sysadmin_password_2026")
             self.FEEDBACK_WEBHOOK_SECRET = admin_data.get("FEEDBACK_WEBHOOK_SECRET", self.SYSTEM_ADMIN_SECURITY_KEY)
+            self.FEEDBACK_NOTIFY_EMAIL = admin_data.get("FEEDBACK_NOTIFY_EMAIL", "cyberrangelabsupport@gmail.com")
             
             # Allow fallback to ALLOWED_ADMIN_DOMAINS or ADMIN_ALLOWED_DOMAINS
             raw_allowed_domains = admin_data.get("ADMIN_ALLOWED_DOMAINS", admin_data.get("ALLOWED_ADMIN_DOMAINS", "cyberrange.in"))
@@ -116,6 +117,7 @@ class Settings:
             self.SYSTEM_ADMIN_EMAIL = os.getenv("SYSTEM_ADMIN_EMAIL", "sysadmin@cyberrange.in")
             self.SYSTEM_ADMIN_PASSWORD = os.getenv("SYSTEM_ADMIN_PASSWORD", "sysadmin_password_2026")
             self.FEEDBACK_WEBHOOK_SECRET = os.getenv("FEEDBACK_WEBHOOK_SECRET", self.SYSTEM_ADMIN_SECURITY_KEY)
+            self.FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "cyberrangelabsupport@gmail.com")
             self.ALLOWED_ADMIN_DOMAINS = [d.strip().lower() for d in os.getenv("ADMIN_ALLOWED_DOMAINS", os.getenv("ALLOWED_ADMIN_DOMAINS", "cyberrange.in")).split(",") if d.strip()]
             self.ADMIN_ALLOWED_DOMAINS = self.ALLOWED_ADMIN_DOMAINS
             self.STUDENT_ALLOWED_DOMAINS = [d.strip().lower() for d in os.getenv("STUDENT_ALLOWED_DOMAINS", "gmail.com,*.edu,*.ac.in,college.edu,example.ac.in").split(",") if d.strip()]
