@@ -75,6 +75,16 @@ services:
       - LAB_SEED=${LAB_SEED:-defaultseed}
       - TARGET_IP=10.20.0.10
       - SCORING_URL=http://10.20.0.99:5000
+      # Dummy credentials so any `aws` command without --no-sign-request fails safely
+      # against these fake values instead of silently falling back to a real credential
+      # chain (e.g. the host EC2 instance's IAM role via the metadata service).
+      - AWS_ACCESS_KEY_ID=lab-dummy-key
+      - AWS_SECRET_ACCESS_KEY=lab-dummy-secret
+      - AWS_DEFAULT_REGION=us-east-1
+    # Block the EC2 instance metadata service (169.254.169.254) from inside this
+    # container so it can never pick up the host's real IAM role credentials.
+    extra_hosts:
+      - "169.254.169.254:127.0.0.1"
     volumes:
       - ./modules:/modules:ro
     depends_on:
