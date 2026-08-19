@@ -16,8 +16,6 @@ import {
 } from 'lucide-react';
 import { FEEDBACK_GOOGLE_FORM_URL, FEEDBACK_FORM_CONFIGURED } from '../../config/feedbackForm';
 
-const FEEDBACK_CATEGORIES = ['Lab', 'Puzzle', 'CTF', 'Other'] as const;
-
 export const AdminSettings: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -28,11 +26,6 @@ export const AdminSettings: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [feedbackCategory, setFeedbackCategory] = useState<typeof FEEDBACK_CATEGORIES[number]>('Lab');
-
-  // Feedback form state
-  const [subject, setSubject] = useState('');
-  const [feedback, setFeedback] = useState('');
 
   // Tables & Info states
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
@@ -106,27 +99,6 @@ export const AdminSettings: React.FC = () => {
       }
     } catch {
       showToast('Password change failed.');
-    }
-  };
-
-  const handleSubmitFeedback = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/v1/reporting/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ subject: `[${feedbackCategory}] ${subject}`, feedback })
-      });
-
-      if (res.ok) {
-        showToast('Feedback submitted successfully.');
-        setSubject('');
-        setFeedback('');
-      } else {
-        showToast('Failed to submit feedback.');
-      }
-    } catch {
-      showToast('Failed to submit feedback.');
     }
   };
 
@@ -285,71 +257,21 @@ export const AdminSettings: React.FC = () => {
             <MessageSquare className="w-4 h-4 text-[#0052CC] dark:text-blue-400" />
             Platform Feedback & Bug Reports
           </h3>
-          {FEEDBACK_FORM_CONFIGURED && (
+          <p className="text-slate-500">
+            Report an issue or share feedback about a Lab, Puzzle, CTF challenge, or anything else on the platform.
+          </p>
+          {FEEDBACK_FORM_CONFIGURED ? (
             <a
               href={FEEDBACK_GOOGLE_FORM_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-3 p-3.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl hover:bg-blue-100/70 dark:hover:bg-blue-950/50 transition-colors"
+              className="px-5 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-xl inline-flex items-center gap-2"
             >
-              <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">Open the full feedback form</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">Covers Lab, Puzzle, CTF, and other issues in one place.</span>
-              </div>
-              <ExternalLink className="w-4 h-4 text-[#0052CC] shrink-0" />
+              Give Feedback <ExternalLink className="w-4 h-4" />
             </a>
+          ) : (
+            <p className="text-[11px] text-slate-400">The feedback form is not configured yet.</p>
           )}
-          <form onSubmit={handleSubmitFeedback} className="space-y-4">
-            <div>
-              <label className="font-bold text-slate-500 block mb-1">Category</label>
-              <div className="flex flex-wrap gap-2">
-                {FEEDBACK_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setFeedbackCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                      feedbackCategory === cat
-                        ? 'bg-[#0052CC] text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="font-bold text-slate-500 block mb-1">Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g. Lab telemetry latency issue"
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none"
-                required
-              />
-            </div>
-            <div>
-              <label className="font-bold text-slate-500 block mb-1">Feedback Description</label>
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Detail your experience or issues encountered..."
-                rows={4}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none text-xs"
-                required
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="px-5 py-2 bg-[#0052CC] hover:bg-blue-600 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-              >
-                Submit Feedback
-              </button>
-            </div>
-          </form>
         </div>
 
         {/* Login Audit Trail Log */}

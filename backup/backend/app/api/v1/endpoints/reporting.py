@@ -1898,22 +1898,43 @@ def submit_admin_feedback(
 def notify_feedback_from_google_form(
     payload: dict,
     secret: str = Query(..., description="Shared webhook secret configured in the Apps Script trigger"),
+    db: Session = Depends(get_db),
 ):
     """
     Public webhook called by a Google Apps Script onFormSubmit trigger attached to the
     platform feedback Google Form. Not user-authenticated (Google's servers call this) -
     protected instead by a shared secret compared against settings.FEEDBACK_WEBHOOK_SECRET.
+    Persists the submission to the audit log and emails the sysadmin.
     """
     from app.core.config import settings
     if not getattr(settings, "FEEDBACK_WEBHOOK_SECRET", None) or secret != settings.FEEDBACK_WEBHOOK_SECRET:
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
+    category = payload.get("category", "Other")
+    subject = payload.get("subject", "Feedback form submission")
+    description = payload.get("description", "")
+    submitter_email = payload.get("email", "")
+
+    from app.models.audit_log import AuditLog
+    log_entry = AuditLog(
+        action="SUBMIT_FEEDBACK",
+        entity="feedback",
+        performed_by=submitter_email or "Google Form Submission",
+        performed_by_role="external",
+        old_value=f"[{category}] {subject}",
+        new_value=description,
+        ip_address="google-forms-webhook",
+        status="SUCCESS"
+    )
+    db.add(log_entry)
+    db.commit()
+
     from app.services.ses_service import ses_service
     ses_service.send_feedback_notification_email(
-        category=payload.get("category", "Other"),
-        subject=payload.get("subject", "Feedback form submission"),
-        description=payload.get("description", ""),
-        submitter_email=payload.get("email", "")
+        category=category,
+        subject=subject,
+        description=description,
+        submitter_email=submitter_email
     )
     return {"status": "success"}
 

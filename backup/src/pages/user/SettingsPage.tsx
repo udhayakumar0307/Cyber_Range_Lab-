@@ -26,8 +26,6 @@ import { useAuth } from '../../context';
 import { downloadAuthenticatedFile } from '../../utils/exportUtils';
 import { FEEDBACK_GOOGLE_FORM_URL, FEEDBACK_FORM_CONFIGURED } from '../../config/feedbackForm';
 
-const FEEDBACK_CATEGORIES = ['Lab', 'Puzzle', 'CTF', 'Other'] as const;
-
 export const SettingsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, apiFetch } = useAuth();
@@ -43,41 +41,6 @@ export const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [feedbackCategory, setFeedbackCategory] = useState<typeof FEEDBACK_CATEGORIES[number]>('Lab');
-  const [feedbackSubject, setFeedbackSubject] = useState('');
-  const [feedbackDescription, setFeedbackDescription] = useState('');
-  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const handleSubmitFeedback = async () => {
-    if (!feedbackSubject.trim() || !feedbackDescription.trim()) {
-      setFeedbackMessage({ type: 'error', text: 'Please fill in both subject and description.' });
-      return;
-    }
-    setFeedbackSubmitting(true);
-    setFeedbackMessage(null);
-    try {
-      const res = await apiFetch('/api/v1/reporting/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: `[${feedbackCategory}] ${feedbackSubject}`,
-          feedback: feedbackDescription
-        })
-      });
-      if (res.ok) {
-        setFeedbackMessage({ type: 'success', text: 'Feedback submitted. Thanks for letting us know!' });
-        setFeedbackSubject('');
-        setFeedbackDescription('');
-      } else {
-        setFeedbackMessage({ type: 'error', text: 'Failed to submit feedback.' });
-      }
-    } catch {
-      setFeedbackMessage({ type: 'error', text: 'Failed to submit feedback.' });
-    } finally {
-      setFeedbackSubmitting(false);
-    }
-  };
 
   const [appearance, setAppearance] = useState({
     accent_color: '#2563EB',
@@ -681,79 +644,22 @@ export const SettingsPage: React.FC = () => {
             Platform Feedback &amp; Bug Reports
           </h2>
 
-          {FEEDBACK_FORM_CONFIGURED && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Report an issue or share feedback about a Lab, Puzzle, CTF challenge, or anything else on the platform.
+          </p>
+
+          {FEEDBACK_FORM_CONFIGURED ? (
             <a
               href={FEEDBACK_GOOGLE_FORM_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-3 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl hover:bg-blue-100/70 dark:hover:bg-blue-950/50 transition-colors"
+              className="px-5 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors inline-flex items-center gap-2"
             >
-              <div>
-                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 block">Open the full feedback form</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">Covers Lab, Puzzle, CTF, and other issues in one place.</span>
-              </div>
-              <ExternalLink className="w-4 h-4 text-[#2563EB] shrink-0" />
+              <Send className="w-4 h-4" /> Give Feedback <ExternalLink className="w-4 h-4" />
             </a>
+          ) : (
+            <p className="text-xs text-slate-400">The feedback form is not configured yet.</p>
           )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1.5">Category</label>
-              <div className="flex flex-wrap gap-2">
-                {FEEDBACK_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setFeedbackCategory(cat)}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                      feedbackCategory === cat
-                        ? 'bg-[#2563EB] text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1.5">Subject</label>
-              <input
-                type="text"
-                value={feedbackSubject}
-                onChange={(e) => setFeedbackSubject(e.target.value)}
-                placeholder="e.g. Lab terminal not connecting"
-                className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1.5">Description</label>
-              <textarea
-                value={feedbackDescription}
-                onChange={(e) => setFeedbackDescription(e.target.value)}
-                rows={4}
-                placeholder="Detail your experience or issue encountered..."
-                className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 resize-none"
-              />
-            </div>
-
-            {feedbackMessage && (
-              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                feedbackMessage.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-              }`}>
-                <Check className="w-4 h-4" /> {feedbackMessage.text}
-              </div>
-            )}
-
-            <button
-              onClick={handleSubmitFeedback}
-              disabled={feedbackSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-2 disabled:opacity-60"
-            >
-              <Send className="w-4 h-4" /> {feedbackSubmitting ? 'Submitting...' : 'Submit Feedback'}
-            </button>
-          </div>
         </div>
       )}
     </div>
