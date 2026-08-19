@@ -152,6 +152,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"CTF scheduler failed to start: {exc}")
 
+    # Start CTF folder auto-sync loop (mirrors labs/ registry but fully automatic -
+    # no manual "Sync Now" trigger needed; new ctf/*/event.json folders appear
+    # on the SysAdmin CTF tab within one sync interval)
+    try:
+        from app.services.ctf_scanner import ctf_directory_sync_loop
+        app.state.ctf_sync_task = asyncio.create_task(ctf_directory_sync_loop())
+    except Exception as exc:
+        logger.warning(f"CTF directory auto-sync failed to start: {exc}")
+
     # Lazy-validate SES credentials without blocking startup
     try:
         from app.services.ses_service import ses_service  # noqa: F401

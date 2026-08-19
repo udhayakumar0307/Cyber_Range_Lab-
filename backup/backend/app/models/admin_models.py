@@ -148,6 +148,24 @@ class PurchasedLab(Base):
     fixed_rate = Column(Float, default=0.0, nullable=True)
 
 
+class PurchasedCTF(Base):
+    __tablename__ = "purchased_ctfs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    ctf_id = Column(Integer, ForeignKey("ctf.id", ondelete="CASCADE"), nullable=False)
+    ctf_title = Column(String(200), nullable=False)
+    license_key = Column(String(100), unique=True, nullable=False)
+    total_team_slots = Column(Integer, default=10)  # 10 teams of 4 = 40 participants
+    assigned_team_slots = Column(Integer, default=0)
+    status = Column(String(50), default="ACTIVE")  # ACTIVE, EXPIRED, SUSPENDED
+    purchased_date = Column(DateTime, default=datetime.utcnow)
+    expiry_date = Column(DateTime, nullable=False)
+    assigned_to = Column(String(50), default="both", nullable=True)
+    fixed_rate = Column(Float, default=0.0, nullable=True)  # price per team
+
+
 class License(Base):
     __tablename__ = "licenses"
 

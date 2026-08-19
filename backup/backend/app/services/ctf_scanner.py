@@ -4,6 +4,7 @@ Each subfolder of settings.CTF_DIRECTORY with an event.json is one CTF event.
 Re-running the scan updates the event and its challenges in place (matched by
 title within the event) rather than duplicating them.
 """
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -104,3 +105,24 @@ def scan_ctf_directory(db: Session, ctf_directory: str | None = None, notify: bo
 
     db.commit()
     return result
+
+
+async def ctf_directory_sync_loop(interval_seconds: int = 300) -> None:
+    """
+    Runs automatically in the background: rescans settings.CTF_DIRECTORY every
+    interval_seconds so new event folders dropped in ctf/ appear on the SysAdmin
+    CTF tab without any manual "Sync Now" action or server restart.
+    """
+    from app.database.manager import db_manager
+    while True:
+        try:
+            db = db_manager.get_session()
+            try:
+                result = scan_ctf_directory(db)
+                if result["events_added"] or result["challenges_added"]:
+                    logger.info("[CTF auto-sync] %s", result)
+            finally:
+                db.close()
+        except Exception:
+            logger.exception("CTF directory auto-sync failed")
+        await asyncio.sleep(interval_seconds)

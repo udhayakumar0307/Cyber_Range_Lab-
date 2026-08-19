@@ -136,9 +136,12 @@ export const SystemPortal: React.FC = () => {
   // CTF catalog state
   const [ctfEvents, setCtfEvents] = useState<any[]>([]);
   const [ctfLoading, setCtfLoading] = useState(false);
-  const [ctfSyncing, setCtfSyncing] = useState(false);
-  const [ctfSyncResult, setCtfSyncResult] = useState<any>(null);
   const [ctfTabMode, setCtfTabMode] = useState<'catalog' | 'arrivals' | 'assigned'>('catalog');
+  const [isCtfAssignModalOpen, setIsCtfAssignModalOpen] = useState(false);
+  const [formCtfId, setFormCtfId] = useState<number | null>(null);
+  const [formCtfTitle, setFormCtfTitle] = useState('');
+  const [formCtfPrice, setFormCtfPrice] = useState<number>(14999);
+  const [formCtfAssignTarget, setFormCtfAssignTarget] = useState<'org' | 'student' | 'both'>('student');
 
   // Custom Revoke / Remove Lab modal states
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
@@ -312,26 +315,40 @@ export const SystemPortal: React.FC = () => {
     }
   };
 
-  const handleSyncCtf = async () => {
-    setCtfSyncing(true);
-    setCtfSyncResult(null);
+  const handleAssignCtf = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCtfId || !formCtfTitle) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/admin/ctf/sync', {
+      let endpoint = `/api/v1/system/organizations/0/assign-ctf`;
+      let targetUserId: number | null = -1;
+      if (formCtfAssignTarget === 'org') {
+        endpoint = `/api/v1/system/organizations/-1/assign-ctf`;
+        targetUserId = null;
+      } else if (formCtfAssignTarget === 'both') {
+        endpoint = `/api/v1/system/organizations/-2/assign-ctf`;
+        targetUserId = -1;
+      }
+      const res = await fetch(endpoint, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ctf_id: formCtfId,
+          ctf_title: formCtfTitle,
+          user_id: targetUserId,
+          total_price: formCtfPrice
+        })
       });
-      const data = await res.json();
       if (res.ok) {
-        setCtfSyncResult({ type: 'success', data });
-        fetchCtfEvents();
+        setIsCtfAssignModalOpen(false);
+        alert('CTF allocation completed successfully!');
       } else {
-        setCtfSyncResult({ type: 'error', message: data.detail || 'Sync failed.' });
+        const data = await res.json();
+        alert(data.detail || 'Failed to allocate CTF.');
       }
     } catch (err) {
-      setCtfSyncResult({ type: 'error', message: 'Sync failed.' });
-    } finally {
-      setCtfSyncing(false);
+      console.error('Failed to allocate CTF:', err);
+      alert('Failed to allocate CTF.');
     }
   };
 
@@ -1767,63 +1784,44 @@ export const SystemPortal: React.FC = () => {
                   <Flag className="w-5 h-5 text-purple-600" /> Platform CTF Management
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Auto-synced from the <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> folder — drop a folder with <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> in it, then sync.
+                  Auto-synced from the <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> folder in the background — drop a folder with <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> in it and it appears here automatically.
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setCtfTabMode('catalog')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      ctfTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                    }`}
-                  >
-                    CTF ({ctfEvents.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCtfTabMode('arrivals')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      ctfTabMode === 'arrivals' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                    }`}
-                  >
-                    New Arrivals ({ctfEvents.filter((c: any) => c.status === 'scheduled').length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCtfTabMode('assigned')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      ctfTabMode === 'assigned' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
-                    }`}
-                  >
-                    Assigned (0)
-                  </button>
-                </div>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
                 <button
-                  onClick={handleSyncCtf}
-                  disabled={ctfSyncing}
-                  className="px-4 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 disabled:opacity-60 cursor-pointer whitespace-nowrap"
+                  type="button"
+                  onClick={() => setCtfTabMode('catalog')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    ctfTabMode === 'catalog' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                  }`}
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${ctfSyncing ? 'animate-spin' : ''}`} /> {ctfSyncing ? 'Syncing...' : 'Sync Now'}
+                  CTF ({ctfEvents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCtfTabMode('arrivals')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    ctfTabMode === 'arrivals' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                  }`}
+                >
+                  New Arrivals ({ctfEvents.filter((c: any) => c.status === 'scheduled').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCtfTabMode('assigned')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    ctfTabMode === 'assigned' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
+                  }`}
+                >
+                  Assigned (0)
                 </button>
               </div>
             </div>
 
-            {ctfSyncResult && (
-              <div className={`p-3 rounded-xl text-xs font-bold ${
-                ctfSyncResult.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-              }`}>
-                {ctfSyncResult.type === 'success'
-                  ? `Synced: ${ctfSyncResult.data.events_added} new event(s), ${ctfSyncResult.data.events_updated} updated, ${ctfSyncResult.data.challenges_added} new challenge(s), ${ctfSyncResult.data.failed} failed.`
-                  : ctfSyncResult.message}
-              </div>
-            )}
-
             {ctfTabMode === 'assigned' ? (
               <div className="py-12 text-center space-y-2">
                 <Flag className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-400">Team-based purchase &amp; assignment is coming soon.</p>
+                <p className="text-xs font-bold text-slate-400">Allocated CTF events will appear here once teams start joining.</p>
               </div>
             ) : ctfLoading ? (
               <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading CTF events...</div>
@@ -1835,44 +1833,52 @@ export const SystemPortal: React.FC = () => {
                 <div className="py-12 text-center space-y-2">
                   <Flag className="w-10 h-10 text-slate-300 mx-auto" />
                   <p className="text-xs font-bold text-slate-400">
-                    {ctfTabMode === 'arrivals'
-                      ? 'No new arrivals. Add a folder to '
-                      : 'No CTF events yet. Add a folder to '}
-                    <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> and click Sync Now.
+                    {ctfTabMode === 'arrivals' ? 'No new arrivals yet. ' : 'No CTF events yet. '}
+                    Drop a folder with <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> into <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> — it'll appear automatically within a few minutes.
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="p-4">Title</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4">Start</th>
-                        <th className="p-4">End</th>
-                        <th className="p-4 text-center">Public</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {visibleEvents.map((c: any) => (
-                        <tr key={c.id} className="hover:bg-slate-50/60">
-                          <td className="p-4 font-bold text-slate-900">{c.title}</td>
-                          <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${
-                              c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                              c.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                              'bg-blue-50 text-blue-700 border-blue-200'
-                            }`}>
-                              {c.status}
-                            </span>
-                          </td>
-                          <td className="p-4 text-slate-500 font-mono">{c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</td>
-                          <td className="p-4 text-slate-500 font-mono">{c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</td>
-                          <td className="p-4 text-center">{c.is_public ? 'Yes' : 'No'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {visibleEvents.map((c: any) => (
+                    <div key={c.id} className="p-5 border border-slate-200 rounded-2xl bg-white space-y-3 shadow-xs hover:border-purple-300 transition-colors flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-extrabold text-slate-900 text-sm">{c.title}</h4>
+                            <span className="text-[10px] font-mono text-purple-650">ID: {c.id}</span>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
+                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            c.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                            'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 line-clamp-2">{c.description}</p>
+                        <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
+                          <p><strong>Start:</strong> {c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</p>
+                          <p><strong>End:</strong> {c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</p>
+                          <p><strong>Format:</strong> 10 teams x 4 (40 max)</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100">
+                        <button
+                          onClick={() => {
+                            setFormCtfId(c.id);
+                            setFormCtfTitle(c.title);
+                            setFormCtfPrice(14999);
+                            setFormCtfAssignTarget('student');
+                            setIsCtfAssignModalOpen(true);
+                          }}
+                          className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Allocate CTF
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               );
             })()}
@@ -2271,6 +2277,59 @@ export const SystemPortal: React.FC = () => {
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
               <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl cursor-pointer">Allocate Lab & Save</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL 3b: Manual CTF Allocation */}
+      {isCtfAssignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <form onSubmit={handleAssignCtf} className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-base font-extrabold text-slate-900">Manually Allocate CTF</h2>
+              <button type="button" onClick={() => setIsCtfAssignModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">X</button>
+            </div>
+            <div className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Assignee Target Scope</label>
+                <select
+                  value={formCtfAssignTarget}
+                  onChange={(e) => setFormCtfAssignTarget(e.target.value as any)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-bold"
+                >
+                  <option value="org">All Organizations</option>
+                  <option value="student">All Students</option>
+                  <option value="both">Both (All Organizations & Students)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">CTF Title</label>
+                <input
+                  type="text"
+                  disabled
+                  value={formCtfTitle}
+                  placeholder="Selected CTF Title"
+                  className="w-full p-2.5 bg-slate-105 border border-slate-200 rounded-xl focus:outline-none text-slate-700 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Fixed Rate / Price per Team (₹)</label>
+                <input
+                  type="number"
+                  value={formCtfPrice}
+                  onChange={(e) => setFormCtfPrice(Number(e.target.value))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-400">Allocates 10 team slots (4 members each, 40 participants max) for this CTF event.</p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setIsCtfAssignModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl cursor-pointer">Allocate CTF & Save</button>
             </div>
           </form>
         </div>

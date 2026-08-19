@@ -1081,6 +1081,60 @@ def assign_lab_manually(
     return {"status": "success", "message": f"Successfully configured manual assignment for '{data.lab_title}'."}
 
 
+class ManualCTFAssignRequest(BaseModel):
+    ctf_id: int
+    ctf_title: str
+    user_id: Optional[int] = None
+    total_price: Optional[float] = 0.0
+
+
+@router.post("/organizations/{org_id}/assign-ctf")
+def assign_ctf_manually(
+    org_id: int,
+    data: ManualCTFAssignRequest,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """Allocate a CTF event (10 team slots / 40 participants) to an org, all
+    students, or both - mirrors /organizations/{org_id}/assign-lab."""
+    import secrets
+    from datetime import datetime, timedelta
+    from app.models.admin_models import PurchasedCTF
+
+    assigned_to = "both"
+    target_org_id = None
+    target_user_id = current_admin.id
+
+    if org_id == -1:  # All Organizations
+        assigned_to = "admin"
+    elif org_id == -2:  # Both
+        assigned_to = "both"
+    elif org_id == 0 and data.user_id == -1:  # All Students
+        assigned_to = "student"
+    else:
+        target_org_id = org_id if org_id > 0 else None
+        target_user_id = data.user_id or current_admin.id
+        assigned_to = "admin" if target_org_id else "student"
+
+    lic_key = f"MANUAL-CTF{data.ctf_id}-{secrets.token_hex(4).upper()}"
+    pc = PurchasedCTF(
+        user_id=target_user_id,
+        organization_id=target_org_id,
+        ctf_id=data.ctf_id,
+        ctf_title=data.ctf_title,
+        license_key=lic_key,
+        total_team_slots=10,
+        assigned_team_slots=0,
+        status="ACTIVE",
+        expiry_date=datetime.utcnow() + timedelta(days=365),
+        assigned_to=assigned_to,
+        fixed_rate=data.total_price or 0.0
+    )
+    db.add(pc)
+    db.commit()
+    return {"status": "success", "message": f"Successfully configured CTF allocation for '{data.ctf_title}'."}
+
+
 @router.delete("/users/{user_id}")
 def delete_system_user(
     user_id: int,
