@@ -10,6 +10,8 @@ interface RealTerminalProps {
   token?: string;
   height?: string;
   className?: string;
+  /** Called every time the user submits a command (presses Enter) */
+  onCommand?: (cmd: string) => void;
 }
 
 export const RealTerminal: React.FC<RealTerminalProps> = ({
@@ -17,7 +19,8 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
   levelNum = 0,
   token,
   height = '450px',
-  className = ''
+  className = '',
+  onCommand,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
@@ -25,6 +28,11 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
   const fitAddonRef = useRef<FitAddon | null>(null);
   // Tracks the cancellation token of the current socket so stale async events are silenced
   const cancelTokenRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  // Accumulates the current typed command line for objective detection
+  const commandBufferRef = useRef<string>('');
+  // Keep a stable ref to the onCommand callback so the onData closure is never stale
+  const onCommandRef = useRef(onCommand);
+  useEffect(() => { onCommandRef.current = onCommand; }, [onCommand]);
 
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -138,10 +146,26 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     // Auto-focus terminal on mount
     term.focus();
 
-    // Forward xterm input to WebSocket
+    // Forward xterm input to WebSocket; also track command buffer for objective detection
     term.onData((data) => {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(data);
+      }
+
+      // Track typed characters to build the command buffer
+      if (data === '\r' || data === '\n') {
+        // Enter pressed — fire onCommand with the buffered command
+        const cmd = commandBufferRef.current.trim();
+        if (cmd && onCommandRef.current) {
+          onCommandRef.current(cmd);
+        }
+        commandBufferRef.current = '';
+      } else if (data === '\x7f' || data === '\b') {
+        // Backspace
+        commandBufferRef.current = commandBufferRef.current.slice(0, -1);
+      } else if (data.charCodeAt(0) >= 32) {
+        // Printable character
+        commandBufferRef.current += data;
       }
     });
 

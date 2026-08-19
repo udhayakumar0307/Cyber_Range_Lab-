@@ -295,16 +295,20 @@ def teardown_session(
 def _generate_recon_flag(user_id: str, module_id: str) -> List[str]:
     """Generate the canonical flag for a recon lab module.
 
-    Canonical format:  FLAG{cll_module<N>_recon_student_<8-hex-digest>}
-    e.g.               FLAG{cll_module1_recon_student_3f7a2b9c}
+    This MUST match the gen_flag() function in the target container's entrypoint.sh:
+        echo -n "lab{lab}_mod{module}_{student_id}_{lab_seed}" | sha256sum | head -c 8
 
-    The digest is deterministic: SHA-256 of 'recon_<moduleN>_<user_id>_cyberrange2026'
+    Canonical format:  FLAG{techcorp_lab1_mod<N>_<user_id>_<8-hex-digest>}
+    e.g.               FLAG{techcorp_lab1_mod1_9_3f7a2b9c}
+
+    The digest is deterministic: SHA-256 of 'lab1_mod{N}_{user_id}_{lab_seed}'
     so the same user always gets the same flag for the same module.
     """
     num = module_id.replace("module", "")  # 'module1' -> '1'
-    seed = f"recon_module{num}_{user_id}_cyberrange2026"
-    digest = hashlib.sha256(seed.encode()).hexdigest()[:8]  # 8 hex chars, e.g. '3f7a2b9c'
-    canonical = f"FLAG{{cll_module{num}_recon_student_{digest}}}"
+    lab_seed = _derive_lab_seed(user_id)
+    seed = f"lab1_mod{num}_{user_id}_{lab_seed}"
+    digest = hashlib.sha256(seed.encode()).hexdigest()[:8]
+    canonical = f"FLAG{{techcorp_lab1_mod{num}_{user_id}_{digest}}}"
     return [canonical]  # single accepted flag
 
 

@@ -769,22 +769,6 @@ export const ChallengeSession: React.FC = () => {
       const current = prev[modId] || activeModule.objectives.map(() => false);
       const updated = current.map((done, i) => {
         if (done) return true;
-
-        // Special handling for Module 5 Capstone
-        if (modId === 'module5') {
-          if (i === 0) return /sudo -l/i.test(cmd);
-          if (i === 1) return /sys-helper/i.test(cmd) && /--exec/i.test(cmd);
-          if (i === 2) {
-            // Objective 3: Requires elevated root state AND reading /root/flag.txt
-            const isReadingFlag = /(cat|head|tail|more|less)\s+(\/root\/)?flag\.txt/i.test(cmd);
-            const isValid = currentIsRoot && isReadingFlag;
-            if (isValid) {
-              console.log('[DEBUG] /root/flag.txt Read successfully under root privileges!');
-            }
-            return isValid;
-          }
-        }
-
         return activeModule.objectives[i].triggerPatterns.some((rx) => rx.test(cmd));
       });
       return { ...prev, [modId]: updated };
@@ -2006,6 +1990,7 @@ export const ChallengeSession: React.FC = () => {
                 token={token ?? undefined}
                 height="100%"
                 className="flex-1"
+                onCommand={(cmd) => tickObjectives(cmd, false)}
               />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
