@@ -28,6 +28,7 @@ class Settings:
         self.ENV = os.getenv("ENV", "development")
         self.FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
         self.LABS_DIRECTORY = os.getenv("LABS_DIRECTORY", os.path.join(self.root_dir, "labs"))
+        self.CTF_DIRECTORY = os.getenv("CTF_DIRECTORY", os.path.join(self.root_dir, "ctf"))
         self.ENABLE_GST = os.getenv("ENABLE_GST", "true").lower() in ("true", "1", "yes")
         
         # Default region configuration

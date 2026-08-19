@@ -24,7 +24,8 @@ import {
    BookOpen,
    Trash2,
    Radar as RadarIcon,
-   Clock
+   Clock,
+   Flag
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -68,7 +69,7 @@ export const SystemPortal: React.FC = () => {
   // System Dashboard & Viewer State
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as any) || 'dashboard';
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'colleges' | 'orgs' | 'students' | 'audit_logs' | 'db_viewer'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'colleges' | 'orgs' | 'students' | 'audit_logs' | 'db_viewer' | 'ctf'>(initialTab);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [dashLoading, setDashLoading] = useState(false);
 
@@ -131,7 +132,13 @@ export const SystemPortal: React.FC = () => {
   const [labSubTab, setLabSubTab] = useState<'pending' | 'active'>('pending');
   const [labPrices, setLabPrices] = useState<Record<string, number>>({});
   const [labsTabMode, setLabsTabMode] = useState<'catalog' | 'arrivals' | 'assigned'>('catalog');
-  
+
+  // CTF catalog state
+  const [ctfEvents, setCtfEvents] = useState<any[]>([]);
+  const [ctfLoading, setCtfLoading] = useState(false);
+  const [ctfSyncing, setCtfSyncing] = useState(false);
+  const [ctfSyncResult, setCtfSyncResult] = useState<any>(null);
+
   // Custom Revoke / Remove Lab modal states
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
   const [selectedLabForRemoval, setSelectedLabForRemoval] = useState<any>(null);
@@ -283,6 +290,47 @@ export const SystemPortal: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load system labs:', err);
+    }
+  };
+
+  const fetchCtfEvents = async () => {
+    setCtfLoading(true);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/v1/ctf', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCtfEvents(Array.isArray(data) ? data : (data.items || data.ctfs || []));
+      }
+    } catch (err) {
+      console.error('Failed to load CTF events:', err);
+    } finally {
+      setCtfLoading(false);
+    }
+  };
+
+  const handleSyncCtf = async () => {
+    setCtfSyncing(true);
+    setCtfSyncResult(null);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/v1/admin/ctf/sync', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCtfSyncResult({ type: 'success', data });
+        fetchCtfEvents();
+      } else {
+        setCtfSyncResult({ type: 'error', message: data.detail || 'Sync failed.' });
+      }
+    } catch (err) {
+      setCtfSyncResult({ type: 'error', message: 'Sync failed.' });
+    } finally {
+      setCtfSyncing(false);
     }
   };
 
@@ -540,6 +588,8 @@ export const SystemPortal: React.FC = () => {
         fetchDashboard();
       } else if (activeTab === 'security_telemetry' as any) {
         fetchSecurityAlerts();
+      } else if (activeTab === 'ctf') {
+        fetchCtfEvents();
       }
     }
   }, [step, activeTab, selectedTable, dbPage, studentPage, auditPage]);
@@ -1031,6 +1081,7 @@ export const SystemPortal: React.FC = () => {
           { id: 'dashboard', label: 'Dashboard', icon: Activity },
           { id: 'students', label: 'Students Roster', icon: Users },
           { id: 'labs', label: 'Labs', icon: BookOpen },
+          { id: 'ctf', label: 'CTF', icon: Flag },
           { id: 'orgs', label: 'Organizations', icon: Building2 },
           { id: 'colleges', label: 'Colleges', icon: GraduationCap },
           { id: 'security_telemetry', label: 'Security Alerts', icon: ShieldCheck },
@@ -1703,6 +1754,81 @@ export const SystemPortal: React.FC = () => {
               )
             )}
 
+          </div>
+        )}
+
+        {/* TAB: CTF Catalog */}
+        {activeTab === 'ctf' && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                  <Flag className="w-5 h-5 text-purple-600" /> CTF Event Catalog
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Auto-synced from the <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> folder. Drop a new event folder with an <code className="bg-slate-100 px-1.5 py-0.5 rounded">event.json</code> in it, then sync.
+                </p>
+              </div>
+              <button
+                onClick={handleSyncCtf}
+                disabled={ctfSyncing}
+                className="px-4 py-2.5 bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 disabled:opacity-60 cursor-pointer whitespace-nowrap"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${ctfSyncing ? 'animate-spin' : ''}`} /> {ctfSyncing ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+
+            {ctfSyncResult && (
+              <div className={`p-3 rounded-xl text-xs font-bold ${
+                ctfSyncResult.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}>
+                {ctfSyncResult.type === 'success'
+                  ? `Synced: ${ctfSyncResult.data.events_added} new event(s), ${ctfSyncResult.data.events_updated} updated, ${ctfSyncResult.data.challenges_added} new challenge(s), ${ctfSyncResult.data.failed} failed.`
+                  : ctfSyncResult.message}
+              </div>
+            )}
+
+            {ctfLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading CTF events...</div>
+            ) : ctfEvents.length === 0 ? (
+              <div className="py-12 text-center space-y-2">
+                <Flag className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-400">No CTF events yet. Add a folder to <code className="bg-slate-100 px-1.5 py-0.5 rounded">ctf/</code> and click Sync Now.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-4">Title</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Start</th>
+                      <th className="p-4">End</th>
+                      <th className="p-4 text-center">Public</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {ctfEvents.map((c: any) => (
+                      <tr key={c.id} className="hover:bg-slate-50/60">
+                        <td className="p-4 font-bold text-slate-900">{c.title}</td>
+                        <td className="p-4">
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${
+                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            c.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                            'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-slate-500 font-mono">{c.start_time ? new Date(c.start_time).toLocaleString() : '-'}</td>
+                        <td className="p-4 text-slate-500 font-mono">{c.end_time ? new Date(c.end_time).toLocaleString() : '-'}</td>
+                        <td className="p-4 text-center">{c.is_public ? 'Yes' : 'No'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

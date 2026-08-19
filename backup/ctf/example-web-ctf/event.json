@@ -1,0 +1,20 @@
+{
+  "title": "Example Web CTF",
+  "description": "A beginner-friendly web exploitation CTF used to verify the auto-sync pipeline.",
+  "start_time": "2026-09-01T09:00:00",
+  "end_time": "2026-09-01T18:00:00",
+  "status": "scheduled",
+  "is_public": true,
+  "challenges": [
+    {
+      "title": "SQL Injection 101",
+      "category": "Web",
+      "description": "Bypass the login form using a classic SQL injection payload.",
+      "challenge_url": "http://example.com/challenge1",
+      "scoring_mode": "static",
+      "static_points": 100,
+      "flag": "flag{example_flag_here}",
+      "is_hidden": false
+    }
+  ]
+}

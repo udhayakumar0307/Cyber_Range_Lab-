@@ -37,6 +37,20 @@ def sync_lab_repository(current_user: User = Depends(get_current_admin_user), db
     from app.services.lab_scanner import scan_lab_directory
     return scan_lab_directory(db)
 
+
+@router.post("/ctf/sync")
+def sync_ctf_repository(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+    """Admin-only, rate-limited CTF registry sync. Scans settings.CTF_DIRECTORY for
+    new/updated event.json folders, mirroring /labs/sync for the CTF catalog."""
+    now = datetime.utcnow()
+    key = f"ctf_{current_user.id}"
+    last_sync = SYNC_RATE_LIMIT.get(key)
+    if last_sync and now - last_sync < timedelta(seconds=30):
+        raise HTTPException(status_code=429, detail="CTF sync is limited to one request every 30 seconds.")
+    SYNC_RATE_LIMIT[key] = now
+    from app.services.ctf_scanner import scan_ctf_directory
+    return scan_ctf_directory(db)
+
 class AdminRegisterRequest(BaseModel):
     org_name: Optional[str] = None
     organization_name: Optional[str] = None
