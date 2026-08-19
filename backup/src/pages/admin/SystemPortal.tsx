@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
    ShieldCheck,
    Key,
@@ -66,7 +66,9 @@ export const SystemPortal: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
 
   // System Dashboard & Viewer State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'colleges' | 'orgs' | 'students' | 'audit_logs' | 'db_viewer'>('dashboard');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as any) || 'dashboard';
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'colleges' | 'orgs' | 'students' | 'audit_logs' | 'db_viewer'>(initialTab);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [dashLoading, setDashLoading] = useState(false);
 

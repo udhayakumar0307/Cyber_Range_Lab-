@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import smtplib
 from email.mime.text import MIMEText
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_db, get_current_user, get_current_system_admin
 from app.models.college import College
 from app.models.admin_models import Organization
 from app.models.user_affiliation import UserAffiliation
@@ -15,27 +15,24 @@ router = APIRouter()
 
 def send_admin_verification_email(org_id: int, org_name: str, admin_email: str, base_url: str):
     subject = f"Verify New Organization Request: {org_name}"
-    approve_url = f"{base_url}/api/v1/organizations/{org_id}/approve"
-    reject_url = f"{base_url}/api/v1/organizations/{org_id}/reject"
-    
+
     body = (
-        f"Hello SysAdmin,\n\n"
-        f"A new organization has been requested for verification on CyberRange:\n"
-        f"Organization Name: {org_name}\n"
-        f"Requested by Admin Email: {admin_email}\n\n"
-        f"Please click one of the links below to approve or reject this request:\n\n"
-        f"APPROVE: {approve_url}\n"
-        f"REJECT: {reject_url}\n\n"
-        f"Regards,\nCyberRange Team"
+        f"A new organization has requested verification on CyberRange.<br><br>"
+        f"<strong>Organization Name:</strong> {org_name}<br>"
+        f"<strong>Requested by Admin Email:</strong> {admin_email}<br><br>"
+        f"Review and approve or reject this request from the SysAdmin Organizations dashboard."
     )
-    
+
     try:
         from app.services.notification_service import NotificationService
         ns = NotificationService()
         ns.send_ses_email(
             to_email="cyberrangelabsupport@gmail.com",
             title=subject,
-            message=body
+            message=body,
+            action_url="/system?tab=orgs",
+            priority="MEDIUM",
+            action_label="Review Organization"
         )
     except Exception as e:
         print(f"Failed to send verification email via SES: {e}")
@@ -141,8 +138,8 @@ def search_organizations(q: Optional[str] = "", db: Session = Depends(get_db)):
         Organization.name.ilike(search_term)
     ).limit(20).all()
 
-@router.get("/organizations/{org_id}/approve")
-def approve_organization(org_id: int, db: Session = Depends(get_db)):
+@router.post("/organizations/{org_id}/approve")
+def approve_organization(org_id: int, db: Session = Depends(get_db), _admin: User = Depends(get_current_system_admin)):
     org = db.query(Organization).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -150,8 +147,8 @@ def approve_organization(org_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success", "message": f"Organization '{org.name}' has been APPROVED successfully!"}
 
-@router.get("/organizations/{org_id}/reject")
-def reject_organization(org_id: int, db: Session = Depends(get_db)):
+@router.post("/organizations/{org_id}/reject")
+def reject_organization(org_id: int, db: Session = Depends(get_db), _admin: User = Depends(get_current_system_admin)):
     org = db.query(Organization).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")

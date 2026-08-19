@@ -605,36 +605,25 @@ class SESService:
         """
         Sends a feedback/bug-report notification to the system admin, triggered by a
         Google Form submission (via Apps Script webhook) or the in-app feedback form.
+        Uses the shared branded CyberRange Enterprise HTML template for a consistent,
+        production-grade look across all system emails.
         """
-        html_body = f"""<!DOCTYPE html>
-<html>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
-    <h2>New Platform Feedback Received</h2>
-    <ul>
-        <li><strong>Category:</strong> {category}</li>
-        <li><strong>Subject:</strong> {subject}</li>
-        <li><strong>Submitted by:</strong> {submitter_email or 'Not provided'}</li>
-    </ul>
-    <p><strong>Description:</strong></p>
-    <p style="background:#f4f6f8;border:1px dashed #0052cc;padding:15px;white-space:pre-wrap;">{description}</p>
-</body>
-</html>
-"""
-        text_body = f"New Platform Feedback\nCategory: {category}\nSubject: {subject}\nSubmitted by: {submitter_email or 'Not provided'}\n\n{description}"
+        message_html = (
+            f"<strong>Category:</strong> {category}<br>"
+            f"<strong>Subject:</strong> {subject}<br>"
+            f"<strong>Submitted by:</strong> {submitter_email or 'Not provided'}<br><br>"
+            f"<strong>Description:</strong><br>"
+            f"<div style=\"background:#f4f6f8;border:1px dashed #0052CC;border-radius:8px;padding:14px;margin-top:6px;white-space:pre-wrap;\">{description or 'No description provided.'}</div>"
+        )
         try:
-            if not self.is_enabled or not self.client:
-                logger.warning(f"[SES Sandbox Mode Bypass] Feedback notification bypass. Category={category} Subject={subject}")
-                return
-            self.client.send_email(
-                Source=settings.SES_FROM_EMAIL,
-                Destination={"ToAddresses": [getattr(settings, "FEEDBACK_NOTIFY_EMAIL", settings.SYSTEM_ADMIN_EMAIL)]},
-                Message={
-                    "Subject": {"Data": f"[CyberRange Feedback] {category}: {subject}", "Charset": "UTF-8"},
-                    "Body": {
-                        "Html": {"Data": html_body, "Charset": "UTF-8"},
-                        "Text": {"Data": text_body, "Charset": "UTF-8"}
-                    }
-                }
+            from app.services.notification_service import notification_service
+            notification_service.send_ses_email(
+                to_email=getattr(settings, "FEEDBACK_NOTIFY_EMAIL", settings.SYSTEM_ADMIN_EMAIL),
+                title=f"New Platform Feedback: {subject}",
+                message=message_html,
+                action_url="/system?tab=audit_logs",
+                priority="MEDIUM",
+                action_label="Review in Dashboard"
             )
         except Exception as e:
             logger.error(f"Failed to send feedback notification email: {e}")

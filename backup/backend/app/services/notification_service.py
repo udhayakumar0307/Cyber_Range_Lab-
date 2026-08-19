@@ -99,7 +99,7 @@ class NotificationService:
             )
         return boto3.client("ses", **kwargs)
 
-    def _build_html_email(self, title: str, message: str, action_url: Optional[str] = None, priority: str = "MEDIUM") -> str:
+    def _build_html_email(self, title: str, message: str, action_url: Optional[str] = None, priority: str = "MEDIUM", action_label: str = "Open CyberRange") -> str:
         """Renders branded CyberRange Enterprise HTML email template."""
         badge_color = "#0052CC"
         if priority.upper() in ["HIGH", "CRITICAL"]:
@@ -109,10 +109,10 @@ class NotificationService:
 
         action_btn_html = ""
         if action_url:
-            full_url = action_url if action_url.startswith("http") else f"https://cyberrange.in{action_url}"
+            full_url = action_url if action_url.startswith("http") else f"https://cyberrange.dev{action_url}"
             action_btn_html = f"""
             <div style="margin-top: 25px; text-align: center;">
-                <a href="{full_url}" style="background-color: #0052CC; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 14px;">Open CyberRange</a>
+                <a href="{full_url}" style="background-color: #0052CC; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 14px;">{action_label}</a>
             </div>
             """
 
@@ -150,14 +150,14 @@ class NotificationService:
 </body>
 </html>"""
 
-    def send_ses_email(self, to_email: str, title: str, message: str, action_url: Optional[str] = None, priority: str = "MEDIUM") -> bool:
+    def send_ses_email(self, to_email: str, title: str, message: str, action_url: Optional[str] = None, priority: str = "MEDIUM", action_label: str = "Open CyberRange") -> bool:
         """Dispatches HTML email via Amazon SES."""
         if not settings.SES_FROM_EMAIL:
             logger.warning("SES_FROM_EMAIL unconfigured, skipping Amazon SES dispatch.")
             return False
         try:
             client = self._ses_client()
-            html_content = self._build_html_email(title, message, action_url, priority)
+            html_content = self._build_html_email(title, message, action_url, priority, action_label)
             client.send_email(
                 Source=settings.SES_FROM_EMAIL,
                 Destination={"ToAddresses": [to_email]},
