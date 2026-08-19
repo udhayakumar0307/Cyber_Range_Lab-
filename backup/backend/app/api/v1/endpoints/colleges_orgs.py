@@ -1,4 +1,7 @@
+import hmac
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -6,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 from app.api.deps import get_db, get_current_user, get_current_system_admin
+from app.core.config import settings
 from app.models.college import College
 from app.models.admin_models import Organization
 from app.models.user_affiliation import UserAffiliation
@@ -13,14 +17,50 @@ from app.models.user import User
 
 router = APIRouter()
 
+
+def _sign_org_action(org_id: int, action: str) -> str:
+    """HMAC-signs an org_id+action pair so the resulting token can only have been
+    issued by this server (used for one-click approve/reject links in email, where
+    a full login flow isn't practical)."""
+    payload = f"{org_id}:{action}"
+    return hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+
+def _verify_org_action(org_id: int, action: str, token: str) -> bool:
+    expected = _sign_org_action(org_id, action)
+    return hmac.compare_digest(expected, token or "")
+
+
+def _confirmation_page(message: str, success: bool = True) -> str:
+    color = "#16A34A" if success else "#DC2626"
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>CyberRange</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#f8fafc; margin:0; padding:60px 20px; text-align:center; color:#1e293b;">
+    <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:16px; border:1px solid #e2e8f0; padding:36px 28px;">
+        <h2 style="color:{color}; margin:0 0 12px 0;">{message}</h2>
+        <a href="https://cyberrange.dev/system?tab=orgs" style="display:inline-block; margin-top:12px; background:#0052CC; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px;">Open SysAdmin Dashboard</a>
+    </div>
+</body>
+</html>"""
+
+
 def send_admin_verification_email(org_id: int, org_name: str, admin_email: str, base_url: str):
     subject = f"Verify New Organization Request: {org_name}"
+    approve_token = _sign_org_action(org_id, "approve")
+    reject_token = _sign_org_action(org_id, "reject")
+    approve_url = f"https://cyberrange.dev/api/v1/organizations/{org_id}/approve-link?token={approve_token}"
+    reject_url = f"https://cyberrange.dev/api/v1/organizations/{org_id}/reject-link?token={reject_token}"
 
     body = (
         f"A new organization has requested verification on CyberRange.<br><br>"
         f"<strong>Organization Name:</strong> {org_name}<br>"
         f"<strong>Requested by Admin Email:</strong> {admin_email}<br><br>"
-        f"Review and approve or reject this request from the SysAdmin Organizations dashboard."
+        f"You can approve or reject this request directly from this email, or review it in the dashboard.<br><br>"
+        f"<div style=\"text-align:center; margin-top:10px;\">"
+        f"<a href=\"{approve_url}\" style=\"display:inline-block; background:#16A34A; color:#fff; padding:10px 22px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px; margin:0 6px;\">Approve</a>"
+        f"<a href=\"{reject_url}\" style=\"display:inline-block; background:#DC2626; color:#fff; padding:10px 22px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px; margin:0 6px;\">Reject</a>"
+        f"</div>"
     )
 
     try:
@@ -32,7 +72,7 @@ def send_admin_verification_email(org_id: int, org_name: str, admin_email: str, 
             message=body,
             action_url="/system?tab=orgs",
             priority="MEDIUM",
-            action_label="Review Organization"
+            action_label="Review in Dashboard"
         )
     except Exception as e:
         print(f"Failed to send verification email via SES: {e}")
@@ -155,6 +195,35 @@ def reject_organization(org_id: int, db: Session = Depends(get_db), _admin: User
     org.status = "REJECTED"
     db.commit()
     return {"status": "success", "message": f"Organization '{org.name}' has been REJECTED."}
+
+
+@router.get("/organizations/{org_id}/approve-link", response_class=HTMLResponse)
+def approve_organization_via_link(org_id: int, token: str, db: Session = Depends(get_db)):
+    """One-click approve from the verification email. Not user-authenticated - protected
+    instead by an HMAC token that only this server could have generated for this org_id."""
+    if not _verify_org_action(org_id, "approve", token):
+        return HTMLResponse(_confirmation_page("Invalid or expired link.", success=False), status_code=403)
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        return HTMLResponse(_confirmation_page("Organization not found.", success=False), status_code=404)
+    org.status = "APPROVED"
+    db.commit()
+    return HTMLResponse(_confirmation_page(f"Organization '{org.name}' has been approved."))
+
+
+@router.get("/organizations/{org_id}/reject-link", response_class=HTMLResponse)
+def reject_organization_via_link(org_id: int, token: str, db: Session = Depends(get_db)):
+    """One-click reject from the verification email. Not user-authenticated - protected
+    instead by an HMAC token that only this server could have generated for this org_id."""
+    if not _verify_org_action(org_id, "reject", token):
+        return HTMLResponse(_confirmation_page("Invalid or expired link.", success=False), status_code=403)
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        return HTMLResponse(_confirmation_page("Organization not found.", success=False), status_code=404)
+    org.status = "REJECTED"
+    db.commit()
+    return HTMLResponse(_confirmation_page(f"Organization '{org.name}' has been rejected.", success=False))
+
 
 @router.get("/me/affiliations", response_model=List[AffiliationResponse])
 def get_my_affiliations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

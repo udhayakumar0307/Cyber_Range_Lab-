@@ -1029,11 +1029,11 @@ export const SystemPortal: React.FC = () => {
       <nav className="bg-white border-b border-slate-200 px-6 flex items-center gap-2 overflow-x-auto">
         {[
           { id: 'dashboard', label: 'Dashboard', icon: Activity },
-          { id: 'colleges', label: 'Colleges', icon: GraduationCap },
-          { id: 'orgs', label: 'Organizations', icon: Building2 },
-          { id: 'labs', label: 'Labs', icon: BookOpen },
-          { id: 'security_telemetry', label: 'Security Alerts', icon: ShieldCheck },
           { id: 'students', label: 'Students Roster', icon: Users },
+          { id: 'labs', label: 'Labs', icon: BookOpen },
+          { id: 'orgs', label: 'Organizations', icon: Building2 },
+          { id: 'colleges', label: 'Colleges', icon: GraduationCap },
+          { id: 'security_telemetry', label: 'Security Alerts', icon: ShieldCheck },
           { id: 'db_viewer', label: 'Audit Telemetry', icon: FileText }
         ].map(tab => {
           const IconComp = tab.icon;
