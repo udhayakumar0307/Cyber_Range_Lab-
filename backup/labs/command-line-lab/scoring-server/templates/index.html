@@ -988,18 +988,9 @@
       }
     }
 
-    // On startup, show Track Selection page or auto-open active track if in session view
+    // On startup, show Track Selection page
     closeToTracks();
-    syncUserData().then(() => {
-      // Auto-open first track and module if visiting session view
-      const isSessionView = window.location.pathname.includes('/session') || window.location.search.includes('token') || window.location.search.includes('session');
-      if (isSessionView && TRACKS_DATA && TRACKS_DATA.length > 0) {
-        const defaultTrack = TRACKS_DATA[0];
-        if (defaultTrack && defaultTrack.modules && defaultTrack.modules.length > 0) {
-          openTrack(defaultTrack.id);
-        }
-      }
-    });
+    syncUserData();
 
   </script>
 </body>

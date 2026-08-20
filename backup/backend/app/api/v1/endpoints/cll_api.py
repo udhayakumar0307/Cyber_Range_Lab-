@@ -90,6 +90,12 @@ def ensure_cll_containers_running():
     if (now - _cached_cll_checked) < 30:
         return
 
+    # In production AWS ECS mode, container provisioning is handled dynamically by ECSOrchestrator
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    if orchestrator_mode == "ecs":
+        _cached_cll_checked = now
+        return
+
     try:
         import docker as docker_sdk
         client = docker_sdk.from_env()
@@ -100,13 +106,13 @@ def ensure_cll_containers_running():
     except Exception:
         pass
 
-    # Attempt starting command-line-lab containers if stopped
+    # Attempt starting command-line-lab containers if stopped in local dev mode
     try:
         import subprocess
         cll_path = LABS_DIR / "command-line-lab"
         if not cll_path.exists():
             cll_path = ROOT_DIR / "command-line-lab"
-        subprocess.run([DOCKER_BIN, "compose", "up", "-d"], cwd=str(cll_path), capture_output=True, text=True, timeout=30)
+        subprocess.run([DOCKER_BIN, "compose", "up", "-d"], cwd=str(cll_path), capture_output=True, text=True, timeout=10)
         _cached_cll_checked = now
     except Exception as err:
         logger.warning(f"Auto-startup of command-line-lab containers error: {err}")
@@ -727,6 +733,21 @@ async def cll_terminal_websocket(websocket: WebSocket):
     # Interactive PTY Shell Execution — routes into cll-student Docker container
     IS_WINDOWS = platform.system() == "Windows"
     STUDENT_CONTAINER = "cll-student"
+    
+    # Dynamically find actual container name (ECS prefixes like ecs-command-line-lab-3-cll-student...)
+    try:
+        import subprocess as sp
+        out_names = sp.check_output(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            stderr=sp.DEVNULL
+        ).decode("utf-8", errors="ignore").splitlines()
+        for c_name in out_names:
+            if "cll-student" in c_name:
+                STUDENT_CONTAINER = c_name.strip()
+                break
+    except Exception:
+        pass
+
     master_fd = None
     proc = None
 
