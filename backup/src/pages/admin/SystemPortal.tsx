@@ -373,6 +373,26 @@ export const SystemPortal: React.FC = () => {
     }
   };
 
+  const handleDeleteCtfAllocation = async (allocationId: number, ctfTitle: string) => {
+    if (!window.confirm(`Permanently delete this CTF allocation for "${ctfTitle}"? This cannot be undone.`)) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/system/ctf-allocations/${allocationId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        fetchAllocatedCtfs();
+      } else {
+        const data = await res.json();
+        alert(data.detail || 'Failed to delete allocation.');
+      }
+    } catch (err) {
+      console.error('Failed to delete CTF allocation:', err);
+      alert('Failed to delete allocation.');
+    }
+  };
+
   const fetchAllocatedLabs = async () => {
     setAllocatedLabsLoading(true);
     const token = localStorage.getItem('token');
@@ -1859,6 +1879,7 @@ export const SystemPortal: React.FC = () => {
                         <th className="p-4 text-center">Team Slots</th>
                         <th className="p-4 text-center">Fixed Rate</th>
                         <th className="p-4">Status</th>
+                        <th className="p-4 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1873,6 +1894,15 @@ export const SystemPortal: React.FC = () => {
                             <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                               {c.status}
                             </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleDeleteCtfAllocation(c.id, c.ctf_title)}
+                              className="p-2 rounded-lg border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-500 transition-colors cursor-pointer"
+                              title="Permanently delete this allocation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       ))}

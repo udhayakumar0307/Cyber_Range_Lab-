@@ -1136,6 +1136,23 @@ def assign_ctf_manually(
     return {"status": "success", "message": f"Successfully configured CTF allocation for '{data.ctf_title}'."}
 
 
+@router.delete("/ctf-allocations/{allocation_id}")
+def delete_ctf_allocation(
+    allocation_id: int,
+    current_admin: User = Depends(get_current_system_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently removes a PurchasedCTF allocation row (sysadmin CTF Assigned tab)."""
+    from app.models.admin_models import PurchasedCTF
+    pc = db.query(PurchasedCTF).filter(PurchasedCTF.id == allocation_id).first()
+    if not pc:
+        raise HTTPException(status_code=404, detail="CTF allocation not found")
+    title = pc.ctf_title
+    db.delete(pc)
+    db.commit()
+    return {"status": "success", "message": f"Deleted CTF allocation for '{title}'."}
+
+
 @router.delete("/users/{user_id}")
 def delete_system_user(
     user_id: int,
