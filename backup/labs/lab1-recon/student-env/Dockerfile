@@ -48,11 +48,10 @@ RUN echo 'echo "║   Target: 10.10.0.10                 ║"'             >> /r
 RUN echo 'echo "║   Scoring: http://10.10.0.99:5000    ║"'             >> /root/.bashrc
 RUN echo 'echo "╚══════════════════════════════════════╝"'             >> /root/.bashrc
 RUN echo 'echo ""'                                                      >> /root/.bashrc
-RUN echo 'alias target="echo 10.10.0.10"'                              >> /root/.bashrc
-RUN echo 'alias score="curl -s http://10.10.0.99:5000/status | python3 -m json.tool"' >> /root/.bashrc
-RUN echo 'alias modules="curl -s http://10.10.0.99:5000/status"'       >> /root/.bashrc
+RUN echo 'route add -net 10.10.0.0 netmask 255.255.0.0 dev eth0 2>/dev/null || true' >> /root/.bashrc
+RUN echo 'route add -net 10.10.0.0 netmask 255.255.0.0 dev eth0 2>/dev/null || true' >> /home/student/.bashrc
 
 WORKDIR /root
 EXPOSE 22
 
-CMD ["/usr/sbin/sshd", "-D"]
+CMD ["bash", "-c", "route add -net 10.10.0.0 netmask 255.255.0.0 dev eth0 2>/dev/null || true; exec /usr/sbin/sshd -D"]
