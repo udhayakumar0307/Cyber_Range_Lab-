@@ -165,7 +165,7 @@ class ECSOrchestrator(LabOrchestrator):
                 student_host_port = None
                 container_instance_arn = t.get("containerInstanceArn")
                 for c in t.get("containers", []):
-                    if c["name"] == "lab1-student":
+                    if "student" in c["name"].lower():
                         for b in c.get("networkBindings", []):
                             if b.get("containerPort") == 22:
                                 student_host_port = b["hostPort"]
