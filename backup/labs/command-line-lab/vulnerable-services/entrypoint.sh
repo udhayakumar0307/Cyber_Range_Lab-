@@ -5,39 +5,51 @@
 # for Modules 1–5 across Linux, Python, Java, and C tracks.
 # ============================================================
 
-set -uo noglob
-# NOTE: We intentionally do NOT use -e (exit on error) because docker exec calls
-# during lab setup may fail transiently (e.g. container still initializing, ECS
-# dynamic naming). Failures in setup are logged but must not prevent the WebSocket
-# terminal service from starting.
+# NO set -e, NO set -u, NO set -o pipefail
+# Docker exec calls during setup may fail silently without crashing the container.
 
 STUDENT_ID="${STUDENT_ID:-student}"
 LAB_SEED="${LAB_SEED:-defaultseed}"
 STUDENT_CONTAINER="${STUDENT_CONTAINER:-cll-student}"
 
-# ── Resolve actual ECS container name (handles ecs-command-line-lab-N-cll-student-xxx) ──
+# ── Start the terminal & scoring services IMMEDIATELY ──────────────────────
+# terminal_service.py must be reachable as fast as possible.
+# Lab content setup (DX/DXS calls) runs in background afterward.
+echo "==> Starting terminal_service (port 8022)..."
+python3 /opt/services/terminal_service.py &
+
+echo "==> Starting progress_service (port 9500)..."
+python3 /opt/services/progress_service.py &
+
+echo "==> Starting hint_service (port 9600)..."
+python3 /opt/services/hint_service.py &
+
+echo "==> Services launched. Running lab setup in background..."
+
+# ── Resolve actual container name in background (handles ECS dynamic naming) ──
 resolve_container() {
     local target="$1"
-    local resolved
-    resolved=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -m1 "$target" || true)
-    echo "${resolved:-$target}"
+    local resolved=""
+    local i=0
+    while [ $i -lt 20 ]; do
+        resolved=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -m1 "$target" || true)
+        if [ -n "$resolved" ]; then
+            echo "$resolved"
+            return 0
+        fi
+        sleep 3
+        i=$((i + 1))
+    done
+    echo "$target"
 }
 
-# Wait up to 30s for cll-student to appear (ECS may start containers slightly staggered)
-echo "==> Waiting for container matching '${STUDENT_CONTAINER}'..."
-for i in $(seq 1 10); do
-    ACTUAL_CONTAINER=$(resolve_container "$STUDENT_CONTAINER")
-    if [ "$ACTUAL_CONTAINER" != "$STUDENT_CONTAINER" ] || docker inspect "$ACTUAL_CONTAINER" >/dev/null 2>&1; then
-        echo "==> Found container: ${ACTUAL_CONTAINER}"
-        STUDENT_CONTAINER="$ACTUAL_CONTAINER"
-        break
-    fi
-    echo "    (attempt $i/10, retrying in 3s...)"
-    sleep 3
-done
+# Run setup entirely in background — never blocks the services above
+(
+    STUDENT_CONTAINER=$(resolve_container "$STUDENT_CONTAINER")
+    echo "==> Lab setup: resolved container as ${STUDENT_CONTAINER}"
+    DX() { docker exec -u root "$STUDENT_CONTAINER" "$@" 2>/dev/null || true; }
+    DXS() { docker exec -u student "$STUDENT_CONTAINER" "$@" 2>/dev/null || true; }
 
-DX() { docker exec -u root "$STUDENT_CONTAINER" "$@" || true; }
-DXS() { docker exec -u student "$STUDENT_CONTAINER" "$@" || true; }
 
 
 # ── Deterministic flag generation algorithms ──
@@ -520,25 +532,17 @@ int main() {
 }
 C5
 
-echo "==> Non-repetitive learning scaffolding planted successfully for student: ${STUDENT_ID}"
-
-# ── Start services ──
-echo "==> Starting progress_service (port 9500)..."
-python3 /opt/services/progress_service.py &
-
-echo "==> Starting hint_service (port 9600)..."
-python3 /opt/services/hint_service.py &
-
-echo "==> Starting terminal_service (port 8022)..."
-python3 /opt/services/terminal_service.py &
+    echo "==> Lab setup complete for student: ${STUDENT_ID}"
+) &
 
 echo ""
 echo "=================================================="
-echo "  Command Line Lab multi-track services ready."
+echo "  Command Line Lab services started."
 echo "  Student:  ${STUDENT_ID}"
 echo "  Terminal: ws://<host>:8022"
 echo "  Progress: http://<host>:9500"
 echo "  Hints:    http://<host>:9600"
+echo "  Lab setup running in background..."
 echo "=================================================="
 
 wait
