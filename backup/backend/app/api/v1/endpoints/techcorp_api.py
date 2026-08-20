@@ -413,8 +413,8 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
 
         try:
             import subprocess as _sp
-            # check_level writes the next password to /opt/labs/level{X}/flag.txt (chmod 644)
-            flag_path = f"/opt/labs/level{current_lvl}/flag.txt"
+            # Read the runtime-generated SSH password for the next level from /opt/validation/level{next_lvl}.key
+            key_path = f"/opt/validation/level{next_lvl}.key"
             result = _sp.run(
                 [
                     "sshpass", "-p", "starthere",
@@ -424,7 +424,7 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
                     "-o", "ConnectTimeout=5",
                     "-p", str(port),
                     f"level0@{host}",
-                    f"cat {flag_path}"
+                    f"cat {key_path}"
                 ],
                 capture_output=True, text=True, timeout=10
             )
