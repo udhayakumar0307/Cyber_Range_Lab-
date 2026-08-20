@@ -78,6 +78,11 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             stderr=asyncio.subprocess.STDOUT
         )
 
+        # Set TERM environment variable on connection so commands like 'clear', 'top', and 'nano' work
+        if proc.stdin:
+            proc.stdin.write(b"export TERM=xterm-256color\n")
+            await proc.stdin.drain()
+
         async def ssh_to_ws():
             try:
                 while True:
