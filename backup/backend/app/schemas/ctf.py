@@ -155,7 +155,8 @@ class CTFOut(BaseModel):
     is_frozen: bool
     is_public: bool
     created_at: datetime
-    is_included: bool = False  # true if a sysadmin/org PurchasedCTF allocation already covers this event
+    is_included: bool = False  # true only if free (price 0) or this admin's org actually purchased it
+    price: float = 0.0  # sysadmin-set catalog price (fixed_rate), mirrors Lab price_per_hour
 
     class Config:
         from_attributes = True

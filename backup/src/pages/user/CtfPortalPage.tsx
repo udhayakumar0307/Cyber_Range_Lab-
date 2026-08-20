@@ -130,6 +130,19 @@ export const CtfPortalPage: React.FC = () => {
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Available Tournaments</h2>
             </div>
 
+            {/* Promo banner — team CTF events */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
+              <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-100">New — Team CTF Events</span>
+              </div>
+              <h3 className="text-lg font-extrabold mb-1">Squad up for the next Capture The Flag</h3>
+              <p className="text-sm text-indigo-100">
+                Cryptography, Web Exploitation & Network Reconnaissance — teams of 4, live scoring, leaderboard bragging rights. Ask your admin to get your college enrolled.
+              </p>
+            </div>
+
             {loading ? (
               <div className="text-center py-12 text-slate-400 font-semibold">
                 Loading CTF Tournaments...

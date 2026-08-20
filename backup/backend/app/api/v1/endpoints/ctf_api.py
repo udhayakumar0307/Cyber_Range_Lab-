@@ -48,7 +48,6 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import FileResponse
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.ws.ctf_ws import ctf_ws_manager
@@ -298,24 +297,35 @@ def list_ctfs(
         q = q.filter(CTF.status == "active", CTF.is_public == True)
     events = q.order_by(CTF.start_time.desc()).all()
 
-    # Determine which events are already covered by a sysadmin-wide (org
-    # IS NULL) or this admin's own org PurchasedCTF allocation, so the
-    # Marketplace can show "Included" instead of a duplicate purchase prompt.
+    # Catalog price per CTF = sysadmin-assigned fixed_rate (organization_id IS NULL row),
+    # mirroring get_sysadmin_rate() for Labs - this is a PRICE, not a free grant.
     from app.models.admin_models import PurchasedCTF, AdminProfile
     org_id = None
     admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
     if admin_prof:
         org_id = admin_prof.organization_id
 
-    covered_ctf_ids = set(
-        row[0] for row in db.query(PurchasedCTF.ctf_id).filter(
-            PurchasedCTF.status == "ACTIVE",
-            or_(PurchasedCTF.organization_id.is_(None), PurchasedCTF.organization_id == org_id) if org_id is not None
-            else PurchasedCTF.organization_id.is_(None)
-        ).all()
-    )
+    catalog_rows = db.query(PurchasedCTF).filter(
+        PurchasedCTF.organization_id.is_(None),
+        PurchasedCTF.status == "ACTIVE"
+    ).all()
+    price_by_ctf_id = {row.ctf_id: float(row.fixed_rate or 0.0) for row in catalog_rows}
+
+    # Actually purchased by this admin's own org (a real paid PurchasedCTF row, not the
+    # sysadmin catalog entry) - only this makes it "Included" for a priced event.
+    purchased_ctf_ids = set()
+    if org_id is not None:
+        purchased_ctf_ids = set(
+            row[0] for row in db.query(PurchasedCTF.ctf_id).filter(
+                PurchasedCTF.organization_id == org_id,
+                PurchasedCTF.status == "ACTIVE"
+            ).all()
+        )
+
     for event in events:
-        event.is_included = event.id in covered_ctf_ids
+        price = price_by_ctf_id.get(event.id, 0.0)
+        event.price = price
+        event.is_included = (price == 0.0) or (event.id in purchased_ctf_ids)
 
     return events
 

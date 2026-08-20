@@ -114,7 +114,7 @@ export const LabMarketplace: React.FC = () => {
       setIsCartOpen(true);
       return;
     }
-    const price = 14999;
+    const price = Number(ctf.price || 0);
     setIsCartOpen(true);
 
     const token = localStorage.getItem('token');
@@ -395,10 +395,10 @@ export const LabMarketplace: React.FC = () => {
       </div>
 
       {/* 2. TABS NAVIGATION BELOW TOOLBAR */}
-      <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md">
+      <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit max-w-full overflow-x-auto">
         <button
           onClick={() => setActiveMarketTab('browse')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeMarketTab === 'browse'
               ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -408,7 +408,7 @@ export const LabMarketplace: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveMarketTab('ctf')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeMarketTab === 'ctf'
               ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -418,7 +418,7 @@ export const LabMarketplace: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveMarketTab('purchased')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeMarketTab === 'purchased'
               ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -428,7 +428,7 @@ export const LabMarketplace: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveMarketTab('ctf-purchased')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeMarketTab === 'ctf-purchased'
               ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -438,7 +438,7 @@ export const LabMarketplace: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveMarketTab('history')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeMarketTab === 'history'
               ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -643,9 +643,11 @@ export const LabMarketplace: React.FC = () => {
                         Price / Package
                       </span>
                       {isPurchased ? (
-                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">INCLUDED</span>
+                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                          {ctf.price > 0 ? 'PURCHASED' : 'FREE'}
+                        </span>
                       ) : (
-                        <span className="text-lg font-black text-slate-900 dark:text-white">₹14,999</span>
+                        <span className="text-lg font-black text-slate-900 dark:text-white">₹{Number(ctf.price || 0).toLocaleString('en-IN')}</span>
                       )}
                     </div>
 
