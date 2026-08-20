@@ -323,13 +323,13 @@ async def terminal_websocket(
     logger.info(f"[WS] WebSocket Accepted | client_ip={client_ip}")
 
     # =========================================================================
-    # Task 2: lab1-recon branch — JWT auth + per-user container PTY bridge
+    # Task 2: lab1-recon & command-line-lab branch — JWT auth + per-user container bridge
     # =========================================================================
-    if lab_id == "lab1-recon":
-        # 2.1 Authenticate via JWT token passed as query param
+    if lab_id in ("lab1-recon", "command-line-lab"):
+        # Authenticate via JWT token passed as query param
         if not token:
             await websocket.send_text(
-                "\r\n\x1b[1;31m[ERROR] Authentication token required for Recon Lab.\x1b[0m\r\n"
+                f"\r\n\x1b[1;31m[ERROR] Authentication token required for {lab_id}.\x1b[0m\r\n"
                 "\x1b[33mPlease reload the lab page to obtain a fresh session token.\x1b[0m\r\n\r\n"
             )
             await websocket.close(code=1008, reason="Token required")
@@ -344,7 +344,7 @@ async def terminal_websocket(
             if not user_id:
                 raise ValueError("Token missing user_id")
         except Exception as auth_err:
-            logger.warning(f"[Recon WS] Auth failed from {client_ip}: {auth_err}")
+            logger.warning(f"[{lab_id} WS] Auth failed from {client_ip}: {auth_err}")
             await websocket.send_text(
                 "\r\n\x1b[1;31m[ERROR] Invalid or expired session token.\x1b[0m\r\n"
                 "\x1b[33mPlease log in again and reload the lab.\x1b[0m\r\n\r\n"
@@ -356,21 +356,23 @@ async def terminal_websocket(
         orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
         if orchestrator_mode == "ecs":
             from app.lab.session_store import get_session
-            session = get_session(str(user_id), "lab1-recon")
+            session = get_session(str(user_id), lab_id)
             if not session:
                 await websocket.send_text(
-                    "\r\n\x1b[1;31m[ERROR] Your Recon Lab environment is not running.\x1b[0m\r\n"
+                    f"\r\n\x1b[1;31m[ERROR] Your {lab_id} environment is not running.\x1b[0m\r\n"
                     "\x1b[33mClick \"Start Lab\" on the lab page to provision your environment first.\x1b[0m\r\n\r\n"
                 )
-                await websocket.close(code=1011, reason="Recon container not provisioned")
+                await websocket.close(code=1011, reason=f"{lab_id} container not provisioned")
                 return
 
             await _bridge_ssh_to_websocket(
                 websocket=websocket,
                 host=session["student_host"],
-                port=int(session["student_port"]),
+                port=int(session.get("ws_port") or session.get("student_port") or 2222),
                 username="student",
                 password="student",
+                user_id=str(user_id),
+                lab_id=lab_id,
             )
             return
 

@@ -182,12 +182,19 @@ class ECSOrchestrator(LabOrchestrator):
 
             if status == "RUNNING":
                 student_host_port = None
+                ws_port = None
+                progress_port = None
                 container_instance_arn = t.get("containerInstanceArn")
                 for c in t.get("containers", []):
-                    if "student" in c["name"].lower():
-                        for b in c.get("networkBindings", []):
-                            if b.get("containerPort") in (22, 2222):
-                                student_host_port = b["hostPort"]
+                    c_name = c["name"].lower()
+                    for b in c.get("networkBindings", []):
+                        c_port = b.get("containerPort")
+                        if c_port in (22, 2222):
+                            student_host_port = b["hostPort"]
+                        elif c_port == 8022:
+                            ws_port = b["hostPort"]
+                        elif c_port == 9500:
+                            progress_port = b["hostPort"]
 
                 ci_desc = self._ecs.describe_container_instances(
                     cluster=self.CLUSTER_NAME,
@@ -199,14 +206,16 @@ class ECSOrchestrator(LabOrchestrator):
 
                 logger.info(
                     f"[ECS] Provisioned session for user {user_id} | "
-                    f"Task: {task_arn} | Host: {private_ip}:{student_host_port}"
+                    f"Task: {task_arn} | Host: {private_ip}:{student_host_port or ws_port}"
                 )
 
                 return {
                     "task_arn":              task_arn,
                     "student_container_ref": task_arn,
                     "student_host":          private_ip,
-                    "student_port":          student_host_port or 2222,
+                    "student_port":          student_host_port or ws_port or 2222,
+                    "ws_port":               ws_port,
+                    "progress_port":         progress_port,
                     "lab_seed":              lab_seed,
                 }
 
