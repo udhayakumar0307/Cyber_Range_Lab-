@@ -523,6 +523,26 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
         TechCorpSession.is_active == True
     ).first()
     
+    from app.api.v1.endpoints.terminal_api import _bridge_ssh_to_websocket
+
+    if os.getenv("ORCHESTRATOR", "docker").lower() == "ecs":
+        from app.lab.session_store import get_session as get_redis_session
+        redis_sess = get_redis_session(str(user.id), "puzzle-lab")
+        host = redis_sess.get("student_host") if redis_sess else None
+        port = int(redis_sess.get("student_port")) if (redis_sess and redis_sess.get("student_port")) else (sess.ssh_port if sess else 2225)
+        ssh_user = f"level{sess.current_level}" if sess else "level0"
+        
+        if host and port:
+            logger.info(f"[TechCorp WS] Connecting to ECS SSH {ssh_user}@{host}:{port}")
+            await _bridge_ssh_to_websocket(
+                websocket=websocket,
+                host=host,
+                port=port,
+                username=ssh_user,
+                password="starthere",
+            )
+            return
+
     if not sess:
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="No active session found")
         return
