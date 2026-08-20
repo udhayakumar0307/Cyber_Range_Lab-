@@ -92,6 +92,9 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             try:
                 while True:
                     msg = await websocket.receive_text()
+                    # Filter out JSON control messages (e.g. {"type":"resize", ...})
+                    if msg.startswith("{") and ("\"type\"" in msg or "'type'" in msg):
+                        continue
                     if proc.stdin:
                         proc.stdin.write(msg.encode("utf-8"))
                         await proc.stdin.drain()
