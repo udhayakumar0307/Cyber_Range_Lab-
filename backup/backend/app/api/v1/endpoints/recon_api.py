@@ -254,20 +254,26 @@ def provision_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Provision an ephemeral Docker environment for the current student."""
-    if not _docker_available:
-        raise HTTPException(status_code=503, detail="Docker not available on this host.")
-    if not _ensure_recon_images_exist():
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                f"Docker images '{RECON_STUDENT_IMAGE}' or '{RECON_TARGET_IMAGE}' are missing. "
-                "Run: docker build -t lab1-recon-student ./labs/lab1-recon/student-env && "
-                "docker build -t lab1-recon-target ./labs/lab1-recon/vulnerable-services"
-            ),
-        )
+    """Provision a student lab environment using configured orchestrator (Docker or ECS)."""
+    from app.lab.orchestrator import get_orchestrator
+    from app.lab.session_store import save_session
+
+    user_id = str(current_user.id)
+    lab_seed = _derive_lab_seed(user_id)
+    orchestrator = get_orchestrator()
+
     try:
-        result = provision_recon_session(str(current_user.id))
+        result = orchestrator.provision(user_id, LAB_ID, lab_seed)
+        save_session(user_id, LAB_ID, result)
+
+        # Generate flag audit log for backend scoring verification
+        for mid in MODULE_IDS:
+            flag = _generate_recon_flag(user_id, mid)[0]
+            logger.info(
+                f"[RECON-AUDIT] Session Provisioning | User: {user_id} | "
+                f"Generated Module {mid} Flag: {flag}"
+            )
+
         return {"status": "provisioned", **result}
     except Exception as exc:
         logger.error(f"[Recon] Provision failed for user {current_user.id}: {exc}")
@@ -279,9 +285,16 @@ def teardown_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Stop and remove the ephemeral Docker environment for the current student."""
+    """Stop and remove the student lab environment via configured orchestrator."""
+    from app.lab.orchestrator import get_orchestrator
+    from app.lab.session_store import delete_session
+
+    user_id = str(current_user.id)
+    orchestrator = get_orchestrator()
+
     try:
-        _teardown_recon_session(str(current_user.id))
+        orchestrator.teardown(user_id, LAB_ID)
+        delete_session(user_id, LAB_ID)
         return {"status": "torn_down"}
     except Exception as exc:
         logger.error(f"[Recon] Teardown failed for user {current_user.id}: {exc}")

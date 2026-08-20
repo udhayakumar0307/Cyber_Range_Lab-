@@ -161,6 +161,21 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"CTF directory auto-sync failed to start: {exc}")
 
+    # Start ECS stale task garbage collector loop (hourly)
+    try:
+        from app.jobs.ecs_cleanup import cleanup_stale_ecs_tasks
+        async def ecs_gc_loop():
+            while True:
+                await asyncio.sleep(3600)  # Sweep every hour
+                try:
+                    await asyncio.to_thread(cleanup_stale_ecs_tasks)
+                except Exception as gc_err:
+                    logger.warning(f"ECS garbage collection loop error: {gc_err}")
+
+        app.state.ecs_gc_task = asyncio.create_task(ecs_gc_loop())
+    except Exception as exc:
+        logger.warning(f"ECS garbage collector failed to start: {exc}")
+
     # Lazy-validate SES credentials without blocking startup
     try:
         from app.services.ses_service import ses_service  # noqa: F401

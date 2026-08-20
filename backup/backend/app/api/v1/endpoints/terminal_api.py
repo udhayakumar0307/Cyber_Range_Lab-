@@ -55,6 +55,58 @@ def _get_recon_student_container(user_id: str) -> str:
     return get_student_container_name(user_id)
 
 
+async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, username: str = "root", password: str = "root"):
+    """
+    Bridge WebSocket connection to a real SSH PTY session inside an ECS container.
+    """
+    import asyncio
+    logger.info(f"[SSH WS Bridge] Connecting to SSH {username}@{host}:{port}")
+    try:
+        cmd = [
+            "sshpass", "-p", password,
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-tt",
+            "-p", str(port),
+            f"{username}@{host}"
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        async def ssh_to_ws():
+            try:
+                while True:
+                    data = await proc.stdout.read(1024)
+                    if not data:
+                        break
+                    await websocket.send_bytes(data)
+            except Exception:
+                pass
+
+        async def ws_to_ssh():
+            try:
+                while True:
+                    msg = await websocket.receive_text()
+                    if proc.stdin:
+                        proc.stdin.write(msg.encode("utf-8"))
+                        await proc.stdin.drain()
+            except Exception:
+                pass
+
+        await asyncio.gather(ssh_to_ws(), ws_to_ssh(), return_exceptions=True)
+        if proc.returncode is None:
+            proc.terminate()
+    except Exception as exc:
+        logger.error(f"[SSH WS Bridge] Failed to bridge SSH: {exc}")
+        await websocket.send_text(f"\r\n\x1b[1;31m[ERROR] Failed to connect to SSH session: {exc}\x1b[0m\r\n")
+
+
+
 def _get_running_containers() -> list:
     """Return list of running container names."""
     try:
@@ -219,7 +271,29 @@ async def terminal_websocket(
             await websocket.close(code=1008, reason="Invalid token")
             return
 
-        # 2.2 Resolve the user-specific student container (Task 2.2)
+        # Check orchestrator mode
+        orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+        if orchestrator_mode == "ecs":
+            from app.lab.session_store import get_session
+            session = get_session(str(user_id), "lab1-recon")
+            if not session:
+                await websocket.send_text(
+                    "\r\n\x1b[1;31m[ERROR] Your Recon Lab environment is not running.\x1b[0m\r\n"
+                    "\x1b[33mClick \"Start Lab\" on the lab page to provision your environment first.\x1b[0m\r\n\r\n"
+                )
+                await websocket.close(code=1011, reason="Recon container not provisioned")
+                return
+
+            await _bridge_ssh_to_websocket(
+                websocket=websocket,
+                host=session["student_host"],
+                port=int(session["student_port"]),
+                username="student",
+                password="student",
+            )
+            return
+
+        # 2.2 Resolve the user-specific student container (Task 2.2 - Local Docker Mode)
         container_name = _get_recon_student_container(str(user_id))
         logger.info(f"[Recon WS] user_id={user_id} | container={container_name}")
 
