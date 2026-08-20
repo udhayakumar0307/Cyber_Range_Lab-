@@ -48,6 +48,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import FileResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.ws.ctf_ws import ctf_ws_manager
@@ -295,7 +296,28 @@ def list_ctfs(
     q = db.query(CTF)
     if not is_admin:
         q = q.filter(CTF.status == "active", CTF.is_public == True)
-    return q.order_by(CTF.start_time.desc()).all()
+    events = q.order_by(CTF.start_time.desc()).all()
+
+    # Determine which events are already covered by a sysadmin-wide (org
+    # IS NULL) or this admin's own org PurchasedCTF allocation, so the
+    # Marketplace can show "Included" instead of a duplicate purchase prompt.
+    from app.models.admin_models import PurchasedCTF, AdminProfile
+    org_id = None
+    admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
+    if admin_prof:
+        org_id = admin_prof.organization_id
+
+    covered_ctf_ids = set(
+        row[0] for row in db.query(PurchasedCTF.ctf_id).filter(
+            PurchasedCTF.status == "ACTIVE",
+            or_(PurchasedCTF.organization_id.is_(None), PurchasedCTF.organization_id == org_id) if org_id is not None
+            else PurchasedCTF.organization_id.is_(None)
+        ).all()
+    )
+    for event in events:
+        event.is_included = event.id in covered_ctf_ids
+
+    return events
 
 
 @router.post("", response_model=CTFOut, status_code=status.HTTP_201_CREATED)

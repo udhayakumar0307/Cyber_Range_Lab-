@@ -137,6 +137,8 @@ export const SystemPortal: React.FC = () => {
   const [ctfEvents, setCtfEvents] = useState<any[]>([]);
   const [ctfLoading, setCtfLoading] = useState(false);
   const [ctfTabMode, setCtfTabMode] = useState<'catalog' | 'arrivals' | 'assigned'>('catalog');
+  const [allocatedCtfs, setAllocatedCtfs] = useState<any[]>([]);
+  const [allocatedCtfsLoading, setAllocatedCtfsLoading] = useState(false);
   const [isCtfAssignModalOpen, setIsCtfAssignModalOpen] = useState(false);
   const [formCtfId, setFormCtfId] = useState<number | null>(null);
   const [formCtfTitle, setFormCtfTitle] = useState('');
@@ -342,6 +344,7 @@ export const SystemPortal: React.FC = () => {
       if (res.ok) {
         setIsCtfAssignModalOpen(false);
         alert('CTF allocation completed successfully!');
+        fetchAllocatedCtfs();
       } else {
         const data = await res.json();
         alert(data.detail || 'Failed to allocate CTF.');
@@ -349,6 +352,24 @@ export const SystemPortal: React.FC = () => {
     } catch (err) {
       console.error('Failed to allocate CTF:', err);
       alert('Failed to allocate CTF.');
+    }
+  };
+
+  const fetchAllocatedCtfs = async () => {
+    setAllocatedCtfsLoading(true);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/v1/system/database-viewer?table_name=purchased_ctfs&limit=100', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllocatedCtfs(data.rows || []);
+      }
+    } catch (err) {
+      console.error('Failed to load allocated CTFs:', err);
+    } finally {
+      setAllocatedCtfsLoading(false);
     }
   };
 
@@ -608,6 +629,7 @@ export const SystemPortal: React.FC = () => {
         fetchSecurityAlerts();
       } else if (activeTab === 'ctf') {
         fetchCtfEvents();
+        fetchAllocatedCtfs();
       }
     }
   }, [step, activeTab, selectedTable, dbPage, studentPage, auditPage]);
@@ -1813,16 +1835,51 @@ export const SystemPortal: React.FC = () => {
                     ctfTabMode === 'assigned' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-550 hover:text-slate-800'
                   }`}
                 >
-                  Assigned (0)
+                  Assigned ({allocatedCtfs.length})
                 </button>
               </div>
             </div>
 
             {ctfTabMode === 'assigned' ? (
-              <div className="py-12 text-center space-y-2">
-                <Flag className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-400">Allocated CTF events will appear here once teams start joining.</p>
-              </div>
+              allocatedCtfsLoading ? (
+                <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading allocations...</div>
+              ) : allocatedCtfs.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <Flag className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs font-bold text-slate-400">No CTF allocations yet. Use "Allocate CTF" on a card above.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">CTF Title</th>
+                        <th className="p-4">License Key</th>
+                        <th className="p-4 text-center">Assigned To</th>
+                        <th className="p-4 text-center">Team Slots</th>
+                        <th className="p-4 text-center">Fixed Rate</th>
+                        <th className="p-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {allocatedCtfs.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-slate-50/60">
+                          <td className="p-4 font-bold text-slate-900">{c.ctf_title}</td>
+                          <td className="p-4 font-mono text-[11px]">{c.license_key}</td>
+                          <td className="p-4 text-center capitalize">{c.assigned_to || 'both'}</td>
+                          <td className="p-4 text-center">{c.assigned_team_slots} / {c.total_team_slots}</td>
+                          <td className="p-4 text-center">₹{Number(c.fixed_rate || 0).toLocaleString('en-IN')}</td>
+                          <td className="p-4">
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              {c.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : ctfLoading ? (
               <div className="py-12 text-center text-slate-400 text-xs font-bold">Loading CTF events...</div>
             ) : (() => {

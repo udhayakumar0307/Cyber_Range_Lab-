@@ -603,7 +603,7 @@ export const LabMarketplace: React.FC = () => {
             </div>
           ) : (
             ctfEvents.map((ctf: any) => {
-              const isPurchased = purchasedCtfIds.has(ctf.id);
+              const isPurchased = ctf.is_included || purchasedCtfIds.has(ctf.id);
               const isInCart = cartItems.some((i: any) => i.item_type === 'ctf' && i.ctf_id === ctf.id);
               return (
                 <div

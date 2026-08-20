@@ -155,6 +155,7 @@ class CTFOut(BaseModel):
     is_frozen: bool
     is_public: bool
     created_at: datetime
+    is_included: bool = False  # true if a sysadmin/org PurchasedCTF allocation already covers this event
 
     class Config:
         from_attributes = True

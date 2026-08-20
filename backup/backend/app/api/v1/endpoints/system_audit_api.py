@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.api.deps import get_db, get_current_system_admin
 from app.models.user import User
 from app.models.admin_models import (
-    Organization, AdminProfile, Order, OrderItem, Payment, PurchasedLab, Subscription, Invoice
+    Organization, AdminProfile, Order, OrderItem, Payment, PurchasedLab, Subscription, Invoice, PurchasedCTF
 )
 from app.models.group import Group
 from app.models.lab import Lab
@@ -794,6 +794,7 @@ MODEL_MAP = {
     "payments": Payment,
     "orders": Order,
     "purchased_labs": PurchasedLab,
+    "purchased_ctfs": PurchasedCTF,
     "study_sessions": StudySession,
     "user_lab_progress": UserLabProgress
 }
