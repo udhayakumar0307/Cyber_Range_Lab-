@@ -733,35 +733,75 @@ async def cll_terminal_websocket(websocket: WebSocket):
             logger.info(f"[CLL-WS Proxy] Proxying WebSocket to {target_url} for user {user_id}")
             
             import websockets
+
+            # Wait up to 90s for terminal_service.py to bind (entrypoint setup takes time)
+            MAX_WAIT = 90
+            RETRY_INTERVAL = 3
+            remote_ws = None
+            elapsed = 0
+            last_dot = 0
+            await websocket.send_text(
+                "\r\n\x1b[1;33m[CyberRange] Lab environment starting, please wait...\x1b[0m\r\n"
+            )
+            while elapsed < MAX_WAIT:
+                try:
+                    remote_ws = await websockets.connect(target_url, open_timeout=5)
+                    logger.info(f"[CLL-WS Proxy] Connected to {target_url} after {elapsed}s")
+                    break
+                except (ConnectionRefusedError, OSError):
+                    await asyncio.sleep(RETRY_INTERVAL)
+                    elapsed += RETRY_INTERVAL
+                    # Send a dot every 9 seconds so the connection stays alive
+                    if elapsed - last_dot >= 9:
+                        await websocket.send_text("\x1b[1;33m.\x1b[0m")
+                        last_dot = elapsed
+                except Exception as early_err:
+                    logger.error(f"[CLL-WS Proxy] Unexpected error waiting for {target_url}: {early_err}")
+                    break
+
+            if remote_ws is None:
+                logger.error(f"[CLL-WS Proxy] terminal_service not ready after {MAX_WAIT}s at {target_url}")
+                delete_session(str(user_id), "command-line-lab")
+                await websocket.send_text(
+                    f"\r\n\x1b[1;31m[ERROR] Lab environment did not start in time. Please refresh and try again.\x1b[0m\r\n"
+                )
+                await websocket.close()
+                return
+
             try:
-                async with websockets.connect(target_url, open_timeout=15) as remote_ws:
-                    async def client_to_remote():
-                        try:
-                            while True:
-                                data = await websocket.receive()
-                                if "text" in data and data["text"]:
-                                    await remote_ws.send(data["text"])
-                                elif "bytes" in data and data["bytes"]:
-                                    await remote_ws.send(data["bytes"])
-                        except Exception:
-                            pass
+                await websocket.send_text("\r\n\x1b[1;32m[CyberRange] Connected! Loading terminal...\x1b[0m\r\n")
+                async def client_to_remote():
+                    try:
+                        while True:
+                            data = await websocket.receive()
+                            if "text" in data and data["text"]:
+                                await remote_ws.send(data["text"])
+                            elif "bytes" in data and data["bytes"]:
+                                await remote_ws.send(data["bytes"])
+                    except Exception:
+                        pass
 
-                    async def remote_to_client():
-                        try:
-                            async for msg in remote_ws:
-                                if isinstance(msg, bytes):
-                                    await websocket.send_bytes(msg)
-                                else:
-                                    await websocket.send_text(msg)
-                        except Exception:
-                            pass
+                async def remote_to_client():
+                    try:
+                        async for msg in remote_ws:
+                            if isinstance(msg, bytes):
+                                await websocket.send_bytes(msg)
+                            else:
+                                await websocket.send_text(msg)
+                    except Exception:
+                        pass
 
-                    await asyncio.gather(client_to_remote(), remote_to_client(), return_exceptions=True)
+                await asyncio.gather(client_to_remote(), remote_to_client(), return_exceptions=True)
             except Exception as proxy_err:
-                logger.error(f"[CLL-WS Proxy] Error connecting to {target_url}: {proxy_err}")
+                logger.error(f"[CLL-WS Proxy] Error during proxy for {target_url}: {proxy_err}")
                 delete_session(str(user_id), "command-line-lab")
                 await websocket.send_text(f"\r\n\x1b[1;31m[ERROR] Terminal connection failed: {proxy_err}\x1b[0m\r\n")
                 await websocket.close()
+            finally:
+                try:
+                    await remote_ws.close()
+                except Exception:
+                    pass
             return
         else:
             # No valid session – ECS task is still starting up (or ASG is scaling)
