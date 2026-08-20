@@ -457,12 +457,14 @@ async def terminal_websocket(
 
         session = get_session(user_id_str, "puzzle-lab")
         if session:
+            puzzle_user = f"level{level}" if level is not None else "level0"
+            logger.info(f"[Puzzle WS] Connecting to SSH {puzzle_user}@{session['student_host']}:{session['student_port']}")
             await _bridge_ssh_to_websocket(
                 websocket=websocket,
                 host=session["student_host"],
                 port=int(session["student_port"]),
-                username="student",
-                password="student",
+                username=puzzle_user,
+                password="starthere",
             )
             return
 
