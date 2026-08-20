@@ -82,6 +82,7 @@ class ECSOrchestrator(LabOrchestrator):
     """Uses AWS ECS EC2 launch type. Lab containers run on ECS worker cluster."""
 
     CLUSTER_NAME = os.getenv("ECS_CLUSTER", "cyberrange-labs")
+    ASG_NAME     = os.getenv("ECS_ASG_NAME", "")   # e.g. cyberrange-labs-asg
     REGION       = os.getenv("AWS_REGION", "ap-south-1")
 
     TASK_DEFINITIONS = {
@@ -95,16 +96,62 @@ class ECSOrchestrator(LabOrchestrator):
         import boto3
         self._ecs = boto3.client("ecs", region_name=self.REGION)
         self._ec2 = boto3.client("ec2", region_name=self.REGION)
+        self._asg = boto3.client("autoscaling", region_name=self.REGION) if self.ASG_NAME else None
 
     def _task_family(self, lab_id: str) -> str:
         return self.TASK_DEFINITIONS.get(lab_id, "puzzle-lab")
+
+    def _ensure_capacity(self) -> None:
+        """
+        If the ECS cluster has no registered container instances, scale the
+        ASG up to desired=1 and wait (up to 3 minutes) for an instance to
+        register so that RunTask does not fail with 'No Container Instances'.
+        """
+        if not self.ASG_NAME or not self._asg:
+            logger.warning("[ECS] ECS_ASG_NAME not set – cannot auto-scale. RunTask may fail.")
+            return
+
+        # Check how many container instances are currently ACTIVE
+        ci = self._ecs.list_container_instances(cluster=self.CLUSTER_NAME, status="ACTIVE")
+        if ci.get("containerInstanceArns"):
+            logger.info(f"[ECS] Cluster has {len(ci['containerInstanceArns'])} active instance(s). No scale-up needed.")
+            return
+
+        # Scale ASG desired count to 1
+        logger.info(f"[ECS] No active container instances. Scaling ASG '{self.ASG_NAME}' desired to 1…")
+        try:
+            self._asg.set_desired_capacity(
+                AutoScalingGroupName=self.ASG_NAME,
+                DesiredCapacity=1,
+                HonorCooldown=False,
+            )
+        except Exception as exc:
+            logger.warning(f"[ECS] Failed to set ASG desired capacity: {exc}")
+            return
+
+        # Wait up to 3 minutes for at least one container instance to appear
+        for attempt in range(36):  # 36 × 5s = 180s max
+            time.sleep(5)
+            ci = self._ecs.list_container_instances(cluster=self.CLUSTER_NAME, status="ACTIVE")
+            if ci.get("containerInstanceArns"):
+                logger.info(f"[ECS] Container instance registered after ~{(attempt+1)*5}s.")
+                return
+            logger.info(f"[ECS] Waiting for container instance… ({(attempt+1)*5}s elapsed)")
+
+        raise TimeoutError("No ECS container instance became available after 180s of waiting.")
+
+
 
     def provision(self, user_id: str, lab_id: str, lab_seed: str) -> Dict[str, Any]:
         # Teardown any existing task for this user first
         self.teardown(user_id, lab_id)
 
+        # Ensure the ECS cluster has at least one container instance (scale ASG if needed)
+        self._ensure_capacity()
+
         family = self._task_family(lab_id)
         logger.info(f"[ECS] Launching task family '{family}' for user {user_id} on cluster '{self.CLUSTER_NAME}'")
+
 
         if family == "puzzle-lab":
             container_overrides = [

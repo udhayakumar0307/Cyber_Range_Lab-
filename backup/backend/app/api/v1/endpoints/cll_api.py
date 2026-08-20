@@ -134,14 +134,18 @@ def get_standalone_html_view(
     if orchestrator_mode == "ecs" and current_user:
         try:
             from app.lab.orchestrator import get_orchestrator
-            from app.lab.session_store import get_session, save_session
+            from app.lab.session_store import get_session, save_session, delete_session
             orch = get_orchestrator()
             if not orch.is_running(user_id_str, "command-line-lab"):
                 logger.info(f"[CLL] Auto-provisioning ECS task for user {user_id_str}...")
-                res = orch.provision(user_id_str, "command-line-lab", f"cll_{user_id_str}")
-                save_session(user_id_str, "command-line-lab", res)
-        except Exception as exc:
-            logger.error(f"[CLL] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
+                try:
+                    res = orch.provision(user_id_str, "command-line-lab", f"cll_{user_id_str}")
+                    save_session(user_id_str, "command-line-lab", res)
+                except Exception as exc:
+                    # Clear any stale session so the WS endpoint doesn't try a dead host
+                    delete_session(user_id_str, "command-line-lab")
+                    logger.error(f"[CLL] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
+
 
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
@@ -702,8 +706,25 @@ async def cll_terminal_websocket(websocket: WebSocket):
     # In production AWS ECS mode, proxy WebSocket directly to cll-services WS port (8022)
     orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
     if orchestrator_mode == "ecs" and user_id:
-        from app.lab.session_store import get_session
+        from app.lab.session_store import get_session, delete_session
+        from app.lab.orchestrator import get_orchestrator
         session = get_session(str(user_id), "command-line-lab")
+
+        # Validate the session task is still RUNNING – discard stale sessions
+        if session:
+            task_arn = session.get("task_arn")
+            if task_arn:
+                try:
+                    orch = get_orchestrator()
+                    desc = orch._ecs.describe_tasks(cluster=orch.CLUSTER_NAME, tasks=[task_arn])
+                    tasks_desc = desc.get("tasks", [])
+                    if not tasks_desc or tasks_desc[0].get("lastStatus") != "RUNNING":
+                        logger.warning(f"[CLL-WS Proxy] Stale session detected (task {task_arn} not RUNNING). Clearing.")
+                        delete_session(str(user_id), "command-line-lab")
+                        session = None
+                except Exception as chk_err:
+                    logger.warning(f"[CLL-WS Proxy] Could not verify task liveness: {chk_err}")
+
         if session:
             target_host = session["student_host"]
             target_port = int(session.get("ws_port") or session.get("student_port") or 8022)
@@ -712,7 +733,7 @@ async def cll_terminal_websocket(websocket: WebSocket):
             
             import websockets
             try:
-                async with websockets.connect(target_url) as remote_ws:
+                async with websockets.connect(target_url, open_timeout=15) as remote_ws:
                     async def client_to_remote():
                         try:
                             while True:
@@ -737,8 +758,17 @@ async def cll_terminal_websocket(websocket: WebSocket):
                     await asyncio.gather(client_to_remote(), remote_to_client(), return_exceptions=True)
             except Exception as proxy_err:
                 logger.error(f"[CLL-WS Proxy] Error connecting to {target_url}: {proxy_err}")
-                await websocket.send_text(f"\r\n\x1b[1;31m[ERROR] Failed to connect to terminal service: {proxy_err}\x1b[0m\r\n")
+                delete_session(str(user_id), "command-line-lab")
+                await websocket.send_text(f"\r\n\x1b[1;31m[ERROR] Terminal connection failed: {proxy_err}\x1b[0m\r\n")
                 await websocket.close()
+            return
+        else:
+            # No valid session – ECS task is still starting up (or ASG is scaling)
+            await websocket.send_text(
+                "\r\n\x1b[1;33m[CyberRange] Your lab environment is starting up. "
+                "Please wait 30-60 seconds and refresh the page.\x1b[0m\r\n"
+            )
+            await websocket.close()
             return
 
     # Create workspace for student inside project root (prevents /tmp permission error)
