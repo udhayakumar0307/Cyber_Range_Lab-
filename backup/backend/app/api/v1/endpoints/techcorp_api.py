@@ -68,6 +68,14 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
         result = orchestrator.provision(user_id, lab_id, f"sysadmin_{user_id}")
         save_session(user_id, lab_id, result)
         ssh_port = result.get("student_port")
+
+        sess = db.query(TechCorpSession).filter(TechCorpSession.user_id == current_user.id).first()
+        if sess:
+            sess.is_active = True
+            if ssh_port:
+                sess.ssh_port = int(ssh_port)
+            db.commit()
+
         return {"status": "provisioned", "ssh_port": ssh_port, **result}
     except Exception as exc:
         logger.error(f"[Puzzle] Provision failed for user {current_user.id}: {exc}")
@@ -531,7 +539,20 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
         host = redis_sess.get("student_host") if redis_sess else None
         port = int(redis_sess.get("student_port")) if (redis_sess and redis_sess.get("student_port")) else (sess.ssh_port if sess else 2225)
         
-        current_lvl = sess.current_level if sess else 0
+        current_lvl = 0
+        if sess and sess.current_level is not None:
+            current_lvl = sess.current_level
+        else:
+            p = db.query(UserLabProgress).filter(
+                UserLabProgress.user_id == str(user.id),
+                UserLabProgress.lab_id == "puzzle-lab"
+            ).first()
+            if p and p.module_id and p.module_id.startswith("level"):
+                try:
+                    current_lvl = int(p.module_id.replace("level", ""))
+                except Exception:
+                    pass
+
         ssh_user = f"level{current_lvl}"
         ssh_pass = "starthere" if current_lvl == 0 else f"level{current_lvl}"
         
