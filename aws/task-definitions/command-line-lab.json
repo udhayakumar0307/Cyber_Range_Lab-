@@ -5,7 +5,7 @@
     "EC2"
   ],
   "cpu": "1024",
-  "memory": "1536",
+  "memory": "2048",
   "volumes": [
     {
       "name": "docker-sock",
@@ -41,8 +41,8 @@
       "name": "cll-services",
       "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/command-line-lab-services:latest",
       "essential": true,
-      "memory": 512,
-      "memoryReservation": 256,
+      "memory": 1024,
+      "memoryReservation": 512,
       "environment": [
         {
           "name": "STUDENT_CONTAINER",
