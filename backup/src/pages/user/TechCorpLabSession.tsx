@@ -658,18 +658,25 @@ export const TechCorpLabSession: React.FC = () => {
             </div>
             <div className="space-y-2.5 text-xs text-slate-400 leading-relaxed font-medium">
               <p>
-                1. Navigate to the level files and read the objective:
+                1. Navigate to the level directory:
                 <code className="block mt-1 p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[10px] text-amber-400 select-all cursor-pointer">
                   cd /opt/labs/level{currentLevel}
                 </code>
               </p>
               <p>
-                2. Once you solve the task, run validation to advance:
+                2. Read the objective to understand your task:
+                <code className="block mt-1 p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[10px] text-green-400 select-all cursor-pointer">
+                  cat Objective.txt
+                </code>
+              </p>
+              <p>
+                3. Once you solve the task, run validation to advance:
                 <code className="block mt-1 p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[10px] text-sky-400 select-all cursor-pointer">
                   check_level {currentLevel}
                 </code>
               </p>
             </div>
+
           </div>
 
           {/* Progress Tracker */}
