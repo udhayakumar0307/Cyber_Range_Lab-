@@ -31,15 +31,38 @@ FLAT_MODULES = CONFIG_DATA.get("modules", {})
 
 
 def docker_exec(*args, timeout=5):
-    """Run a command inside the student container as root; return (ok, stdout)."""
     try:
+        container = get_actual_container_name(STUDENT_CONTAINER)
         result = subprocess.run(
-            ["docker", "exec", "-u", "root", STUDENT_CONTAINER, *args],
-            capture_output=True, text=True, timeout=timeout,
+            [
+                "docker",
+                "exec",
+                "-u",
+                "root",
+                container,
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
+
+        if result.returncode != 0:
+            print(
+                f"[progress] docker exec failed | "
+                f"container={container} | "
+                f"stderr={result.stderr.strip()}",
+                flush=True,
+            )
+
         return result.returncode == 0, result.stdout
-    except Exception as e:
-        return False, str(e)
+
+    except Exception as exc:
+        print(
+            f"[progress] docker_exec exception: {exc}",
+            flush=True,
+        )
+        return False, str(exc)
 
 
 def read_command_log():
@@ -163,6 +186,33 @@ def evaluate_module(module_id, track_id="linux"):
         "objectives": results,
         "module_complete": module_complete,
     }
+
+def get_actual_container_name(target_name: str) -> str:
+    """Resolve ECS-generated Docker container name."""
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            stderr=subprocess.DEVNULL,
+        ).decode("utf-8", errors="ignore").splitlines()
+
+        # Prefer exact match for local Docker/Compose
+        for name in out:
+            if name.strip() == target_name:
+                return name.strip()
+
+        # ECS names contain the logical container name
+        for name in out:
+            if target_name in name:
+                return name.strip()
+
+    except Exception as exc:
+        print(
+            f"[progress] Failed resolving container "
+            f"{target_name}: {exc}",
+            flush=True,
+        )
+
+    return target_name
 
 
 @app.route("/progress/<student_id>")

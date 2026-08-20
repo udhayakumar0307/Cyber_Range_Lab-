@@ -117,6 +117,37 @@ def ensure_cll_containers_running():
     except Exception as err:
         logger.warning(f"Auto-startup of command-line-lab containers error: {err}")
 
+def get_cll_runtime_session(user_id: str):
+    if os.getenv("ORCHESTRATOR", "docker").lower() != "ecs":
+        return None
+
+    try:
+        from app.lab.session_store import get_session
+
+        return get_session(
+            str(user_id),
+            "command-line-lab",
+        )
+    except Exception as exc:
+        logger.warning(
+            f"[CLL] Could not get ECS session "
+            f"for user {user_id}: {exc}"
+        )
+        return None
+
+
+def get_cll_services_url(user_id: str) -> str:
+    session = get_cll_runtime_session(user_id)
+
+    if session:
+        host = session.get("student_host")
+        port = session.get("progress_port")
+
+        if host and port:
+            return f"http://{host}:{port}"
+
+    return SERVICES_URL
+
 
 @router.get("/view", response_class=HTMLResponse)
 @router.get("/session/view", response_class=HTMLResponse)
@@ -341,113 +372,57 @@ def exit_cll_session(
 @router.get("/progress/{module_id}")
 @router.get("/progress/{track_id}/{module_id}")
 def get_cll_progress(
-    request: Request,
     module_id: str,
-    track_id: str = "linux"
+    track_id: str = "linux",
+    current_user: Optional[User] = Depends(
+        get_current_user_optional
+    ),
 ):
-    token = request.query_params.get("token") or ""
-    if not token and "authorization" in request.headers:
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
+    user_id_str = (
+        str(current_user.id)
+        if current_user
+        else "student"
+    )
 
-    username = "keshika"
-    if token:
-        try:
-            payload = decode_access_token(token)
-            sub = payload.get("sub", "")
-            if sub and "@" in sub:
-                raw_user = sub.split("@")[0]
-                clean = "".join(c for c in raw_user if c.isalpha())
-                username = clean.lower() if clean else raw_user.lower()
-        except Exception:
-            pass
+    services_url = get_cll_services_url(user_id_str)
 
-    tcfg = TRACKS_CONFIG.get(track_id)
-    if not tcfg or module_id not in tcfg.get("modules", {}):
-        return {"objectives": []}
-
-
-    objectives = tcfg["modules"][module_id].get("objectives", [])
-    workspace_dir = ROOT_DIR / "workspaces" / username
-
-    import re as _re
-    import subprocess as _subprocess
-
-    STUDENT_CONTAINER = "cll-student"
-    LOG_PATH_IN_CONTAINER = "/var/log/session/commands.log"
-
-    # ── Read real command log from Docker container ─────────────────────────
-    # Primary: docker exec cat of the session log (server-authoritative)
-    # Fallback: local .cmd_history written by the WebSocket handler
-    cmd_history_lines = []
     try:
-        result = _subprocess.run(
-            [DOCKER_BIN, "exec", "-u", "root", STUDENT_CONTAINER, "cat", LOG_PATH_IN_CONTAINER],
-            capture_output=True, text=True, timeout=5
+        resp = requests.get(
+            f"{services_url}/progress/"
+            f"{user_id_str}/{track_id}/{module_id}",
+            timeout=3,
         )
-        if result.returncode == 0 and result.stdout.strip():
-            # Parse timestamp|cwd|cmd format from Docker log and filter by directory context
-            module_path_key = f"{track_id}/{module_id}".lower()
-            for line in result.stdout.splitlines():
-                parts = line.strip().split("|", 2)
-                if len(parts) == 3:
-                    ts, cwd, cmd = parts
-                    if module_path_key in cwd.lower() or not cwd:
-                        cmd_history_lines.append(cmd)
-                else:
-                    cmd_history_lines.append(line.strip())
-    except Exception:
-        pass
 
-    # Fallback to local .cmd_history if docker exec failed or returned nothing
-    if not cmd_history_lines:
-        hist_file = workspace_dir / ".cmd_history"
-        if hist_file.exists():
-            try:
-                cmd_history_lines = hist_file.read_text(encoding="utf-8").splitlines()
-            except Exception:
-                cmd_history_lines = []
+        resp.raise_for_status()
 
-    def _check_objective(obj):
-        obj_type = obj.get("type", "log_regex")
-        pattern = obj.get("pattern", "")
-        if obj_type == "log_regex" and pattern:
-            try:
-                regex = _re.compile(pattern)
-                for line in cmd_history_lines:
-                    if regex.search(line):
-                        return True
-            except _re.error:
-                pass
-            return False
-        elif obj_type == "fs_test":
-            test_cmd = obj.get("test_cmd", "")
-            if test_cmd:
-                # Run fs_test inside the Docker container (server-authoritative)
-                try:
-                    result = _subprocess.run(
-                        [DOCKER_BIN, "exec", "-u", "root", STUDENT_CONTAINER, "bash", "-c", test_cmd],
-                        capture_output=True, timeout=5
-                    )
-                    return result.returncode == 0
-                except Exception:
-                    pass
-        return False
+        data = resp.json()
 
-    updated_objectives = []
-    for idx, obj in enumerate(objectives):
-        label = obj.get("label") or obj.get("text") or obj.get("description") or f"Objective {idx + 1}"
-        is_complete = _check_objective(obj)
-        updated_objectives.append({
-            "text": label,
-            "label": label,
-            "complete": is_complete
-        })
+        logger.info(
+            f"[CLL] Progress | "
+            f"user={user_id_str} "
+            f"track={track_id} "
+            f"module={module_id} "
+            f"url={services_url} "
+            f"complete={data.get('module_complete')}"
+        )
 
-    return {"objectives": updated_objectives}
+        return data
 
+    except Exception as exc:
+        logger.error(
+            f"[CLL] Progress service unavailable | "
+            f"user={user_id_str} | "
+            f"url={services_url} | "
+            f"error={exc}"
+        )
 
+        return {
+            "module": module_id,
+            "track": track_id,
+            "objectives": [],
+            "module_complete": False,
+            "error": "Progress service unavailable",
+        }
 
 @router.post("/hint")
 def request_cll_hint(
@@ -565,17 +540,25 @@ def submit_cll_flag(
             "next_module": next_module_id,
         }
 
+    services_url = get_cll_services_url(user_id_str)
     try:
-        prog_resp = requests.get(f"{SERVICES_URL}/progress/{user_id_str}/{track_id}/{module_id}", timeout=2)
-        if prog_resp.ok:
-            prog_data = prog_resp.json()
-            if not prog_data.get("module_complete", False):
-                return {"correct": False, "message": "Please complete all terminal objectives first!"}
-    except Exception as e:
-        logger.warning(f"Progress service check warning: {e}")
+        prog_resp = requests.get(f"{services_url}/progress/{user_id_str}/{track_id}/{module_id}", timeout=3)
+        prog_resp.raise_for_status()
+        prog_data = prog_resp.json()
 
-    username_str = get_cll_username(current_user)
-    valid_flags = generate_flag(username_str, track_id, module_id)
+        if not prog_data.get("module_complete", False):
+            return {"correct": False, "message": "Please complete all terminal objectives first!"}
+    except Exception as e:
+        logger.error(f"[CLL] Progress service check failed for user {user_id_str}: {e}")
+        return {"correct": False, "message": "Progress service unavailable. Please try again later."}
+
+    session = get_cll_runtime_session(user_id_str)
+    if session:
+        lab_seed = session.get("lab_seed","defaultseed")
+    else:
+        lab_seed = os.environ.get("LAB_SEED", "defaultseed")
+
+    valid_flags = generate_flag(user_id_str, track_id, module_id, lab_seed)
 
     if submitted_flag not in valid_flags:
         return {"correct": False, "message": "That's not the right key for this module."}
