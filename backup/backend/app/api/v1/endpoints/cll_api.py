@@ -128,6 +128,21 @@ def get_standalone_html_view(
     """Renders the standalone Jinja2 template index.html from command-line-lab."""
     ensure_cll_containers_running()
     user_id_str = str(current_user.id) if current_user else "student"
+
+    # Automatically provision ECS task if running under ORCHESTRATOR=ecs
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    if orchestrator_mode == "ecs" and current_user:
+        try:
+            from app.lab.orchestrator import get_orchestrator
+            from app.lab.session_store import get_session, save_session
+            orch = get_orchestrator()
+            if not orch.is_running(user_id_str, "command-line-lab"):
+                logger.info(f"[CLL] Auto-provisioning ECS task for user {user_id_str}...")
+                res = orch.provision(user_id_str, "command-line-lab", f"cll_{user_id_str}")
+                save_session(user_id_str, "command-line-lab", res)
+        except Exception as exc:
+            logger.error(f"[CLL] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
+
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
     progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
@@ -671,9 +686,11 @@ async def cll_terminal_websocket(websocket: WebSocket):
 
     token = websocket.query_params.get("token") or ""
     username = "keshika"
+    user_id = None
     if token:
         try:
             payload = decode_access_token(token)
+            user_id = payload.get("user_id") or payload.get("sub")
             sub = payload.get("sub", "")
             if sub and "@" in sub:
                 raw_user = sub.split("@")[0]
@@ -681,6 +698,24 @@ async def cll_terminal_websocket(websocket: WebSocket):
                 username = clean.lower() if clean else raw_user.lower()
         except Exception as e:
             logger.warning(f"[CLL-WS] Token decode error: {e}")
+
+    # In production AWS ECS mode, bridge directly to the provisioned ECS task via SSH
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    if orchestrator_mode == "ecs" and user_id:
+        from app.lab.session_store import get_session
+        from app.api.v1.endpoints.terminal_api import _bridge_ssh_to_websocket
+        session = get_session(str(user_id), "command-line-lab")
+        if session:
+            await _bridge_ssh_to_websocket(
+                websocket=websocket,
+                host=session["student_host"],
+                port=int(session.get("ws_port") or session.get("student_port") or 2222),
+                username="student",
+                password="student",
+                user_id=str(user_id),
+                lab_id="command-line-lab",
+            )
+            return
 
     # Create workspace for student inside project root (prevents /tmp permission error)
     workspace_dir = ROOT_DIR / "workspaces" / username
