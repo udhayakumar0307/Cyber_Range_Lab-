@@ -1,0 +1,38 @@
+{
+  "family": "puzzle-lab",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "techcorp-sysadmin-student",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/techcorp-sysadmin-labs:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 22,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/puzzle-lab",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "student",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

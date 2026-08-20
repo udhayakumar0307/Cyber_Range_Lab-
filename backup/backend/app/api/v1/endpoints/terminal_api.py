@@ -439,8 +439,32 @@ async def terminal_websocket(
         return  # done — do not fall through to puzzle logic
 
     # =========================================================================
-    # Existing puzzle-lab / fallback path (unchanged)
+    # Puzzle-lab / TechCorp SysAdmin Labs path
     # =========================================================================
+
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    if orchestrator_mode == "ecs":
+        from app.lab.session_store import get_session
+        user_id_str = "default"
+        if token:
+            try:
+                from app.core.security import decode_access_token
+                payload = decode_access_token(token)
+                if payload:
+                    user_id_str = str(payload.get("user_id") or payload.get("sub") or "default")
+            except Exception:
+                pass
+
+        session = get_session(user_id_str, "puzzle-lab")
+        if session:
+            await _bridge_ssh_to_websocket(
+                websocket=websocket,
+                host=session["student_host"],
+                port=int(session["student_port"]),
+                username="student",
+                password="student",
+            )
+            return
 
     container_name = _ensure_puzzle_container(level)
     logger.info(f"[WS] Terminal WS Session Active | lab_id={lab_id} | level={level} | container={container_name}")

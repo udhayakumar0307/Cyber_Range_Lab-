@@ -86,8 +86,8 @@ class ECSOrchestrator(LabOrchestrator):
 
     TASK_DEFINITIONS = {
         "lab1-recon":             "lab1-recon",
-        "puzzle-lab":             "lab1-recon",
-        "techcorp-sysadmin-labs": "lab1-recon",
+        "puzzle-lab":             "puzzle-lab",
+        "techcorp-sysadmin-labs": "puzzle-lab",
     }
 
     def __init__(self):
@@ -96,7 +96,7 @@ class ECSOrchestrator(LabOrchestrator):
         self._ec2 = boto3.client("ec2", region_name=self.REGION)
 
     def _task_family(self, lab_id: str) -> str:
-        return self.TASK_DEFINITIONS.get(lab_id, "lab1-recon")
+        return self.TASK_DEFINITIONS.get(lab_id, "puzzle-lab")
 
     def provision(self, user_id: str, lab_id: str, lab_seed: str) -> Dict[str, Any]:
         # Teardown any existing task for this user first
@@ -105,29 +105,40 @@ class ECSOrchestrator(LabOrchestrator):
         family = self._task_family(lab_id)
         logger.info(f"[ECS] Launching task family '{family}' for user {user_id} on cluster '{self.CLUSTER_NAME}'")
 
+        if family == "puzzle-lab":
+            container_overrides = [
+                {
+                    "name": "techcorp-sysadmin-student",
+                    "environment": [
+                        {"name": "STUDENT_ID", "value": str(user_id)},
+                        {"name": "LAB_SEED",   "value": lab_seed},
+                    ],
+                }
+            ]
+        else:
+            container_overrides = [
+                {
+                    "name": "lab1-target",
+                    "environment": [
+                        {"name": "STUDENT_ID", "value": str(user_id)},
+                        {"name": "LAB_SEED",   "value": lab_seed},
+                    ],
+                },
+                {
+                    "name": "lab1-student",
+                    "environment": [
+                        {"name": "STUDENT_ID",  "value": str(user_id)},
+                        {"name": "LAB_SEED",    "value": lab_seed},
+                        {"name": "TARGET_IP",   "value": "10.10.0.10"},
+                    ],
+                },
+            ]
+
         response = self._ecs.run_task(
             cluster=self.CLUSTER_NAME,
             taskDefinition=family,
             launchType="EC2",
-            overrides={
-                "containerOverrides": [
-                    {
-                        "name": "lab1-target",
-                        "environment": [
-                            {"name": "STUDENT_ID", "value": str(user_id)},
-                            {"name": "LAB_SEED",   "value": lab_seed},
-                        ],
-                    },
-                    {
-                        "name": "lab1-student",
-                        "environment": [
-                            {"name": "STUDENT_ID",  "value": str(user_id)},
-                            {"name": "LAB_SEED",    "value": lab_seed},
-                            {"name": "TARGET_IP",   "value": "10.10.0.10"},
-                        ],
-                    },
-                ]
-            },
+            overrides={"containerOverrides": container_overrides},
             tags=[
                 {"key": "managed_by",  "value": "cyberrange"},
                 {"key": "lab_id",      "value": lab_id},

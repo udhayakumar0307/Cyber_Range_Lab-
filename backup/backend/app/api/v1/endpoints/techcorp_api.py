@@ -56,7 +56,20 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
     if not lab:
         raise HTTPException(status_code=404, detail="Puzzle Lab is not enabled on this platform")
 
-    client = docker.from_env()
+    from app.lab.orchestrator import get_orchestrator
+    from app.lab.session_store import save_session
+
+    user_id = str(current_user.id)
+    lab_id = "puzzle-lab"
+    orchestrator = get_orchestrator()
+
+    try:
+        result = orchestrator.provision(user_id, lab_id, f"sysadmin_{user_id}")
+        save_session(user_id, lab_id, result)
+        return {"status": "provisioned", **result}
+    except Exception as exc:
+        logger.error(f"[Puzzle] Provision failed for user {current_user.id}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Provisioning failed: {exc}")
     container_name = f"student-{current_user.id}-techcorp"
     
     # Determine highest completed level to sync session level
