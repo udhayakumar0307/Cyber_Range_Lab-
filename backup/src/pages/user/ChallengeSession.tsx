@@ -873,6 +873,10 @@ export const ChallengeSession: React.FC = () => {
         }));
 
         const isFinalModule = (solvedModules.size + 1) >= currentModules.length;
+        if (isFinalModule && isReconLab) {
+          // Auto-teardown container task in background on lab completion
+          apiFetch('/api/v1/recon/teardown', { method: 'POST' }).catch(() => {});
+        }
         setCompletionModal({
           show: true,
           isLastModule: isFinalModule,
