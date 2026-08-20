@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import struct
@@ -104,13 +105,32 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             proc.stdin.write(b"export TERM=xterm-256color\n")
             await proc.stdin.drain()
 
+        output_buffer = ""
+
         async def ssh_to_ws():
+            nonlocal output_buffer
             try:
                 while True:
                     data = await proc.stdout.read(1024)
                     if not data:
                         break
                     await websocket.send_bytes(data)
+
+                    # Scan output for level_complete signal
+                    text = data.decode("utf-8", errors="ignore")
+                    output_buffer += text
+                    if len(output_buffer) > 10000:
+                        output_buffer = output_buffer[-5000:]
+
+                    match = re.search(r"✓\s*Level\s+(\d+)\s+solved!", output_buffer)
+                    if match:
+                        solved_level = int(match.group(1))
+                        logger.info(f"[SSH WS Bridge] Detected level {solved_level} solved!")
+                        await websocket.send_text(json.dumps({
+                            "type": "level_complete",
+                            "level": solved_level
+                        }))
+                        output_buffer = ""
             except Exception:
                 pass
 
@@ -118,8 +138,18 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             try:
                 while True:
                     msg = await websocket.receive_text()
-                    # Filter out JSON control messages (e.g. {"type":"resize", ...})
+                    # Handle resize events
                     if msg.startswith("{") and ("\"type\"" in msg or "'type'" in msg):
+                        try:
+                            payload = json.loads(msg)
+                            if payload.get("type") == "resize" and proc.stdin:
+                                cols = payload.get("cols", 80)
+                                rows = payload.get("rows", 24)
+                                # Send SIGWINCH-equivalent via stty
+                                proc.stdin.write(f"stty cols {cols} rows {rows}\n".encode())
+                                await proc.stdin.drain()
+                        except Exception:
+                            pass
                         continue
                     if proc.stdin:
                         proc.stdin.write(msg.encode("utf-8"))
