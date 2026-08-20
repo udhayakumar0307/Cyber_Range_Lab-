@@ -186,25 +186,42 @@ class ECSOrchestrator(LabOrchestrator):
         raise TimeoutError(f"ECS task {task_arn} did not reach RUNNING in 60s")
 
     def teardown(self, user_id: str, lab_id: str) -> None:
+        from app.lab.session_store import get_session
+        session = get_session(str(user_id), lab_id)
+        task_arn = session.get("task_arn") if session else None
+
+        if task_arn:
+            try:
+                self._ecs.stop_task(
+                    cluster=self.CLUSTER_NAME,
+                    task=task_arn,
+                    reason=f"Student session teardown for user {user_id}",
+                )
+                logger.info(f"[ECS] Stopped task {task_arn} for user {user_id}")
+            except Exception as exc:
+                logger.warning(f"[ECS] Error stopping task {task_arn}: {exc}")
+
+        # Fallback sweep across all cluster tasks to clean up any matching user_id tags
         try:
             paginator = self._ecs.get_paginator("list_tasks")
-            family = self._task_family(lab_id)
-            for page in paginator.paginate(cluster=self.CLUSTER_NAME, family=family):
-                task_arns = page.get("taskArns", [])
-                if not task_arns:
+            for page in paginator.paginate(cluster=self.CLUSTER_NAME):
+                arns = page.get("taskArns", [])
+                if not arns:
                     continue
-                tasks = self._ecs.describe_tasks(cluster=self.CLUSTER_NAME, tasks=task_arns)
-                for task in tasks["tasks"]:
+                tasks = self._ecs.describe_tasks(cluster=self.CLUSTER_NAME, tasks=arns, include=["TAGS"])
+                for task in tasks.get("tasks", []):
                     tags = {t["key"]: t["value"] for t in task.get("tags", [])}
-                    if tags.get("user_id") == str(user_id):
-                        self._ecs.stop_task(
-                            cluster=self.CLUSTER_NAME,
-                            task=task["taskArn"],
-                            reason=f"Student session teardown for user {user_id}",
-                        )
-                        logger.info(f"[ECS] Stopped task {task['taskArn']} for user {user_id}")
+                    if tags.get("user_id") == str(user_id) and task.get("lastStatus") != "STOPPED":
+                        t_arn = task["taskArn"]
+                        if t_arn != task_arn:
+                            self._ecs.stop_task(
+                                cluster=self.CLUSTER_NAME,
+                                task=t_arn,
+                                reason=f"Sweep teardown for user {user_id}",
+                            )
+                            logger.info(f"[ECS] Stopped task {t_arn} via sweep for user {user_id}")
         except Exception as exc:
-            logger.warning(f"[ECS] Teardown error for user {user_id}: {exc}")
+            logger.warning(f"[ECS] Teardown sweep error for user {user_id}: {exc}")
 
     def is_running(self, user_id: str, lab_id: str) -> bool:
         try:
