@@ -1,14 +1,95 @@
 ============================================================
-LAB 1 — TECHCORP RECON LAB - ANSWER KEY
+NETWORK RECONNAISSANCE LAB - ANSWER KEY
 ============================================================
-This lab does NOT use static per-module flags. Flags are generated
-deterministically per student in generate_flag() (scoring-server/app.py):
 
-    FLAG{{techcorp_lab{lab}_mod{module}_{student_id}_{hash_digest}}}
+==========================
+MODULE 1 - Basic Network Scan
+==========================
 
-hash_digest = first 8 hex chars of sha256(f"{student_id}:{lab}:{module}:{lab_seed}")
+# Objective 1
+nmap 10.10.0.10
 
-There is no fixed answer to list here — each student's correct flag depends
-on their student_id and the lab_seed for their session. To verify a flag
-for a specific student, call generate_flag(student_id, lab, module, lab_seed)
-with the same values the student's environment was provisioned with.
+# Objective 2
+nmap -sV 10.10.0.10
+
+# Objective 3
+cat recon_notes.txt
+
+Expected Flag:
+FLAG{network_module1_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 2 - Service Enumeration
+==========================
+
+# Objective 1
+nmap -sV 10.10.0.10
+
+# Objective 2
+nmap -sV -oN scan.txt 10.10.0.10
+
+# Objective 3
+grep FLAG scan.txt
+
+Expected Flag:
+FLAG{network_module2_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 3 - Hidden Administrative Endpoint
+==========================
+
+# Objective 1
+nmap -sV 10.10.0.10
+
+# Objective 2
+cat recon_notes.txt
+
+# Objective 3
+cat scan.txt
+
+Expected Flag:
+FLAG{network_module3_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 4 - Local Privilege Discovery
+==========================
+
+# Objective 1
+sudo -l
+
+# Objective 2
+sys-helper --status
+
+# Objective 3
+sys-helper --exec "/bin/sh"
+
+Expected Flag:
+FLAG{network_module4_student_xxxxxxxxx}
+
+
+
+==========================
+MODULE 5 - Capstone
+==========================
+
+# Objective 1
+sudo -l
+
+# Objective 2
+sys-helper --exec "/bin/sh"
+
+# Objective 3
+cat /root/flag.txt
+
+Expected Flag:
+FLAG{cll_module5_recon_student_xxxxxxxxx}
+
+============================================================
+END OF ANSWER KEY
+============================================================
