@@ -9,6 +9,10 @@ set -uo pipefail
 STUDENT_ID="${STUDENT_ID:-student}"
 LAB_SEED="${LAB_SEED:-defaultseed}"
 
+# ── Bind Target IP 10.10.0.10 for Recon lab ───────────────
+ip addr add 10.10.0.10/32 dev eth0 2>/dev/null || ifconfig eth0:0 10.10.0.10 netmask 255.255.255.255 up 2>/dev/null || true
+ip addr add 10.10.0.10/32 dev lo 2>/dev/null || true
+
 # ── Dynamic Flag Generation ───────────────────────────────
 # Each flag is deterministic per student but unique across students.
 # Format: FLAG{techcorp_labX_modY_<student>_<hash8>}
