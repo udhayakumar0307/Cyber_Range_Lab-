@@ -357,15 +357,62 @@ def get_cll_config(
 @router.post("/exit")
 def exit_cll_session(
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Saves progress, reconciles total user score, and ends the active lab session."""
+    """Save progress and terminate the student's active lab infrastructure."""
+
     user_id_str = str(current_user.id) if current_user else "student"
-    total_score = reconcile_user_score(db, user_id_str) if current_user else 0
+
+    # Persist/reconcile score before destroying disposable infrastructure.
+    total_score = (
+        reconcile_user_score(db, user_id_str)
+        if current_user
+        else 0
+    )
+
+    if (
+        os.getenv("ORCHESTRATOR", "docker").lower() == "ecs"
+        and current_user
+    ):
+        try:
+            from app.lab.orchestrator import get_orchestrator
+            from app.lab.session_store import delete_session
+
+            orch = get_orchestrator()
+
+            logger.info(
+                f"[CLL] Tearing down ECS session for user {user_id_str}"
+            )
+
+            orch.teardown(
+                user_id_str,
+                "command-line-lab",
+            )
+
+            delete_session(
+                user_id_str,
+                "command-line-lab",
+            )
+
+            logger.info(
+                f"[CLL] ECS session torn down for user {user_id_str}"
+            )
+
+        except Exception as exc:
+            logger.exception(
+                f"[CLL] Failed to teardown ECS session "
+                f"for user {user_id_str}: {exc}"
+            )
+
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to terminate lab infrastructure.",
+            )
+
     return {
         "success": True,
         "message": "Session exited successfully. Progress saved.",
-        "total_points": total_score
+        "total_points": total_score,
     }
 
 
