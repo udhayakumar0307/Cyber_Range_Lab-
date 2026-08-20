@@ -167,7 +167,7 @@ class ECSOrchestrator(LabOrchestrator):
                 for c in t.get("containers", []):
                     if "student" in c["name"].lower():
                         for b in c.get("networkBindings", []):
-                            if b.get("containerPort") == 22:
+                            if b.get("containerPort") in (22, 2222):
                                 student_host_port = b["hostPort"]
 
                 ci_desc = self._ecs.describe_container_instances(
