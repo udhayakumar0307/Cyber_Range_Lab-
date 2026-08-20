@@ -699,22 +699,46 @@ async def cll_terminal_websocket(websocket: WebSocket):
         except Exception as e:
             logger.warning(f"[CLL-WS] Token decode error: {e}")
 
-    # In production AWS ECS mode, bridge directly to the provisioned ECS task via SSH
+    # In production AWS ECS mode, proxy WebSocket directly to cll-services WS port (8022)
     orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
     if orchestrator_mode == "ecs" and user_id:
         from app.lab.session_store import get_session
-        from app.api.v1.endpoints.terminal_api import _bridge_ssh_to_websocket
         session = get_session(str(user_id), "command-line-lab")
         if session:
-            await _bridge_ssh_to_websocket(
-                websocket=websocket,
-                host=session["student_host"],
-                port=int(session.get("ws_port") or session.get("student_port") or 2222),
-                username="student",
-                password="student",
-                user_id=str(user_id),
-                lab_id="command-line-lab",
-            )
+            target_host = session["student_host"]
+            target_port = int(session.get("ws_port") or session.get("student_port") or 8022)
+            target_url = f"ws://{target_host}:{target_port}"
+            logger.info(f"[CLL-WS Proxy] Proxying WebSocket to {target_url} for user {user_id}")
+            
+            import websockets
+            try:
+                async with websockets.connect(target_url) as remote_ws:
+                    async def client_to_remote():
+                        try:
+                            while True:
+                                data = await websocket.receive()
+                                if "text" in data and data["text"]:
+                                    await remote_ws.send(data["text"])
+                                elif "bytes" in data and data["bytes"]:
+                                    await remote_ws.send(data["bytes"])
+                        except Exception:
+                            pass
+
+                    async def remote_to_client():
+                        try:
+                            async for msg in remote_ws:
+                                if isinstance(msg, bytes):
+                                    await websocket.send_bytes(msg)
+                                else:
+                                    await websocket.send_text(msg)
+                        except Exception:
+                            pass
+
+                    await asyncio.gather(client_to_remote(), remote_to_client(), return_exceptions=True)
+            except Exception as proxy_err:
+                logger.error(f"[CLL-WS Proxy] Error connecting to {target_url}: {proxy_err}")
+                await websocket.send_text(f"\r\n\x1b[1;31m[ERROR] Failed to connect to terminal service: {proxy_err}\x1b[0m\r\n")
+                await websocket.close()
             return
 
     # Create workspace for student inside project root (prevents /tmp permission error)
