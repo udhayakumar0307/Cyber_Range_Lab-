@@ -88,6 +88,7 @@ class ECSOrchestrator(LabOrchestrator):
         "lab1-recon":             "lab1-recon",
         "puzzle-lab":             "puzzle-lab",
         "techcorp-sysadmin-labs": "puzzle-lab",
+        "command-line-lab":       "command-line-lab",
     }
 
     def __init__(self):
@@ -114,6 +115,24 @@ class ECSOrchestrator(LabOrchestrator):
                         {"name": "LAB_SEED",   "value": lab_seed},
                     ],
                 }
+            ]
+        elif family == "command-line-lab":
+            container_overrides = [
+                {
+                    "name": "cll-student",
+                    "environment": [
+                        {"name": "STUDENT_ID", "value": str(user_id)},
+                        {"name": "LAB_SEED",   "value": lab_seed},
+                    ],
+                },
+                {
+                    "name": "cll-services",
+                    "environment": [
+                        {"name": "STUDENT_ID", "value": str(user_id)},
+                        {"name": "LAB_SEED",   "value": lab_seed},
+                        {"name": "STUDENT_CONTAINER", "value": "cll-student"},
+                    ],
+                },
             ]
         else:
             container_overrides = [

@@ -1,0 +1,67 @@
+{
+  "family": "command-line-lab",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "512",
+  "memory": "768",
+  "containerDefinitions": [
+    {
+      "name": "cll-student",
+      "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/command-line-lab-student:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/command-line-lab",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "student",
+          "awslogs-create-group": "true"
+        }
+      }
+    },
+    {
+      "name": "cll-services",
+      "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/command-line-lab-services:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "STUDENT_CONTAINER",
+          "value": "cll-student"
+        },
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 8022,
+          "hostPort": 0,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9500,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/command-line-lab",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "services",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
