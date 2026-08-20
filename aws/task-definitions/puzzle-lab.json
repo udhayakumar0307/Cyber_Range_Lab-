@@ -11,6 +11,9 @@
       "name": "techcorp-sysadmin-student",
       "image": "<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/techcorp-sysadmin-labs:latest",
       "essential": true,
+      "entryPoint": [
+        "/entrypoint.sh"
+      ],
       "command": [
         "/usr/sbin/sshd",
         "-D"
