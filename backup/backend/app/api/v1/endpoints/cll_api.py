@@ -145,7 +145,8 @@ def get_standalone_html_view(
                     # Clear any stale session so the WS endpoint doesn't try a dead host
                     delete_session(user_id_str, "command-line-lab")
                     logger.error(f"[CLL] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
-
+        except Exception as outer_exc:
+            logger.error(f"[CLL] Orchestrator error for user {user_id_str}: {outer_exc}")
 
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
