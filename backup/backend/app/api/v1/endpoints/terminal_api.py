@@ -56,11 +56,20 @@ def _get_recon_student_container(user_id: str) -> str:
     return get_student_container_name(user_id)
 
 
-async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, username: str = "root", password: str = "root"):
+async def _bridge_ssh_to_websocket(
+    websocket: WebSocket,
+    host: str,
+    port: int,
+    username: str = "root",
+    password: str = "root",
+    user_id: str = None,
+    lab_id: str = None,
+):
     """
     Bridge WebSocket connection to a real SSH PTY session inside an ECS container.
     Retries TCP probe up to 15 times with 2s delays to allow container
     entrypoint.sh to finish initializing before sshd accepts connections.
+    When user_id/lab_id are given, persists last_solved_level to Redis on level_complete.
     """
     import asyncio
     logger.info(f"[SSH WS Bridge] Connecting to SSH {username}@{host}:{port}")
@@ -132,6 +141,17 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
                             "type": "level_complete",
                             "level": solved_level
                         }))
+                        # Persist last_solved_level to Redis so /advance reads the right flag.txt
+                        if user_id and lab_id:
+                            try:
+                                from app.lab.session_store import get_session, save_session
+                                redis_sess = get_session(user_id, lab_id)
+                                if redis_sess:
+                                    redis_sess["last_solved_level"] = solved_level
+                                    save_session(user_id, lab_id, redis_sess)
+                                    logger.info(f"[SSH WS Bridge] Saved last_solved_level={solved_level} to Redis for user={user_id}")
+                            except Exception as ex:
+                                logger.warning(f"[SSH WS Bridge] Failed to save last_solved_level: {ex}")
                         output_buffer = ""
             except Exception:
                 pass

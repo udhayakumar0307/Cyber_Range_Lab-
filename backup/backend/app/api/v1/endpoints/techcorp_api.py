@@ -66,12 +66,14 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
 
     try:
         result = orchestrator.provision(user_id, lab_id, f"sysadmin_{user_id}")
-        save_session(user_id, lab_id, result)
+        save_session(user_id, lab_id, {**result, "last_solved_level": -1})
         ssh_port = result.get("student_port")
 
         sess = db.query(TechCorpSession).filter(TechCorpSession.user_id == current_user.id).first()
         if sess:
             sess.is_active = True
+            # ECS containers always start fresh at level 0
+            sess.current_level = 0
             if ssh_port:
                 sess.ssh_port = int(ssh_port)
             db.commit()
@@ -397,10 +399,21 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
             raise HTTPException(status_code=400, detail="No active ECS session found. Please restart the lab.")
         host = redis_sess["student_host"]
         port = int(redis_sess["student_port"])
+
+        # Use last_solved_level from Redis (set when check_level is run in the terminal)
+        # This is the level the student ACTUALLY solved in the current container,
+        # not the stale current_level from the DB.
+        last_solved = int(redis_sess.get("last_solved_level", -1))
+        if last_solved < 0:
+            raise HTTPException(status_code=400, detail="No solved level detected yet. Run check_level in your terminal first.")
+
+        # Override current_lvl with the actually-solved level
+        current_lvl = last_solved
+        next_lvl = current_lvl + 1
+
         try:
             import subprocess as _sp
             # check_level writes the next password to /opt/labs/level{X}/flag.txt (chmod 644)
-            # when the student successfully validates the level.
             flag_path = f"/opt/labs/level{current_lvl}/flag.txt"
             result = _sp.run(
                 [
@@ -600,6 +613,8 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
                 port=port,
                 username=ssh_user,
                 password=ssh_pass,
+                user_id=str(user.id),
+                lab_id="puzzle-lab",
             )
             return
 
