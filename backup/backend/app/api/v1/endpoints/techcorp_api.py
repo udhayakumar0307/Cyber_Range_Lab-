@@ -399,6 +399,9 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
         port = int(redis_sess["student_port"])
         try:
             import subprocess as _sp
+            # check_level writes the next password to /opt/labs/level{X}/flag.txt (chmod 644)
+            # when the student successfully validates the level.
+            flag_path = f"/opt/labs/level{current_lvl}/flag.txt"
             result = _sp.run(
                 [
                     "sshpass", "-p", "starthere",
@@ -408,17 +411,18 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
                     "-o", "ConnectTimeout=5",
                     "-p", str(port),
                     f"level0@{host}",
-                    f"sudo cat /opt/validation/level{next_lvl}.key"
+                    f"cat {flag_path}"
                 ],
                 capture_output=True, text=True, timeout=10
             )
             next_password = result.stdout.strip()
+            logger.info(f"[Advance] ECS flag read for user {current_user.id} level {current_lvl}: stdout='{next_password}' stderr='{result.stderr.strip()}'")
             if not next_password:
-                raise HTTPException(status_code=400, detail="Next level key not available. Make sure you solved the current level first.")
+                raise HTTPException(status_code=400, detail="Level not yet solved. Run check_level in your terminal first, then click Advance.")
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to read next level key via SSH: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to read level key via SSH: {str(e)}")
     else:
         client = docker.from_env()
         container_name = f"student-{current_user.id}-techcorp"
