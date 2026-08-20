@@ -70,6 +70,28 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
     except Exception as exc:
         logger.error(f"[Puzzle] Provision failed for user {current_user.id}: {exc}")
         raise HTTPException(status_code=500, detail=f"Provisioning failed: {exc}")
+
+
+@router.post("/teardown")
+def teardown_container(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stop and remove the student puzzle lab environment via configured orchestrator."""
+    from app.lab.orchestrator import get_orchestrator
+    from app.lab.session_store import delete_session
+
+    user_id = str(current_user.id)
+    lab_id = "puzzle-lab"
+    orchestrator = get_orchestrator()
+
+    try:
+        orchestrator.teardown(user_id, lab_id)
+        delete_session(user_id, lab_id)
+        return {"status": "torn_down"}
+    except Exception as exc:
+        logger.error(f"[Puzzle] Teardown failed for user {current_user.id}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Teardown failed: {exc}")
     container_name = f"student-{current_user.id}-techcorp"
     
     # Determine highest completed level to sync session level

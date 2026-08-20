@@ -266,6 +266,8 @@ export const TechCorpLabSession: React.FC = () => {
     return () => {
       if (wsInstance.current) wsInstance.current.close();
       if (termInstance.current) termInstance.current.dispose();
+      // Auto-teardown Sysadmin container task when leaving page/navigating to dashboard
+      apiFetch('/api/v1/labs/techcorp/teardown', { method: 'POST' }).catch(() => {});
     };
   }, []);
 
