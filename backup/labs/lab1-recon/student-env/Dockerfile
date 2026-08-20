@@ -19,12 +19,16 @@ RUN apt-get update && apt-get install -y \
     whois \
     nikto \
     dirb \
+    sudo \
+    libcap2-bin \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /var/run/sshd && \
     useradd -m -s /bin/bash student && \
     echo 'student:student' | chpasswd && \
     echo 'root:root' | chpasswd && \
+    echo 'student ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip /usr/bin/nmap || true && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
 
