@@ -367,8 +367,11 @@ export const TechCorpLabSession: React.FC = () => {
       }
     };
 
-    ws.onmessage = (event) => {
-      const data = event.data;
+    ws.onmessage = async (event) => {
+      let data = event.data;
+      if (data instanceof Blob) {
+        data = new Uint8Array(await data.arrayBuffer());
+      }
       if (typeof data === 'string' && data.startsWith('{')) {
         try {
           const payload = JSON.parse(data);
@@ -376,8 +379,8 @@ export const TechCorpLabSession: React.FC = () => {
             addLog(`ws: received level complete event for level ${payload.level}`);
             setSolvedLevel(payload.level);
             setShowBanner(true);
+            return;
           }
-          return;
         } catch (e) {}
       }
       if (termInstance.current) {
