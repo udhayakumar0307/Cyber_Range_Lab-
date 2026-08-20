@@ -222,19 +222,27 @@ def get_session(db: Session = Depends(get_db), current_user: User = Depends(get_
         logger.info(f"get_session: No session exists for user {current_user.id}")
         return {"session_exists": False}
 
-    # Verify if container is actually running on the host
+    # Verify if container is actually running via configured orchestrator
+    mode = os.getenv("ORCHESTRATOR", "docker").lower()
     if sess.is_active:
-        try:
-            client = docker.from_env()
-            container = client.containers.get(sess.container_name)
-            if container.status != "running":
-                logger.info(f"get_session: Container {sess.container_name} is status '{container.status}'. Syncing status to inactive.")
+        if mode == "ecs":
+            from app.lab.session_store import get_session as get_redis_session
+            redis_sess = get_redis_session(str(current_user.id), "puzzle-lab")
+            if not redis_sess:
                 sess.is_active = False
                 db.commit()
-        except Exception as e:
-            logger.info(f"get_session: Container {sess.container_name} not found or error. Syncing status to inactive: {str(e)}")
-            sess.is_active = False
-            db.commit()
+        else:
+            try:
+                client = docker.from_env()
+                container = client.containers.get(sess.container_name)
+                if container.status != "running":
+                    logger.info(f"get_session: Container {sess.container_name} is status '{container.status}'. Syncing status to inactive.")
+                    sess.is_active = False
+                    db.commit()
+            except Exception as e:
+                logger.info(f"get_session: Container {sess.container_name} not found or error. Syncing status to inactive: {str(e)}")
+                sess.is_active = False
+                db.commit()
         
     completed_levels = db.query(UserLabProgress.module_id).filter(
         UserLabProgress.user_id == current_user.id,
@@ -269,7 +277,7 @@ def get_session(db: Session = Depends(get_db), current_user: User = Depends(get_
         db.commit()
     
     password = "starthere"
-    if sess.current_level > 0:
+    if mode != "ecs" and sess.current_level > 0:
         try:
             logger.info(f"get_session: Reading password key for user {current_user.id}, level {sess.current_level}")
             client = docker.from_env()
