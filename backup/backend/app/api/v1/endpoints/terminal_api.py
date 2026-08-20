@@ -58,9 +58,30 @@ def _get_recon_student_container(user_id: str) -> str:
 async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, username: str = "root", password: str = "root"):
     """
     Bridge WebSocket connection to a real SSH PTY session inside an ECS container.
+    Retries TCP probe up to 15 times with 2s delays to allow container
+    entrypoint.sh to finish initializing before sshd accepts connections.
     """
     import asyncio
     logger.info(f"[SSH WS Bridge] Connecting to SSH {username}@{host}:{port}")
+
+    # Wait for sshd to be ready (entrypoint.sh may still be initializing)
+    for attempt in range(15):
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=3.0
+            )
+            writer.close()
+            await writer.wait_closed()
+            logger.info(f"[SSH WS Bridge] Port {port} is ready (attempt {attempt + 1})")
+            break
+        except Exception:
+            if attempt == 14:
+                logger.error(f"[SSH WS Bridge] Port {port} never became ready after 15 attempts")
+                await websocket.close()
+                return
+            logger.info(f"[SSH WS Bridge] Port {port} not ready, retry {attempt + 1}/15 in 2s...")
+            await asyncio.sleep(2)
+
     try:
         cmd = [
             "sshpass", "-p", password,
