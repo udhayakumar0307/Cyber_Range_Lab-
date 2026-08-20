@@ -484,9 +484,24 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
     sess.current_level = next_lvl
     sess.last_active_at = datetime.utcnow()
     sess.is_active = True
-    
+
     db.commit()
-    
+
+    # In ECS mode, persist the new SSH credentials to Redis so the WebSocket
+    # reconnects as the correct level user on next connection.
+    if ecs_mode:
+        try:
+            from app.lab.session_store import get_session as get_redis_session, save_session as save_redis_session
+            redis_sess = get_redis_session(str(current_user.id), "puzzle-lab")
+            if redis_sess:
+                redis_sess["ssh_user"] = f"level{next_lvl}"
+                redis_sess["ssh_pass"] = next_password
+                redis_sess["last_solved_level"] = -1  # reset so next check_level is fresh
+                save_redis_session(str(current_user.id), "puzzle-lab", redis_sess)
+                logger.info(f"[Advance] Updated Redis ssh_user=level{next_lvl} for user {current_user.id}")
+        except Exception as ex:
+            logger.warning(f"[Advance] Failed to update Redis ssh credentials: {ex}")
+
     return {
         "status": "success",
         "next_level": next_lvl,
@@ -587,24 +602,11 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
         redis_sess = get_redis_session(str(user.id), "puzzle-lab")
         host = redis_sess.get("student_host") if redis_sess else None
         port = int(redis_sess.get("student_port")) if (redis_sess and redis_sess.get("student_port")) else (sess.ssh_port if sess else 2225)
-        
-        current_lvl = 0
-        if sess and sess.current_level is not None:
-            current_lvl = sess.current_level
-        else:
-            p = db.query(UserLabProgress).filter(
-                UserLabProgress.user_id == str(user.id),
-                UserLabProgress.lab_id == "puzzle-lab"
-            ).first()
-            if p and p.module_id and p.module_id.startswith("level"):
-                try:
-                    current_lvl = int(p.module_id.replace("level", ""))
-                except Exception:
-                    pass
 
-        ssh_user = "level0"
-        ssh_pass = "starthere"
-        
+        # Use stored credentials from Redis (updated by /advance), defaulting to level0:starthere
+        ssh_user = redis_sess.get("ssh_user", "level0") if redis_sess else "level0"
+        ssh_pass = redis_sess.get("ssh_pass", "starthere") if redis_sess else "starthere"
+
         if host and port:
             logger.info(f"[TechCorp WS] Connecting to ECS SSH {ssh_user}@{host}:{port}")
             await _bridge_ssh_to_websocket(
