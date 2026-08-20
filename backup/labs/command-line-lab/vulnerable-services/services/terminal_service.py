@@ -37,7 +37,22 @@ def set_winsize(fd, rows, cols):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
+def get_actual_container_name(target_name: str) -> str:
+    """Find actual Docker container name on ECS or local docker daemon matching target_name."""
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            stderr=subprocess.DEVNULL
+        ).decode("utf-8", errors="ignore").splitlines()
+        for name in out:
+            if target_name in name:
+                return name.strip()
+    except Exception:
+        pass
+    return target_name
+
 def spawn_shell():
+    container = get_actual_container_name(STUDENT_CONTAINER)
     pid, fd = pty.fork()
     if pid == 0:
         os.execvp(
@@ -45,7 +60,7 @@ def spawn_shell():
             [
                 "docker", "exec", "-it", "-u", "student",
                 "-e", "TERM=xterm-256color",
-                STUDENT_CONTAINER, "/bin/bash", "-l",
+                container, "/bin/bash", "-l",
             ],
         )
     else:
