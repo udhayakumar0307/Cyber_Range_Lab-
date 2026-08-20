@@ -5,14 +5,40 @@
 # for Modules 1–5 across Linux, Python, Java, and C tracks.
 # ============================================================
 
-set -uo pipefail
+set -uo noglob
+# NOTE: We intentionally do NOT use -e (exit on error) because docker exec calls
+# during lab setup may fail transiently (e.g. container still initializing, ECS
+# dynamic naming). Failures in setup are logged but must not prevent the WebSocket
+# terminal service from starting.
 
 STUDENT_ID="${STUDENT_ID:-student}"
 LAB_SEED="${LAB_SEED:-defaultseed}"
 STUDENT_CONTAINER="${STUDENT_CONTAINER:-cll-student}"
 
-DX() { docker exec -u root "$STUDENT_CONTAINER" "$@"; }
-DXS() { docker exec -u student "$STUDENT_CONTAINER" "$@"; }
+# ── Resolve actual ECS container name (handles ecs-command-line-lab-N-cll-student-xxx) ──
+resolve_container() {
+    local target="$1"
+    local resolved
+    resolved=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -m1 "$target" || true)
+    echo "${resolved:-$target}"
+}
+
+# Wait up to 30s for cll-student to appear (ECS may start containers slightly staggered)
+echo "==> Waiting for container matching '${STUDENT_CONTAINER}'..."
+for i in $(seq 1 10); do
+    ACTUAL_CONTAINER=$(resolve_container "$STUDENT_CONTAINER")
+    if [ "$ACTUAL_CONTAINER" != "$STUDENT_CONTAINER" ] || docker inspect "$ACTUAL_CONTAINER" >/dev/null 2>&1; then
+        echo "==> Found container: ${ACTUAL_CONTAINER}"
+        STUDENT_CONTAINER="$ACTUAL_CONTAINER"
+        break
+    fi
+    echo "    (attempt $i/10, retrying in 3s...)"
+    sleep 3
+done
+
+DX() { docker exec -u root "$STUDENT_CONTAINER" "$@" || true; }
+DXS() { docker exec -u student "$STUDENT_CONTAINER" "$@" || true; }
+
 
 # ── Deterministic flag generation algorithms ──
 gen_track_flag() {
