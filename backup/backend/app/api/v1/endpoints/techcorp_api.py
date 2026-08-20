@@ -553,8 +553,8 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
                 except Exception:
                     pass
 
-        ssh_user = f"level{current_lvl}"
-        ssh_pass = "starthere" if current_lvl == 0 else f"level{current_lvl}"
+        ssh_user = "level0"
+        ssh_pass = "starthere"
         
         if host and port:
             logger.info(f"[TechCorp WS] Connecting to ECS SSH {ssh_user}@{host}:{port}")
