@@ -334,6 +334,14 @@ def run_postgres_column_migrations(engine):
                 ALTER TABLE cart_items
                 ADD COLUMN IF NOT EXISTS hours_purchased FLOAT DEFAULT 40.0;
             """))
+            conn.execute(text("""
+                ALTER TABLE cart_items
+                ADD COLUMN IF NOT EXISTS item_type VARCHAR(50) DEFAULT 'lab';
+            """))
+            conn.execute(text("""
+                ALTER TABLE cart_items
+                ADD COLUMN IF NOT EXISTS ctf_id VARCHAR(100);
+            """))
             logger.info("  cart_items: column migrations applied")
 
         if table_exists("order_items"):
