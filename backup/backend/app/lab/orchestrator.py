@@ -167,6 +167,7 @@ class ECSOrchestrator(LabOrchestrator):
             container_overrides = [
                 {
                     "name": "cll-student",
+                    "command": ["sleep", "infinity"],
                     "environment": [
                         {"name": "STUDENT_ID", "value": str(user_id)},
                         {"name": "LAB_SEED",   "value": lab_seed},
