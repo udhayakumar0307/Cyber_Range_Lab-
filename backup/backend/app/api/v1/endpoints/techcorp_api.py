@@ -530,7 +530,10 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
         redis_sess = get_redis_session(str(user.id), "puzzle-lab")
         host = redis_sess.get("student_host") if redis_sess else None
         port = int(redis_sess.get("student_port")) if (redis_sess and redis_sess.get("student_port")) else (sess.ssh_port if sess else 2225)
-        ssh_user = f"level{sess.current_level}" if sess else "level0"
+        
+        current_lvl = sess.current_level if sess else 0
+        ssh_user = f"level{current_lvl}"
+        ssh_pass = "starthere" if current_lvl == 0 else f"level{current_lvl}"
         
         if host and port:
             logger.info(f"[TechCorp WS] Connecting to ECS SSH {ssh_user}@{host}:{port}")
@@ -539,7 +542,7 @@ async def techcorp_terminal(websocket: WebSocket, token: str = None, db: Session
                 host=host,
                 port=port,
                 username=ssh_user,
-                password="starthere",
+                password=ssh_pass,
             )
             return
 
