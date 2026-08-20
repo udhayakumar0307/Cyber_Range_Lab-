@@ -66,7 +66,8 @@ def provision_container(db: Session = Depends(get_db), current_user: User = Depe
     try:
         result = orchestrator.provision(user_id, lab_id, f"sysadmin_{user_id}")
         save_session(user_id, lab_id, result)
-        return {"status": "provisioned", **result}
+        ssh_port = result.get("student_port")
+        return {"status": "provisioned", "ssh_port": ssh_port, **result}
     except Exception as exc:
         logger.error(f"[Puzzle] Provision failed for user {current_user.id}: {exc}")
         raise HTTPException(status_code=500, detail=f"Provisioning failed: {exc}")
@@ -293,12 +294,19 @@ def get_session(db: Session = Depends(get_db), current_user: User = Depends(get_
     elapsed = (datetime.utcnow() - sess.started_at).total_seconds()
     expires_in = max(0, 10800 - int(elapsed))
 
-    logger.info(f"get_session: Session found for user {current_user.id}. is_active={sess.is_active}, level={sess.current_level}, port={sess.ssh_port}")
+    ssh_port = sess.ssh_port
+    if mode == "ecs":
+        from app.lab.session_store import get_session as get_redis_session
+        redis_sess = get_redis_session(str(current_user.id), "puzzle-lab")
+        if redis_sess and redis_sess.get("student_port"):
+            ssh_port = int(redis_sess["student_port"])
+
+    logger.info(f"get_session: Session found for user {current_user.id}. is_active={sess.is_active}, level={sess.current_level}, port={ssh_port}")
     return {
         "session_exists": True,
         "is_active": sess.is_active,
         "current_level": sess.current_level,
-        "ssh_port": sess.ssh_port,
+        "ssh_port": ssh_port,
         "username": f"level{sess.current_level}",
         "password": password,
         "completed_levels": completed_level_ids,
