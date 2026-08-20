@@ -89,6 +89,7 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             "ssh",
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "SetEnv=TERM=xterm-256color",
             "-tt",
             "-p", str(port),
             f"{username}@{host}"
@@ -97,12 +98,13 @@ async def _bridge_ssh_to_websocket(websocket: WebSocket, host: str, port: int, u
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
+            stderr=asyncio.subprocess.STDOUT,
+            env={**os.environ, "TERM": "xterm-256color"}
         )
 
-        # Set TERM environment variable on connection so commands like 'clear', 'top', and 'nano' work
+        # Force color prompt and TERM on the remote shell
         if proc.stdin:
-            proc.stdin.write(b"export TERM=xterm-256color\n")
+            proc.stdin.write(b"export TERM=xterm-256color; export FORCE_COLOR=1\n")
             await proc.stdin.drain()
 
         output_buffer = ""

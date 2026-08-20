@@ -387,21 +387,53 @@ def advance_level(db: Session = Depends(get_db), current_user: User = Depends(ge
         }
         
     next_lvl = current_lvl + 1
-    
-    client = docker.from_env()
-    container_name = f"student-{current_user.id}-techcorp"
-    try:
-        container = client.containers.get(container_name)
-        if container.status != "running":
-            container.start()
-        exit_code, output = container.exec_run(f"cat /opt/validation/level{next_lvl}.key")
-        if exit_code != 0:
-            raise HTTPException(status_code=400, detail="Next level key not available. Make sure you solved the current level.")
-        next_password = output.decode().strip()
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=500, detail="Docker container not found. Restart the lab.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read next level key: {str(e)}")
+
+    # In ECS mode, SSH into the container to read the next level key
+    ecs_mode = os.getenv("ORCHESTRATOR", "docker").lower() == "ecs"
+    if ecs_mode:
+        from app.lab.session_store import get_session as get_redis_session
+        redis_sess = get_redis_session(str(current_user.id), "puzzle-lab")
+        if not redis_sess or not redis_sess.get("student_host"):
+            raise HTTPException(status_code=400, detail="No active ECS session found. Please restart the lab.")
+        host = redis_sess["student_host"]
+        port = int(redis_sess["student_port"])
+        try:
+            import subprocess as _sp
+            result = _sp.run(
+                [
+                    "sshpass", "-p", "starthere",
+                    "ssh",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "ConnectTimeout=5",
+                    "-p", str(port),
+                    f"level0@{host}",
+                    f"sudo cat /opt/validation/level{next_lvl}.key"
+                ],
+                capture_output=True, text=True, timeout=10
+            )
+            next_password = result.stdout.strip()
+            if not next_password:
+                raise HTTPException(status_code=400, detail="Next level key not available. Make sure you solved the current level first.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read next level key via SSH: {str(e)}")
+    else:
+        client = docker.from_env()
+        container_name = f"student-{current_user.id}-techcorp"
+        try:
+            container = client.containers.get(container_name)
+            if container.status != "running":
+                container.start()
+            exit_code, output = container.exec_run(f"cat /opt/validation/level{next_lvl}.key")
+            if exit_code != 0:
+                raise HTTPException(status_code=400, detail="Next level key not available. Make sure you solved the current level.")
+            next_password = output.decode().strip()
+        except docker.errors.NotFound:
+            raise HTTPException(status_code=500, detail="Docker container not found. Restart the lab.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read next level key: {str(e)}")
         
     mod_id = f"puzzle-lab_module{current_lvl + 1}"
     progress = db.query(UserLabProgress).filter(
