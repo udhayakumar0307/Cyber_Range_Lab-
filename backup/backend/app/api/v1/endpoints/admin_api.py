@@ -2482,15 +2482,15 @@ async def bulk_import_users(
     imported_count = 0
 
     from app.models.user_affiliation import UserAffiliation as UA
-    
-    admin_primary_aff = db.query(UA).filter(UA.user_id == current_user.id, UA.is_primary == True).first()
+
+    # Match the same affiliation-resolution logic used by the single "Add Student"
+    # endpoint (create_admin_user): copy ALL of the admin's affiliation rows onto
+    # each new user, rather than relying on a single row flagged is_primary (which
+    # may not exist), so imported students remain visible in student/group listings.
+    admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+    admin_primary_aff = next((a for a in admin_affs if a.is_primary), admin_affs[0] if admin_affs else None)
     admin_college_id = admin_primary_aff.college_id if admin_primary_aff else None
     admin_org_id = admin_primary_aff.organization_id if admin_primary_aff else None
-    admin_aff_type = admin_primary_aff.affiliation_type if admin_primary_aff else None
-
-    admin_org_name = None
-    if admin_org_id:
-        admin_org_name = db.query(Organization.name).filter(Organization.id == admin_org_id).scalar()
 
     created_users = []
 
@@ -2521,7 +2521,7 @@ async def bulk_import_users(
                 role="user",
                 is_active=True,
                 college_id=admin_college_id,
-                organization=admin_org_name,
+                organization=current_user.organization,
                 department=sanitize_csv_formula(parsed_dept),
                 year=parsed_year,
                 roll_number=sanitize_csv_formula(roll_number)
@@ -2529,14 +2529,16 @@ async def bulk_import_users(
             db.add(new_u)
             db.flush()
 
-            # Create User Affiliation
-            if admin_primary_aff:
+            # Create User Affiliations - copy every affiliation row the admin has,
+            # same as create_admin_user, so the student shows up wherever the
+            # admin's own students/groups are scoped.
+            for a in admin_affs:
                 new_aff = UA(
                     user_id=new_u.id,
-                    affiliation_type=admin_aff_type,
-                    college_id=admin_college_id,
-                    organization_id=admin_org_id,
-                    is_primary=True
+                    affiliation_type=a.affiliation_type,
+                    college_id=a.college_id,
+                    organization_id=a.organization_id,
+                    is_primary=a.is_primary
                 )
                 db.add(new_aff)
 
