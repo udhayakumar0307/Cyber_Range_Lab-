@@ -138,11 +138,12 @@ DXS bash -c "echo '${FLAG_linux_module1}' > /home/student/linux/module1/records/
 DXS bash -c "echo 'Nothing to see here, keep looking.' > /home/student/linux/module1/records/README.txt"
 
 # Linux Module 2
-DXS mkdir -p /home/student/linux/module2/inbox /home/student/linux/module2/workspace /home/student/linux/module2/.vault
+# The flag is NOT planted here.
+# progress_service reveals it only after all four objectives are verified.
+DXS mkdir -p /home/student/linux/module2/inbox /home/student/linux/module2/workspace
 DXS bash -c "echo 'Q3 manifest — do not edit in place.' > /home/student/linux/module2/inbox/manifest.txt"
 DXS bash -c "echo 'draft notes, needs to become final.txt' > /home/student/linux/module2/inbox/draft.txt"
 DXS bash -c "echo 'temporary scratch file, safe to delete' > /home/student/linux/module2/workspace/junk.tmp"
-DXS bash -c "echo '${FLAG_linux_module2}' > /home/student/linux/module2/.vault/.key"
 
 # Linux Module 3 (Text Processing & Line Counting: wc, sort, uniq, cut)
 DXS mkdir -p /home/student/linux/module3/data

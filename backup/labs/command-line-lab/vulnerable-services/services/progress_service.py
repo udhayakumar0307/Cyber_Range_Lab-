@@ -19,6 +19,7 @@ from flask import Flask, jsonify
 STUDENT_CONTAINER = os.environ.get("STUDENT_CONTAINER", "cll-student")
 CONFIG_PATH = Path(__file__).parent / "module_config.json"
 LOG_PATH_IN_CONTAINER = "/var/log/session/commands.log"
+FLAGS_PATH = Path("/flags/flags.json")
 
 app = Flask(__name__)
 
@@ -139,6 +140,121 @@ def check_fs_test(test_cmd):
     ok, _ = docker_exec("bash", "-c", test_cmd)
     return ok
 
+def check_command_and_fs(obj, parsed_log):
+    """
+    Require BOTH:
+      1. the intended command to appear in the module command log
+      2. the expected filesystem state to exist
+
+    This prevents students from satisfying file-operation objectives
+    with unrelated commands such as touch.
+    """
+    matched, matched_cmd = check_log_regex(
+        obj["pattern"],
+        parsed_log,
+    )
+
+    if not matched:
+        return False, None
+
+    fs_ok = check_fs_test(obj["test_cmd"])
+
+    return fs_ok, matched_cmd
+
+def ensure_completion_flag(track_id, module_id, module):
+    """
+    Materialize a module flag inside the student container only after
+    all server-authoritative objectives have completed.
+
+    The source of truth remains /flags/flags.json inside cll-services.
+    """
+    completion = module.get("completion", {})
+
+    if not completion.get("reveal_flag"):
+        return False
+
+    flag_key = completion.get(
+        "flag_key",
+        f"{track_id}_{module_id}",
+    )
+    flag_path = completion.get("flag_path")
+
+    if not flag_path:
+        print(
+            f"[progress] completion flag path missing "
+            f"for {track_id}/{module_id}",
+            flush=True,
+        )
+        return False
+
+    try:
+        with open(FLAGS_PATH, "r", encoding="utf-8") as f:
+            flag_data = json.load(f)
+
+        flag = (
+            flag_data
+            .get("flags", {})
+            .get(flag_key)
+        )
+
+        if not flag:
+            print(
+                f"[progress] flag key '{flag_key}' not found",
+                flush=True,
+            )
+            return False
+
+    except Exception as exc:
+        print(
+            f"[progress] failed reading flags file: {exc}",
+            flush=True,
+        )
+        return False
+
+    # If the correct key is already present, don't rewrite it on
+    # every browser progress poll.
+    exists_ok, _ = docker_exec(
+        "bash",
+        "-c",
+        'test -f "$1" && grep -qxF "$2" "$1"',
+        "_",
+        flag_path,
+        flag,
+    )
+
+    if exists_ok:
+        return True
+
+    ok, _ = docker_exec(
+        "bash",
+        "-c",
+        '''
+        set -e
+        key_path="$1"
+        key_value="$2"
+        key_dir="$(dirname "$key_path")"
+
+        mkdir -p "$key_dir"
+        chown student:student "$key_dir"
+        chmod 0700 "$key_dir"
+
+        printf '%s\n' "$key_value" > "$key_path"
+        chown student:student "$key_path"
+        chmod 0400 "$key_path"
+        ''',
+        "_",
+        flag_path,
+        flag,
+    )
+
+    if ok:
+        print(
+            f"[progress] completion flag revealed | "
+            f"{track_id}/{module_id}",
+            flush=True,
+        )
+
+    return ok
 
 def evaluate_module(module_id, track_id="linux"):
     module = None
@@ -164,9 +280,11 @@ def evaluate_module(module_id, track_id="linux"):
         complete = False
         matched_cmd = None
         if obj["type"] == "log_regex":
-            complete, matched_cmd = check_log_regex(obj["pattern"], module_log)
+            complete, matched_cmd = check_log_regex( obj["pattern"], module_log)
         elif obj["type"] == "fs_test":
             complete = check_fs_test(obj["test_cmd"])
+        elif obj["type"] == "command_and_fs":
+            complete, matched_cmd = check_command_and_fs(obj, module_log)
         else:
             complete = False
 
@@ -178,13 +296,18 @@ def evaluate_module(module_id, track_id="linux"):
 
         results.append({"id": obj["id"], "label": obj["label"], "complete": complete})
 
-    module_complete = all(r["complete"] for r in results) if results else False
+    module_complete = (all(r["complete"] for r in results) if results else False)
+    flag_revealed = False
+    if module_complete:
+        flag_revealed = ensure_completion_flag(track_id, module_id, module)
+        
     return {
         "module": module_id,
         "track": track_id,
         "title": module.get("title", ""),
         "objectives": results,
         "module_complete": module_complete,
+        "flag_revealed": flag_revealed
     }
 
 def get_actual_container_name(target_name: str) -> str:

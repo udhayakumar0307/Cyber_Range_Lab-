@@ -48,37 +48,46 @@
           "title": "File Operations",
           "difficulty": 1,
           "points": 200,
-          "story": "Clean up your workspace: organize inbox files, move drafts, and backup key manifests.",
-          "mission": "Create a backup directory, copy the manifest, move final drafts, and clean temp files.",
+          "story": "Your supervisor left a disorganized project workspace. Preserve the manifest, promote the draft to its final location, and remove temporary data without losing anything important.",
+          "mission": "Create the backup directory, copy the manifest, move the draft into its final location, and remove the temporary file. Completing the workspace correctly unlocks the hidden recovery key.",
           "objectives": [
             {
               "id": "mkdir",
-              "label": "Create workspace/backup with mkdir",
-              "type": "fs_test",
+              "label": "Create workspace/backup using mkdir",
+              "type": "command_and_fs",
+              "pattern": "\\bmkdir\\b.*workspace/backup/?(?:\\s|$)",
               "test_cmd": "test -d /home/student/linux/module2/workspace/backup"
             },
             {
               "id": "cp",
-              "label": "Copy inbox/manifest.txt into workspace/backup",
-              "type": "fs_test",
-              "test_cmd": "test -f /home/student/linux/module2/workspace/backup/manifest.txt"
+              "label": "Copy inbox/manifest.txt into workspace/backup using cp",
+              "type": "command_and_fs",
+              "pattern": "\\bcp\\b.*inbox/manifest\\.txt.*workspace/backup/?(?:\\s|$)",
+              "test_cmd": "test -f /home/student/linux/module2/inbox/manifest.txt && test -f /home/student/linux/module2/workspace/backup/manifest.txt && test \"$(sha256sum /home/student/linux/module2/inbox/manifest.txt | awk '{print $1}')\" = \"$(sha256sum /home/student/linux/module2/workspace/backup/manifest.txt | awk '{print $1}')\""
             },
             {
               "id": "mv",
-              "label": "Move inbox/draft.txt to workspace/final.txt",
-              "type": "fs_test",
-              "test_cmd": "test -f /home/student/linux/module2/workspace/final.txt"
+              "label": "Move inbox/draft.txt to workspace/final.txt using mv",
+              "type": "command_and_fs",
+              "pattern": "\\bmv\\b.*inbox/draft\\.txt.*workspace/final\\.txt(?:\\s|$)",
+              "test_cmd": "test -f /home/student/linux/module2/workspace/final.txt && test ! -e /home/student/linux/module2/inbox/draft.txt && grep -qxF 'draft notes, needs to become final.txt' /home/student/linux/module2/workspace/final.txt"
             },
             {
               "id": "rm",
-              "label": "Remove workspace/junk.tmp with rm",
-              "type": "fs_test",
-              "test_cmd": "test ! -f /home/student/linux/module2/workspace/junk.tmp"
+              "label": "Remove workspace/junk.tmp using rm",
+              "type": "command_and_fs",
+              "pattern": "\\brm\\b.*workspace/junk\\.tmp(?:\\s|$)",
+              "test_cmd": "test ! -e /home/student/linux/module2/workspace/junk.tmp"
             }
           ],
+          "completion": {
+            "reveal_flag": true,
+            "flag_key": "linux_module2",
+            "flag_path": "/home/student/linux/module2/.vault/.key"
+          },
           "hints": [
-            "Hint 1: Use `mkdir -p workspace/backup` and `cp inbox/manifest.txt workspace/backup/`.",
-            "Hint 2: Move files using `mv inbox/draft.txt workspace/final.txt` and check `.vault/.key`."
+            "Hint 1: Use `mkdir -p workspace/backup`, then preserve the original manifest with `cp inbox/manifest.txt workspace/backup/`.",
+            "Hint 2: Use `mv inbox/draft.txt workspace/final.txt` and remove `workspace/junk.tmp`. Once all four objectives are complete, inspect hidden files with `ls -la`."
           ]
         },
         "module3": {
