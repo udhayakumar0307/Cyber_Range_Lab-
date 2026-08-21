@@ -140,6 +140,284 @@ def create_checkout_order(
         "institution_name": inst_name
     }
 
+
+
+def _resolve_order_owner_org_id(db: Session, owner: User) -> Optional[int]:
+    """Resolve the organization from server-side user relationships only."""
+    if not owner:
+        return None
+
+    admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == owner.id).first()
+    if admin_prof and admin_prof.organization_id:
+        return admin_prof.organization_id
+
+    if getattr(owner, "group_id", None):
+        from app.models.group import Group
+        group = db.query(Group).filter(Group.id == owner.group_id).first()
+        if group and group.organization_id:
+            return group.organization_id
+
+    return None
+
+
+def _finalize_paid_order(
+    db: Session,
+    razorpay_order_id: str,
+    payment_id: str,
+    method: str,
+    expected_user_id: Optional[int] = None,
+    reported_amount_paise: Optional[int] = None,
+    reported_currency: Optional[str] = None,
+):
+    """
+    Idempotent payment finalizer shared by browser verification and Razorpay webhooks.
+
+    The Order row is locked (SELECT ... FOR UPDATE) so only one request can provision
+    a given order at a time. Payment, invoice, entitlement/license provisioning, and
+    the completion marker are committed together.
+    """
+    query = db.query(Order).filter(Order.razorpay_order_id == razorpay_order_id)
+    if expected_user_id is not None:
+        query = query.filter(Order.user_id == expected_user_id)
+
+    order = query.with_for_update().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found for Razorpay order ID.")
+
+    expected_amount_paise = int(round(float(order.grand_total or 0.0) * 100))
+    if reported_amount_paise is not None and int(reported_amount_paise) != expected_amount_paise:
+        logger.error(
+            "Razorpay amount mismatch | order=%s | expected_paise=%s | received_paise=%s",
+            order.id,
+            expected_amount_paise,
+            reported_amount_paise,
+        )
+        raise HTTPException(status_code=400, detail="Razorpay payment amount does not match the order.")
+
+    if reported_currency and reported_currency.upper() != "INR":
+        raise HTTPException(status_code=400, detail="Unexpected Razorpay payment currency.")
+
+    # A payment ID must never be reused for another CyberRange order.
+    payment = db.query(Payment).filter(Payment.transaction_id == payment_id).first()
+    if payment and payment.order_id != order.id:
+        raise HTTPException(status_code=409, detail="Payment transaction is already bound to another order.")
+
+    # Likewise, one CyberRange order should not be completed using two different payments.
+    payment_for_order = db.query(Payment).filter(Payment.order_id == order.id).first()
+    if payment_for_order and payment_for_order.transaction_id != payment_id:
+        raise HTTPException(status_code=409, detail="Order is already bound to another payment transaction.")
+
+    invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+    marker = db.query(AuditLog).filter(
+        AuditLog.action == "RAZORPAY_ORDER_FINALIZED",
+        AuditLog.entity == "Order",
+        AuditLog.entity_id == str(order.id),
+        AuditLog.new_value == payment_id,
+        AuditLog.status == "SUCCESS",
+    ).first()
+
+    # Handles both normal retries and successful orders created before this marker existed.
+    if marker or (payment and invoice and order.status == "COMPLETED"):
+        if order.payment_status != "COMPLETED":
+            order.payment_status = "COMPLETED"
+            db.commit()
+        return {
+            "order": order,
+            "payment": payment,
+            "invoice": invoice,
+            "newly_finalized": False,
+        }
+
+    owner = db.query(User).filter(User.id == order.user_id).first()
+    if not owner:
+        raise HTTPException(status_code=500, detail="Order owner no longer exists.")
+
+    if payment is None:
+        payment = Payment(
+            order_id=order.id,
+            transaction_id=payment_id,
+            payment_status="SUCCESS",
+            gateway="razorpay",
+            amount=order.grand_total,
+            currency="INR",
+            method=method,
+        )
+        db.add(payment)
+        db.flush()
+
+    order.status = "COMPLETED"
+    order.payment_status = "COMPLETED"
+
+    if invoice is None:
+        inv_num = f"INV-{datetime.utcnow().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
+        invoice = Invoice(
+            invoice_number=inv_num,
+            order_id=order.id,
+            payment_id=payment.id,
+            user_id=order.user_id,
+            amount=order.grand_total,
+            billing_address_json=f"{order.institution_name or 'CyberRange'}, GST: IN38291039102",
+        )
+        db.add(invoice)
+        db.flush()
+
+    resolved_org_id = order.organization_id or _resolve_order_owner_org_id(db, owner)
+    if not order.organization_id and resolved_org_id:
+        order.organization_id = resolved_org_id
+
+    is_student_order = bool(order.order_number and order.order_number.startswith("STU-"))
+
+    if is_student_order:
+        # Student orders are built server-side with authoritative lab/rate/hour values.
+        for item in order.items:
+            hours = float(item.hours_purchased or 1.0)
+
+            purchased_record = db.query(PurchasedLab).filter(
+                PurchasedLab.user_id == order.user_id,
+                PurchasedLab.lab_id == item.lab_id,
+                PurchasedLab.status == "ACTIVE",
+            ).with_for_update().first()
+
+            if purchased_record:
+                # Defensive top-up path. Normally create-order rejects an already-active purchase.
+                purchased_record.hours_purchased = float(purchased_record.hours_purchased or 0.0) + hours
+                purchased_record.hours_remaining = float(purchased_record.hours_remaining or 0.0) + hours
+            else:
+                purchased_record = PurchasedLab(
+                    user_id=order.user_id,
+                    organization_id=resolved_org_id,
+                    lab_id=item.lab_id,
+                    lab_title=item.lab_title,
+                    license_key=f"LIC-{item.lab_id.upper()}-STU-{secrets.token_hex(4).upper()}",
+                    total_seats=1,
+                    assigned_seats=1,
+                    status="ACTIVE",
+                    expiry_date=datetime.utcnow() + timedelta(days=365),
+                    hours_purchased=hours,
+                    hours_remaining=hours,
+                    hours_used=0.0,
+                    fixed_rate=float(item.price or 0.0),
+                    assigned_to="student",
+                )
+                db.add(purchased_record)
+                db.flush()
+
+            lic = db.query(License).filter(
+                License.purchased_lab_id == purchased_record.id,
+                License.allocated_user_email == owner.email,
+                License.status == "ASSIGNED",
+            ).first()
+            if lic:
+                lic.hours_allocated = float(lic.hours_allocated or 0.0) + hours
+            else:
+                db.add(License(
+                    purchased_lab_id=purchased_record.id,
+                    license_key=f"KEY-{item.lab_id.upper()}-STU-{secrets.token_hex(4).upper()}",
+                    allocated_user_email=owner.email,
+                    status="ASSIGNED",
+                    expiry_date=datetime.utcnow() + timedelta(days=365),
+                    hours_allocated=hours,
+                    hours_used=0.0,
+                ))
+
+            existing_student_log = db.query(AuditLog).filter(
+                AuditLog.action == "STUDENT_LAB_PURCHASE",
+                AuditLog.new_value == payment_id,
+                AuditLog.status == "SUCCESS",
+            ).first()
+            if not existing_student_log:
+                db.add(AuditLog(
+                    action="STUDENT_LAB_PURCHASE",
+                    entity="PurchasedLab",
+                    entity_id=str(purchased_record.id),
+                    performed_by=owner.email,
+                    performed_by_role=getattr(owner, "role", "student"),
+                    user_id=owner.id,
+                    organization_id=resolved_org_id,
+                    old_value=razorpay_order_id,
+                    new_value=payment_id,
+                    resource="Lab",
+                    resource_id=item.lab_id,
+                    status="SUCCESS",
+                ))
+    else:
+        # Admin/org checkout: same provisioning semantics as the original endpoint.
+        for item in order.items:
+            expiry = datetime.utcnow() + timedelta(days=365)
+
+            if item.item_type == "ctf" and item.ctf_id:
+                db.add(PurchasedCTF(
+                    user_id=order.user_id,
+                    organization_id=resolved_org_id,
+                    ctf_id=item.ctf_id,
+                    ctf_title=item.lab_title,
+                    license_key=f"LIC-CTF{item.ctf_id}-{secrets.token_hex(6).upper()}",
+                    total_team_slots=10,
+                    assigned_team_slots=0,
+                    status="ACTIVE",
+                    expiry_date=expiry,
+                    assigned_to="admin",
+                    fixed_rate=item.price,
+                ))
+                continue
+
+            hours = float(item.hours_purchased or 40.0)
+            db.add(PurchasedLab(
+                user_id=order.user_id,
+                organization_id=resolved_org_id,
+                lab_id=item.lab_id,
+                lab_title=item.lab_title,
+                license_key=f"LIC-{item.lab_id.upper()}-{secrets.token_hex(6).upper()}",
+                total_seats=999,
+                assigned_seats=0,
+                status="ACTIVE",
+                expiry_date=expiry,
+                hours_purchased=hours,
+                hours_remaining=hours,
+                hours_used=0.0,
+            ))
+
+    # Remove only cart rows represented by this order; do not wipe items added later.
+    cart = db.query(Cart).filter(Cart.user_id == order.user_id).first()
+    if cart:
+        for item in order.items:
+            cart_q = db.query(CartItem).filter(
+                CartItem.cart_id == cart.id,
+                CartItem.lab_id == item.lab_id,
+            )
+            if item.item_type == "ctf" and item.ctf_id:
+                cart_q = cart_q.filter(CartItem.ctf_id == item.ctf_id)
+            cart_q.delete(synchronize_session=False)
+
+    db.add(AuditLog(
+        action="RAZORPAY_ORDER_FINALIZED",
+        entity="Order",
+        entity_id=str(order.id),
+        performed_by=owner.email,
+        performed_by_role=getattr(owner, "role", None),
+        organization_id=resolved_org_id,
+        user_id=owner.id,
+        status="SUCCESS",
+        old_value=razorpay_order_id,
+        new_value=payment_id,
+        resource="Order",
+        resource_id=str(order.id),
+    ))
+
+    # One atomic commit for payment + invoice + entitlement/license + marker.
+    db.commit()
+    db.refresh(order)
+    db.refresh(payment)
+    db.refresh(invoice)
+
+    return {
+        "order": order,
+        "payment": payment,
+        "invoice": invoice,
+        "newly_finalized": True,
+    }
+
+
 @router.post("/checkout/verify-payment")
 @router.post("/payments/verify")
 def verify_payment(
@@ -148,187 +426,101 @@ def verify_payment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Production Razorpay Signature Verification & Provisioning.
-    Verifies Razorpay HMAC SHA256 signature using RAZORPAY_KEY_SECRET.
-    Creates Payment, Invoice, PurchasedLab, and individual License records within a DB transaction.
-    """
-    order = db.query(Order).filter(Order.id == data.order_id, Order.user_id == current_user.id).first()
-    if order.razorpay_order_id != data.razorpay_order_id:
-        logger.warning(f"Razorpay order ID mismatch: DB Order {order.razorpay_order_id} vs Request {data.razorpay_order_id}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Razorpay order ID mismatch.")
+    """Verify the browser callback, then run the shared idempotent finalizer."""
+    order = db.query(Order).filter(
+        Order.id == data.order_id,
+        Order.user_id == current_user.id,
+    ).first()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+        raise HTTPException(status_code=404, detail="Order not found.")
 
-    # 1. Verify Razorpay Signature if Secret is configured
-    if settings.RAZORPAY_KEY_SECRET:
-        logger.info(f"==> VERIFY PAYMENT SIGNATURE: DB Order ID={order.id} | req.order_id={data.razorpay_order_id} | req.payment_id={data.razorpay_payment_id} | req.sig={data.razorpay_signature}")
-        logger.info(f"Using RAZORPAY_KEY_SECRET length: {len(settings.RAZORPAY_KEY_SECRET)}")
-
-        msg = f"{data.razorpay_order_id}|{data.razorpay_payment_id}"
-        generated_signature = hmac.new(
-            settings.RAZORPAY_KEY_SECRET.encode('utf-8'),
-            msg.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-
-        logger.info(f"Generated Signature: {generated_signature} | Match={generated_signature == data.razorpay_signature}")
-
-        if generated_signature != data.razorpay_signature:
-            # Check for signature fallback if secret has spaces/quotes around it
-            cleaned_secret = settings.RAZORPAY_KEY_SECRET.strip().strip("'").strip('"')
-            fallback_signature = hmac.new(
-                cleaned_secret.encode('utf-8'),
-                msg.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            if fallback_signature == data.razorpay_signature:
-                logger.info("Signature matched using cleaned/stripped key secret!")
-                generated_signature = fallback_signature
-            else:
-                log_audit_event(
-                    db=db,
-                    action="Razorpay Signature Verification Failed",
-                    entity="Order",
-                    entity_id=str(order.id),
-                    performed_by=current_user.email,
-                    performed_by_role=current_user.role,
-                    organization_id=order.organization_id,
-                    status="FAILED",
-                    new_value=f"Invalid HMAC signature for Razorpay Order {data.razorpay_order_id}. msg={msg} sig={data.razorpay_signature} gen={generated_signature}",
-                    request=request
-                )
-                order.status = "FAILED"
-                db.commit()
-                raise HTTPException(status_code=400, detail=f"Razorpay signature verification failed. Payment tampered or unverified.")
-
-    # Prevent duplicate payment processing for same transaction
-    existing_pay = db.query(Payment).filter(Payment.transaction_id == data.razorpay_payment_id).first()
-    if existing_pay:
-        return {"status": "success", "message": "Payment already verified.", "order_number": order.order_number}
-
-    # 2. Record Payment & Update Order
-    payment = Payment(
-        order_id=order.id,
-        transaction_id=data.razorpay_payment_id,
-        payment_status="SUCCESS",
-        gateway="razorpay",
-        amount=order.grand_total,
-        currency="INR",
-        method="Razorpay Online"
-    )
-    db.add(payment)
-    db.flush()
-
-    order.status = "COMPLETED"
-    order.payment_status = "COMPLETED"
-
-    # 3. Generate Official Invoice
-    inv_num = f"INV-{datetime.utcnow().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
-    invoice = Invoice(
-        invoice_number=inv_num,
-        order_id=order.id,
-        payment_id=payment.id,
-        user_id=current_user.id,
-        amount=order.grand_total,
-        billing_address_json=f"{order.institution_name}, GST: IN38291039102"
-    )
-    db.add(invoice)
-
-    # 4. Provision Purchased Labs & Individual License Keys
-    # Always resolve org_id — never allow organization_id=NULL on PurchasedLab
-    resolved_org_id = order.organization_id
-    if not resolved_org_id:
-        resolved_org_id = get_admin_org_id(current_user, db)
-    # Back-fill order.organization_id if it was null
-    if not order.organization_id:
-        order.organization_id = resolved_org_id
-
-    for item in order.items:
-        expiry = datetime.utcnow() + timedelta(days=365) # 1 Year expiry default
-
-        if item.item_type == "ctf" and item.ctf_id:
-            license_key = f"LIC-CTF{item.ctf_id}-{secrets.token_hex(6).upper()}"
-            purchased_ctf = PurchasedCTF(
-                user_id=current_user.id,
-                organization_id=resolved_org_id,
-                ctf_id=item.ctf_id,
-                ctf_title=item.lab_title,
-                license_key=license_key,
-                total_team_slots=10,
-                assigned_team_slots=0,
-                status="ACTIVE",
-                expiry_date=expiry,
-                assigned_to="admin",
-                fixed_rate=item.price
-            )
-            db.add(purchased_ctf)
-            db.flush()
-            continue
-
-        license_key = f"LIC-{item.lab_id.upper()}-{secrets.token_hex(6).upper()}"
-        hours = item.hours_purchased or 40
-
-        purchased_lab = PurchasedLab(
-            user_id=current_user.id,
-            organization_id=resolved_org_id,
-            lab_id=item.lab_id,
-            lab_title=item.lab_title,
-            license_key=license_key,
-            total_seats=999, # Deprecate seat constraints
-            assigned_seats=0,
-            status="ACTIVE",
-            expiry_date=expiry,
-            hours_purchased=hours,
-            hours_remaining=hours,
-            hours_used=0
+    if order.razorpay_order_id != data.razorpay_order_id:
+        logger.warning(
+            "Razorpay order ID mismatch | db_order=%s | expected=%s | received=%s",
+            order.id,
+            order.razorpay_order_id,
+            data.razorpay_order_id,
         )
-        db.add(purchased_lab)
-        db.flush()
+        raise HTTPException(status_code=400, detail="Razorpay order ID mismatch.")
 
-    # 5. Clear Cart
-    cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
-    if cart:
-        db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
+    if not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=500, detail="Razorpay secret is not configured.")
 
-    log_audit_event(
-        db=db,
-        action="Razorpay Payment Success",
-        entity="Order",
-        entity_id=str(order.id),
-        performed_by=current_user.email,
-        performed_by_role=current_user.role,
-        organization_id=order.organization_id,
-        status="SUCCESS",
-        new_value=f"Paid {order.grand_total} INR via Razorpay TXN: {data.razorpay_payment_id}",
-        request=request
-    )
+    secret = settings.RAZORPAY_KEY_SECRET.strip().strip("'").strip('"')
+    message = f"{data.razorpay_order_id}|{data.razorpay_payment_id}"
+    generated_signature = hmac.new(
+        secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
-    # 6. Automatic Production Notification Dispatch
+    if not hmac.compare_digest(generated_signature, data.razorpay_signature):
+        logger.warning(
+            "Razorpay payment signature verification failed | order=%s | payment=%s",
+            order.id,
+            data.razorpay_payment_id,
+        )
+        order.status = "FAILED"
+        db.add(AuditLog(
+            action="Razorpay Signature Verification Failed",
+            entity="Order",
+            entity_id=str(order.id),
+            performed_by=current_user.email,
+            performed_by_role=current_user.role,
+            organization_id=order.organization_id,
+            user_id=current_user.id,
+            status="FAILED",
+            new_value=f"Invalid signature for Razorpay payment {data.razorpay_payment_id}",
+            resource="Order",
+            resource_id=str(order.id),
+        ))
+        db.commit()
+        raise HTTPException(status_code=400, detail="Razorpay signature verification failed.")
+
     try:
-        from app.services.notification_service import notification_service
-        notification_service.create_and_send(
+        result = _finalize_paid_order(
             db=db,
-            user_id=current_user.id,
-            title="Lab Purchase Successful",
-            message=f"Your purchase of enterprise lab seats for Order #{order.order_number} (₹{order.grand_total:,.2f}) was verified successfully.",
-            notification_type="PURCHASE",
-            priority="HIGH",
-            action_url="/admin/purchased-labs",
-            phone_number=getattr(current_user, "phone", None)
+            razorpay_order_id=data.razorpay_order_id,
+            payment_id=data.razorpay_payment_id,
+            method="Razorpay Online",
+            expected_user_id=current_user.id,
         )
-    except Exception as n_err:
-        logger.warning(f"Payment notification dispatch failed (non-fatal): {n_err}")
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Razorpay order finalization failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Payment verified but order finalization failed. It is safe to retry.")
 
-    db.commit()
+    finalized_order = result["order"]
+    invoice = result["invoice"]
+
+    # Notification happens after the financial transaction is committed.
+    if result["newly_finalized"]:
+        try:
+            from app.services.notification_service import notification_service
+            notification_service.create_and_send(
+                db=db,
+                user_id=current_user.id,
+                title="Lab Purchase Successful",
+                message=f"Your purchase for Order #{finalized_order.order_number} (₹{finalized_order.grand_total:,.2f}) was verified successfully.",
+                notification_type="PURCHASE",
+                priority="HIGH",
+                action_url="/admin/purchased-labs",
+                phone_number=getattr(current_user, "phone", None),
+            )
+        except Exception as n_err:
+            logger.warning("Payment notification dispatch failed (non-fatal): %s", n_err)
+
     return {
         "status": "success",
-        "message": "Razorpay payment verified and licenses provisioned successfully!",
-        "order_number": order.order_number,
-        "invoice_number": inv_num,
+        "message": "Razorpay payment verified and order finalized successfully!",
+        "order_number": finalized_order.order_number,
+        "invoice_number": invoice.invoice_number if invoice else None,
         "transaction_id": data.razorpay_payment_id,
-        "amount_paid": order.grand_total
+        "amount_paid": finalized_order.grand_total,
+        "already_finalized": not result["newly_finalized"],
     }
 
 @router.get("/payments/invoice/{invoice_id}/pdf")
@@ -586,79 +778,65 @@ async def razorpay_webhook_listener(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """
-    Razorpay Production Webhook Endpoint.
-    Verifies X-Razorpay-Signature HMAC header before processing event payloads.
-    Supports: payment.captured, payment.failed, refund.processed, subscription.charged.
-    """
+    """Verify Razorpay's webhook HMAC and finalize captured orders idempotently."""
     body = await request.body()
     signature = request.headers.get("X-Razorpay-Signature") or request.headers.get("x-razorpay-signature")
 
     if not settings.RAZORPAY_WEBHOOK_SECRET:
         logger.error("Razorpay Webhook Secret is missing in backend environment configuration.")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Razorpay Webhook Secret is not configured on server."
-        )
-
+        raise HTTPException(status_code=500, detail="Razorpay Webhook Secret is not configured on server.")
     if not signature:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing X-Razorpay-Signature header.")
+        raise HTTPException(status_code=400, detail="Missing X-Razorpay-Signature header.")
 
     expected_sig = hmac.new(
         settings.RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),
         body,
-        hashlib.sha256
+        hashlib.sha256,
     ).hexdigest()
-    if expected_sig != signature:
+    if not hmac.compare_digest(expected_sig, signature):
         logger.warning("Razorpay Webhook HMAC signature mismatch.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Razorpay webhook signature.")
+        raise HTTPException(status_code=400, detail="Invalid Razorpay webhook signature.")
 
     try:
         import json
         payload = json.loads(body.decode("utf-8"))
         event = payload.get("event")
         event_payload = payload.get("payload", {})
-
-        logger.info(f"[Razorpay Webhook] Received event: {event}")
+        logger.info("[Razorpay Webhook] Received event: %s", event)
 
         if event in ["payment.captured", "order.paid"]:
             payment_entity = event_payload.get("payment", {}).get("entity", {})
             rzp_order_id = payment_entity.get("order_id")
             payment_id = payment_entity.get("id")
 
-            if rzp_order_id and payment_id:
-                # Find DB Order
-                existing_pay = db.query(Payment).filter(Payment.transaction_id == payment_id).first()
-                if not existing_pay:
-                    order = db.query(Order).filter(Order.razorpay_order_id == rzp_order_id).first()
-                    if order:
-                        order.status = "COMPLETED"
-                        order.payment_status = "COMPLETED"
-                        pay = Payment(
-                            order_id=order.id,
-                            transaction_id=payment_id,
-                            payment_status="SUCCESS",
-                            gateway="razorpay",
-                            amount=order.grand_total,
-                            currency="INR",
-                            method="Razorpay Webhook"
-                        )
-                        db.add(pay)
-                        db.commit()
+            if not rzp_order_id or not payment_id:
+                logger.warning("Captured/paid webhook missing order_id or payment_id; ignoring event.")
+                return {"status": "ok", "message": "Webhook ignored: missing payment identifiers"}
+
+            _finalize_paid_order(
+                db=db,
+                razorpay_order_id=rzp_order_id,
+                payment_id=payment_id,
+                method="Razorpay Webhook",
+                reported_amount_paise=payment_entity.get("amount"),
+                reported_currency=payment_entity.get("currency"),
+            )
 
         elif event == "payment.failed":
             payment_entity = event_payload.get("payment", {}).get("entity", {})
             payment_id = payment_entity.get("id", "FAILED_TXN")
-            log_audit_event(
-                db=db,
+            db.add(AuditLog(
                 action="Razorpay Webhook Payment Failed",
                 entity="Payment",
                 entity_id=payment_id,
                 performed_by="Razorpay Webhook",
                 performed_by_role="System",
                 status="FAILED",
-                new_value=f"Payment failed via webhook callback for txn: {payment_id}"
-            )
+                new_value=f"Payment failed via webhook callback for txn: {payment_id}",
+                resource="Payment",
+                resource_id=payment_id,
+            ))
+            db.commit()
 
         elif event == "refund.processed":
             refund_entity = event_payload.get("refund", {}).get("entity", {})
@@ -669,10 +847,16 @@ async def razorpay_webhook_listener(
                     pay.payment_status = "REFUNDED"
                     db.commit()
 
-    except Exception as e:
-        logger.error(f"Error parsing Razorpay webhook body: {e}")
+        return {"status": "ok", "message": "Webhook processed successfully"}
 
-    return {"status": "ok", "message": "Webhook processed successfully"}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Razorpay webhook processing failed: %s", exc)
+        # Non-2xx makes Razorpay retry instead of silently losing provisioning.
+        raise HTTPException(status_code=500, detail="Webhook processing failed; please retry.")
 
 class RefundRequest(BaseModel):
     payment_id: int
@@ -723,16 +907,21 @@ def process_refund_request(
 
 class StudentCreateOrderRequest(BaseModel):
     lab_id: str
-    price: float
+    # Kept temporarily for frontend compatibility. NEVER used to determine charge.
+    price: Optional[float] = None
     hours: float = 1.0
 
+
 class StudentVerifyPaymentRequest(BaseModel):
-    lab_id: str
+    # These client fields are retained for backward compatibility, but the server
+    # does not trust lab_id / amount / hours for entitlement provisioning.
+    lab_id: Optional[str] = None
     razorpay_order_id: str
     razorpay_payment_id: str
     razorpay_signature: str
-    amount: float
-    hours: float = 1.0
+    amount: Optional[float] = None
+    hours: Optional[float] = None
+
 
 @router.post("/student/create-order")
 def student_create_checkout_order(
@@ -741,50 +930,118 @@ def student_create_checkout_order(
     db: Session = Depends(get_db)
 ):
     """
-    Initializes a Razorpay order specifically for student purchase flow.
+    Create a student Razorpay order from server-authoritative lab pricing.
+
+    The client's price is ignored. Lab, hours, rate, total, user and Razorpay order ID
+    are persisted in Order/OrderItem before the payment can be verified.
     """
-    amount_in_paise = int(data.price * 100)
+    if data.hours <= 0 or data.hours > 1000:
+        raise HTTPException(status_code=400, detail="Purchased hours must be between 0 and 1000.")
+
+    purchased = db.query(PurchasedLab).filter(
+        PurchasedLab.user_id == current_user.id,
+        PurchasedLab.lab_id == data.lab_id,
+        PurchasedLab.status == "ACTIVE",
+    ).first()
+    if purchased:
+        raise HTTPException(status_code=409, detail="This lab is already active for your account.")
+
+    from app.models.lab import Lab
+    from app.api.v1.endpoints.cart_api import get_sysadmin_rate
+
+    lab = db.query(Lab).filter(Lab.id == data.lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab not found.")
+
+    rate = float(get_sysadmin_rate(db, data.lab_id) or 0.0)
+    if rate <= 0:
+        raise HTTPException(status_code=400, detail="This lab is free or has no payable rate; Razorpay checkout is not required.")
+
+    hours = float(data.hours)
+    authoritative_total = round(rate * hours, 2)
+    amount_in_paise = int(round(authoritative_total * 100))
     order_num = f"STU-{datetime.utcnow().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
 
+    if data.price is not None and abs(float(data.price) - authoritative_total) > 0.01:
+        logger.warning(
+            "Ignored client student price mismatch | user=%s | lab=%s | client=%s | server=%s",
+            current_user.id,
+            data.lab_id,
+            data.price,
+            authoritative_total,
+        )
+
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-        # Fallback fake order structure for demo/testing setup without backend crash
-        return {
-            "success": True,
-            "order_id": 9999,
-            "order_number": order_num,
-            "amount": data.price,
-            "amount_paise": amount_in_paise,
-            "currency": "INR",
-            "razorpay_order_id": f"order_{secrets.token_hex(8)}",
-            "razorpay_key_id": "rzp_test_placeholder"
-        }
+        raise HTTPException(status_code=500, detail="Payment gateway is unconfigured.")
 
     try:
         import razorpay
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        client = razorpay.Client(auth=(
+            settings.RAZORPAY_KEY_ID.strip().strip("'").strip('"'),
+            settings.RAZORPAY_KEY_SECRET.strip().strip("'").strip('"'),
+        ))
         rzp_order = client.order.create({
             "amount": amount_in_paise,
             "currency": "INR",
             "receipt": order_num,
-            "notes": {"user_id": str(current_user.id), "lab_id": data.lab_id}
+            "notes": {
+                "user_id": str(current_user.id),
+                "lab_id": data.lab_id,
+                "hours": str(hours),
+            },
         })
         razorpay_order_id = rzp_order.get("id")
-    except Exception as e:
-        logger.error(f"Razorpay Student Order failed: {e}")
-        # Graceful fallback order ID
-        razorpay_order_id = f"order_{secrets.token_hex(8)}"
+        if not razorpay_order_id or not razorpay_order_id.startswith("order_"):
+            raise ValueError("Razorpay returned an invalid order ID")
+    except Exception as exc:
+        logger.exception("Razorpay Student Order failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to create Razorpay student order.")
+
+    resolved_org_id = _resolve_order_owner_org_id(db, current_user)
+    order = Order(
+        order_number=order_num,
+        razorpay_order_id=razorpay_order_id,
+        user_id=current_user.id,
+        organization_id=resolved_org_id,
+        institution_name=getattr(current_user, "organization", None) or "Student Purchase",
+        subtotal=authoritative_total,
+        tax=0.0,
+        discount=0.0,
+        grand_total=authoritative_total,
+        status="PENDING",
+        payment_status="PENDING",
+    )
+    db.add(order)
+    db.flush()
+
+    db.add(OrderItem(
+        order_id=order.id,
+        lab_id=data.lab_id,
+        lab_title=getattr(lab, "name", None) or data.lab_id.replace("-", " ").title(),
+        seats=1,
+        duration_months=12,
+        price=rate,
+        hours_purchased=hours,
+        item_type="lab",
+        ctf_id=None,
+    ))
+    db.commit()
+    db.refresh(order)
 
     return {
         "success": True,
-        "order_id": 9999,
-        "order_number": order_num,
-        "amount": data.price,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "amount": order.grand_total,
         "amount_paise": amount_in_paise,
         "currency": "INR",
         "razorpay_order_id": razorpay_order_id,
-        "razorpay_key_id": settings.RAZORPAY_KEY_ID or "rzp_test_placeholder",
-        "key": settings.RAZORPAY_KEY_ID or "rzp_test_placeholder"
+        "razorpay_key_id": settings.RAZORPAY_KEY_ID,
+        "key": settings.RAZORPAY_KEY_ID,
+        "hours": hours,
+        "lab_id": data.lab_id,
     }
+
 
 @router.post("/student/verify-payment")
 def student_verify_payment(
@@ -792,130 +1049,87 @@ def student_verify_payment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Verifies Razorpay payment signature using official SDK and unlocks the lab.
-    """
-    logger.info(f"[StudentVerify] START | user={current_user.id} ({current_user.email}) | lab={data.lab_id} | order={data.razorpay_order_id} | payment={data.razorpay_payment_id} | sig={data.razorpay_signature} | amount={data.amount}")
-
-    # 1. Prevent duplicate purchases
-    purchased = db.query(PurchasedLab).filter(
-        PurchasedLab.user_id == current_user.id,
-        PurchasedLab.lab_id == data.lab_id,
-        PurchasedLab.status == "ACTIVE"
+    """Verify Razorpay and provision only the server-persisted student order values."""
+    order = db.query(Order).filter(
+        Order.user_id == current_user.id,
+        Order.razorpay_order_id == data.razorpay_order_id,
+        Order.order_number.like("STU-%"),
     ).first()
-    if purchased:
-        logger.info(f"[StudentVerify] Duplicate check: Lab '{data.lab_id}' already purchased by user {current_user.id}")
-        return {"status": "success", "message": "Lab already purchased.", "lab_id": data.lab_id}
+    if not order:
+        raise HTTPException(status_code=404, detail="Student payment order not found.")
 
-    # 2. Validate Razorpay Configuration
+    if not order.items:
+        raise HTTPException(status_code=500, detail="Student payment order has no server-side order item.")
+
     key_secret = settings.RAZORPAY_KEY_SECRET
     key_id = settings.RAZORPAY_KEY_ID
     if not key_id or not key_secret:
-        logger.error("[StudentVerify] Razorpay credentials missing from settings")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Payment gateway is unconfigured. Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET."
-        )
+        raise HTTPException(status_code=500, detail="Payment gateway is unconfigured.")
 
     key_secret = key_secret.strip().strip("'").strip('"')
     key_id = key_id.strip().strip("'").strip('"')
 
-    # 3. Signature Verification
     try:
         import razorpay as razorpay_lib
         client = razorpay_lib.Client(auth=(key_id, key_secret))
         client.utility.verify_payment_signature({
-            'razorpay_order_id': data.razorpay_order_id,
-            'razorpay_payment_id': data.razorpay_payment_id,
-            'razorpay_signature': data.razorpay_signature
+            "razorpay_order_id": data.razorpay_order_id,
+            "razorpay_payment_id": data.razorpay_payment_id,
+            "razorpay_signature": data.razorpay_signature,
         })
-        logger.info(f"[StudentVerify] Signature successfully verified for payment={data.razorpay_payment_id}")
-    except razorpay_lib.errors.SignatureVerificationError as e:
-        logger.error(f"[StudentVerify] Signature verification failed: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Razorpay signature verification failed. Payment rejected.")
-    except Exception as e:
-        logger.error(f"[StudentVerify] Unexpected signature verification error: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Signature verification error: {str(e)}")
 
-    # 4. Database Transaction for Ownership & Payment Storage
+        # Defense in depth: bind the payment to the server-side order and amount.
+        payment_entity = client.payment.fetch(data.razorpay_payment_id)
+        if payment_entity.get("order_id") != order.razorpay_order_id:
+            raise HTTPException(status_code=400, detail="Razorpay payment belongs to a different order.")
+        if int(payment_entity.get("amount", -1)) != int(round(float(order.grand_total) * 100)):
+            raise HTTPException(status_code=400, detail="Razorpay payment amount does not match the server order.")
+        if str(payment_entity.get("currency", "")).upper() != "INR":
+            raise HTTPException(status_code=400, detail="Unexpected payment currency.")
+        if payment_entity.get("status") not in ("authorized", "captured"):
+            raise HTTPException(status_code=400, detail="Razorpay payment has not been authorized/captured.")
+
+    except HTTPException:
+        raise
+    except razorpay_lib.errors.SignatureVerificationError:
+        logger.warning(
+            "Student Razorpay signature verification failed | user=%s | order=%s | payment=%s",
+            current_user.id,
+            data.razorpay_order_id,
+            data.razorpay_payment_id,
+        )
+        raise HTTPException(status_code=400, detail="Razorpay signature verification failed. Payment rejected.")
+    except Exception as exc:
+        logger.exception("Student payment verification error: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not verify payment with Razorpay. It is safe to retry.")
+
     try:
-        # Prevent processing duplicate transaction IDs
-        existing_payment_log = db.query(AuditLog).filter(
-            AuditLog.new_value == data.razorpay_payment_id,
-            AuditLog.action == "STUDENT_LAB_PURCHASE",
-            AuditLog.status == "SUCCESS"
-        ).first()
-        if existing_payment_log:
-            logger.info(f"[StudentVerify] Duplicate payment detection: ID {data.razorpay_payment_id} already exists")
-            return {"status": "success", "message": "Payment already verified and processed.", "lab_id": data.lab_id}
-
-        # Resolve organization_id from user's group organization
-        org_id = None
-        if getattr(current_user, 'group_id', None):
-            from app.models.group import Group
-            user_group = db.query(Group).filter(Group.id == current_user.group_id).first()
-            if user_group:
-                org_id = user_group.organization_id
-
-        # Create PurchasedLab ownership record
-        license_key = f"LIC-{data.lab_id.upper()}-STU-{secrets.token_hex(4).upper()}"
-        purchased_record = PurchasedLab(
-            user_id=current_user.id,
-            organization_id=org_id,
-            lab_id=data.lab_id,
-            lab_title=data.lab_id.replace("-", " ").title(),
-            license_key=license_key,
-            total_seats=1,
-            assigned_seats=1,
-            status="ACTIVE",
-            expiry_date=datetime.utcnow() + timedelta(days=365),
-            hours_purchased=data.hours,
-            hours_remaining=data.hours,
-            hours_used=0.0
+        result = _finalize_paid_order(
+            db=db,
+            razorpay_order_id=data.razorpay_order_id,
+            payment_id=data.razorpay_payment_id,
+            method="Razorpay Student Online",
+            expected_user_id=current_user.id,
+            reported_amount_paise=payment_entity.get("amount"),
+            reported_currency=payment_entity.get("currency"),
         )
-        db.add(purchased_record)
-        db.flush()
-        logger.info(f"[StudentVerify] DB Insert: PurchasedLab created with ID {purchased_record.id}")
-
-        # Provision individual seat license key
-        seat_key = f"KEY-{data.lab_id.upper()}-STU-{secrets.token_hex(4).upper()}"
-        lic = License(
-            purchased_lab_id=purchased_record.id,
-            license_key=seat_key,
-            allocated_user_email=current_user.email,
-            status="ASSIGNED",
-            expiry_date=datetime.utcnow() + timedelta(days=365),
-            hours_allocated=data.hours,
-            hours_used=0.0
-        )
-        db.add(lic)
-        logger.info(f"[StudentVerify] DB Insert: License key '{seat_key}' provisioned")
-
-        # Save payment log / transaction history record
-        log_entry = AuditLog(
-            action="STUDENT_LAB_PURCHASE",
-            entity="PurchasedLab",
-            entity_id=str(purchased_record.id),
-            performed_by=current_user.email,
-            performed_by_role=getattr(current_user, 'role', 'student'),
-            user_id=current_user.id,
-            old_value=data.razorpay_order_id,
-            new_value=data.razorpay_payment_id,
-            resource="Lab",
-            resource_id=data.lab_id,
-            ip_address="127.0.0.1",
-            status="SUCCESS"
-        )
-        db.add(log_entry)
-        db.commit()
-
-        logger.info(f"[StudentVerify] SUCCESS | Lab '{data.lab_id}' unlocked for user {current_user.email}")
-        return {"status": "success", "message": "Payment verified. Lab successfully unlocked!", "lab_id": data.lab_id}
-
-    except Exception as e:
+    except HTTPException:
         db.rollback()
-        logger.error(f"[StudentVerify] Database error occurred. Transaction rolled back: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database transaction error: {str(e)}")
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Student order finalization failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Payment verified but provisioning failed. It is safe to retry.")
+
+    server_item = result["order"].items[0]
+    return {
+        "status": "success",
+        "message": "Payment verified. Lab successfully unlocked!",
+        "lab_id": server_item.lab_id,
+        "hours": server_item.hours_purchased,
+        "order_id": result["order"].id,
+        "already_finalized": not result["newly_finalized"],
+    }
 
 @router.post("/student/unlock-lab")
 def student_unlock_lab(
