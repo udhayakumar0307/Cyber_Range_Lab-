@@ -2551,11 +2551,12 @@ async def bulk_import_users(
             return {
                 "status": "failed",
                 "message": "Bulk import failed validation checks. No accounts were created.",
-                "imported": 0,
-                "duplicates": len(duplicate_rows),
-                "failed": len(failed_rows),
-                "duplicate_details": duplicate_rows,
-                "failed_details": failed_rows
+                "total_processed": len(rows),
+                "success_count": 0,
+                "failure_count": len(failed_rows),
+                "errors": [
+                    {"row_index": r["row"], "error_detail": r["reason"]} for r in failed_rows
+                ]
             }
 
         db.commit()
@@ -2580,18 +2581,19 @@ async def bulk_import_users(
         entity_id=f"batch-{int(datetime.utcnow().timestamp())}",
         performed_by=current_user.email,
         performed_by_role=current_user.role,
-        organization_id=org_id,
+        organization_id=admin_org_id,
         new_value=f"File: {file.filename}, Imported: {imported_count}, Duplicates: {len(duplicate_rows)}, Failed: {len(failed_rows)}",
         request=request
     )
 
     return {
         "status": "success",
-        "imported": imported_count,
-        "duplicates": len(duplicate_rows),
-        "failed": len(failed_rows),
-        "duplicate_details": duplicate_rows,
-        "failed_details": failed_rows
+        "total_processed": len(rows),
+        "success_count": imported_count,
+        "failure_count": len(duplicate_rows),
+        "errors": [
+            {"row_index": r["row"], "error_detail": r["reason"]} for r in duplicate_rows
+        ]
     }
 
 @router.get("/users/export")
