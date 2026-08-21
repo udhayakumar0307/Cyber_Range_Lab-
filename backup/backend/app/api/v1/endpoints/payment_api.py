@@ -154,6 +154,9 @@ def verify_payment(
     Creates Payment, Invoice, PurchasedLab, and individual License records within a DB transaction.
     """
     order = db.query(Order).filter(Order.id == data.order_id, Order.user_id == current_user.id).first()
+    if order.razorpay_order_id != data.razorpay_order_id:
+        logger.warning(f"Razorpay order ID mismatch: DB Order {order.razorpay_order_id} vs Request {data.razorpay_order_id}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Razorpay order ID mismatch.")
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
 
@@ -219,6 +222,7 @@ def verify_payment(
     db.flush()
 
     order.status = "COMPLETED"
+    order.payment_status = "COMPLETED"
 
     # 3. Generate Official Invoice
     inv_num = f"INV-{datetime.utcnow().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
@@ -626,9 +630,10 @@ async def razorpay_webhook_listener(
                 # Find DB Order
                 existing_pay = db.query(Payment).filter(Payment.transaction_id == payment_id).first()
                 if not existing_pay:
-                    order = db.query(Order).filter(Order.status == "PENDING").order_by(Order.id.desc()).first()
+                    order = db.query(Order).filter(Order.razorpay_order_id == rzp_order_id).first()
                     if order:
                         order.status = "COMPLETED"
+                        order.payment_status = "COMPLETED"
                         pay = Payment(
                             order_id=order.id,
                             transaction_id=payment_id,
