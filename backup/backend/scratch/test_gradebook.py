@@ -1,0 +1,207 @@
+"""
+Acceptance test for Point #5 interactive gradebook.
+
+Runs inside a transaction and rolls everything back.
+
+Validates:
+- assignment-specific auto score
+- manual adjustment + feedback
+- draft grade tracks live automatic evidence
+- publish freezes a grade snapshot
+- published grade cannot be edited
+- reopen unlocks the grade
+"""
+
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+from app.database.session import SessionLocal
+from app.models.assignment import Assignment
+from app.models.assignment_grade import AssignmentGrade
+from app.models.lab import Lab
+from app.models.lab_module import LabModule
+from app.models.score_event import ScoreEvent
+from app.models.user import User
+from app.services.gradebook_service import GradebookService
+
+
+def run():
+    db = SessionLocal()
+    tx = db.begin_nested()
+
+    try:
+        print("=" * 80)
+        print("INTERACTIVE GRADEBOOK ACCEPTANCE TEST")
+        print("=" * 80)
+
+        users = (
+            db.query(User)
+            .filter(~User.role.ilike("%admin%"))
+            .order_by(User.id.asc())
+            .limit(2)
+            .all()
+        )
+        assert users, "Need at least one non-admin user."
+        student = users[0]
+        grader = users[1] if len(users) > 1 else users[0]
+
+        lab = (
+            db.query(Lab)
+            .join(LabModule, LabModule.lab_id == Lab.id)
+            .first()
+        )
+        assert lab is not None, "Need a lab with at least one LabModule."
+
+        modules = (
+            db.query(LabModule)
+            .filter(LabModule.lab_id == lab.id)
+            .order_by(LabModule.display_order.asc(), LabModule.module_number.asc())
+            .limit(2)
+            .all()
+        )
+        assert modules, "Need at least one module."
+
+        now = datetime.utcnow()
+        assignment = Assignment(
+            lab_id=lab.id,
+            student_id=student.id,
+            group_id=None,
+            start_datetime=now - timedelta(hours=1),
+            end_datetime=now + timedelta(hours=2),
+            status="Assigned",
+            assigned_by=str(grader.id),
+        )
+        db.add(assignment)
+        db.flush()
+
+        first = modules[0]
+        db.add(
+            ScoreEvent(
+                assignment_id=assignment.id,
+                user_id=student.id,
+                lab_id=lab.id,
+                track_id=first.track,
+                module_id=first.id,
+                event_type="MODULE_COMPLETION",
+                points=first.points,
+                created_at=now,
+            )
+        )
+        db.flush()
+
+        book = GradebookService.get_gradebook(db, assignment.id)
+        row = book["students"][0]
+
+        assert row["student_id"] == student.id
+        assert row["auto_score_earned"] == float(first.points)
+        assert row["grade_status"] == "DRAFT"
+        print("✅ CASE A: assignment-scoped automatic score loaded")
+
+        GradebookService.save_draft(
+            db=db,
+            assignment_id=assignment.id,
+            student_id=student.id,
+            manual_adjustment=5,
+            feedback="Strong work.",
+            graded_by=grader.id,
+        )
+        db.flush()
+
+        book = GradebookService.get_gradebook(db, assignment.id)
+        row = book["students"][0]
+
+        assert row["manual_adjustment"] == 5.0
+        assert row["feedback"] == "Strong work."
+        assert row["final_percent"] == min(
+            100.0, round(row["auto_percent"] + 5.0, 2)
+        )
+        print("✅ CASE B: professor adjustment + feedback saved as draft")
+
+        GradebookService.publish(
+            db,
+            assignment.id,
+            graded_by=grader.id,
+        )
+        db.flush()
+
+        published_book = GradebookService.get_gradebook(db, assignment.id)
+        published_row = published_book["students"][0]
+        frozen_final = published_row["final_percent"]
+        frozen_auto = published_row["auto_score_earned"]
+
+        assert published_row["grade_status"] == "PUBLISHED"
+        assert published_row["published_at"] is not None
+        print("✅ CASE C: gradebook published with stable snapshot")
+
+        # Add another completion after publication if a second module exists.
+        if len(modules) > 1:
+            second = modules[1]
+            db.add(
+                ScoreEvent(
+                    assignment_id=assignment.id,
+                    user_id=student.id,
+                    lab_id=lab.id,
+                    track_id=second.track,
+                    module_id=second.id,
+                    event_type="MODULE_COMPLETION",
+                    points=second.points,
+                    created_at=now + timedelta(minutes=5),
+                )
+            )
+            db.flush()
+
+            still_published = GradebookService.get_gradebook(
+                db, assignment.id
+            )["students"][0]
+            assert still_published["auto_score_earned"] == frozen_auto
+            assert still_published["final_percent"] == frozen_final
+            print("✅ CASE D: published grade did not drift after new evidence")
+        else:
+            print("⚠️ CASE D skipped: lab only has one module")
+
+        edit_blocked = False
+        try:
+            GradebookService.save_draft(
+                db=db,
+                assignment_id=assignment.id,
+                student_id=student.id,
+                manual_adjustment=10,
+                feedback="Should be blocked",
+                graded_by=grader.id,
+            )
+        except Exception:
+            edit_blocked = True
+
+        assert edit_blocked
+        print("✅ CASE E: published grade is locked")
+
+        GradebookService.reopen(
+            db,
+            assignment.id,
+            graded_by=grader.id,
+        )
+        db.flush()
+
+        reopened = GradebookService.get_gradebook(
+            db, assignment.id
+        )["students"][0]
+        assert reopened["grade_status"] == "DRAFT"
+
+        if len(modules) > 1:
+            assert reopened["auto_score_earned"] >= frozen_auto
+
+        print("✅ CASE F: reopen returns grade to live draft state")
+
+        print("=" * 80)
+        print("✅ ALL INTERACTIVE GRADEBOOK TESTS PASSED")
+        print("=" * 80)
+
+    finally:
+        tx.rollback()
+        db.rollback()
+        db.close()
+        print("Test transaction rolled back.")
+
+
+if __name__ == "__main__":
+    run()

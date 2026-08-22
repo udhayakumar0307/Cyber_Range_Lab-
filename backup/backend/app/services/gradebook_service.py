@@ -1,0 +1,511 @@
+"""
+Assignment gradebook business logic.
+
+Point #5 scope:
+- Assignment-scoped gradebook roster.
+- Automatic score derived from immutable ScoreEvent completion evidence.
+- Professor manual adjustment and feedback.
+- Draft / publish / reopen workflow.
+- Published-grade snapshots.
+
+This intentionally does NOT define formal rubric semantics (#6) or globally
+normalize all platform score units (#7).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Dict, Iterable, List, Optional
+
+from fastapi import HTTPException
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.models.assignment import Assignment
+from app.models.assignment_grade import AssignmentGrade
+from app.models.group import Group
+from app.models.lab import Lab
+from app.models.lab_module import LabModule
+from app.models.score_event import ScoreEvent
+from app.models.user import User
+from app.models.user_lab_progress import UserLabProgress
+from app.models.user_progress import UserProgress
+
+
+MODULE_COMPLETION = "MODULE_COMPLETION"
+
+
+class GradebookService:
+    @staticmethod
+    def _clamp_percent(value: float) -> float:
+        return round(max(0.0, min(100.0, float(value))), 2)
+
+    @staticmethod
+    def get_assignment(db: Session, assignment_id: int) -> Assignment:
+        assignment = (
+            db.query(Assignment)
+            .filter(
+                Assignment.id == assignment_id,
+                Assignment.deleted_at.is_(None),
+            )
+            .first()
+        )
+        if assignment is None:
+            raise HTTPException(status_code=404, detail="Assignment not found.")
+        return assignment
+
+    @staticmethod
+    def get_roster(db: Session, assignment: Assignment) -> List[User]:
+        if assignment.student_id is not None:
+            student = (
+                db.query(User)
+                .filter(User.id == assignment.student_id)
+                .first()
+            )
+            return [student] if student is not None else []
+
+        if assignment.group_id is not None:
+            return (
+                db.query(User)
+                .filter(
+                    User.group_id == assignment.group_id,
+                    ~User.role.ilike("%admin%"),
+                    ~User.role.ilike("%sysadmin%"),
+                )
+                .order_by(User.name.asc(), User.email.asc())
+                .all()
+            )
+
+        return []
+
+    @staticmethod
+    def get_score_possible(db: Session, assignment: Assignment) -> Dict[str, float]:
+        module_total = (
+            db.query(func.sum(LabModule.points))
+            .filter(LabModule.lab_id == assignment.lab_id)
+            .scalar()
+        )
+        module_count = (
+            db.query(func.count(LabModule.id))
+            .filter(LabModule.lab_id == assignment.lab_id)
+            .scalar()
+            or 0
+        )
+
+        if module_total and float(module_total) > 0:
+            return {
+                "score_possible": float(module_total),
+                "total_modules": int(module_count),
+                "score_source": "lab_modules",
+            }
+
+        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+        if lab is not None and (lab.max_points or 0) > 0:
+            return {
+                "score_possible": float(lab.max_points),
+                "total_modules": int(module_count),
+                "score_source": "lab.max_points",
+            }
+
+        # No arbitrary denominator. Point #7 will standardize score units.
+        return {
+            "score_possible": 0.0,
+            "total_modules": int(module_count),
+            "score_source": "unavailable",
+        }
+
+    @staticmethod
+    def calculate_student_metrics(
+        db: Session,
+        assignment: Assignment,
+        student: User,
+        score_meta: Optional[Dict[str, float]] = None,
+    ) -> Dict:
+        score_meta = score_meta or GradebookService.get_score_possible(
+            db, assignment
+        )
+
+        completion_events = (
+            db.query(ScoreEvent)
+            .filter(
+                ScoreEvent.user_id == student.id,
+                ScoreEvent.assignment_id == assignment.id,
+                ScoreEvent.event_type == MODULE_COMPLETION,
+            )
+            .order_by(ScoreEvent.created_at.asc())
+            .all()
+        )
+
+        auto_score = float(
+            sum(Decimal(str(event.points or 0)) for event in completion_events)
+        )
+
+        possible = float(score_meta["score_possible"])
+        auto_percent = (
+            GradebookService._clamp_percent((auto_score / possible) * 100.0)
+            if possible > 0
+            else 0.0
+        )
+
+        ulp_rows = (
+            db.query(UserLabProgress)
+            .filter(
+                UserLabProgress.user_id == student.id,
+                UserLabProgress.assignment_id == assignment.id,
+            )
+            .all()
+        )
+        up_rows = (
+            db.query(UserProgress)
+            .filter(
+                UserProgress.user_id == str(student.id),
+                UserProgress.assignment_id == assignment.id,
+            )
+            .all()
+        )
+
+        attempts = sum(int(row.attempts or 0) for row in ulp_rows)
+        completion_time_seconds = sum(
+            int(row.time_taken_seconds or 0) for row in ulp_rows
+        )
+
+        activity_times = [
+            row.completed_at
+            for row in ulp_rows
+            if row.completed_at is not None
+        ]
+        activity_times += [
+            row.updated_at
+            for row in up_rows
+            if getattr(row, "updated_at", None) is not None
+        ]
+        activity_times += [
+            event.created_at
+            for event in completion_events
+            if event.created_at is not None
+        ]
+
+        last_activity_at = max(activity_times) if activity_times else None
+
+        completed_modules = len(
+            {
+                event.module_id
+                for event in completion_events
+                if event.module_id
+            }
+        )
+
+        total_modules = int(score_meta.get("total_modules") or 0)
+        completion_percent = (
+            round(min(100.0, (completed_modules / total_modules) * 100.0), 2)
+            if total_modules > 0
+            else None
+        )
+
+        return {
+            "auto_score_earned": round(auto_score, 2),
+            "score_possible": round(possible, 2),
+            "auto_percent": round(auto_percent, 2),
+            "completed_modules": completed_modules,
+            "total_modules": total_modules,
+            "completion_percent": completion_percent,
+            "attempts": attempts,
+            "completion_time_seconds": completion_time_seconds,
+            "last_activity_at": last_activity_at,
+            "score_source": score_meta["score_source"],
+        }
+
+    @staticmethod
+    def _grade_row(
+        db: Session,
+        assignment_id: int,
+        student_id: int,
+    ) -> Optional[AssignmentGrade]:
+        return (
+            db.query(AssignmentGrade)
+            .filter(
+                AssignmentGrade.assignment_id == assignment_id,
+                AssignmentGrade.student_id == student_id,
+            )
+            .first()
+        )
+
+    @staticmethod
+    def _serialize_row(
+        student: User,
+        metrics: Dict,
+        grade: Optional[AssignmentGrade],
+    ) -> Dict:
+        adjustment = float(grade.manual_adjustment or 0) if grade else 0.0
+
+        if grade and grade.status == "PUBLISHED":
+            auto_score = float(grade.auto_score_earned or 0)
+            possible = float(grade.score_possible or 0)
+            auto_percent = float(grade.auto_percent or 0)
+            final_percent = float(grade.final_percent or 0)
+        else:
+            auto_score = float(metrics["auto_score_earned"])
+            possible = float(metrics["score_possible"])
+            auto_percent = float(metrics["auto_percent"])
+            final_percent = GradebookService._clamp_percent(
+                auto_percent + adjustment
+            )
+
+        return {
+            "student_id": student.id,
+            "student_name": student.name or student.email.split("@")[0],
+            "email": student.email,
+            "department": getattr(student, "department", None) or "",
+            "year": getattr(student, "year", None) or "",
+            "auto_score_earned": round(auto_score, 2),
+            "score_possible": round(possible, 2),
+            "auto_percent": round(auto_percent, 2),
+            "manual_adjustment": round(adjustment, 2),
+            "final_percent": round(final_percent, 2),
+            "feedback": grade.feedback if grade and grade.feedback else "",
+            "grade_status": grade.status if grade else "DRAFT",
+            "published_at": (
+                grade.published_at.isoformat()
+                if grade and grade.published_at
+                else None
+            ),
+            "graded_by": grade.graded_by if grade else None,
+            "completed_modules": metrics["completed_modules"],
+            "total_modules": metrics["total_modules"],
+            "completion_percent": metrics["completion_percent"],
+            "attempts": metrics["attempts"],
+            "completion_time_seconds": metrics["completion_time_seconds"],
+            "last_activity_at": (
+                metrics["last_activity_at"].isoformat()
+                if metrics["last_activity_at"]
+                else None
+            ),
+            "score_source": metrics["score_source"],
+        }
+
+    @staticmethod
+    def get_gradebook(db: Session, assignment_id: int) -> Dict:
+        assignment = GradebookService.get_assignment(db, assignment_id)
+        roster = GradebookService.get_roster(db, assignment)
+        score_meta = GradebookService.get_score_possible(db, assignment)
+
+        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+        group = (
+            db.query(Group).filter(Group.id == assignment.group_id).first()
+            if assignment.group_id is not None
+            else None
+        )
+
+        rows = []
+        for student in roster:
+            metrics = GradebookService.calculate_student_metrics(
+                db,
+                assignment,
+                student,
+                score_meta=score_meta,
+            )
+            grade = GradebookService._grade_row(
+                db,
+                assignment.id,
+                student.id,
+            )
+            rows.append(
+                GradebookService._serialize_row(student, metrics, grade)
+            )
+
+        avg_auto = (
+            round(sum(row["auto_percent"] for row in rows) / len(rows), 2)
+            if rows
+            else 0.0
+        )
+        avg_final = (
+            round(sum(row["final_percent"] for row in rows) / len(rows), 2)
+            if rows
+            else 0.0
+        )
+
+        return {
+            "assignment": {
+                "id": assignment.id,
+                "lab_id": assignment.lab_id,
+                "lab_title": lab.name if lab else assignment.lab_id,
+                "group_id": assignment.group_id,
+                "group_name": group.name if group else None,
+                "student_id": assignment.student_id,
+                "start_datetime": (
+                    assignment.start_datetime.isoformat()
+                    if assignment.start_datetime
+                    else None
+                ),
+                "end_datetime": (
+                    assignment.end_datetime.isoformat()
+                    if assignment.end_datetime
+                    else None
+                ),
+                "status": assignment.status,
+            },
+            "summary": {
+                "student_count": len(rows),
+                "draft_count": sum(
+                    1 for row in rows if row["grade_status"] == "DRAFT"
+                ),
+                "published_count": sum(
+                    1 for row in rows if row["grade_status"] == "PUBLISHED"
+                ),
+                "average_auto_percent": avg_auto,
+                "average_final_percent": avg_final,
+                "score_possible": score_meta["score_possible"],
+                "score_source": score_meta["score_source"],
+            },
+            "students": rows,
+        }
+
+    @staticmethod
+    def save_draft(
+        db: Session,
+        assignment_id: int,
+        student_id: int,
+        manual_adjustment: float,
+        feedback: Optional[str],
+        graded_by: int,
+    ) -> AssignmentGrade:
+        assignment = GradebookService.get_assignment(db, assignment_id)
+        roster_ids = {
+            student.id
+            for student in GradebookService.get_roster(db, assignment)
+        }
+        if student_id not in roster_ids:
+            raise HTTPException(
+                status_code=404,
+                detail="Student is not part of this assignment roster.",
+            )
+
+        grade = GradebookService._grade_row(
+            db,
+            assignment_id,
+            student_id,
+        )
+
+        if grade is not None and grade.status == "PUBLISHED":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Published grades are locked. Reopen the gradebook "
+                    "before editing."
+                ),
+            )
+
+        if grade is None:
+            grade = AssignmentGrade(
+                assignment_id=assignment_id,
+                student_id=student_id,
+                status="DRAFT",
+            )
+            db.add(grade)
+
+        grade.manual_adjustment = Decimal(str(manual_adjustment))
+        grade.feedback = (feedback or "").strip() or None
+        grade.graded_by = graded_by
+        grade.status = "DRAFT"
+        grade.published_at = None
+        grade.updated_at = datetime.utcnow()
+
+        # Snapshot the current automatic evidence for auditability even while
+        # draft; GET still recalculates drafts live.
+        student = db.query(User).filter(User.id == student_id).first()
+        metrics = GradebookService.calculate_student_metrics(
+            db,
+            assignment,
+            student,
+        )
+        final_percent = GradebookService._clamp_percent(
+            metrics["auto_percent"] + float(manual_adjustment)
+        )
+
+        grade.auto_score_earned = Decimal(
+            str(metrics["auto_score_earned"])
+        )
+        grade.score_possible = Decimal(str(metrics["score_possible"]))
+        grade.auto_percent = Decimal(str(metrics["auto_percent"]))
+        grade.final_percent = Decimal(str(final_percent))
+
+        db.flush()
+        return grade
+
+    @staticmethod
+    def publish(
+        db: Session,
+        assignment_id: int,
+        graded_by: int,
+    ) -> int:
+        assignment = GradebookService.get_assignment(db, assignment_id)
+        roster = GradebookService.get_roster(db, assignment)
+        score_meta = GradebookService.get_score_possible(db, assignment)
+        now = datetime.utcnow()
+
+        published = 0
+
+        for student in roster:
+            grade = GradebookService._grade_row(
+                db,
+                assignment.id,
+                student.id,
+            )
+            if grade is None:
+                grade = AssignmentGrade(
+                    assignment_id=assignment.id,
+                    student_id=student.id,
+                    manual_adjustment=0,
+                    status="DRAFT",
+                )
+                db.add(grade)
+
+            metrics = GradebookService.calculate_student_metrics(
+                db,
+                assignment,
+                student,
+                score_meta=score_meta,
+            )
+            adjustment = float(grade.manual_adjustment or 0)
+            final_percent = GradebookService._clamp_percent(
+                metrics["auto_percent"] + adjustment
+            )
+
+            grade.auto_score_earned = Decimal(
+                str(metrics["auto_score_earned"])
+            )
+            grade.score_possible = Decimal(str(metrics["score_possible"]))
+            grade.auto_percent = Decimal(str(metrics["auto_percent"]))
+            grade.final_percent = Decimal(str(final_percent))
+            grade.graded_by = graded_by
+            grade.status = "PUBLISHED"
+            grade.published_at = now
+            grade.updated_at = now
+            published += 1
+
+        db.flush()
+        return published
+
+    @staticmethod
+    def reopen(
+        db: Session,
+        assignment_id: int,
+        graded_by: int,
+    ) -> int:
+        GradebookService.get_assignment(db, assignment_id)
+
+        rows = (
+            db.query(AssignmentGrade)
+            .filter(AssignmentGrade.assignment_id == assignment_id)
+            .all()
+        )
+
+        for grade in rows:
+            grade.status = "DRAFT"
+            grade.published_at = None
+            grade.graded_by = graded_by
+            grade.updated_at = datetime.utcnow()
+
+        db.flush()
+        return len(rows)
