@@ -76,6 +76,7 @@ class ScoreService:
         hint1_used: bool = False,
         hint2_used: bool = False,
         base_points: Optional[int] = None,
+        assignment_id: Optional[int] = None,
     ) -> tuple[int, int]:
         """
         Award points for completing a module.
@@ -93,11 +94,20 @@ class ScoreService:
         - No partial updates: either all writes succeed or none do.
         """
         # 1. Duplicate guard — check score_events for an existing completion
-        existing = db.query(ScoreEvent).filter(
-            ScoreEvent.user_id == user.id,
-            ScoreEvent.module_id == module_id,
-            ScoreEvent.event_type == ScoreEventType.MODULE_COMPLETION,
-        ).first()
+        query = db.query(ScoreEvent).filter(
+        ScoreEvent.user_id == user.id,
+        ScoreEvent.module_id == module_id,
+        ScoreEvent.event_type == ScoreEventType.MODULE_COMPLETION,
+        )
+
+        if assignment_id is None:
+            query = query.filter(ScoreEvent.assignment_id.is_(None))
+        else:
+            query = query.filter(
+                ScoreEvent.assignment_id == assignment_id
+            )
+
+        existing = query.first()
 
         if existing:
             logger.info(
@@ -128,13 +138,14 @@ class ScoreService:
 
         # 5. Insert MODULE_COMPLETION event (immutable ledger)
         event = ScoreEvent(
+            assignment_id=assignment_id,
             user_id=user.id,
             lab_id=lab_id,
             track_id=track_id,
             module_id=module_id,
             event_type=ScoreEventType.MODULE_COMPLETION,
             points=net_awarded,
-            created_at=datetime.utcnow(),
+            created_at=datetime.utcnow()
         )
         db.add(event)
 
@@ -246,16 +257,29 @@ class ScoreService:
         return rebuilt
 
     @staticmethod
-    def is_module_completed(db: Session, user_id: int, module_id: str) -> bool:
-        """
-        Returns True if a MODULE_COMPLETION event already exists for this user+module.
-        Use this for duplicate-submission guards in endpoints.
-        """
-        return db.query(ScoreEvent).filter(
+    def is_module_completed(
+        db: Session,
+        user_id: int,
+        module_id: str,
+        assignment_id: Optional[int] = None,
+    ) -> bool:
+
+        query = db.query(ScoreEvent).filter(
             ScoreEvent.user_id == user_id,
             ScoreEvent.module_id == module_id,
             ScoreEvent.event_type == ScoreEventType.MODULE_COMPLETION,
-        ).first() is not None
+        )
+
+        if assignment_id is None:
+            query = query.filter(
+                ScoreEvent.assignment_id.is_(None)
+            )
+        else:
+            query = query.filter(
+                ScoreEvent.assignment_id == assignment_id
+            )
+
+        return query.first() is not None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
