@@ -15,8 +15,6 @@ from app.models.study_session import StudySession
 from app.models.study_material import StudyMaterial
 from app.models.achievement import Achievement
 from app.models.user_achievement import UserAchievement
-from app.models.professor_assignment import ProfessorAssignment
-from app.models.student_assignment import StudentAssignment
 from app.models.audit_log import AuditLog
 from app.models.score_event import ScoreEvent
 from app.models.notification import Notification, NotificationPreference
@@ -55,8 +53,6 @@ __all__ = [
     "Achievement",
     "UserAchievement",
     "Certificate",
-    "ProfessorAssignment",
-    "StudentAssignment",
     "AuditLog",
     "ScoreEvent",
     "Notification",

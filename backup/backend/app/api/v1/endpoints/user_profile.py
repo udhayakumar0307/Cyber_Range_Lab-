@@ -17,8 +17,10 @@ from app.models.study_session import StudySession
 from app.models.audit_log import AuditLog
 from app.models.lab import Lab
 from app.models.lab_module import LabModule
-from app.models.professor_assignment import ProfessorAssignment
-from app.models.student_assignment import StudentAssignment
+from app.models.assignment import Assignment
+from app.models.user_progress import UserProgress
+from app.core.constants import TRACK_TO_LAB
+from app.core.timezone_utils import now_ist
 from app.core.security import get_password_hash, verify_password
 from app.security import password_validator
 
@@ -53,39 +55,169 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
         "completionPercent": summary.get("completion_rate", summary.get("completionPercent", 0)),
     }
 
-    assignments = db.query(ProfessorAssignment, StudentAssignment, Lab).join(
-        StudentAssignment, StudentAssignment.assignment_id == ProfessorAssignment.id
-    ).join(Lab, Lab.id == ProfessorAssignment.lab_id).filter(
-        StudentAssignment.student_id == current_user.id
-    ).all()
+    assignment_query = (
+        db.query(Assignment, Lab)
+        .join(Lab, Lab.id == Assignment.lab_id)
+        .filter(Assignment.deleted_at.is_(None))
+    )
 
-    seen_lab_ids: set = set()
-    unique_assignments = []
-    for assignment, student_assignment, lab in assignments:
-        if lab.id not in seen_lab_ids:
-            seen_lab_ids.add(lab.id)
-            unique_assignments.append((assignment, student_assignment, lab))
+    if current_user.group_id is not None:
+        assignment_query = assignment_query.filter(
+            or_(
+                Assignment.student_id == current_user.id,
+                Assignment.group_id == current_user.group_id,
+            )
+        )
+    else:
+        assignment_query = assignment_query.filter(
+            Assignment.student_id == current_user.id
+        )
+
+    assignments = (
+        assignment_query
+        .order_by(Assignment.start_datetime.desc())
+        .all()
+    )
 
     assigned_labs = []
-    for assignment, student_assignment, lab in unique_assignments:
-        total_modules = stats["lab_total_modules"].get(lab.id, 0)
-        solved_modules = stats["lab_completed_modules"].get(lab.id, 0)
-        is_completed = (
-            student_assignment.status.upper() == "COMPLETED"
-            or (total_modules > 0 and solved_modules >= total_modules)
+    now = now_ist()
+
+    for assignment, lab in assignments:
+        # --------------------------------------------------------------
+        # Assignment-scoped standard lab progress
+        # --------------------------------------------------------------
+
+        solved_ulp = (
+            db.query(UserLabProgress.module_id)
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.lab_id == lab.id,
+                UserLabProgress.assignment_id == assignment.id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .distinct()
+            .count()
         )
+
+        # --------------------------------------------------------------
+        # Assignment-scoped track-based progress
+        # --------------------------------------------------------------
+
+        tracks = [
+            track_id
+            for track_id, mapped_lab_id in TRACK_TO_LAB.items()
+            if mapped_lab_id == lab.id
+        ]
+
+        solved_up = 0
+
+        if tracks:
+            solved_up = (
+                db.query(UserProgress.module_id)
+                .filter(
+                    UserProgress.user_id == str(current_user.id),
+                    UserProgress.assignment_id == assignment.id,
+                    UserProgress.track_id.in_(tracks),
+                    UserProgress.completed.is_(True),
+                )
+                .distinct()
+                .count()
+            )
+
+        solved_modules = max(
+            solved_ulp,
+            solved_up,
+        )
+
+        total_modules = stats[
+            "lab_total_modules"
+        ].get(lab.id, 0)
+
+        # Defensive fallback for labs whose module registry
+        # has not yet been synchronized.
+        if total_modules <= 0:
+            total_modules = (
+                db.query(LabModule)
+                .filter(LabModule.lab_id == lab.id)
+                .count()
+            )
+
+        if total_modules <= 0:
+            total_modules = 5
+
+        solved_modules = min(
+            solved_modules,
+            total_modules,
+        )
+
+        # --------------------------------------------------------------
+        # Derive student-facing assignment status
+        # --------------------------------------------------------------
+
+        assignment_status = (
+            assignment.status or ""
+        ).lower()
+
+        is_completed = (
+            assignment_status == "completed"
+            or solved_modules >= total_modules
+            or now > assignment.end_datetime
+        )
+
+        if is_completed:
+            display_status = "completed"
+
+        elif now < assignment.start_datetime:
+            display_status = "upcoming"
+
+        else:
+            display_status = "live"
+
+        duration_hours = (
+            round(lab.estimated_time / 60, 1)
+            if lab.estimated_time
+            else 1.5
+        )
+
         assigned_labs.append({
+            # Keep id as the lab ID for existing frontend compatibility.
             "id": lab.id,
+
+            # NEW canonical academic identity.
+            "assignment_id": assignment.id,
+
             "title": lab.name,
             "category": lab.category,
             "description": lab.description,
-            "status": "completed" if is_completed else "live",
+            "status": display_status,
+
             "total_challenges": total_modules,
             "solved_challenges": solved_modules,
-            "duration_hours": lab.estimated_time,
-            "tags": [lab.category] if lab.category else [],
-        })
 
+            "duration_hours": duration_hours,
+
+            "tags": (
+                [lab.category]
+                if lab.category
+                else []
+            ),
+
+            "start_datetime": (
+                assignment.start_datetime.isoformat()
+                if assignment.start_datetime
+                else None
+            ),
+
+            "end_datetime": (
+                assignment.end_datetime.isoformat()
+                if assignment.end_datetime
+                else None
+            ),
+
+            "assigned_by": assignment.assigned_by,
+
+            "assignment_status": assignment.status,
+        })
     # If user has no specific professor assignments, show active platform security labs
     if not assigned_labs:
         active_labs = db.query(Lab).filter(Lab.status == "ACTIVE").all()
@@ -966,22 +1098,32 @@ def get_user_assignments(
             remaining_minutes = int(delta.total_seconds() / 60)
 
         # Count solved modules for this lab completed during this assignment window
-        solved_ulp = db.query(UserLabProgress.module_id).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == lab.id,
-            UserLabProgress.status == "COMPLETED",
-            UserLabProgress.completed_at >= assoc.start_datetime
-        ).distinct().count()
+        solved_ulp = (
+            db.query(UserLabProgress.module_id)
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.lab_id == lab.id,
+                UserLabProgress.assignment_id == assoc.id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .distinct()
+            .count()
+        )
 
         tracks = [t for t, l in TRACK_TO_LAB.items() if l == lab.id]
         solved_up = 0
         if tracks:
-            solved_up = db.query(UserProgress.module_id).filter(
+            solved_up = (
+            db.query(UserProgress.module_id)
+            .filter(
                 UserProgress.user_id == str(current_user.id),
+                UserProgress.assignment_id == assoc.id,
                 UserProgress.track_id.in_(tracks),
-                UserProgress.completed == True,
-                UserProgress.completed_at >= assoc.start_datetime
-            ).distinct().count()
+                UserProgress.completed.is_(True),
+            )
+            .distinct()
+            .count()
+        )
 
         solved = max(solved_ulp, solved_up)
         total = lab_total.get(lab.id, 5)
@@ -1080,22 +1222,30 @@ def get_assignment_statistics(
         raise HTTPException(status_code=404, detail="Lab details not found")
 
     # Query completed modules during this assignment window
-    ulp_records = db.query(UserLabProgress).filter(
-        UserLabProgress.user_id == current_user.id,
-        UserLabProgress.lab_id == lab.id,
-        UserLabProgress.status == "COMPLETED",
-        UserLabProgress.completed_at >= a.start_datetime
-    ).all()
+    ulp_records = (
+        db.query(UserLabProgress)
+        .filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab.id,
+            UserLabProgress.assignment_id == a.id,
+            UserLabProgress.status == "COMPLETED",
+        )
+        .all()
+    )
 
-    tracks = [t for t, l in TRACK_TO_LAB.items() if l == lab.id]
+    tracks = [ t for t, l in TRACK_TO_LAB.items() if l == lab.id ]
     up_records = []
     if tracks:
-        up_records = db.query(UserProgress).filter(
-            UserProgress.user_id == str(current_user.id),
-            UserProgress.track_id.in_(tracks),
-            UserProgress.completed == True,
-            UserProgress.completed_at >= a.start_datetime
-        ).all()
+        up_records = (
+            db.query(UserProgress)
+            .filter(
+                UserProgress.user_id == str(current_user.id),
+                UserProgress.assignment_id == a.id,
+                UserProgress.track_id.in_(tracks),
+                UserProgress.completed.is_(True),
+            )
+            .all()
+        )
 
     # Calculate metrics
     solved_count = max(len(ulp_records), len(up_records))

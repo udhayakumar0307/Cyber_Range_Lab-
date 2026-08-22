@@ -1059,7 +1059,7 @@ def get_admin_groups(
     db: Session = Depends(get_db)
 ):
     from app.models.group import Group
-    from app.models.student_assignment import StudentAssignment
+    from app.models.assignment import Assignment
     from app.models.user_affiliation import UserAffiliation as UA
     from sqlalchemy import not_, or_
 
@@ -1106,10 +1106,19 @@ def get_admin_groups(
             member_q = member_q.filter(User.id.in_(valid_user_ids))
         
         member_count = member_q.count()
-        group_user_ids = [u.id for u in member_q.with_entities(User.id).all()]
-        assigned_labs = 0
-        if group_user_ids:
-            assigned_labs = db.query(StudentAssignment).filter(StudentAssignment.student_id.in_(group_user_ids)).count()
+        group_user_ids = [user_id for (user_id,) in member_q.with_entities(User.id).all()]
+
+        assigned_labs = (
+            db.query(Assignment)
+            .filter(
+                Assignment.deleted_at.is_(None),
+                or_(
+                    Assignment.group_id == g.id,
+                    Assignment.student_id.in_(group_user_ids),
+                ),
+            )
+            .count()
+        )
         c_date = "2026-01-15"
         if hasattr(g, 'created_at') and getattr(g, 'created_at'):
             c_date = g.created_at.strftime("%Y-%m-%d")
