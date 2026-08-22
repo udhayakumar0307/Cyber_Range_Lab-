@@ -288,10 +288,24 @@ def get_crypto_progress(
     if not tcfg or module_id not in tcfg.get("modules", {}):
         raise HTTPException(status_code=404, detail="Unknown track or module.")
 
+    # Check if running under ORCHESTRATOR=ecs to fetch dynamic progress port from Redis
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    target_services_url = SERVICES_URL
+    if orchestrator_mode == "ecs" and current_user:
+        from app.lab.session_store import get_session
+        session = get_session(str(current_user.id), "cryptography-lab")
+        if session:
+            target_host = session.get("student_host", "127.0.0.1")
+            target_port = session.get("progress_port", 9500)
+            target_services_url = f"http://{target_host}:{target_port}"
+
     try:
-        resp = requests.get(f"{SERVICES_URL}/progress/{user_id_str}/{track_id}/{module_id}", timeout=2)
+        resp = requests.get(f"{target_services_url}/progress/{user_id_str}/{track_id}/{module_id}", timeout=2)
         if resp.ok:
-            return resp.json()
+            svc_data = resp.json()
+            # If the microservice returned empty objectives, fall back to DB tracking
+            if svc_data.get("objectives"):
+                return svc_data
     except Exception:
         pass
 
