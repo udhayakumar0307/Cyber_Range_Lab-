@@ -20,16 +20,18 @@ RUN apt-get update && apt-get install -y \
     xxd \
     curl \
     sudo \
+    openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash student \
-    && echo "student:student" | chpasswd \
-    && usermod -aG sudo student
+RUN mkdir -p /var/run/sshd && \
+    useradd -m -s /bin/bash student && \
+    echo "student:student" | chpasswd && \
+    usermod -aG sudo student && \
+    echo "student ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/student && \
+    chmod 0440 /etc/sudoers.d/student && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-RUN echo "student ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/student \
-    && chmod 0440 /etc/sudoers.d/student
+EXPOSE 22
 
-USER student
-WORKDIR /home/student
-
-CMD ["/bin/bash"]
+CMD ["/usr/sbin/sshd", "-D"]

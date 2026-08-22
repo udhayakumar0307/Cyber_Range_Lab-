@@ -90,6 +90,7 @@ class ECSOrchestrator(LabOrchestrator):
         "puzzle-lab":             "puzzle-lab",
         "techcorp-sysadmin-labs": "puzzle-lab",
         "command-line-lab":       "command-line-lab",
+        "cryptography-lab":       "cryptography-lab",
     }
 
     def __init__(self):
@@ -163,22 +164,24 @@ class ECSOrchestrator(LabOrchestrator):
                     ],
                 }
             ]
-        elif family == "command-line-lab":
+        elif family in ("command-line-lab", "cryptography-lab"):
+            student_c_name = "cll-student" if family == "command-line-lab" else "crypto-student"
+            services_c_name = "cll-services" if family == "command-line-lab" else "crypto-services"
             container_overrides = [
                 {
-                    "name": "cll-student",
-                    "command": ["sleep", "infinity"],
+                    "name": student_c_name,
+                    "command": ["/usr/sbin/sshd", "-D"] if family == "cryptography-lab" else ["sleep", "infinity"],
                     "environment": [
                         {"name": "STUDENT_ID", "value": str(user_id)},
                         {"name": "LAB_SEED",   "value": lab_seed},
                     ],
                 },
                 {
-                    "name": "cll-services",
+                    "name": services_c_name,
                     "environment": [
                         {"name": "STUDENT_ID", "value": str(user_id)},
                         {"name": "LAB_SEED",   "value": lab_seed},
-                        {"name": "STUDENT_CONTAINER", "value": "cll-student"},
+                        {"name": "STUDENT_CONTAINER", "value": student_c_name},
                     ],
                 },
             ]

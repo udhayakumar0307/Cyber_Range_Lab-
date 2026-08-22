@@ -325,7 +325,7 @@ async def terminal_websocket(
     # =========================================================================
     # Task 2: lab1-recon & command-line-lab branch — JWT auth + per-user container bridge
     # =========================================================================
-    if lab_id in ("lab1-recon", "command-line-lab"):
+    if lab_id in ("lab1-recon", "command-line-lab", "cryptography-lab"):
         # Authenticate via JWT token passed as query param
         if not token:
             await websocket.send_text(

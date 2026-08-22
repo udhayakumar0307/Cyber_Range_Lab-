@@ -1,0 +1,92 @@
+{
+  "family": "cryptography-lab",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "1024",
+  "memory": "2048",
+  "volumes": [
+    {
+      "name": "docker-sock",
+      "host": {
+        "sourcePath": "/var/run/docker.sock"
+      }
+    }
+  ],
+  "containerDefinitions": [
+    {
+      "name": "crypto-student",
+      "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/crypto-student:latest",
+      "essential": true,
+      "memory": 1024,
+      "memoryReservation": 512,
+      "environment": [
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 22,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/cryptography-lab",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "student",
+          "awslogs-create-group": "true"
+        }
+      }
+    },
+    {
+      "name": "crypto-services",
+      "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/crypto-services:latest",
+      "essential": true,
+      "memory": 1024,
+      "memoryReservation": 512,
+      "environment": [
+        {
+          "name": "STUDENT_CONTAINER",
+          "value": "crypto-student"
+        },
+        {
+          "name": "TERM",
+          "value": "xterm-256color"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "docker-sock",
+          "containerPath": "/var/run/docker.sock"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 8022,
+          "hostPort": 0,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9500,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/cyberrange/cryptography-lab",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "services",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

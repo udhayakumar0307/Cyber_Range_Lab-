@@ -73,6 +73,24 @@ def get_standalone_html_view(
 ):
     """Renders the standalone Jinja2 template index.html from cryptography-lab."""
     user_id_str = str(current_user.id) if current_user else "student"
+
+    # Automatically provision ECS task if running under ORCHESTRATOR=ecs
+    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
+    if orchestrator_mode == "ecs" and current_user:
+        try:
+            from app.lab.orchestrator import get_orchestrator
+            from app.lab.session_store import get_session, save_session, delete_session
+            orch = get_orchestrator()
+            if not orch.is_running(user_id_str, "cryptography-lab"):
+                logger.info(f"[CRYPTO] Auto-provisioning ECS task for user {user_id_str}...")
+                try:
+                    res = orch.provision(user_id_str, "cryptography-lab", f"crypto_{user_id_str}")
+                    save_session(user_id_str, "cryptography-lab", res)
+                except Exception as exc:
+                    delete_session(user_id_str, "cryptography-lab")
+                    logger.error(f"[CRYPTO] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
+        except Exception as outer_exc:
+            logger.error(f"[CRYPTO] Orchestrator error for user {user_id_str}: {outer_exc}")
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
     progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
