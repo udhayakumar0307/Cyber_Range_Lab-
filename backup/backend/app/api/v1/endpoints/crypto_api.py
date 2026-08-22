@@ -301,28 +301,7 @@ def get_crypto_progress(
     if not tcfg or module_id not in tcfg.get("modules", {}):
         raise HTTPException(status_code=404, detail="Unknown track or module.")
 
-    # Check if running under ORCHESTRATOR=ecs to fetch dynamic progress port from Redis
-    orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
-    target_services_url = SERVICES_URL
-    if orchestrator_mode == "ecs" and current_user:
-        from app.lab.session_store import get_session
-        session = get_session(str(current_user.id), "cryptography-lab")
-        if session:
-            target_host = session.get("student_host", "127.0.0.1")
-            target_port = session.get("progress_port", 9500)
-            target_services_url = f"http://{target_host}:{target_port}"
-
-    try:
-        resp = requests.get(f"{target_services_url}/progress/{user_id_str}/{track_id}/{module_id}", timeout=2)
-        if resp.ok:
-            svc_data = resp.json()
-            # If the microservice returned empty objectives, fall back to DB tracking
-            if svc_data.get("objectives"):
-                return svc_data
-    except Exception:
-        pass
-
-    objectives = tcfg["modules"][module_id].get("objectives", [])
+    objectives = [dict(o) for o in tcfg["modules"][module_id].get("objectives", [])]
     
     # Read completed_objectives from UserProgress
     record = db.query(UserProgress).filter(
@@ -338,12 +317,13 @@ def get_crypto_progress(
             completed_ids = json.loads(record.flag_submitted)
             if not isinstance(completed_ids, list):
                 completed_ids = []
-        except:
+        except Exception:
             completed_ids = []
             
-    # Inject complete flag
+    # Inject complete flag for each objective
     for obj in objectives:
-        if obj.get("id") in completed_ids:
+        obj_id = obj.get("id") or obj.get("objective_id")
+        if obj_id and obj_id in completed_ids:
             obj["complete"] = True
         else:
             obj["complete"] = False
