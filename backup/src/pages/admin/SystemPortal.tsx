@@ -717,11 +717,17 @@ export const SystemPortal: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('system_key_verified');
-    setStep('key');
+    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax;';
+    window.location.href = '/admin/login';
   };
 
   // Create College
