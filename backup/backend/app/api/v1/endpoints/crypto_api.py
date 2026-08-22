@@ -466,7 +466,7 @@ def submit_crypto_flag(
     
     # Determine which objective was solved
     matched_objective_id = None
-    total_objectives = 0
+    total_objectives = len(tcfg["modules"][module_id].get("objectives", []))
     try:
         answers_path = LABS_DIR / "cryptography-lab" / "scoring-server" / "answers.json"
         if not answers_path.exists():
@@ -475,7 +475,6 @@ def submit_crypto_flag(
             with open(answers_path, "r", encoding="utf-8") as f:
                 ans_data = json.load(f)
                 if module_id in ans_data:
-                    total_objectives = len(ans_data[module_id])
                     clean_submitted = submitted_flag.strip()
                     clean_submitted_lower = clean_submitted.lower()
                     
