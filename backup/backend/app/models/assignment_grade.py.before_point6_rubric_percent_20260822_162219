@@ -2,10 +2,8 @@
 AssignmentGrade — professor-owned grading decision for one student on one Assignment.
 
 Automatic score evidence remains in ScoreEvent/User*Progress.
-This table stores the academic grading layer and the snapshots required
+This table stores only the academic grading layer and the snapshots required
 to make a published grade stable over time.
-
-Point #6 adds rubric_percent as the rubric-backed academic score snapshot.
 """
 
 from datetime import datetime
@@ -59,28 +57,18 @@ class AssignmentGrade(Base):
         index=True,
     )
 
-    # Professor-entered overall adjustment, interpreted as percentage points.
+    # Professor-entered decision. Interpreted as percentage points.
     manual_adjustment = Column(Numeric(6, 2), nullable=False, default=0)
     feedback = Column(Text, nullable=True)
 
     # Grade state.
     status = Column(String(20), nullable=False, default="DRAFT", index=True)
 
-    # Published-grade snapshots.
-    #
-    # auto_percent:
-    #   transparent raw automatic score percentage from assignment evidence.
-    #
-    # rubric_percent:
-    #   weighted academic percentage produced by the assignment's immutable
-    #   rubric snapshot (AUTO + MANUAL rubric criteria).
-    #
-    # final_percent:
-    #   rubric_percent plus professor overall adjustment, clamped to 0..100.
+    # Snapshots. Drafts may be recalculated from live evidence; published rows
+    # use these stored values so publication is immutable until reopened.
     auto_score_earned = Column(Numeric(12, 2), nullable=True)
     score_possible = Column(Numeric(12, 2), nullable=True)
     auto_percent = Column(Numeric(6, 2), nullable=True)
-    rubric_percent = Column(Numeric(6, 2), nullable=True)
     final_percent = Column(Numeric(6, 2), nullable=True)
 
     graded_by = Column(
