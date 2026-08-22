@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api, colleges_orgs, study_materials_api, ctf_api, gradebook_api, rubrics_api
+from app.api.v1.endpoints import auth, health, reporting, user_profile, admin_api, cart_api, payment_api, labs_api, system_audit_api, notifications_api, cll_api, crypto_api, cloud_api, recon_api, terminal_api, techcorp_api, colleges_orgs, study_materials_api, ctf_api, gradebook_api
 
 api_router = APIRouter()
 
@@ -8,7 +8,6 @@ api_router.include_router(health.router, tags=["health"])
 api_router.include_router(colleges_orgs.router, prefix="", tags=["affiliations"])
 api_router.include_router(reporting.router, prefix="/reporting", tags=["reporting"])
 api_router.include_router(gradebook_api.router, prefix="/gradebook", tags=["gradebook"])
-api_router.include_router(rubrics_api.router, prefix="/rubrics", tags=["rubrics"])
 api_router.include_router(user_profile.router, prefix="/user", tags=["user"])
 api_router.include_router(admin_api.router, prefix="/admin", tags=["admin"])
 api_router.include_router(cart_api.router, prefix="/cart", tags=["cart"])

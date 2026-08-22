@@ -31,7 +31,6 @@ from app.models.score_event import ScoreEvent
 from app.models.user import User
 from app.models.user_lab_progress import UserLabProgress
 from app.models.user_progress import UserProgress
-from app.services.rubric_service import RubricService
 
 
 MODULE_COMPLETION = "MODULE_COMPLETION"
@@ -204,12 +203,6 @@ class GradebookService:
             else None
         )
 
-        rubric_result = RubricService.calculate_student_rubric(
-            db,
-            assignment.id,
-            student.id,
-        )
-
         return {
             "auto_score_earned": round(auto_score, 2),
             "score_possible": round(possible, 2),
@@ -221,11 +214,6 @@ class GradebookService:
             "completion_time_seconds": completion_time_seconds,
             "last_activity_at": last_activity_at,
             "score_source": score_meta["score_source"],
-            "rubric_percent": rubric_result["rubric_percent"],
-            "rubric_version": rubric_result["rubric_version"],
-            "rubric_name": rubric_result["rubric_name"],
-            "rubric_criteria_count": len(rubric_result["criteria"]),
-            "pending_manual_criteria": rubric_result["pending_manual_criteria"],
         }
 
     @staticmethod
@@ -255,20 +243,13 @@ class GradebookService:
             auto_score = float(grade.auto_score_earned or 0)
             possible = float(grade.score_possible or 0)
             auto_percent = float(grade.auto_percent or 0)
-            rubric_percent = float(
-                grade.rubric_percent
-                if grade.rubric_percent is not None
-                else grade.auto_percent
-                or 0
-            )
             final_percent = float(grade.final_percent or 0)
         else:
             auto_score = float(metrics["auto_score_earned"])
             possible = float(metrics["score_possible"])
             auto_percent = float(metrics["auto_percent"])
-            rubric_percent = float(metrics["rubric_percent"])
             final_percent = GradebookService._clamp_percent(
-                rubric_percent + adjustment
+                auto_percent + adjustment
             )
 
         return {
@@ -280,11 +261,6 @@ class GradebookService:
             "auto_score_earned": round(auto_score, 2),
             "score_possible": round(possible, 2),
             "auto_percent": round(auto_percent, 2),
-            "rubric_percent": round(rubric_percent, 2),
-            "rubric_version": metrics["rubric_version"],
-            "rubric_name": metrics["rubric_name"],
-            "rubric_criteria_count": metrics["rubric_criteria_count"],
-            "pending_manual_criteria": metrics["pending_manual_criteria"],
             "manual_adjustment": round(adjustment, 2),
             "final_percent": round(final_percent, 2),
             "feedback": grade.feedback if grade and grade.feedback else "",
@@ -311,7 +287,6 @@ class GradebookService:
     @staticmethod
     def get_gradebook(db: Session, assignment_id: int) -> Dict:
         assignment = GradebookService.get_assignment(db, assignment_id)
-        RubricService.get_assignment_snapshot(db, assignment_id)
         roster = GradebookService.get_roster(db, assignment)
         score_meta = GradebookService.get_score_possible(db, assignment)
 
@@ -341,11 +316,6 @@ class GradebookService:
 
         avg_auto = (
             round(sum(row["auto_percent"] for row in rows) / len(rows), 2)
-            if rows
-            else 0.0
-        )
-        avg_rubric = (
-            round(sum(row["rubric_percent"] for row in rows) / len(rows), 2)
             if rows
             else 0.0
         )
@@ -384,13 +354,7 @@ class GradebookService:
                     1 for row in rows if row["grade_status"] == "PUBLISHED"
                 ),
                 "average_auto_percent": avg_auto,
-                "average_rubric_percent": avg_rubric,
                 "average_final_percent": avg_final,
-                "rubric_version": rows[0]["rubric_version"] if rows else None,
-                "rubric_name": rows[0]["rubric_name"] if rows else None,
-                "pending_manual_criteria": sum(
-                    row["pending_manual_criteria"] for row in rows
-                ),
                 "score_possible": score_meta["score_possible"],
                 "score_source": score_meta["score_source"],
             },
@@ -456,7 +420,7 @@ class GradebookService:
             student,
         )
         final_percent = GradebookService._clamp_percent(
-            metrics["rubric_percent"] + float(manual_adjustment)
+            metrics["auto_percent"] + float(manual_adjustment)
         )
 
         grade.auto_score_earned = Decimal(
@@ -464,7 +428,6 @@ class GradebookService:
         )
         grade.score_possible = Decimal(str(metrics["score_possible"]))
         grade.auto_percent = Decimal(str(metrics["auto_percent"]))
-        grade.rubric_percent = Decimal(str(metrics["rubric_percent"]))
         grade.final_percent = Decimal(str(final_percent))
 
         db.flush()
@@ -504,19 +467,9 @@ class GradebookService:
                 student,
                 score_meta=score_meta,
             )
-            if metrics["pending_manual_criteria"] > 0:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Cannot publish: {student.name or student.email} has "
-                        f"{metrics['pending_manual_criteria']} ungraded manual "
-                        "rubric criterion/criteria."
-                    ),
-                )
-
             adjustment = float(grade.manual_adjustment or 0)
             final_percent = GradebookService._clamp_percent(
-                metrics["rubric_percent"] + adjustment
+                metrics["auto_percent"] + adjustment
             )
 
             grade.auto_score_earned = Decimal(
@@ -524,7 +477,6 @@ class GradebookService:
             )
             grade.score_possible = Decimal(str(metrics["score_possible"]))
             grade.auto_percent = Decimal(str(metrics["auto_percent"]))
-            grade.rubric_percent = Decimal(str(metrics["rubric_percent"]))
             grade.final_percent = Decimal(str(final_percent))
             grade.graded_by = graded_by
             grade.status = "PUBLISHED"
