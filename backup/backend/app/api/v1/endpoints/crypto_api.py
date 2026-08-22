@@ -133,6 +133,30 @@ def get_standalone_html_view(
             if is_solved:
                 solved_count += 1
 
+            # Fetch solved objective IDs for this user & module
+            up_rec = db.query(UserProgress).filter(
+                UserProgress.user_id == user_id_str,
+                UserProgress.track_id == tid,
+                UserProgress.module_id == mid
+            ).first() if current_user else None
+
+            completed_obj_ids = []
+            if up_rec and up_rec.flag_submitted:
+                try:
+                    completed_obj_ids = json.loads(up_rec.flag_submitted)
+                    if not isinstance(completed_obj_ids, list):
+                        completed_obj_ids = []
+                except Exception:
+                    completed_obj_ids = []
+
+            raw_objectives = mcfg.get("objectives", [])
+            objectives_with_status = []
+            for obj in raw_objectives:
+                obj_copy = dict(obj)
+                obj_id = obj_copy.get("id") or obj_copy.get("objective_id")
+                obj_copy["complete"] = bool(obj_id and obj_id in completed_obj_ids)
+                objectives_with_status.append(obj_copy)
+
             modules.append({
                 "id": mid,
                 "track": tid,
@@ -142,7 +166,7 @@ def get_standalone_html_view(
                 "points": mcfg["points"],
                 "story": mcfg.get("story", ""),
                 "mission": mcfg.get("mission", ""),
-                "objectives": mcfg.get("objectives", []),
+                "objectives": objectives_with_status,
                 "hints": mcfg.get("hints", []),
                 "solved": is_solved,
                 "unlocked": unlocked,
