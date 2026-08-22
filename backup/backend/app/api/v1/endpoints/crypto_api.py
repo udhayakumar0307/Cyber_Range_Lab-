@@ -261,16 +261,29 @@ def get_crypto_config(
 
 
 @router.post("/exit")
+@router.post("/teardown")
 def exit_crypto_session(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Saves progress, reconciles total user score, and ends active session."""
+    """Saves progress, reconciles total user score, and tears down active container environment."""
     user_id_str = str(current_user.id) if current_user else "student"
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
+
+    if current_user:
+        try:
+            from app.lab.orchestrator import get_orchestrator
+            from app.lab.session_store import delete_session
+            orch = get_orchestrator()
+            logger.info(f"[CRYPTO] Tearing down container session for user {user_id_str}...")
+            orch.teardown(user_id_str, "cryptography-lab")
+            delete_session(user_id_str, "cryptography-lab")
+        except Exception as exc:
+            logger.error(f"[CRYPTO] Teardown failed for user {user_id_str}: {exc}")
+
     return {
         "success": True,
-        "message": "Session exited successfully. Progress saved.",
+        "message": "Session exited successfully. Progress saved and environment torn down.",
         "total_points": total_score
     }
 
