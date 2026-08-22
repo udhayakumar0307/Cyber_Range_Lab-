@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.user_progress import UserProgress
 from app.models.user_lab_progress import UserLabProgress
 from app.models.lab import Lab
+from app.services.assignment_context_service import resolve_assignment
 
 from app.core.config import settings
 
@@ -79,6 +80,31 @@ def generate_flag(student_id: str, track_id: str, module_id: str, lab_seed: str 
 
 from app.services.score_service import reconcile_user_score
 from app.services.completion_service import CompletionService
+
+def _resolve_assignment_id(
+    db: Session,
+    current_user: Optional[User],
+    lab_id: str,
+    requested_assignment_id: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve the canonical assignment context for an authenticated lab request."""
+    if not current_user:
+        return None
+
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab_id,
+        requested_assignment_id=requested_assignment_id,
+    )
+    return assignment.id if assignment else None
+
+
+def _scope_assignment(query, model, assignment_id: Optional[int]):
+    """Apply NULL-safe assignment scoping to a SQLAlchemy query."""
+    if assignment_id is None:
+        return query.filter(model.assignment_id.is_(None))
+    return query.filter(model.assignment_id == assignment_id)
 
 
 _cached_cll_checked = 0.0
@@ -153,12 +179,19 @@ def get_cll_services_url(user_id: str) -> str:
 @router.get("/session/view", response_class=HTMLResponse)
 def get_standalone_html_view(
     request: Request,
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Renders the standalone Jinja2 template index.html from command-line-lab."""
     ensure_cll_containers_running()
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        assignment_id,
+    )
 
     # Automatically provision ECS task if running under ORCHESTRATOR=ecs
     orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
@@ -173,7 +206,6 @@ def get_standalone_html_view(
                     res = orch.provision(user_id_str, "command-line-lab", f"cll_{user_id_str}")
                     save_session(user_id_str, "command-line-lab", res)
                 except Exception as exc:
-                    # Clear any stale session so the WS endpoint doesn't try a dead host
                     delete_session(user_id_str, "command-line-lab")
                     logger.error(f"[CLL] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
         except Exception as outer_exc:
@@ -181,8 +213,17 @@ def get_standalone_html_view(
 
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
-    progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
-    
+    progress_rows = []
+    if current_user:
+        progress_query = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id_str
+        )
+        progress_rows = _scope_assignment(
+            progress_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).all()
+
     user_solved = {}
     user_hints = {}
     for r in progress_rows:
@@ -195,10 +236,16 @@ def get_standalone_html_view(
             user_hints[f"{r.track_id}_{r.module_id}_hint2"] = True
 
     if current_user:
-        lab_progress_rows = db.query(UserLabProgress).filter(
+        lab_progress_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "command-line-lab"
+            UserLabProgress.lab_id == "command-line-lab",
+        )
+        lab_progress_rows = _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for lp in lab_progress_rows:
             if lp.status == "COMPLETED" or lp.flag_correct:
                 mod_key = lp.module_id.replace("command-line-lab_", "")
@@ -273,14 +320,30 @@ def get_standalone_html_view(
 @router.get("/config")
 @router.get("/status")
 def get_cll_config(
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        assignment_id,
+    )
     total_points = reconcile_user_score(db, user_id_str) if current_user else 0
 
-    progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
-    
+    progress_rows = []
+    if current_user:
+        progress_query = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id_str
+        )
+        progress_rows = _scope_assignment(
+            progress_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).all()
+
     user_solved = {}
     user_hints = {}
     for r in progress_rows:
@@ -293,10 +356,16 @@ def get_cll_config(
             user_hints[f"{r.track_id}_{r.module_id}_hint2"] = True
 
     if current_user:
-        lab_progress_rows = db.query(UserLabProgress).filter(
+        lab_progress_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "command-line-lab"
+            UserLabProgress.lab_id == "command-line-lab",
+        )
+        lab_progress_rows = _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for lp in lab_progress_rows:
             if lp.status == "COMPLETED" or lp.flag_correct:
                 mod_key = lp.module_id.replace("command-line-lab_", "")
@@ -349,8 +418,9 @@ def get_cll_config(
 
     return {
         "student_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
         "total_points": total_points,
-        "tracks": tracks
+        "tracks": tracks,
     }
 
 
@@ -421,51 +491,52 @@ def exit_cll_session(
 def get_cll_progress(
     module_id: str,
     track_id: str = "linux",
-    current_user: Optional[User] = Depends(
-        get_current_user_optional
-    ),
+    assignment_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    user_id_str = (
-        str(current_user.id)
-        if current_user
-        else "student"
+    user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        assignment_id,
     )
 
     services_url = get_cll_services_url(user_id_str)
 
     try:
         resp = requests.get(
-            f"{services_url}/progress/"
-            f"{user_id_str}/{track_id}/{module_id}",
+            f"{services_url}/progress/{user_id_str}/{track_id}/{module_id}",
             timeout=3,
         )
-
         resp.raise_for_status()
-
         data = resp.json()
+        data["assignment_id"] = resolved_assignment_id
 
         logger.info(
             f"[CLL] Progress | "
             f"user={user_id_str} "
+            f"assignment={resolved_assignment_id} "
             f"track={track_id} "
             f"module={module_id} "
             f"url={services_url} "
             f"complete={data.get('module_complete')}"
         )
-
         return data
 
     except Exception as exc:
         logger.error(
             f"[CLL] Progress service unavailable | "
             f"user={user_id_str} | "
+            f"assignment={resolved_assignment_id} | "
             f"url={services_url} | "
             f"error={exc}"
         )
-
         return {
             "module": module_id,
             "track": track_id,
+            "assignment_id": resolved_assignment_id,
             "objectives": [],
             "module_complete": False,
             "error": "Progress service unavailable",
@@ -483,46 +554,78 @@ def request_cll_hint(
     hint_index = int(payload.get("hint_index", 1))
 
     if hint_index not in (1, 2):
-        raise HTTPException(status_code=400, detail="Invalid hint index. Must be 1 or 2.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid hint index. Must be 1 or 2."
+        )
 
     tcfg = TRACKS_CONFIG.get(track_id)
     if not tcfg or module_id not in tcfg.get("modules", {}):
-        raise HTTPException(status_code=400, detail="Unknown track or module.")
+        raise HTTPException(
+            status_code=400,
+            detail="Unknown track or module."
+        )
+
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        payload.get("assignment_id"),
+    )
 
     mcfg = tcfg["modules"][module_id]
     hints = mcfg.get("hints", [])
-    if len(hints) < hint_index:
-        raise HTTPException(status_code=404, detail="Hint not available.")
 
-    record = db.query(UserProgress).filter(
+    if len(hints) < hint_index:
+        raise HTTPException(
+            status_code=404,
+            detail="Hint not available."
+        )
+
+    progress_query = db.query(UserProgress).filter(
         UserProgress.user_id == user_id_str,
         UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
-    ).first()
+        UserProgress.module_id == module_id,
+    )
+    progress_query = _scope_assignment(
+        progress_query,
+        UserProgress,
+        resolved_assignment_id,
+    )
+    record = progress_query.first()
 
     if not record:
         record = UserProgress(
+            assignment_id=resolved_assignment_id,
             user_id=user_id_str,
             track_id=track_id,
             module_id=module_id,
             completed=False,
             module_score=0,
             hint1_used=False,
-            hint2_used=False
+            hint2_used=False,
         )
         db.add(record)
         db.flush()
 
     if hint_index == 2 and not record.hint1_used:
-        raise HTTPException(status_code=403, detail="Unlock Hint 1 first before unlocking Hint 2.")
+        raise HTTPException(
+            status_code=403,
+            detail="Unlock Hint 1 first before unlocking Hint 2."
+        )
 
-    already_unlocked = (hint_index == 1 and record.hint1_used) or (hint_index == 2 and record.hint2_used)
+    already_unlocked = (
+        (hint_index == 1 and record.hint1_used)
+        or
+        (hint_index == 2 and record.hint2_used)
+    )
 
     if not already_unlocked:
         if hint_index == 1:
             record.hint1_used = True
-        elif hint_index == 2:
+        else:
             record.hint2_used = True
+
         record.updated_at = datetime.utcnow()
         db.commit()
 
@@ -535,6 +638,7 @@ def request_cll_hint(
         "penalty": 0 if already_unlocked else 20,
         "already_unlocked": bool(already_unlocked),
         "total_points": total_score,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -544,6 +648,13 @@ def submit_cll_flag(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        payload.get("assignment_id"),
+    )
+
     user_id_str = str(current_user.id) if current_user else "student"
     track_id = payload.get("track", "linux")
     module_id = payload.get("module")
@@ -562,18 +673,32 @@ def submit_cll_flag(
 
     if idx > 0:
         prev_mid = mod_keys[idx - 1]
-        prev_rec = db.query(UserProgress).filter(
+        prev_query = db.query(UserProgress).filter(
             UserProgress.user_id == user_id_str,
             UserProgress.track_id == track_id,
-            UserProgress.module_id == prev_mid
+            UserProgress.module_id == prev_mid,
+        )
+        prev_rec = _scope_assignment(
+            prev_query,
+            UserProgress,
+            resolved_assignment_id,
         ).first()
-        if not prev_rec or not prev_rec.completed:
-            raise HTTPException(status_code=403, detail="Module is locked. Complete previous module first.")
 
-    record = db.query(UserProgress).filter(
+        if not prev_rec or not prev_rec.completed:
+            raise HTTPException(
+                status_code=403,
+                detail="Module is locked. Complete previous module first.",
+            )
+
+    record_query = db.query(UserProgress).filter(
         UserProgress.user_id == user_id_str,
         UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
+        UserProgress.module_id == module_id,
+    )
+    record = _scope_assignment(
+        record_query,
+        UserProgress,
+        resolved_assignment_id,
     ).first()
 
     current_total_score = reconcile_user_score(db, user_id_str)
@@ -585,36 +710,53 @@ def submit_cll_flag(
             "points": 0,
             "total_points": current_total_score,
             "next_module": next_module_id,
+            "assignment_id": resolved_assignment_id,
         }
 
     services_url = get_cll_services_url(user_id_str)
     try:
-        prog_resp = requests.get(f"{services_url}/progress/{user_id_str}/{track_id}/{module_id}", timeout=3)
+        prog_resp = requests.get(
+            f"{services_url}/progress/{user_id_str}/{track_id}/{module_id}",
+            timeout=3,
+        )
         prog_resp.raise_for_status()
         prog_data = prog_resp.json()
 
         if not prog_data.get("module_complete", False):
-            return {"correct": False, "message": "Please complete all terminal objectives first!"}
-    except Exception as e:
-        logger.error(f"[CLL] Progress service check failed for user {user_id_str}: {e}")
-        return {"correct": False, "message": "Progress service unavailable. Please try again later."}
+            return {
+                "correct": False,
+                "message": "Please complete all terminal objectives first!",
+                "assignment_id": resolved_assignment_id,
+            }
+    except Exception as exc:
+        logger.error(
+            f"[CLL] Progress service check failed for user {user_id_str}: {exc}"
+        )
+        return {
+            "correct": False,
+            "message": "Progress service unavailable. Please try again later.",
+            "assignment_id": resolved_assignment_id,
+        }
 
     session = get_cll_runtime_session(user_id_str)
     if session:
-        lab_seed = session.get("lab_seed","defaultseed")
+        lab_seed = session.get("lab_seed", "defaultseed")
     else:
         lab_seed = os.environ.get("LAB_SEED", "defaultseed")
 
     valid_flags = generate_flag(user_id_str, track_id, module_id, lab_seed)
 
     if submitted_flag not in valid_flags:
-        return {"correct": False, "message": "That's not the right key for this module."}
+        return {
+            "correct": False,
+            "message": "That's not the right key for this module.",
+            "assignment_id": resolved_assignment_id,
+        }
 
     base_points = tcfg["modules"][module_id]["points"]
     hint1_used = record.hint1_used if record else False
     hint2_used = record.hint2_used if record else False
 
-    # --- CompletionService is the ONLY entry point for awarding points ---
     result = CompletionService.complete_track_module(
         db=db,
         user=current_user,
@@ -625,18 +767,18 @@ def submit_cll_flag(
         hint1_used=hint1_used,
         hint2_used=hint2_used,
         submitted_flag=submitted_flag,
+        assignment_id=resolved_assignment_id,
     )
     db.commit()
-
-    new_total_score = result.new_total_score
 
     return {
         "correct": True,
         "message": "Correct! Next module unlocked.",
         "points": result.points_awarded,
-        "total_points": new_total_score,
+        "total_points": result.new_total_score,
         "next_module": next_module_id,
         "track": track_id,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -673,16 +815,41 @@ def reset_cll_progress(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     user_id_str = str(current_user.id) if current_user else "student"
-    db.query(UserProgress).filter(UserProgress.user_id == user_id_str).delete()
-    if current_user:
-        db.query(UserLabProgress).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "command-line-lab"
-        ).delete()
-    db.commit()
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "command-line-lab",
+        payload.get("assignment_id"),
+    )
 
+    progress_query = db.query(UserProgress).filter(
+        UserProgress.user_id == user_id_str
+    )
+    _scope_assignment(
+        progress_query,
+        UserProgress,
+        resolved_assignment_id,
+    ).delete(synchronize_session=False)
+
+    if current_user:
+        lab_progress_query = db.query(UserLabProgress).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == "command-line-lab",
+        )
+        _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
+        ).delete(synchronize_session=False)
+
+    db.commit()
     reconcile_user_score(db, user_id_str)
-    return {"reset": True, "user_id": user_id_str}
+
+    return {
+        "reset": True,
+        "user_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
+    }
 
 
 import asyncio

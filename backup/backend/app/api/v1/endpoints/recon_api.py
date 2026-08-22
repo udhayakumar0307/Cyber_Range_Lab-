@@ -15,6 +15,32 @@ from app.models.user_lab_progress import UserLabProgress
 from app.models.user_progress import UserProgress
 from app.services.score_service import reconcile_user_score
 from app.services.completion_service import CompletionService
+from app.services.assignment_context_service import resolve_assignment
+
+def _resolve_assignment_id(
+    db: Session,
+    current_user: Optional[User],
+    lab_id: str,
+    requested_assignment_id: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve the canonical assignment context for an authenticated lab request."""
+    if not current_user:
+        return None
+
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab_id,
+        requested_assignment_id=requested_assignment_id,
+    )
+    return assignment.id if assignment else None
+
+
+def _scope_assignment(query, model, assignment_id: Optional[int]):
+    """Apply NULL-safe assignment scoping to a SQLAlchemy query."""
+    if assignment_id is None:
+        return query.filter(model.assignment_id.is_(None))
+    return query.filter(model.assignment_id == assignment_id)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -329,45 +355,76 @@ def _generate_recon_flag(user_id: str, module_id: str) -> List[str]:
 
 @router.get("/progress")
 def get_recon_progress(
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Returns per-module progress + flags for the current user."""
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        LAB_ID,
+        assignment_id,
+    )
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
-    progress_rows = (
-        db.query(UserProgress)
-        .filter(
+    progress_rows = []
+    if current_user:
+        progress_query = db.query(UserProgress).filter(
             UserProgress.user_id == user_id_str,
             UserProgress.track_id == TRACK_ID,
         )
-        .all()
-    ) if current_user else []
-    solved_set = {r.module_id for r in progress_rows if r.completed}
+        progress_rows = _scope_assignment(
+            progress_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).all()
+
+    solved_set = {
+        r.module_id
+        for r in progress_rows
+        if r.completed
+    }
 
     modules_out = []
-    for i, m in enumerate(RECON_MODULES):
-        mid = m["id"]
-        locked = i > 0 and MODULE_IDS[i - 1] not in solved_set
-        completed = mid in solved_set
-        # Always generate the real flag so the terminal can display it.
-        # The flag is deterministic per user+module — seeing it doesn't bypass validation.
-        real_flag = _generate_recon_flag(user_id_str, mid)[0]
-        if mid == "module5":
-            logger.info(f"[RECON-AUDIT] Session Provisioning | User: {user_id_str} | Generated Module 5 Flag: {real_flag} | Target: /root/flag.txt")
-        modules_out.append(
-            {
-                "id": mid,
-                "title": m["title"],
-                "points": m["points"],
-                "locked": locked,
-                "completed": completed,
-                "flag": real_flag,
-            }
+    for i, module in enumerate(RECON_MODULES):
+        mid = module["id"]
+        locked = (
+            i > 0
+            and MODULE_IDS[i - 1] not in solved_set
         )
+        completed = mid in solved_set
 
-    return {"user_id": user_id_str, "total_score": total_score, "modules": modules_out}
+        real_flag = _generate_recon_flag(
+            user_id_str,
+            mid,
+        )[0]
+
+        if mid == "module5":
+            logger.info(
+                f"[RECON-AUDIT] Session Provisioning | "
+                f"User: {user_id_str} | "
+                f"Assignment: {resolved_assignment_id} | "
+                f"Generated Module 5 Flag: {real_flag} | "
+                f"Target: /root/flag.txt"
+            )
+
+        modules_out.append({
+            "id": mid,
+            "title": module["title"],
+            "points": module["points"],
+            "locked": locked,
+            "completed": completed,
+            "flag": real_flag,
+        })
+
+    return {
+        "user_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
+        "total_score": total_score,
+        "modules": modules_out,
+    }
 
 
 # ── POST /submit ─────────────────────────────────────────────────────────────
@@ -378,68 +435,114 @@ def submit_recon_flag(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Validates a submitted flag, records progress in RDS, reconciles score."""
+    """Validates a submitted flag and records assignment-scoped progress."""
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        LAB_ID,
+        payload.get("assignment_id"),
+    )
+
     module_id = (payload.get("module") or "").strip()
     submitted_flag = (payload.get("flag") or "").strip()
 
     if module_id not in MODULE_IDS:
-        raise HTTPException(status_code=400, detail=f"Unknown module: {module_id}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown module: {module_id}",
+        )
 
     idx = MODULE_IDS.index(module_id)
 
-    # Enforce sequential locking for non-first modules
     if idx > 0:
         prev_mid = MODULE_IDS[idx - 1]
-        prev_rec = (
-            db.query(UserProgress)
-            .filter(
-                UserProgress.user_id == user_id_str,
-                UserProgress.track_id == TRACK_ID,
-                UserProgress.module_id == prev_mid,
-            )
-            .first()
+        prev_query = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id_str,
+            UserProgress.track_id == TRACK_ID,
+            UserProgress.module_id == prev_mid,
         )
+        prev_rec = _scope_assignment(
+            prev_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).first()
+
         if not prev_rec or not prev_rec.completed:
             raise HTTPException(
                 status_code=403,
-                detail="Module is locked. Complete the previous module first.",
+                detail=(
+                    "Module is locked. "
+                    "Complete the previous module first."
+                ),
             )
 
-    # Already solved?
-    record = (
-        db.query(UserProgress)
-        .filter(
-            UserProgress.user_id == user_id_str,
-            UserProgress.track_id == TRACK_ID,
-            UserProgress.module_id == module_id,
-        )
-        .first()
+    record_query = db.query(UserProgress).filter(
+        UserProgress.user_id == user_id_str,
+        UserProgress.track_id == TRACK_ID,
+        UserProgress.module_id == module_id,
+    )
+    record = _scope_assignment(
+        record_query,
+        UserProgress,
+        resolved_assignment_id,
+    ).first()
+
+    current_total = reconcile_user_score(
+        db,
+        user_id_str,
     )
 
-    current_total = reconcile_user_score(db, user_id_str)
     if record and record.completed:
-        next_mid = MODULE_IDS[idx + 1] if idx + 1 < len(MODULE_IDS) else None
+        next_mid = (
+            MODULE_IDS[idx + 1]
+            if idx + 1 < len(MODULE_IDS)
+            else None
+        )
         return {
             "correct": True,
             "message": "Already solved.",
             "points": 0,
             "total_points": current_total,
             "next_module": next_mid,
+            "assignment_id": resolved_assignment_id,
         }
 
-    # Validate flag
-    valid_flags = _generate_recon_flag(user_id_str, module_id)
-    logger.info(f"[RECON-AUDIT] Module 5 Submission Check | User: {user_id_str} | Module: {module_id} | Submitted: {submitted_flag} | Expected: {valid_flags[0]}")
+    valid_flags = _generate_recon_flag(
+        user_id_str,
+        module_id,
+    )
+    logger.info(
+        f"[RECON-AUDIT] Submission Check | "
+        f"User: {user_id_str} | "
+        f"Assignment: {resolved_assignment_id} | "
+        f"Module: {module_id} | "
+        f"Submitted: {submitted_flag} | "
+        f"Expected: {valid_flags[0]}"
+    )
 
     if submitted_flag not in valid_flags:
-        logger.warning(f"[RECON-AUDIT] Module 5 Submission REJECTED | User: {user_id_str} | Module: {module_id} | Submitted: {submitted_flag} != Expected: {valid_flags[0]}")
-        return {"correct": False, "message": "Incorrect flag. Check your terminal output."}
+        logger.warning(
+            f"[RECON-AUDIT] Submission REJECTED | "
+            f"User: {user_id_str} | "
+            f"Assignment: {resolved_assignment_id} | "
+            f"Module: {module_id}"
+        )
+        return {
+            "correct": False,
+            "message": "Incorrect flag. Check your terminal output.",
+            "assignment_id": resolved_assignment_id,
+        }
 
-    logger.info(f"[RECON-AUDIT] Module 5 Submission SUCCESS | User: {user_id_str} | Module: {module_id} | Flag Verified: {submitted_flag}")
+    logger.info(
+        f"[RECON-AUDIT] Submission SUCCESS | "
+        f"User: {user_id_str} | "
+        f"Assignment: {resolved_assignment_id} | "
+        f"Module: {module_id}"
+    )
 
-    # Calculate earned points via CompletionService (single source of truth)
     from sqlalchemy.exc import IntegrityError
+
     try:
         result = CompletionService.complete_lab_module(
             db=db,
@@ -451,56 +554,80 @@ def submit_recon_flag(
             hint1_used=record.hint1_used if record else False,
             hint2_used=record.hint2_used if record else False,
             submitted_flag=submitted_flag,
+            assignment_id=resolved_assignment_id,
         )
-    except IntegrityError as e:
+
+    except IntegrityError as exc:
         db.rollback()
-        logger.warning(f"[RECON] IntegrityError on module {module_id} for user {user_id_str}: {e}")
-        # Re-fetch or re-create the result assuming it was a duplicate event
-        current_total = reconcile_user_score(db, user_id_str)
-        next_mid = MODULE_IDS[idx + 1] if idx + 1 < len(MODULE_IDS) else None
-        # Still mark user_progress completed in a fresh transaction
+        logger.warning(
+            f"[RECON] IntegrityError on module {module_id} "
+            f"for user {user_id_str}, "
+            f"assignment {resolved_assignment_id}: {exc}"
+        )
+
+        current_total = reconcile_user_score(
+            db,
+            user_id_str,
+        )
+        next_mid = (
+            MODULE_IDS[idx + 1]
+            if idx + 1 < len(MODULE_IDS)
+            else None
+        )
+
         try:
-            record = (
-                db.query(UserProgress)
-                .filter(
-                    UserProgress.user_id == user_id_str,
-                    UserProgress.track_id == TRACK_ID,
-                    UserProgress.module_id == module_id,
-                )
-                .first()
+            retry_query = db.query(UserProgress).filter(
+                UserProgress.user_id == user_id_str,
+                UserProgress.track_id == TRACK_ID,
+                UserProgress.module_id == module_id,
             )
+            record = _scope_assignment(
+                retry_query,
+                UserProgress,
+                resolved_assignment_id,
+            ).first()
+
             if not record:
                 record = UserProgress(
+                    assignment_id=resolved_assignment_id,
                     user_id=user_id_str,
                     track_id=TRACK_ID,
                     module_id=module_id,
                 )
                 db.add(record)
+
             record.completed = True
             record.module_score = MODULE_POINTS[module_id]
             record.flag_submitted = submitted_flag
             record.completed_at = datetime.utcnow()
             record.updated_at = datetime.utcnow()
             db.commit()
-        except Exception as inner_e:
+
+        except Exception as inner_exc:
             db.rollback()
-            logger.error(f"[RECON] Failed to save user_progress for {module_id}: {inner_e}")
+            logger.error(
+                f"[RECON] Failed to save user_progress "
+                f"for {module_id}: {inner_exc}"
+            )
+
         return {
             "correct": True,
             "message": "Already solved.",
             "points": 0,
             "total_points": current_total,
             "next_module": next_mid,
+            "assignment_id": resolved_assignment_id,
         }
 
-    # Also mark the UserProgress record for sequential locking
     if not record:
         record = UserProgress(
+            assignment_id=resolved_assignment_id,
             user_id=user_id_str,
             track_id=TRACK_ID,
             module_id=module_id,
         )
         db.add(record)
+
     record.completed = True
     record.module_score = result.points_awarded
     record.flag_submitted = submitted_flag
@@ -509,22 +636,54 @@ def submit_recon_flag(
 
     try:
         db.commit()
-    except IntegrityError as e:
-        db.rollback()
-        logger.warning(f"[RECON] Commit IntegrityError for {module_id}: {e} — retrying user_progress only")
-        try:
-            record.completed = True
-            record.module_score = result.points_awarded
-            record.flag_submitted = submitted_flag
-            record.completed_at = datetime.utcnow()
-            record.updated_at = datetime.utcnow()
-            db.merge(record)
-            db.commit()
-        except Exception as inner_e:
-            db.rollback()
-            logger.error(f"[RECON] Final commit failed for {module_id}: {inner_e}")
 
-    next_mid = MODULE_IDS[idx + 1] if idx + 1 < len(MODULE_IDS) else None
+    except IntegrityError as exc:
+        db.rollback()
+        logger.warning(
+            f"[RECON] Commit IntegrityError for {module_id}: "
+            f"{exc} — retrying user_progress only"
+        )
+
+        try:
+            retry_query = db.query(UserProgress).filter(
+                UserProgress.user_id == user_id_str,
+                UserProgress.track_id == TRACK_ID,
+                UserProgress.module_id == module_id,
+            )
+            retry_record = _scope_assignment(
+                retry_query,
+                UserProgress,
+                resolved_assignment_id,
+            ).first()
+
+            if not retry_record:
+                retry_record = UserProgress(
+                    assignment_id=resolved_assignment_id,
+                    user_id=user_id_str,
+                    track_id=TRACK_ID,
+                    module_id=module_id,
+                )
+                db.add(retry_record)
+
+            retry_record.completed = True
+            retry_record.module_score = result.points_awarded
+            retry_record.flag_submitted = submitted_flag
+            retry_record.completed_at = datetime.utcnow()
+            retry_record.updated_at = datetime.utcnow()
+            db.commit()
+
+        except Exception as inner_exc:
+            db.rollback()
+            logger.error(
+                f"[RECON] Final commit failed "
+                f"for {module_id}: {inner_exc}"
+            )
+
+    next_mid = (
+        MODULE_IDS[idx + 1]
+        if idx + 1 < len(MODULE_IDS)
+        else None
+    )
 
     return {
         "correct": True,
@@ -533,6 +692,7 @@ def submit_recon_flag(
         "total_points": result.new_total_score,
         "next_module": next_mid,
         "module": module_id,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -563,34 +723,60 @@ HINTS: Dict[str, List[str]] = {
 
 
 @router.post("/hint")
-def unlock_recon_hint(
+def request_cll_hint(
     payload: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+    """Unlock a Recon hint within the current assignment context."""
     user_id_str = str(current_user.id) if current_user else "student"
-    module_id = (payload.get("module") or "").strip()
+    module_id = (payload.get("module") or "module1").strip()
     hint_index = int(payload.get("hint_index", 1))
 
     if module_id not in MODULE_IDS:
-        raise HTTPException(status_code=400, detail="Unknown module.")
-    if hint_index not in (1, 2):
-        raise HTTPException(status_code=400, detail="hint_index must be 1 or 2.")
-
-    record = (
-        db.query(UserProgress)
-        .filter(
-            UserProgress.user_id == user_id_str,
-            UserProgress.track_id == TRACK_ID,
-            UserProgress.module_id == module_id,
+        raise HTTPException(
+            status_code=400,
+            detail="Unknown module.",
         )
-        .first()
+    if hint_index not in (1, 2):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid hint index. Must be 1 or 2.",
+        )
+
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        LAB_ID,
+        payload.get("assignment_id"),
     )
+
+    hints = HINTS.get(module_id, [])
+    if len(hints) < hint_index:
+        raise HTTPException(
+            status_code=404,
+            detail="Hint not available.",
+        )
+
+    progress_query = db.query(UserProgress).filter(
+        UserProgress.user_id == user_id_str,
+        UserProgress.track_id == TRACK_ID,
+        UserProgress.module_id == module_id,
+    )
+    record = _scope_assignment(
+        progress_query,
+        UserProgress,
+        resolved_assignment_id,
+    ).first()
+
     if not record:
         record = UserProgress(
+            assignment_id=resolved_assignment_id,
             user_id=user_id_str,
             track_id=TRACK_ID,
             module_id=module_id,
+            completed=False,
+            module_score=0,
             hint1_used=False,
             hint2_used=False,
         )
@@ -598,27 +784,39 @@ def unlock_recon_hint(
         db.flush()
 
     if hint_index == 2 and not record.hint1_used:
-        raise HTTPException(status_code=403, detail="Unlock Hint 1 first.")
+        raise HTTPException(
+            status_code=403,
+            detail="Unlock Hint 1 first before unlocking Hint 2.",
+        )
 
-    already = (hint_index == 1 and record.hint1_used) or (hint_index == 2 and record.hint2_used)
-    if not already:
+    already_unlocked = (
+        (hint_index == 1 and record.hint1_used)
+        or
+        (hint_index == 2 and record.hint2_used)
+    )
+
+    if not already_unlocked:
         if hint_index == 1:
             record.hint1_used = True
         else:
             record.hint2_used = True
+
         record.updated_at = datetime.utcnow()
         db.commit()
 
-    total_score = reconcile_user_score(db, user_id_str)
-    hints = HINTS.get(module_id, ["", ""])
+    total_score = reconcile_user_score(
+        db,
+        user_id_str,
+    )
 
     return {
         "success": True,
         "hint": hints[hint_index - 1],
         "hint_index": hint_index,
-        "penalty": 0 if already else 25,
-        "already_unlocked": already,
+        "penalty": 0 if already_unlocked else 20,
+        "already_unlocked": bool(already_unlocked),
         "total_points": total_score,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -627,25 +825,49 @@ def unlock_recon_hint(
 @router.get("/flag/{module_id}")
 def get_recon_flag(
     module_id: str,
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required.")
-    user_id_str = str(current_user.id)
-
-    record = (
-        db.query(UserProgress)
-        .filter(
-            UserProgress.user_id == user_id_str,
-            UserProgress.track_id == TRACK_ID,
-            UserProgress.module_id == module_id,
-            UserProgress.completed == True,  # noqa: E712
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required.",
         )
-        .first()
-    )
-    if not record:
-        raise HTTPException(status_code=403, detail="Module not yet completed.")
 
-    flag = _generate_recon_flag(user_id_str, module_id)[0]
-    return {"flag": flag, "module": module_id}
+    user_id_str = str(current_user.id)
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        LAB_ID,
+        assignment_id,
+    )
+
+    record_query = db.query(UserProgress).filter(
+        UserProgress.user_id == user_id_str,
+        UserProgress.track_id == TRACK_ID,
+        UserProgress.module_id == module_id,
+        UserProgress.completed.is_(True),
+    )
+    record = _scope_assignment(
+        record_query,
+        UserProgress,
+        resolved_assignment_id,
+    ).first()
+
+    if not record:
+        raise HTTPException(
+            status_code=403,
+            detail="Module not yet completed.",
+        )
+
+    flag = _generate_recon_flag(
+        user_id_str,
+        module_id,
+    )[0]
+
+    return {
+        "flag": flag,
+        "module": module_id,
+        "assignment_id": resolved_assignment_id,
+    }

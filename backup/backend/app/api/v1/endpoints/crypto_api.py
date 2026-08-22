@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.user_progress import UserProgress
 from app.models.user_lab_progress import UserLabProgress
 from app.models.lab import Lab
+from app.services.assignment_context_service import resolve_assignment
 
 from app.core.config import settings
 
@@ -63,16 +64,48 @@ def generate_flag(student_id: str, track_id: str, module_id: str, lab_seed: str 
 from app.services.score_service import reconcile_user_score
 from app.services.completion_service import CompletionService
 
+def _resolve_assignment_id(
+    db: Session,
+    current_user: Optional[User],
+    lab_id: str,
+    requested_assignment_id: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve the canonical assignment context for an authenticated lab request."""
+    if not current_user:
+        return None
+
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab_id,
+        requested_assignment_id=requested_assignment_id,
+    )
+    return assignment.id if assignment else None
+
+
+def _scope_assignment(query, model, assignment_id: Optional[int]):
+    """Apply NULL-safe assignment scoping to a SQLAlchemy query."""
+    if assignment_id is None:
+        return query.filter(model.assignment_id.is_(None))
+    return query.filter(model.assignment_id == assignment_id)
+
 
 @router.get("/view", response_class=HTMLResponse)
 @router.get("/session/view", response_class=HTMLResponse)
 def get_standalone_html_view(
     request: Request,
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Renders the standalone Jinja2 template index.html from cryptography-lab."""
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        assignment_id,
+    )
 
     # Automatically provision ECS task if running under ORCHESTRATOR=ecs
     orchestrator_mode = os.getenv("ORCHESTRATOR", "docker").lower()
@@ -91,10 +124,25 @@ def get_standalone_html_view(
                     logger.error(f"[CRYPTO] Auto-provisioning ECS task failed for user {user_id_str}: {exc}")
         except Exception as outer_exc:
             logger.error(f"[CRYPTO] Orchestrator error for user {user_id_str}: {outer_exc}")
+
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
-    progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
-    
+    progress_rows = []
+    if current_user:
+        progress_query = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id_str
+        )
+        progress_rows = _scope_assignment(
+            progress_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).all()
+
+    progress_by_key = {
+        (r.track_id, r.module_id): r
+        for r in progress_rows
+    }
+
     user_solved = {}
     user_hints = {}
     for r in progress_rows:
@@ -107,10 +155,16 @@ def get_standalone_html_view(
             user_hints[f"{r.track_id}_{r.module_id}_hint2"] = True
 
     if current_user:
-        lab_progress_rows = db.query(UserLabProgress).filter(
+        lab_progress_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "cryptography-lab"
+            UserLabProgress.lab_id == "cryptography-lab",
+        )
+        lab_progress_rows = _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for lp in lab_progress_rows:
             if lp.status == "COMPLETED" or lp.flag_correct:
                 mod_key = lp.module_id.replace("cryptography-lab_", "")
@@ -133,13 +187,7 @@ def get_standalone_html_view(
             if is_solved:
                 solved_count += 1
 
-            # Fetch solved objective IDs for this user & module
-            up_rec = db.query(UserProgress).filter(
-                UserProgress.user_id == user_id_str,
-                UserProgress.track_id == tid,
-                UserProgress.module_id == mid
-            ).first() if current_user else None
-
+            up_rec = progress_by_key.get((tid, mid))
             completed_obj_ids = []
             if up_rec and up_rec.flag_submitted:
                 try:
@@ -154,7 +202,9 @@ def get_standalone_html_view(
             for obj in raw_objectives:
                 obj_copy = dict(obj)
                 obj_id = obj_copy.get("id") or obj_copy.get("objective_id")
-                obj_copy["complete"] = bool(obj_id and obj_id in completed_obj_ids)
+                obj_copy["complete"] = bool(
+                    obj_id and obj_id in completed_obj_ids
+                )
                 objectives_with_status.append(obj_copy)
 
             modules.append({
@@ -190,7 +240,6 @@ def get_standalone_html_view(
         template_path = ROOT_DIR / "cryptography-lab" / "scoring-server" / "templates" / "index.html"
 
     html_content = template_path.read_text(encoding="utf-8")
-
     html_content = html_content.replace("{{ total_points }}", str(total_score))
     html_content = html_content.replace("{{ student_id }}", user_id_str)
     html_content = html_content.replace("{{ tracks_json | tojson }}", json.dumps(tracks))
@@ -203,14 +252,30 @@ def get_standalone_html_view(
 @router.get("/config")
 @router.get("/status")
 def get_crypto_config(
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        assignment_id,
+    )
     total_points = reconcile_user_score(db, user_id_str) if current_user else 0
 
-    progress_rows = db.query(UserProgress).filter(UserProgress.user_id == user_id_str).all() if current_user else []
-    
+    progress_rows = []
+    if current_user:
+        progress_query = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id_str
+        )
+        progress_rows = _scope_assignment(
+            progress_query,
+            UserProgress,
+            resolved_assignment_id,
+        ).all()
+
     user_solved = {}
     user_hints = {}
     for r in progress_rows:
@@ -223,10 +288,16 @@ def get_crypto_config(
             user_hints[f"{r.track_id}_{r.module_id}_hint2"] = True
 
     if current_user:
-        lab_progress_rows = db.query(UserLabProgress).filter(
+        lab_progress_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "cryptography-lab"
+            UserLabProgress.lab_id == "cryptography-lab",
+        )
+        lab_progress_rows = _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for lp in lab_progress_rows:
             if lp.status == "COMPLETED" or lp.flag_correct:
                 mod_key = lp.module_id.replace("cryptography-lab_", "")
@@ -279,8 +350,9 @@ def get_crypto_config(
 
     return {
         "student_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
         "total_points": total_points,
-        "tracks": tracks
+        "tracks": tracks,
     }
 
 
@@ -317,46 +389,60 @@ def exit_crypto_session(
 def get_crypto_progress(
     module_id: str,
     track_id: str = "crypto",
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        assignment_id,
+    )
+
     tcfg = TRACKS_CONFIG.get(track_id)
     if not tcfg or module_id not in tcfg.get("modules", {}):
         raise HTTPException(status_code=404, detail="Unknown track or module.")
 
-    objectives = [dict(o) for o in tcfg["modules"][module_id].get("objectives", [])]
-    
-    # Read completed_objectives from UserProgress
-    record = db.query(UserProgress).filter(
+    objectives = [
+        dict(o)
+        for o in tcfg["modules"][module_id].get("objectives", [])
+    ]
+
+    record_query = db.query(UserProgress).filter(
         UserProgress.user_id == user_id_str,
         UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
+        UserProgress.module_id == module_id,
+    )
+    record = _scope_assignment(
+        record_query,
+        UserProgress,
+        resolved_assignment_id,
     ).first()
-    
+
     completed_ids = []
     if record and record.flag_submitted:
-        import json
         try:
             completed_ids = json.loads(record.flag_submitted)
             if not isinstance(completed_ids, list):
                 completed_ids = []
         except Exception:
             completed_ids = []
-            
-    # Inject complete flag for each objective
+
     for obj in objectives:
         obj_id = obj.get("id") or obj.get("objective_id")
-        if obj_id and obj_id in completed_ids:
-            obj["complete"] = True
-        else:
-            obj["complete"] = False
+        obj["complete"] = bool(obj_id and obj_id in completed_ids)
 
-    return {"objectives": objectives, "module_complete": record.completed if record else False}
+    return {
+        "objectives": objectives,
+        "module_complete": record.completed if record else False,
+        "assignment_id": resolved_assignment_id,
+    }
 
 
 @router.post("/hint")
-def request_crypto_hint(
+def request_cll_hint(
     payload: Dict[str, Any],
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
@@ -367,46 +453,78 @@ def request_crypto_hint(
     hint_index = int(payload.get("hint_index", 1))
 
     if hint_index not in (1, 2):
-        raise HTTPException(status_code=400, detail="Invalid hint index. Must be 1 or 2.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid hint index. Must be 1 or 2."
+        )
 
     tcfg = TRACKS_CONFIG.get(track_id)
     if not tcfg or module_id not in tcfg.get("modules", {}):
-        raise HTTPException(status_code=400, detail="Unknown track or module.")
+        raise HTTPException(
+            status_code=400,
+            detail="Unknown track or module."
+        )
+
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        payload.get("assignment_id"),
+    )
 
     mcfg = tcfg["modules"][module_id]
     hints = mcfg.get("hints", [])
     if len(hints) < hint_index:
-        raise HTTPException(status_code=404, detail="Hint not available.")
+        raise HTTPException(
+            status_code=404,
+            detail="Hint not available."
+        )
 
-    record = db.query(UserProgress).filter(
+    progress_query = db.query(UserProgress).filter(
         UserProgress.user_id == user_id_str,
         UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
-    ).first()
+        UserProgress.module_id == module_id,
+    )
+    progress_query = _scope_assignment(
+        progress_query,
+        UserProgress,
+        resolved_assignment_id,
+    )
+    record = progress_query.first()
 
     if not record:
         record = UserProgress(
+            assignment_id=resolved_assignment_id,
             user_id=user_id_str,
             track_id=track_id,
             module_id=module_id,
             completed=False,
             module_score=0,
             hint1_used=False,
-            hint2_used=False
+            hint2_used=False,
+            flag_submitted="[]",
         )
         db.add(record)
         db.flush()
 
     if hint_index == 2 and not record.hint1_used:
-        raise HTTPException(status_code=403, detail="Unlock Hint 1 first before unlocking Hint 2.")
+        raise HTTPException(
+            status_code=403,
+            detail="Unlock Hint 1 first before unlocking Hint 2."
+        )
 
-    already_unlocked = (hint_index == 1 and record.hint1_used) or (hint_index == 2 and record.hint2_used)
+    already_unlocked = (
+        (hint_index == 1 and record.hint1_used)
+        or
+        (hint_index == 2 and record.hint2_used)
+    )
 
     if not already_unlocked:
         if hint_index == 1:
             record.hint1_used = True
-        elif hint_index == 2:
+        else:
             record.hint2_used = True
+
         record.updated_at = datetime.utcnow()
         db.commit()
 
@@ -419,6 +537,7 @@ def request_crypto_hint(
         "penalty": 0 if already_unlocked else 20,
         "already_unlocked": bool(already_unlocked),
         "total_points": total_score,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -428,6 +547,13 @@ def submit_crypto_flag(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        payload.get("assignment_id"),
+    )
+
     user_id_str = str(current_user.id) if current_user else "student"
     track_id = payload.get("track", "crypto")
     module_id = payload.get("module")
@@ -446,77 +572,125 @@ def submit_crypto_flag(
 
     if idx > 0:
         prev_mid = mod_keys[idx - 1]
-        prev_rec = db.query(UserProgress).filter(
+        prev_query = db.query(UserProgress).filter(
             UserProgress.user_id == user_id_str,
             UserProgress.track_id == track_id,
-            UserProgress.module_id == prev_mid
+            UserProgress.module_id == prev_mid,
+        )
+        prev_rec = _scope_assignment(
+            prev_query,
+            UserProgress,
+            resolved_assignment_id,
         ).first()
-        if not prev_rec or not prev_rec.completed:
-            raise HTTPException(status_code=403, detail="Module is locked. Complete previous module first.")
 
-    record = db.query(UserProgress).filter(
+        if not prev_rec or not prev_rec.completed:
+            raise HTTPException(
+                status_code=403,
+                detail="Module is locked. Complete previous module first.",
+            )
+
+    record_query = db.query(UserProgress).filter(
         UserProgress.user_id == user_id_str,
         UserProgress.track_id == track_id,
-        UserProgress.module_id == module_id
+        UserProgress.module_id == module_id,
+    )
+    record = _scope_assignment(
+        record_query,
+        UserProgress,
+        resolved_assignment_id,
     ).first()
 
     current_total_score = reconcile_user_score(db, user_id_str)
-
     valid_flags = generate_flag(user_id_str, track_id, module_id)
-    
-    # Determine which objective was solved
+
     matched_objective_id = None
-    total_objectives = len(tcfg["modules"][module_id].get("objectives", []))
+    total_objectives = len(
+        tcfg["modules"][module_id].get("objectives", [])
+    )
+
     try:
-        answers_path = LABS_DIR / "cryptography-lab" / "scoring-server" / "answers.json"
+        answers_path = (
+            LABS_DIR
+            / "cryptography-lab"
+            / "scoring-server"
+            / "answers.json"
+        )
         if not answers_path.exists():
-            answers_path = ROOT_DIR / "cryptography-lab" / "scoring-server" / "answers.json"
+            answers_path = (
+                ROOT_DIR
+                / "cryptography-lab"
+                / "scoring-server"
+                / "answers.json"
+            )
+
         if answers_path.exists():
             with open(answers_path, "r", encoding="utf-8") as f:
                 ans_data = json.load(f)
-                if module_id in ans_data:
-                    clean_submitted = submitted_flag.strip()
-                    clean_submitted_lower = clean_submitted.lower()
-                    
-                    for idx_obj, obj in enumerate(ans_data[module_id]):
-                        possible_vals = [
-                            obj.get("flag"),
-                            obj.get("validation_value"),
-                            obj.get("correct_answer"),
-                            f"FLAG{{{obj.get('correct_answer')}}}" if obj.get("correct_answer") else None
-                        ]
-                        possible_vals = [v for v in possible_vals if v is not None]
-                        
-                        match_found = False
-                        for val in possible_vals:
-                            val_clean = str(val).strip()
-                            if clean_submitted == val_clean or clean_submitted_lower == val_clean.lower():
-                                match_found = True
-                                break
-                        
-                        if match_found:
-                            # Map to module_config.json objective ID style (m1_obj1, m1_obj2, etc.)
-                            m_num = module_id.replace("module", "")
-                            matched_objective_id = obj.get("objective_id") or obj.get("id") or f"m{m_num}_obj{idx_obj + 1}"
-                            break
-    except Exception as e:
-        logger.error(f"Failed to parse answers.json: {e}")
 
-    # Fallback if it's one of the dynamic valid flags
+            if module_id in ans_data:
+                clean_submitted = submitted_flag.strip()
+                clean_submitted_lower = clean_submitted.lower()
+
+                for idx_obj, obj in enumerate(ans_data[module_id]):
+                    possible_vals = [
+                        obj.get("flag"),
+                        obj.get("validation_value"),
+                        obj.get("correct_answer"),
+                        (
+                            f"FLAG{{{obj.get('correct_answer')}}}"
+                            if obj.get("correct_answer")
+                            else None
+                        ),
+                    ]
+                    possible_vals = [
+                        v for v in possible_vals if v is not None
+                    ]
+
+                    match_found = False
+                    for val in possible_vals:
+                        val_clean = str(val).strip()
+                        if (
+                            clean_submitted == val_clean
+                            or clean_submitted_lower == val_clean.lower()
+                        ):
+                            match_found = True
+                            break
+
+                    if match_found:
+                        m_num = module_id.replace("module", "")
+                        matched_objective_id = (
+                            obj.get("objective_id")
+                            or obj.get("id")
+                            or f"m{m_num}_obj{idx_obj + 1}"
+                        )
+                        break
+    except Exception as exc:
+        logger.error(f"Failed to parse answers.json: {exc}")
+
     if not matched_objective_id and submitted_flag in valid_flags:
         matched_objective_id = f"{module_id}_obj1"
 
     if not matched_objective_id:
-        return {"correct": False, "message": "That's not the right key for this module."}
+        return {
+            "correct": False,
+            "message": "That's not the right key for this module.",
+            "assignment_id": resolved_assignment_id,
+        }
 
     if not record:
         record = UserProgress(
+            assignment_id=resolved_assignment_id,
             user_id=user_id_str,
             track_id=track_id,
             module_id=module_id,
-            flag_submitted="[]"
+            completed=False,
+            module_score=0,
+            hint1_used=False,
+            hint2_used=False,
+            flag_submitted="[]",
         )
         db.add(record)
+        db.flush()
 
     completed_objectives = []
     if record.flag_submitted:
@@ -524,7 +698,7 @@ def submit_crypto_flag(
             completed_objectives = json.loads(record.flag_submitted)
             if not isinstance(completed_objectives, list):
                 completed_objectives = []
-        except:
+        except Exception:
             completed_objectives = []
 
     if matched_objective_id in completed_objectives:
@@ -536,26 +710,19 @@ def submit_crypto_flag(
             "next_module": next_module_id if record.completed else None,
             "track": track_id,
             "module_completed": record.completed,
-            "objective_id": matched_objective_id
+            "objective_id": matched_objective_id,
+            "assignment_id": resolved_assignment_id,
         }
 
     completed_objectives.append(matched_objective_id)
     record.flag_submitted = json.dumps(completed_objectives)
     record.updated_at = datetime.utcnow()
 
-    # Required Fix: Only mark completed = true when completed_objectives.length == module.objectives.length
     if len(completed_objectives) >= total_objectives and total_objectives > 0:
-        # Read points from module config — NO hardcoded values
         base_points = tcfg["modules"][module_id].get("points", 200)
-        hint1_used = record.hint1_used if record else False
-        hint2_used = record.hint2_used if record else False
+        hint1_used = record.hint1_used
+        hint2_used = record.hint2_used
 
-        record.completed = True
-        record.completed_at = datetime.utcnow()
-        message = "Module complete!"
-        module_done = True
-
-        # --- Use CompletionService — the ONLY path that awards points ---
         result = CompletionService.complete_track_module(
             db=db,
             user=current_user,
@@ -566,23 +733,31 @@ def submit_crypto_flag(
             hint1_used=hint1_used,
             hint2_used=hint2_used,
             submitted_flag=submitted_flag,
+            assignment_id=resolved_assignment_id,
         )
+
+        # CompletionService may store the final submitted flag. Crypto needs the
+        # JSON objective list for objective-level UI state, so restore it here.
+        record.completed = True
+        record.completed_at = datetime.utcnow()
+        record.module_score = result.points_awarded
+        record.flag_submitted = json.dumps(completed_objectives)
+
+        message = "Module complete!"
+        module_done = True
         earned_module_score = result.points_awarded
-        record.module_score = earned_module_score
+        new_total_score = result.new_total_score
     else:
-        message = f"Objective complete! ({len(completed_objectives)}/{total_objectives})"
+        message = (
+            f"Objective complete! "
+            f"({len(completed_objectives)}/{total_objectives})"
+        )
         module_done = False
         next_module_id = None
         earned_module_score = 0
-        current_total_score = current_user.total_score or 0
+        new_total_score = current_user.total_score or 0 if current_user else 0
 
     db.commit()
-
-    if current_user and module_done:
-        # UserLabProgress sync handled by CompletionService above; read new total from user cache
-        pass
-
-    new_total_score = current_user.total_score or 0
 
     return {
         "correct": True,
@@ -592,7 +767,8 @@ def submit_crypto_flag(
         "next_module": next_module_id if module_done else None,
         "track": track_id,
         "module_completed": module_done,
-        "objective_id": matched_objective_id
+        "objective_id": matched_objective_id,
+        "assignment_id": resolved_assignment_id,
     }
 
 
@@ -629,16 +805,39 @@ def reset_crypto_progress(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     user_id_str = str(current_user.id) if current_user else "student"
-    db.query(UserProgress).filter(
-        UserProgress.user_id == user_id_str,
-        UserProgress.track_id == "crypto"
-    ).delete()
-    if current_user:
-        db.query(UserLabProgress).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "cryptography-lab"
-        ).delete()
-    db.commit()
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cryptography-lab",
+        payload.get("assignment_id"),
+    )
 
+    progress_query = db.query(UserProgress).filter(
+        UserProgress.user_id == user_id_str,
+        UserProgress.track_id == "crypto",
+    )
+    _scope_assignment(
+        progress_query,
+        UserProgress,
+        resolved_assignment_id,
+    ).delete(synchronize_session=False)
+
+    if current_user:
+        lab_progress_query = db.query(UserLabProgress).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == "cryptography-lab",
+        )
+        _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
+        ).delete(synchronize_session=False)
+
+    db.commit()
     reconcile_user_score(db, user_id_str)
-    return {"reset": True, "user_id": user_id_str}
+
+    return {
+        "reset": True,
+        "user_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
+    }

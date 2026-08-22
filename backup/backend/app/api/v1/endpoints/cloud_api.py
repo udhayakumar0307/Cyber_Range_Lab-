@@ -18,6 +18,32 @@ from app.models.lab import Lab
 from app.core.config import settings
 from app.services.score_service import reconcile_user_score
 from app.services.completion_service import CompletionService
+from app.services.assignment_context_service import resolve_assignment
+
+def _resolve_assignment_id(
+    db: Session,
+    current_user: Optional[User],
+    lab_id: str,
+    requested_assignment_id: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve the canonical assignment context for an authenticated lab request."""
+    if not current_user:
+        return None
+
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab_id,
+        requested_assignment_id=requested_assignment_id,
+    )
+    return assignment.id if assignment else None
+
+
+def _scope_assignment(query, model, assignment_id: Optional[int]):
+    """Apply NULL-safe assignment scoping to a SQLAlchemy query."""
+    if assignment_id is None:
+        return query.filter(model.assignment_id.is_(None))
+    return query.filter(model.assignment_id == assignment_id)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -45,12 +71,23 @@ if FLAGS_PATH.exists():
 
 STAGE_POINTS = {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}
 
-# Per-user in-memory terminal environment store (mirrors Flask scoring server pattern)
+# Per-assignment terminal environment store. Personal runs use assignment_id=None.
 _cloud_terminal_envs: Dict[str, Dict[str, str]] = {}
 _CLOUD_BASE_ENV = {
     "AWS_DEFAULT_REGION": "us-east-1",
     "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 }
+
+def _cloud_context_key(
+    user_id_str: str,
+    assignment_id: Optional[int],
+) -> str:
+    scope = (
+        f"assignment:{assignment_id}"
+        if assignment_id is not None
+        else "personal"
+    )
+    return f"{user_id_str}:{scope}"
 
 
 
@@ -58,100 +95,183 @@ _CLOUD_BASE_ENV = {
 @router.get("/session/view", response_class=HTMLResponse)
 def get_cloud_html_view(
     request: Request,
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Renders the HTML interface for Cloud Security Lab."""
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cloud-security-lab",
+        assignment_id,
+    )
     total_score = reconcile_user_score(db, user_id_str) if current_user else 0
 
     if not TEMPLATE_PATH.exists():
-        raise HTTPException(status_code=404, detail="Cloud Security Lab template not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="Cloud Security Lab template not found.",
+        )
 
     html_content = TEMPLATE_PATH.read_text(encoding="utf-8")
     html_content = html_content.replace("{{ student_id }}", user_id_str)
     html_content = html_content.replace("{{ lab_seed }}", "defaultseed")
-    
-    # Inject total points and config
+
     scores = {
         "total_points": total_score,
-        "solved": {}
+        "assignment_id": resolved_assignment_id,
+        "solved": {},
     }
-    
+
     if current_user:
-        lab_progress_rows = db.query(UserLabProgress).filter(
+        lab_progress_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == "cloud-security-lab"
+            UserLabProgress.lab_id == "cloud-security-lab",
+        )
+        lab_progress_rows = _scope_assignment(
+            lab_progress_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for lp in lab_progress_rows:
             if lp.status == "COMPLETED" or lp.flag_correct:
-                mod_num = lp.module_id.replace("cloud-security-lab_mod", "").replace("mod", "")
+                mod_num = (
+                    lp.module_id
+                    .replace("cloud-security-lab_cloud_mod", "")
+                    .replace("cloud-security-lab_mod", "")
+                    .replace("mod", "")
+                )
                 scores["solved"][f"mod{mod_num}"] = {
                     "points": lp.score,
-                    "timestamp": lp.completed_at.isoformat() if lp.completed_at else ""
+                    "timestamp": (
+                        lp.completed_at.isoformat()
+                        if lp.completed_at
+                        else ""
+                    ),
                 }
 
-    html_content = html_content.replace("scores = {{ scores | tojson }};", f"scores = {json.dumps(scores)};")
-    html_content = html_content.replace("config = {{ config | tojson }};", f"config = {json.dumps(CONFIG_DATA)};")
+    html_content = html_content.replace(
+        "scores = {{ scores | tojson }};",
+        f"scores = {json.dumps(scores)};",
+    )
+    html_content = html_content.replace(
+        "config = {{ config | tojson }};",
+        f"config = {json.dumps(CONFIG_DATA)};",
+    )
 
     return HTMLResponse(content=html_content)
 
 
-# Per-user in-memory objective progress store: user_id -> set of completed objective keys
+# Per-assignment objective cache. Personal runs use assignment_id=None.
 _user_completed_objs: Dict[str, set] = {}
 
-def get_user_completed_objectives(db: Session, user_id_str: str, current_user: Optional[User]) -> set:
-    if user_id_str not in _user_completed_objs:
-        _user_completed_objs[user_id_str] = set()
+def get_user_completed_objectives(
+    db: Session,
+    user_id_str: str,
+    current_user: Optional[User],
+    assignment_id: Optional[int] = None,
+) -> set:
+    cache_key = _cloud_context_key(user_id_str, assignment_id)
+
+    if cache_key not in _user_completed_objs:
+        _user_completed_objs[cache_key] = set()
+
         if current_user:
             try:
-                # 1. Restore from UserLabProgress
-                rows = db.query(UserLabProgress).filter(
+                lab_query = db.query(UserLabProgress).filter(
                     UserLabProgress.user_id == current_user.id,
-                    UserLabProgress.lab_id == "cloud-security-lab"
+                    UserLabProgress.lab_id == "cloud-security-lab",
+                )
+                rows = _scope_assignment(
+                    lab_query,
+                    UserLabProgress,
+                    assignment_id,
                 ).all()
+
                 for r in rows:
-                    mod_num = r.module_id.replace("cloud-security-lab_mod", "").replace("mod", "")
+                    mod_num = (
+                        r.module_id
+                        .replace("cloud-security-lab_cloud_mod", "")
+                        .replace("cloud-security-lab_mod", "")
+                        .replace("mod", "")
+                    )
+
                     if r.status == "COMPLETED" or r.flag_correct:
                         if mod_num.isdigit():
                             for i in range(1, 5):
-                                _user_completed_objs[user_id_str].add(f"mod{mod_num}_obj{i}")
-                    elif r.last_submission and r.last_submission.startswith("objs:"):
+                                _user_completed_objs[cache_key].add(
+                                    f"mod{mod_num}_obj{i}"
+                                )
+                    elif (
+                        r.last_submission
+                        and r.last_submission.startswith("objs:")
+                    ):
                         raw_objs = r.last_submission[5:].split(",")
                         for item in raw_objs:
                             if item.strip():
-                                _user_completed_objs[user_id_str].add(item.strip())
+                                _user_completed_objs[cache_key].add(
+                                    item.strip()
+                                )
 
-                # 2. Restore from UserProgress
-                up_rows = db.query(UserProgress).filter(
+                progress_query = db.query(UserProgress).filter(
                     UserProgress.user_id == user_id_str,
                     UserProgress.track_id == "cloud",
-                    UserProgress.completed == True
+                    UserProgress.completed.is_(True),
+                )
+                up_rows = _scope_assignment(
+                    progress_query,
+                    UserProgress,
+                    assignment_id,
                 ).all()
+
                 for up in up_rows:
                     m_num = up.module_id.replace("mod", "")
                     if m_num.isdigit():
                         for i in range(1, 5):
-                            _user_completed_objs[user_id_str].add(f"mod{m_num}_obj{i}")
-            except Exception as e:
-                logger.warning(f"get_user_completed_objectives DB load error: {e}")
-    return _user_completed_objs[user_id_str]
+                            _user_completed_objs[cache_key].add(
+                                f"mod{m_num}_obj{i}"
+                            )
 
-def save_user_completed_objectives(db: Session, current_user: Optional[User], module_num: int, completed_objs: List[str]):
+            except Exception as exc:
+                logger.warning(
+                    f"get_user_completed_objectives DB load error: {exc}"
+                )
+
+    return _user_completed_objs[cache_key]
+
+def save_user_completed_objectives(
+    db: Session,
+    current_user: Optional[User],
+    module_num: int,
+    completed_objs: List[str],
+    assignment_id: Optional[int] = None,
+):
     if not current_user:
         return
+
     try:
         mod_pk = f"cloud-security-lab_cloud_mod{module_num}"
-        existing = db.query(UserLabProgress).filter(
+
+        existing_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
             UserLabProgress.lab_id == "cloud-security-lab",
-            UserLabProgress.module_id == mod_pk
+            UserLabProgress.module_id == mod_pk,
+        )
+        existing = _scope_assignment(
+            existing_query,
+            UserLabProgress,
+            assignment_id,
         ).first()
-        
+
         objs_str = "objs:" + ",".join(completed_objs)
         now = datetime.utcnow()
+
         if not existing:
             progress = UserLabProgress(
+                assignment_id=assignment_id,
                 user_id=current_user.id,
                 lab_id="cloud-security-lab",
                 module_id=mod_pk,
@@ -162,15 +282,18 @@ def save_user_completed_objectives(db: Session, current_user: Optional[User], mo
                 completed_at=None,
                 time_taken_seconds=0,
                 last_submission=objs_str,
-                flag_correct=False
+                flag_correct=False,
             )
             db.add(progress)
             db.commit()
         elif existing.status != "COMPLETED":
             existing.last_submission = objs_str
             db.commit()
+
     except Exception as db_err:
-        logger.warning(f"save_user_completed_objectives DB save error: {db_err}")
+        logger.warning(
+            f"save_user_completed_objectives DB save error: {db_err}"
+        )
         try:
             db.rollback()
         except Exception:
@@ -180,28 +303,52 @@ def save_user_completed_objectives(db: Session, current_user: Optional[User], mo
 @router.get("/status")
 @router.get("/config")
 def get_cloud_status(
+    assignment_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Returns the user's solved modules, objective progress, and score status in Cloud Security Lab."""
+    """Returns solved modules, objective progress, and score status."""
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cloud-security-lab",
+        assignment_id,
+    )
+
     total_score = 0
     solved_mods = {}
 
     if current_user:
         try:
             total_score = reconcile_user_score(db, user_id_str)
-            progress_rows = db.query(UserLabProgress).filter(
+
+            progress_query = db.query(UserLabProgress).filter(
                 UserLabProgress.user_id == current_user.id,
                 UserLabProgress.lab_id == "cloud-security-lab",
-                UserLabProgress.status == "COMPLETED"
+                UserLabProgress.status == "COMPLETED",
+            )
+            progress_rows = _scope_assignment(
+                progress_query,
+                UserLabProgress,
+                resolved_assignment_id,
             ).all()
+
             for p in progress_rows:
-                mod_num = p.module_id.replace("cloud-security-lab_cloud_mod", "").replace("cloud-security-lab_mod", "").replace("mod", "")
+                mod_num = (
+                    p.module_id
+                    .replace("cloud-security-lab_cloud_mod", "")
+                    .replace("cloud-security-lab_mod", "")
+                    .replace("mod", "")
+                )
                 if mod_num.isdigit():
                     solved_mods[f"mod{mod_num}"] = {
                         "points": p.score,
-                        "timestamp": p.completed_at.isoformat() if p.completed_at else ""
+                        "timestamp": (
+                            p.completed_at.isoformat()
+                            if p.completed_at
+                            else ""
+                        ),
                     }
         except Exception as err:
             logger.warning(f"Error loading cloud status progress: {err}")
@@ -210,14 +357,22 @@ def get_cloud_status(
             except Exception:
                 pass
 
-    completed_objs = list(get_user_completed_objectives(db, user_id_str, current_user))
+    completed_objs = list(
+        get_user_completed_objectives(
+            db,
+            user_id_str,
+            current_user,
+            resolved_assignment_id,
+        )
+    )
 
     return {
         "student_id": user_id_str,
+        "assignment_id": resolved_assignment_id,
         "total_points": total_score,
         "solved": solved_mods,
         "completed_objectives": completed_objs,
-        "config": CONFIG_DATA
+        "config": CONFIG_DATA,
     }
 
 
@@ -296,41 +451,62 @@ def submit_cloud_flag(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Validates and processes flag submissions for Cloud Security Lab with full production database transaction."""
+    """Validate and persist a Cloud Security Lab flag submission."""
     import re
+
     user_id_str = str(current_user.id) if current_user else "student"
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cloud-security-lab",
+        payload.get("assignment_id"),
+    )
+
     module = int(payload.get("module", 1))
-    submitted_flag = (payload.get("submitted_flag") or payload.get("flag") or "").strip()
+    submitted_flag = (
+        payload.get("submitted_flag")
+        or payload.get("flag")
+        or ""
+    ).strip()
 
     if not submitted_flag:
         raise HTTPException(status_code=400, detail="Flag required.")
 
-    # Primary flag generated inside Docker container environment
     docker_flag = get_expected_stage_flag(module, "student")
-    
-    # Secondary user-id specific flag generator fallback
+
     user_gen_flag = ""
     try:
         import hashlib
-        raw_user_input = f"lab2_mod{module}_{user_id_str}_defaultseed"
-        user_hash = hashlib.sha256(raw_user_input.encode()).hexdigest()[:8]
-        user_gen_flag = f"FLAG{{techcorp_lab2_mod{module}_{user_id_str}_{user_hash}}}"
+        raw_user_input = (
+            f"lab2_mod{module}_{user_id_str}_defaultseed"
+        )
+        user_hash = hashlib.sha256(
+            raw_user_input.encode()
+        ).hexdigest()[:8]
+        user_gen_flag = (
+            f"FLAG{{techcorp_lab2_mod{module}_"
+            f"{user_id_str}_{user_hash}}}"
+        )
     except Exception:
         pass
 
-    # Normalize whitespace, \r, \n for resilient comparison
-    clean_submitted = re.sub(r'[\r\n\s]+', '', submitted_flag).strip()
-    clean_docker = re.sub(r'[\r\n\s]+', '', docker_flag).strip()
-    clean_user_gen = re.sub(r'[\r\n\s]+', '', user_gen_flag).strip()
+    clean_submitted = re.sub(r"[\r\n\s]+", "", submitted_flag).strip()
+    clean_docker = re.sub(r"[\r\n\s]+", "", docker_flag).strip()
+    clean_user_gen = re.sub(r"[\r\n\s]+", "", user_gen_flag).strip()
 
-    # Pattern check for lab 2 module flags (accepts techcorp or techorp variants)
-    mod_pattern = r"^FLAG\{[A-Za-z0-9_]*lab2_mod" + str(module) + r"_[A-Za-z0-9_]+\}$"
-    pattern_match = bool(re.match(mod_pattern, clean_submitted, re.IGNORECASE))
+    mod_pattern = (
+        r"^FLAG\{[A-Za-z0-9_]*lab2_mod"
+        + str(module)
+        + r"_[A-Za-z0-9_]+\}$"
+    )
+    pattern_match = bool(
+        re.match(mod_pattern, clean_submitted, re.IGNORECASE)
+    )
 
     is_correct = (
-        clean_submitted == clean_docker or
-        clean_submitted == clean_user_gen or
-        pattern_match
+        clean_submitted == clean_docker
+        or clean_submitted == clean_user_gen
+        or pattern_match
     )
 
     if not is_correct:
@@ -344,9 +520,13 @@ def submit_cloud_flag(
             f"  Comparison:       MISMATCH\n"
             f"================================================="
         )
-        return {"status": "incorrect", "correct": False, "message": "Incorrect flag value."}
+        return {
+            "status": "incorrect",
+            "correct": False,
+            "message": "Incorrect flag value.",
+            "assignment_id": resolved_assignment_id,
+        }
 
-    # Automatically provision system.log upon Stage 1 flag completion
     if module == 1:
         provision_system_log_in_s3()
 
@@ -354,10 +534,10 @@ def submit_cloud_flag(
     mod_pk = f"cloud-security-lab_cloud_mod{module}"
     new_total_score = current_user.total_score if current_user else 0
     old_total_score = new_total_score
+    points_awarded = 0
 
     if current_user:
         try:
-            # CompletionService is the ONLY entry point for scoring
             result = CompletionService.complete_lab_module(
                 db=db,
                 user=current_user,
@@ -368,14 +548,25 @@ def submit_cloud_flag(
                 hint1_used=False,
                 hint2_used=False,
                 submitted_flag=submitted_flag,
+                assignment_id=resolved_assignment_id,
             )
             db.commit()
-            new_total_score = result.new_total_score
 
-            comp_objs = list(get_user_completed_objectives(db, user_id_str, current_user))
+            new_total_score = result.new_total_score
+            points_awarded = result.points_awarded
+
+            comp_objs = list(
+                get_user_completed_objectives(
+                    db,
+                    user_id_str,
+                    current_user,
+                    resolved_assignment_id,
+                )
+            )
             logger.info(
                 f"\n=================================================\n"
                 f"User ID:                  {user_id_str}\n"
+                f"Assignment ID:            {resolved_assignment_id}\n"
                 f"Lab ID:                   cloud-security-lab\n"
                 f"Module ID:                {module}\n"
                 f"Database Module ID:       {mod_pk}\n"
@@ -389,43 +580,60 @@ def submit_cloud_flag(
                 f"Transaction Commit:       Successful\n"
                 f"================================================="
             )
+
         except Exception as db_err:
-            logger.error(f"Error persisting flag completion in DB transaction: {db_err}")
+            logger.error(
+                f"Error persisting flag completion in DB transaction: "
+                f"{db_err}"
+            )
             try:
                 db.rollback()
             except Exception:
                 pass
             new_total_score = old_total_score
 
-    # Calculate completed modules count for user in Cloud Security Lab
     completed_modules = 0
     if current_user:
         try:
-            completed_modules = db.query(UserProgress).filter(
-                UserProgress.user_id == user_id_str,
-                UserProgress.track_id == "cloud",
-                UserProgress.completed == True
-            ).count()
+            completed_query = db.query(UserLabProgress).filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.lab_id == "cloud-security-lab",
+                UserLabProgress.status == "COMPLETED",
+            )
+            completed_modules = (
+                _scope_assignment(
+                    completed_query,
+                    UserLabProgress,
+                    resolved_assignment_id,
+                )
+                .with_entities(UserLabProgress.module_id)
+                .distinct()
+                .count()
+            )
         except Exception:
             completed_modules = module
 
-    completion_percentage = min(100, round((completed_modules / 5) * 100))
-    lab_completed = (completed_modules >= 5 or module == 5)
+    completion_percentage = min(
+        100,
+        round((completed_modules / 5) * 100),
+    )
+    lab_completed = completed_modules >= 5
 
     return {
         "status": "correct",
         "correct": True,
         "message": "Flag captured successfully!",
+        "assignment_id": resolved_assignment_id,
         "completed_modules": completed_modules,
         "total_modules": 5,
         "completion_percentage": completion_percentage,
         "lab_completed": lab_completed,
-        "module_score": points,
+        "module_score": points_awarded,
         "total_score": new_total_score,
-        "points": points,
+        "points": points_awarded,
         "total_points": new_total_score,
         "dashboard_updated": True,
-        "leaderboard_updated": True
+        "leaderboard_updated": True,
     }
 
 
@@ -533,55 +741,118 @@ def cloud_terminal_run(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Executes real terminal commands inside the isolated lab2-student Docker container
+    Executes real terminal commands inside the isolated lab2-student container
     and evaluates active module objectives in real-time.
     """
     command = (payload.get("command") or "").strip()
     module_num = int(payload.get("module", 1))
     student_id = str(current_user.id) if current_user else "student"
 
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cloud-security-lab",
+        payload.get("assignment_id"),
+    )
+    context_key = _cloud_context_key(
+        student_id,
+        resolved_assignment_id,
+    )
+
     if not command:
-        curr_objs = list(get_user_completed_objectives(db, student_id, current_user))
-        return {"output": "", "exit_code": 0, "completed_objectives": curr_objs}
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
+        return {
+            "output": "",
+            "exit_code": 0,
+            "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
+        }
 
     import re
 
-    # Handle environment resets
     if command in ("clear", "reset"):
-        _cloud_terminal_envs.pop(student_id, None)
-        curr_objs = list(get_user_completed_objectives(db, student_id, current_user))
-        return {"output": "[Shell environment variables reset]", "exit_code": 0, "completed_objectives": curr_objs}
+        _cloud_terminal_envs.pop(context_key, None)
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
+        return {
+            "output": "[Shell environment variables reset]",
+            "exit_code": 0,
+            "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
+        }
 
-    # Handle export KEY=value
-    export_match = re.match(r'^export\s+([A-Za-z0-9_]+)\s*=\s*(.+)$', command)
+    export_match = re.match(
+        r"^export\s+([A-Za-z0-9_]+)\s*=\s*(.+)$",
+        command,
+    )
     if export_match:
         env_key = export_match.group(1)
-        env_val = export_match.group(2).strip().strip('"\'')
-        _cloud_terminal_envs.setdefault(student_id, {**_CLOUD_BASE_ENV})[env_key] = env_val
-        
-        # Evaluate export outcome for Module 3
-        curr_objs = list(get_user_completed_objectives(db, student_id, current_user))
+        env_val = export_match.group(2).strip().strip("\"'")
+        _cloud_terminal_envs.setdefault(
+            context_key,
+            {**_CLOUD_BASE_ENV},
+        )[env_key] = env_val
+
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
         if module_num == 3 and "mod3_obj1" not in curr_objs:
             curr_objs.append("mod3_obj1")
-            _user_completed_objs.setdefault(student_id, set()).add("mod3_obj1")
-            save_user_completed_objectives(db, current_user, 3, curr_objs)
+            _user_completed_objs.setdefault(
+                context_key,
+                set(),
+            ).add("mod3_obj1")
+            save_user_completed_objectives(
+                db,
+                current_user,
+                3,
+                curr_objs,
+                resolved_assignment_id,
+            )
 
-        return {"output": f"[{env_key} saved to session]", "exit_code": 0, "completed_objectives": curr_objs}
+        return {
+            "output": f"[{env_key} saved to session]",
+            "exit_code": 0,
+            "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
+        }
 
-    # Connect to Docker and execute command inside lab2-student container
     try:
         client = get_docker_client()
         container = ensure_lab2_container_running(client)
-        envs = _cloud_terminal_envs.get(student_id, dict(_CLOUD_BASE_ENV))
+        envs = _cloud_terminal_envs.get(
+            context_key,
+            dict(_CLOUD_BASE_ENV),
+        )
 
         exec_res = container.exec_run(
             ["bash", "-c", command],
             environment=envs,
-            workdir="/root"
+            workdir="/root",
         )
-        output = exec_res.output.decode("utf-8", errors="ignore")
+        output = exec_res.output.decode(
+            "utf-8",
+            errors="ignore",
+        )
 
-        # Outcome-Based Objective Evaluation
         try:
             import sys
             scoring_dir = str(LAB_PATH / "scoring-server")
@@ -589,68 +860,153 @@ def cloud_terminal_run(
                 sys.path.append(scoring_dir)
             from validators.engine import evaluate_action
 
-            current_objs = list(get_user_completed_objectives(db, student_id, current_user))
+            current_objs = list(
+                get_user_completed_objectives(
+                    db,
+                    student_id,
+                    current_user,
+                    resolved_assignment_id,
+                )
+            )
             updated_objs = evaluate_action(
                 module_num=module_num,
                 command=command,
                 output=output,
                 student_id=student_id,
                 current_completed=current_objs,
-                container=container
+                container=container,
             )
-            _user_completed_objs.setdefault(student_id, set()).update(updated_objs)
-            save_user_completed_objectives(db, current_user, module_num, updated_objs)
+
+            _user_completed_objs.setdefault(
+                context_key,
+                set(),
+            ).update(updated_objs)
+
+            save_user_completed_objectives(
+                db,
+                current_user,
+                module_num,
+                updated_objs,
+                resolved_assignment_id,
+            )
+
         except Exception as eval_err:
-            logger.warning(f"Objective evaluation error: {eval_err}")
-            updated_objs = list(_user_completed_objs.get(student_id, set()))
+            logger.warning(
+                f"Objective evaluation error: {eval_err}"
+            )
+            updated_objs = list(
+                _user_completed_objs.get(
+                    context_key,
+                    set(),
+                )
+            )
 
         return {
             "output": output,
             "exit_code": exec_res.exit_code,
-            "completed_objectives": updated_objs
+            "completed_objectives": updated_objs,
+            "assignment_id": resolved_assignment_id,
         }
+
     except RuntimeError as rerr:
-        curr_objs = list(get_user_completed_objectives(db, student_id, current_user))
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
         return {
-            "output": f"Terminal unavailable: {str(rerr)}\n[System Advice: Ensure Docker Desktop is running and run 'docker-compose up -d' in labs/cloud-security-lab]",
+            "output": (
+                f"Terminal unavailable: {str(rerr)}\n"
+                "[System Advice: Ensure Docker Desktop is running and run "
+                "'docker-compose up -d' in labs/cloud-security-lab]"
+            ),
             "exit_code": 1,
-            "completed_objectives": curr_objs
+            "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
         }
-    except Exception as e:
-        curr_objs = list(get_user_completed_objectives(db, student_id, current_user))
+
+    except Exception as exc:
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
         return {
-            "output": f"Terminal unavailable: Execution failed ({type(e).__name__}: {e})\n[System Advice: Ensure lab2-student container is active]",
+            "output": (
+                f"Terminal unavailable: Execution failed "
+                f"({type(exc).__name__}: {exc})\n"
+                "[System Advice: Ensure lab2-student container is active]"
+            ),
             "exit_code": 1,
-            "completed_objectives": curr_objs
+            "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
         }
 
 
 @router.get("/credentials")
 def get_cloud_credentials(
+    assignment_id: Optional[int] = None,
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Returns AWS config/credentials for the Cloud Security Lab credentials panel."""
+    resolved_assignment_id = _resolve_assignment_id(
+        db,
+        current_user,
+        "cloud-security-lab",
+        assignment_id,
+    )
+
     solved_mods = {}
     if current_user:
-        rows = db.query(UserLabProgress).filter(
+        rows_query = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == current_user.id,
             UserLabProgress.lab_id == "cloud-security-lab",
-            UserLabProgress.status == "COMPLETED"
+            UserLabProgress.status == "COMPLETED",
+        )
+        rows = _scope_assignment(
+            rows_query,
+            UserLabProgress,
+            resolved_assignment_id,
         ).all()
+
         for p in rows:
-            mod_num = p.module_id.replace("cloud-security-lab_mod", "").replace("mod", "")
+            mod_num = (
+                p.module_id
+                .replace("cloud-security-lab_cloud_mod", "")
+                .replace("cloud-security-lab_mod", "")
+                .replace("mod", "")
+            )
             solved_mods[f"mod{mod_num}"] = True
 
     reveal_keys = solved_mods.get("mod2", False)
     reveal_res_bucket = solved_mods.get("mod4", False)
 
     return {
+        "assignment_id": resolved_assignment_id,
         "endpoint": "http://10.20.0.10:4566",
         "public_bucket": CONFIG_DATA.get("public_bucket", "Loading..."),
-        "restricted_bucket": CONFIG_DATA.get("restricted_bucket", "") if reveal_res_bucket else "[Hidden — Solve Stage 4 to reveal]",
-        "developer_access_key": CONFIG_DATA.get("developer_access_key", "") if reveal_keys else "[Hidden — Solve Stage 2 to reveal]",
-        "developer_secret_key": CONFIG_DATA.get("developer_secret_key", "") if reveal_keys else "[Hidden — Solve Stage 2 to reveal]",
+        "restricted_bucket": (
+            CONFIG_DATA.get("restricted_bucket", "")
+            if reveal_res_bucket
+            else "[Hidden — Solve Stage 4 to reveal]"
+        ),
+        "developer_access_key": (
+            CONFIG_DATA.get("developer_access_key", "")
+            if reveal_keys
+            else "[Hidden — Solve Stage 2 to reveal]"
+        ),
+        "developer_secret_key": (
+            CONFIG_DATA.get("developer_secret_key", "")
+            if reveal_keys
+            else "[Hidden — Solve Stage 2 to reveal]"
+        ),
     }
 
 
