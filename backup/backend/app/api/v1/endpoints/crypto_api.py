@@ -452,16 +452,34 @@ def submit_crypto_flag(
                 ans_data = json.load(f)
                 if module_id in ans_data:
                     total_objectives = len(ans_data[module_id])
+                    clean_submitted = submitted_flag.strip()
+                    clean_submitted_lower = clean_submitted.lower()
+                    
                     for obj in ans_data[module_id]:
-                        if ("flag" in obj and obj["flag"] == submitted_flag) or ("validation_value" in obj and obj["validation_value"] == submitted_flag):
-                            matched_objective_id = obj.get("objective_id", obj.get("id"))
+                        possible_vals = [
+                            obj.get("flag"),
+                            obj.get("validation_value"),
+                            obj.get("correct_answer"),
+                            f"FLAG{{{obj.get('correct_answer')}}}" if obj.get("correct_answer") else None
+                        ]
+                        possible_vals = [v for v in possible_vals if v]
+                        
+                        match_found = False
+                        for val in possible_vals:
+                            val_clean = str(val).strip()
+                            if clean_submitted == val_clean or clean_submitted_lower == val_clean.lower():
+                                match_found = True
+                                break
+                        
+                        if match_found:
+                            matched_objective_id = obj.get("objective_id") or obj.get("id")
                             break
     except Exception as e:
         logger.error(f"Failed to parse answers.json: {e}")
 
     # Fallback if it's one of the dynamic valid flags
     if not matched_objective_id and submitted_flag in valid_flags:
-        matched_objective_id = "dynamic_flag"
+        matched_objective_id = f"{module_id}_obj1"
 
     if not matched_objective_id:
         return {"correct": False, "message": "That's not the right key for this module."}
