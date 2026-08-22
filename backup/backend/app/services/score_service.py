@@ -180,19 +180,34 @@ class ScoreService:
         module_id: str,
         track_id: Optional[str] = None,
         penalty_points: int = 20,
+        assignment_id: Optional[int] = None,
     ) -> int:
         """
         Records a hint penalty event.
 
-        Note: In the current design, hint penalties are applied inline at
-        module completion via `award_module_points`. This method is provided
-        for future use cases where you want to deduct points immediately upon
-        hint unlock (rather than at module completion time).
+        When assignment_id is provided, the penalty is associated with that
+        specific academic assignment.
 
-        Returns the new total_score.
+        When assignment_id is None, legacy/personal-lab behavior is preserved.
+
+        Note:
+            In the current design, hint penalties are normally applied inline
+            during module completion via award_module_points(). This method exists
+            for workflows where a penalty must be recorded immediately when a
+            student unlocks a hint.
+
+        Returns
+        -------
+        int
+            The user's updated total score.
+
+        The caller is responsible for committing the transaction.
         """
+
         deduction = -abs(penalty_points)
+
         event = ScoreEvent(
+            assignment_id=assignment_id,
             user_id=user.id,
             lab_id=lab_id,
             track_id=track_id,
@@ -201,15 +216,36 @@ class ScoreService:
             points=deduction,
             created_at=datetime.utcnow(),
         )
+
         db.add(event)
-        new_score = max(0, (user.total_score or 0) + deduction)
+
+        new_score = max(
+            0,
+            (user.total_score or 0) + deduction
+        )
+
         user.total_score = new_score
         db.add(user)
+
+        logger.info(
+            "[ScoreService] Hint penalty: "
+            f"user_id={user.id}, "
+            f"assignment_id={assignment_id}, "
+            f"lab_id={lab_id!r}, "
+            f"module_id={module_id!r}, "
+            f"penalty={deduction}, "
+            f"new_total={new_score}"
+        )
+
         try:
             invalidate_leaderboard()
             invalidate_dashboard(str(user.id))
-        except Exception:
-            pass
+        except Exception as cache_err:
+            logger.warning(
+                "[ScoreService] Cache invalidation error "
+                f"after hint penalty: {cache_err}"
+            )
+
         return new_score
 
     @staticmethod
