@@ -37,9 +37,13 @@ from app.services.score_service import ScoreService
 from app.core.constants import ScoreEventType
 
 
-LAB_ID = "command-line-lab"
-TRACK_ID = "linux"
+LAB_ID = "lab1-recon"
+TRACK_ID = "assignment-scope-test"
 MODULE_ID = "module1"
+
+CANONICAL_MODULE_ID = (
+    f"{LAB_ID}_{TRACK_ID}_{MODULE_ID}"
+)
 
 CANONICAL_MODULE_ID = (
     f"{LAB_ID}_{TRACK_ID}_{MODULE_ID}"
