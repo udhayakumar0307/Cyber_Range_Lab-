@@ -478,14 +478,14 @@ def submit_crypto_flag(
                     clean_submitted = submitted_flag.strip()
                     clean_submitted_lower = clean_submitted.lower()
                     
-                    for obj in ans_data[module_id]:
+                    for idx_obj, obj in enumerate(ans_data[module_id]):
                         possible_vals = [
                             obj.get("flag"),
                             obj.get("validation_value"),
                             obj.get("correct_answer"),
                             f"FLAG{{{obj.get('correct_answer')}}}" if obj.get("correct_answer") else None
                         ]
-                        possible_vals = [v for v in possible_vals if v]
+                        possible_vals = [v for v in possible_vals if v is not None]
                         
                         match_found = False
                         for val in possible_vals:
@@ -495,7 +495,9 @@ def submit_crypto_flag(
                                 break
                         
                         if match_found:
-                            matched_objective_id = obj.get("objective_id") or obj.get("id")
+                            # Map to module_config.json objective ID style (m1_obj1, m1_obj2, etc.)
+                            m_num = module_id.replace("module", "")
+                            matched_objective_id = obj.get("objective_id") or obj.get("id") or f"m{m_num}_obj{idx_obj + 1}"
                             break
     except Exception as e:
         logger.error(f"Failed to parse answers.json: {e}")

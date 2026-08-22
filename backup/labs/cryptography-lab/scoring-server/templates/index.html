@@ -865,7 +865,10 @@
       try {
         const res = await fetch(`/api/v1/crypto/progress/${currentTrack.id}/${currentModule.id}` + getAuthQuery(), { headers: getAuthHeaders() });
         const data = await res.json();
-        if (data.objectives) renderStepObjectives(data.objectives);
+        if (data.objectives && Array.isArray(data.objectives)) {
+          currentModule.objectives = data.objectives;
+          renderStepObjectives(data.objectives);
+        }
       } catch (e) { }
     }
 
