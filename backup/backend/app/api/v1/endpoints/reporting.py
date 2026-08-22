@@ -14,9 +14,6 @@ from app.models.study_session import StudySession
 from app.models.achievement import Achievement
 from app.models.user_achievement import UserAchievement
 from app.models.audit_log import AuditLog
-from app.models.assignment import Assignment
-from app.services.assignment_context_service import resolve_assignment
-from app.services.completion_service import CompletionService
 from app.core.cache import (
     dashboard_cache, leaderboard_cache, leaderboard_key,
     invalidate_leaderboard, invalidate_dashboard,
@@ -45,69 +42,6 @@ def _non_admin_filter():
         User.email.ilike('%admin%'),
         User.email.ilike('%securityofficer%'),
     ))
-
-
-def _scope_assignment_progress(query, assignment_id: Optional[int]):
-    """Apply NULL-safe assignment scoping to a UserLabProgress query."""
-    if assignment_id is None:
-        return query.filter(UserLabProgress.assignment_id.is_(None))
-    return query.filter(UserLabProgress.assignment_id == assignment_id)
-
-
-def _get_assignment_for_reporting(
-    db: Session,
-    *,
-    lab_id: str,
-    assignment_id: Optional[int] = None,
-    student_id: Optional[int] = None,
-    group_id: Optional[int] = None,
-) -> Assignment:
-    """
-    Resolve one canonical Assignment for professor/reporting reads.
-
-    If assignment_id is supplied it is authoritative after validating the
-    requested lab/student/group context. Without it, a single matching
-    assignment is accepted; multiple matches are rejected instead of guessing.
-    """
-    query = db.query(Assignment).filter(
-        Assignment.lab_id == lab_id,
-        Assignment.deleted_at.is_(None),
-    )
-
-    if assignment_id is not None:
-        query = query.filter(Assignment.id == assignment_id)
-
-    if student_id is not None:
-        student = db.query(User).filter(User.id == student_id).first()
-        if not student:
-            raise HTTPException(status_code=404, detail="Student not found")
-
-        ownership = [Assignment.student_id == student_id]
-        if student.group_id is not None:
-            ownership.append(Assignment.group_id == student.group_id)
-        query = query.filter(or_(*ownership))
-
-    if group_id is not None:
-        query = query.filter(Assignment.group_id == group_id)
-
-    matches = query.order_by(desc(Assignment.id)).all()
-
-    if not matches:
-        raise HTTPException(
-            status_code=404,
-            detail="No matching assignment found for this lab context.",
-        )
-
-    if len(matches) > 1 and assignment_id is None:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Multiple assignments match this lab context. "
-                "Provide assignment_id explicitly."
-            ),
-        )
-
-    return matches[0]
 
 
 # ---------------------------------------------------------------------------
@@ -189,10 +123,6 @@ def get_dashboard(
 @router.get("/progress")
 def get_progress(
     lab_id: Optional[str] = Query(None, description="Filter by lab ID"),
-    assignment_id: Optional[int] = Query(
-        None,
-        description="Optional assignment context for per-lab progress",
-    ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -206,15 +136,7 @@ def get_progress(
 
     # Compact per-lab response (used by OT lab sessions & lab completion reports)
     if lab_id:
-        assignment = resolve_assignment(
-            db=db,
-            user=current_user,
-            lab_id=lab_id,
-            requested_assignment_id=assignment_id,
-        )
-        resolved_assignment_id = assignment.id if assignment else None
-
-        completed_query = (
+        completed_rows = (
             db.query(
                 UserLabProgress.module_id,
                 UserLabProgress.score,
@@ -227,12 +149,8 @@ def get_progress(
                 UserLabProgress.lab_id == lab_id,
                 UserLabProgress.status == "COMPLETED",
             )
+            .all()
         )
-        completed_query = _scope_assignment_progress(
-            completed_query,
-            resolved_assignment_id,
-        )
-        completed_rows = completed_query.all()
         completed_module_ids = [r.module_id for r in completed_rows]
         lab_score = sum(r.score or 0 for r in completed_rows)
         latest_completed_at = max((r.completed_at for r in completed_rows if r.completed_at), default=None)
@@ -244,7 +162,6 @@ def get_progress(
         )
         return {
             "lab_id": lab_id,
-            "assignment_id": resolved_assignment_id,
             "completed_modules": completed_module_ids,
             "total_score": current_user.total_score or 0,
             "lab_score": lab_score,
@@ -633,12 +550,12 @@ from pydantic import BaseModel
 
 class FlagSubmitNotify(BaseModel):
     lab_id: Optional[str] = "command-line-lab"
-    assignment_id: Optional[int] = None
     module_id: str
     flag: Optional[str] = None
     correct: Optional[bool] = None
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
+    assignment_id: Optional[int] = None
 
 
 def _parse_ua(user_agent_str: Optional[str]):
@@ -672,39 +589,27 @@ def submit_flag(
     """
     Process a generic flag submission.
 
-    Academic submissions are attributed to one canonical Assignment. Personal
-    submissions remain assignment_id=NULL. The same scope is used for attempts,
-    completion progress, and ScoreEvent creation.
+    Academic work is scoped by Assignment.id. Personal/unassigned play uses
+    assignment_id=None. Correct completions are delegated to CompletionService,
+    which is the only progress-completion path and delegates score mutation to
+    ScoreService.
     """
-    target_lab_id = payload.lab_id or "command-line-lab"
+    from app.services.assignment_context_service import resolve_assignment
+    from app.services.completion_service import CompletionService
 
+    target_lab_id = payload.lab_id or "command-line-lab"
     logger.info(
         f"[submit_flag] user_id={current_user.id} lab='{target_lab_id}' "
-        f"assignment_id={payload.assignment_id} "
-        f"module='{payload.module_id}' correct={payload.correct}"
+        f"module='{payload.module_id}' correct={payload.correct} "
+        f"requested_assignment_id={payload.assignment_id}"
     )
 
     lab = db.query(Lab).filter(Lab.id == target_lab_id).first()
     if not lab:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Lab '{target_lab_id}' not found.",
-        )
+        raise HTTPException(status_code=404, detail=f"Lab '{target_lab_id}' not found.")
 
-    # Resolve academic ownership before writing any progress.
-    assignment = resolve_assignment(
-        db=db,
-        user=current_user,
-        lab_id=target_lab_id,
-        requested_assignment_id=payload.assignment_id,
-    )
-    resolved_assignment_id = assignment.id if assignment else None
-
-    # Module lookup with fallback aliases.
-    mod = db.query(LabModule).filter(
-        LabModule.id == payload.module_id
-    ).first()
-
+    # Module lookup with compatibility aliases.
+    mod = db.query(LabModule).filter(LabModule.id == payload.module_id).first()
     if not mod:
         scoped_id = f"{target_lab_id}_{payload.module_id}"
         mod = db.query(LabModule).filter(LabModule.id == scoped_id).first()
@@ -722,10 +627,7 @@ def submit_flag(
             payload.module_id = alt_id
 
     if not mod:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Module '{payload.module_id}' not found.",
-        )
+        raise HTTPException(status_code=404, detail=f"Module '{payload.module_id}' not found.")
 
     if mod.lab_id != lab.id:
         raise HTTPException(
@@ -733,58 +635,62 @@ def submit_flag(
             detail=f"Module '{mod.id}' does not belong to lab '{lab.id}'.",
         )
 
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab.id,
+        requested_assignment_id=payload.assignment_id,
+    )
+    resolved_assignment_id = assignment.id if assignment else None
+
+    def scoped_progress_query():
+        query = db.query(UserLabProgress).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab.id,
+            UserLabProgress.module_id == payload.module_id,
+        )
+        if resolved_assignment_id is None:
+            return query.filter(UserLabProgress.assignment_id.is_(None))
+        return query.filter(UserLabProgress.assignment_id == resolved_assignment_id)
+
     browser, device = _parse_ua(payload.user_agent)
     client_ip = payload.client_ip or "127.0.0.1"
 
     is_correct = payload.correct
     validation_message = ""
-
     if is_correct is None:
         from app.services.puzzle_validation_service import PuzzleValidationService
-
-        result = PuzzleValidationService.validate(
+        validation = PuzzleValidationService.validate(
             lab_id=target_lab_id,
             module_id=payload.module_id,
             submitted_answer=payload.flag or "",
             user=current_user,
             db=db,
         )
-        is_correct = result.is_correct
-        validation_message = result.message
+        is_correct = validation.is_correct
+        validation_message = validation.message
 
     try:
-        progress_query = db.query(UserLabProgress).filter(
-            UserLabProgress.user_id == current_user.id,
-            UserLabProgress.lab_id == lab.id,
-            UserLabProgress.module_id == payload.module_id,
-        )
-        progress_query = _scope_assignment_progress(
-            progress_query,
-            resolved_assignment_id,
-        )
-        progress = progress_query.first()
-
         if not is_correct:
-            db.add(
-                AuditLog(
-                    user_id=current_user.id,
-                    action="Wrong Flag",
-                    resource="LabModule",
-                    resource_id=payload.module_id,
-                    new_value=f"Submitted wrong flag: {payload.flag}",
-                    status="FAILED",
-                    ip_address=client_ip,
-                    browser=browser,
-                    device=device,
-                )
-            )
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="Wrong Flag",
+                resource="LabModule",
+                resource_id=payload.module_id,
+                new_value=f"Submitted wrong flag: {payload.flag}",
+                status="FAILED",
+                ip_address=client_ip,
+                browser=browser,
+                device=device,
+            ))
 
-            # Preserve existing behavior: wrong submissions update an existing
-            # progress row but do not create a completion/progress row by
-            # themselves.
+            progress = scoped_progress_query().first()
             if progress:
                 progress.attempts = (progress.attempts or 0) + 1
                 progress.last_submission = payload.flag
+                progress.client_ip = client_ip
+                progress.browser = browser
+                progress.device = device
 
             db.commit()
             return {
@@ -793,7 +699,15 @@ def submit_flag(
                 "assignment_id": resolved_assignment_id,
             }
 
-        if progress and progress.status == "COMPLETED":
+        # Capture the pre-award rank before CompletionService changes total_score.
+        old_rank = (
+            db.query(func.count(User.id))
+            .filter(_non_admin_filter(), User.total_score > (current_user.total_score or 0))
+            .scalar() or 0
+        ) + 1
+
+        existing_progress = scoped_progress_query().first()
+        if existing_progress and existing_progress.status == "COMPLETED":
             return {
                 "success": True,
                 "message": "Module already completed.",
@@ -802,12 +716,9 @@ def submit_flag(
                 "assignment_id": resolved_assignment_id,
             }
 
-        expected_attempts = (
-            (progress.attempts or 0) + 1 if progress is not None else 1
-        )
+        prior_attempts = existing_progress.attempts or 0 if existing_progress else 0
+        now = datetime.utcnow()
 
-        # CompletionService owns completion progress and delegates all score
-        # mutation to ScoreService using this exact assignment context.
         completion = CompletionService.complete_lab_module(
             db=db,
             user=current_user,
@@ -819,52 +730,36 @@ def submit_flag(
             assignment_id=resolved_assignment_id,
         )
 
-        # Re-read the assignment-scoped completion row to attach reporting
-        # metadata that CompletionService intentionally does not manage.
-        progress = progress_query.first()
+        progress = scoped_progress_query().first()
         if progress is None:
             raise RuntimeError(
-                "CompletionService did not create the expected progress row."
+                "CompletionService did not create the expected assignment-scoped progress row."
             )
 
-        progress.attempts = expected_attempts
+        # Preserve reporting metadata that CompletionService intentionally does
+        # not own, while keeping completion/scoring centralized.
+        progress.attempts = max(1, prior_attempts + 1)
+        progress.last_submission = payload.flag
+        progress.flag_correct = True
         progress.client_ip = client_ip
         progress.browser = browser
         progress.device = device
-        progress.last_submission = payload.flag
-        progress.flag_correct = True
         db.add(progress)
 
         awarded = completion.points_awarded
         new_total = completion.new_total_score
-        now = progress.completed_at or datetime.utcnow()
 
-        # Rank delta for notification (uses cached total_score column).
-        old_rank = (
-            db.query(func.count(User.id))
-            .filter(
-                _non_admin_filter(),
-                User.total_score > (current_user.total_score or 0),
-            )
-            .scalar()
-            or 0
-        ) + 1
-
-        # Achievement evaluation is user-global, but count distinct modules so
-        # repeating the same academic module in another assignment does not
-        # falsely inflate platform-wide achievement progress.
+        # Achievements are intentionally user-global, not assignment-local.
         solved_count = (
-            db.query(func.count(func.distinct(UserLabProgress.module_id)))
+            db.query(func.count(UserLabProgress.id))
             .filter(
                 UserLabProgress.user_id == current_user.id,
                 UserLabProgress.status == "COMPLETED",
             )
-            .scalar()
-            or 0
+            .scalar() or 0
         )
 
         achievements_to_grant: list[str] = []
-
         if solved_count == 1:
             achievements_to_grant.extend(["first-lab", "first-module"])
         if new_total >= 100:
@@ -874,31 +769,22 @@ def submit_flag(
         if new_total >= 1000:
             achievements_to_grant.append("1000-points")
 
-        linux_mods = (
-            [f"linux_module{i}" for i in range(1, 6)]
-            + [f"module{i}" for i in range(1, 6)]
-        )
-
+        linux_mods = [f"linux_module{i}" for i in range(1, 6)] + [f"module{i}" for i in range(1, 6)]
         if payload.module_id in linux_mods:
             completed_linux = (
-                db.query(
-                    func.count(func.distinct(UserLabProgress.module_id))
-                )
+                db.query(func.count(UserLabProgress.id))
                 .filter(
                     UserLabProgress.user_id == current_user.id,
                     UserLabProgress.status == "COMPLETED",
                     UserLabProgress.module_id.in_(linux_mods),
                     UserLabProgress.module_id != payload.module_id,
                 )
-                .scalar()
-                or 0
+                .scalar() or 0
             )
             if completed_linux >= 4:
                 achievements_to_grant.append("linux-track")
 
-        total_db_mods = (
-            db.query(func.count(LabModule.id)).scalar() or 20
-        )
+        total_db_mods = db.query(func.count(LabModule.id)).scalar() or 20
         if solved_count >= total_db_mods:
             achievements_to_grant.append("complete-every-module")
 
@@ -915,89 +801,70 @@ def submit_flag(
             if not has_imperfect:
                 achievements_to_grant.append("perfect-run")
 
-        if (
-            progress.time_taken_seconds
-            and progress.time_taken_seconds <= 30
-        ):
+        if progress.time_taken_seconds and progress.time_taken_seconds <= 30:
             achievements_to_grant.append("fast-solver")
 
         existing_ach_ids = {
             row[0]
-            for row in db.query(UserAchievement.achievement_id)
-            .filter(
+            for row in db.query(UserAchievement.achievement_id).filter(
                 UserAchievement.user_id == current_user.id,
-                UserAchievement.achievement_id.in_(
-                    achievements_to_grant
-                ),
-            )
-            .all()
+                UserAchievement.achievement_id.in_(achievements_to_grant),
+            ).all()
         }
 
         newly_earned: list[str] = []
-
         for ach_id in achievements_to_grant:
             if ach_id not in existing_ach_ids:
-                db.add(
-                    UserAchievement(
-                        user_id=current_user.id,
-                        achievement_id=ach_id,
-                        earned_at=now,
-                    )
-                )
-                db.add(
-                    AuditLog(
-                        user_id=current_user.id,
-                        action="Achievement Earned",
-                        resource="Achievement",
-                        resource_id=ach_id,
-                        new_value=f"Unlocked achievement: {ach_id}",
-                        status="SUCCESS",
-                    )
-                )
+                db.add(UserAchievement(
+                    user_id=current_user.id,
+                    achievement_id=ach_id,
+                    earned_at=now,
+                ))
+                db.add(AuditLog(
+                    user_id=current_user.id,
+                    action="Achievement Earned",
+                    resource="Achievement",
+                    resource_id=ach_id,
+                    new_value=f"Unlocked achievement: {ach_id}",
+                    status="SUCCESS",
+                ))
                 newly_earned.append(ach_id)
 
-        db.add(
-            AuditLog(
-                user_id=current_user.id,
-                action="Correct Flag",
-                resource="LabModule",
-                resource_id=payload.module_id,
-                status="SUCCESS",
-                ip_address=client_ip,
-                browser=browser,
-                device=device,
-            )
-        )
-        db.add(
-            AuditLog(
-                user_id=current_user.id,
-                action="Module Completed",
-                resource="LabModule",
-                resource_id=payload.module_id,
-                status="SUCCESS",
-                ip_address=client_ip,
-                browser=browser,
-                device=device,
-            )
-        )
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="Correct Flag",
+            resource="LabModule",
+            resource_id=payload.module_id,
+            status="SUCCESS",
+            ip_address=client_ip,
+            browser=browser,
+            device=device,
+        ))
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="Module Completed",
+            resource="LabModule",
+            resource_id=payload.module_id,
+            status="SUCCESS",
+            ip_address=client_ip,
+            browser=browser,
+            device=device,
+        ))
 
         if solved_count >= total_db_mods:
-            db.add(
-                AuditLog(
-                    user_id=current_user.id,
-                    action="Lab Completed",
-                    resource="Lab",
-                    resource_id=lab.id,
-                    status="SUCCESS",
-                    ip_address=client_ip,
-                    browser=browser,
-                    device=device,
-                )
-            )
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="Lab Completed",
+                resource="Lab",
+                resource_id=lab.id,
+                status="SUCCESS",
+                ip_address=client_ip,
+                browser=browser,
+                device=device,
+            ))
 
         try:
             from app.services.achievement_manager import achievement_manager
-
             achievement_manager.process_lab_completion(
                 db=db,
                 user_id=current_user.id,
@@ -1007,27 +874,21 @@ def submit_flag(
             )
         except Exception as ach_err:
             logger.warning(
-                "[submit_flag] AchievementManager processing warning "
-                f"(non-fatal): {ach_err}"
+                f"[submit_flag] AchievementManager processing warning (non-fatal): {ach_err}"
             )
 
-        # Commit the progress, ScoreEvent, cached total, achievements and audit
-        # records atomically before attempting notifications.
+        # Commit the academic completion + score + audit transaction before
+        # best-effort notifications.
         db.commit()
 
         try:
             new_rank = (
                 db.query(func.count(User.id))
-                .filter(
-                    _non_admin_filter(),
-                    User.total_score > new_total,
-                )
-                .scalar()
-                or 0
+                .filter(_non_admin_filter(), User.total_score > new_total)
+                .scalar() or 0
             ) + 1
 
             from app.services.notification_service import notification_service
-
             if solved_count >= total_db_mods:
                 notification_service.create_and_send(
                     db,
@@ -1037,7 +898,6 @@ def submit_flag(
                     "LAB_COMPLETION",
                     current_user.phone,
                 )
-
             for ach_id in newly_earned:
                 notification_service.create_and_send(
                     db,
@@ -1047,24 +907,17 @@ def submit_flag(
                     "ACHIEVEMENT",
                     current_user.phone,
                 )
-
             if new_rank < old_rank:
                 notification_service.create_and_send(
                     db,
                     current_user.id,
                     "Rank Improvement",
-                    (
-                        "Your leaderboard position improved from "
-                        f"#{old_rank} to #{new_rank}."
-                    ),
+                    f"Your leaderboard position improved from #{old_rank} to #{new_rank}.",
                     "RANK_IMPROVEMENT",
                     current_user.phone,
                 )
-
         except Exception as notify_err:
-            logger.warning(
-                f"[submit_flag] Notification error (non-fatal): {notify_err}"
-            )
+            logger.warning(f"[submit_flag] Notification error (non-fatal): {notify_err}")
 
         return {
             "success": True,
@@ -1079,15 +932,13 @@ def submit_flag(
     except Exception as exc:
         db.rollback()
         logger.error(
-            f"[submit_flag] Transaction failed for "
-            f"module='{payload.module_id}': {exc}",
+            f"[submit_flag] Transaction failed for module='{payload.module_id}': {exc}",
             exc_info=True,
         )
         raise HTTPException(
             status_code=500,
             detail=f"Database transaction error: {str(exc)}",
         )
-
 
 # ── Certificate Endpoints ───────────────────────────────────────────────────
 
@@ -1640,15 +1491,29 @@ def get_student_lab_breakdown(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    assignment = _get_assignment_for_reporting(
-        db,
-        lab_id=lab_id,
-        assignment_id=assignment_id,
-        student_id=student_id,
-    )
-
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     lab_title = lab.name if lab else lab_id.replace("-", " ").title()
+
+    from app.models.assignment import Assignment
+    assignment_query = db.query(Assignment).filter(
+        Assignment.lab_id == lab_id,
+        or_(
+            Assignment.student_id == student_id,
+            Assignment.group_id == student.group_id,
+        ),
+        Assignment.deleted_at.is_(None),
+    )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+    assignment_matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not assignment_matches:
+        raise HTTPException(status_code=404, detail="Assignment not found for this student and lab")
+    if assignment_id is None and len(assignment_matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Multiple assignments exist for this student and lab; assignment_id is required.",
+        )
+    assignment = assignment_matches[0]
 
     modules = db.query(LabModule).filter(LabModule.lab_id == lab_id).all()
     if not modules:
@@ -1673,8 +1538,8 @@ def get_student_lab_breakdown(
         p = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == student_id,
             UserLabProgress.lab_id == lab_id,
+            UserLabProgress.module_id == m.id,
             UserLabProgress.assignment_id == assignment.id,
-            UserLabProgress.module_id == m.id
         ).first()
 
         status = p.status if p else "Not Started"
@@ -1741,8 +1606,8 @@ def get_student_lab_breakdown(
             "department": student.department or "Cyber Security",
             "year": student.year or "III Year"
         },
-        "assignment_id": assignment.id,
         "lab_title": lab_title,
+        "assignment_id": assignment.id,
         "overall_score": total_score,
         "completion_percentage": completion_percentage,
         "total_time_taken": time_str,
@@ -1814,12 +1679,22 @@ def export_group_lab_csv(
         
     students = member_q.all()
 
-    a = _get_assignment_for_reporting(
-        db,
-        lab_id=lab_id,
-        assignment_id=assignment_id,
-        group_id=group_id,
+    assignment_query = db.query(Assignment).filter(
+        Assignment.group_id == group_id,
+        Assignment.lab_id == lab_id,
+        Assignment.deleted_at.is_(None),
     )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+    assignment_matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not assignment_matches:
+        raise HTTPException(status_code=404, detail="Assignment not found for this group and lab")
+    if assignment_id is None and len(assignment_matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Multiple assignments exist for this group and lab; assignment_id is required.",
+        )
+    a = assignment_matches[0]
 
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     lab_title = lab.name if lab else lab_id
@@ -1843,7 +1718,7 @@ def export_group_lab_csv(
         progress_records = db.query(UserLabProgress).filter(
             UserLabProgress.user_id == s.id,
             UserLabProgress.lab_id == lab_id,
-            UserLabProgress.assignment_id == a.id
+            UserLabProgress.assignment_id == a.id,
         ).all()
 
         status = "Not Started"
@@ -1941,12 +1816,25 @@ def export_student_lab_pdf(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    a = _get_assignment_for_reporting(
-        db,
-        lab_id=lab_id,
-        assignment_id=assignment_id,
-        student_id=student_id,
+    assignment_query = db.query(Assignment).filter(
+        Assignment.lab_id == lab_id,
+        or_(
+            Assignment.student_id == student_id,
+            Assignment.group_id == student.group_id,
+        ),
+        Assignment.deleted_at.is_(None),
     )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+    assignment_matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not assignment_matches:
+        raise HTTPException(status_code=404, detail="Assignment not found for this student and lab")
+    if assignment_id is None and len(assignment_matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Multiple assignments exist for this student and lab; assignment_id is required.",
+        )
+    a = assignment_matches[0]
 
     lab = db.query(Lab).filter(Lab.id == lab_id).first()
     lab_title = lab.name if lab else lab_id.replace("-", " ").title()
@@ -1955,7 +1843,7 @@ def export_student_lab_pdf(
     progress_records = db.query(UserLabProgress).filter(
         UserLabProgress.user_id == student_id,
         UserLabProgress.lab_id == lab_id,
-        UserLabProgress.assignment_id == a.id
+        UserLabProgress.assignment_id == a.id,
     ).all()
 
     overall_score = sum(p.score or 0 for p in progress_records)
@@ -2752,23 +2640,6 @@ def download_student_report_archive(
         raise HTTPException(status_code=404, detail="Assignment not found")
 
     if format == "pdf":
-        return export_student_lab_pdf(
-            student_id=student_id,
-            lab_id=a.lab_id,
-            assignment_id=a.id,
-            current_user=current_user,
-            db=db,
-        )
+        return export_student_lab_pdf(student_id=student_id, lab_id=a.lab_id, current_user=current_user, db=db)
     else:
-        return export_group_lab_csv(
-            group_id=a.group_id or 0,
-            lab_id=a.lab_id,
-            assignment_id=a.id,
-            current_user=current_user,
-            db=db,
-        )
-
-
-
-
-
+        return export_group_lab_csv(group_id=a.group_id or 0, lab_id=a.lab_id, current_user=current_user, db=db)
