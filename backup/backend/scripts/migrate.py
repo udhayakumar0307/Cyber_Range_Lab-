@@ -316,7 +316,9 @@ def run_postgres_column_migrations(engine):
         if table_exists("groups"):
             conn.execute(text("""
                 ALTER TABLE groups
-                ADD COLUMN IF NOT EXISTS organization_id VARCHAR(100) NULL;
+                ADD COLUMN IF NOT EXISTS organization_id VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS max_size INTEGER DEFAULT 40,
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NULL;
             """))
             logger.info("  groups: column migrations applied")
 
