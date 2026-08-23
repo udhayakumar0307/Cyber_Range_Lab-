@@ -56,7 +56,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       }
 
       if (data.token) {
-        setSessionToken(data.token, data.user);
+        // Await this so the account's roles/capabilities (used by ProtectedRoute)
+        // are loaded before onSuccess navigates away — otherwise the redirect can
+        // land before authorization data exists, and get bounced to /unauthorized.
+        await setSessionToken(data.token, data.user);
         localStorage.setItem('token', data.token);
         if (data.role) {
           localStorage.setItem('role', data.role);

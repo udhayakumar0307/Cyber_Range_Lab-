@@ -53,7 +53,7 @@ interface AuthContextType {
     portal?: 'student' | 'admin',
     otpCode?: string
   ) => Promise<{ role: string; user?: any; status?: string; message?: string }>;
-  setSessionToken: (token: string, userData?: User) => void;
+  setSessionToken: (token: string, userData?: User) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   apiFetch: (url: string, options?: RequestInit) => Promise<Response>;
@@ -97,12 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [API_BASE]);
 
-  const setSessionToken = useCallback((newToken: string, userData?: User) => {
+  const setSessionToken = useCallback(async (newToken: string, userData?: User) => {
     localStorage.setItem('token', newToken);
     tokenRef.current = newToken;
     setToken(newToken);
     if (userData) setUser(userData);
-    void loadAuthorization(newToken);
+    await loadAuthorization(newToken);
   }, [loadAuthorization]);
 
   const logout = useCallback(async () => {

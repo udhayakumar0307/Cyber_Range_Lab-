@@ -137,7 +137,7 @@ export const AdminRegisterPage: React.FC = () => {
       }
 
       if (data.access_token) {
-        setSessionToken(data.access_token, data.user);
+        await setSessionToken(data.access_token, data.user);
         localStorage.setItem('role', 'admin');
       }
 
