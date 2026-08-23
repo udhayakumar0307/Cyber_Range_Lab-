@@ -1,26 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
-import type { PlatformUser } from '../../types/admin';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import type { PlatformUser, UserGroup } from '../../types/admin';
 import { UserAddModal } from '../../components/admin/UserAddModal';
 import { BulkImportModal } from '../../components/admin/BulkImportModal';
-import { 
-  Users, 
-  UserPlus, 
-  FileSpreadsheet, 
-  Search, 
-  Edit3, 
-  Trash2, 
-  UserCheck, 
+import { GroupCreateModal } from '../../components/admin/GroupCreateModal';
+import { getDeptShortCode } from '../../utils/deptMapping';
+import { parseRangeSelection } from '../../utils/rangeSelect';
+import {
+  UserPlus,
+  FileSpreadsheet,
+  Search,
   AlertTriangle,
-  Download,
-  ChevronLeft,
-  ChevronRight
+  UsersRound,
+  Plus,
+  Calendar,
+  Users,
+  Edit3,
+  Trash2,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react';
-import { downloadAuthenticatedFile } from '../../utils/exportUtils';
 
 import { getRoleDisplayName } from '../../utils/roleMapping';
 
 export const UserManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,13 +33,8 @@ export const UserManagement: React.FC = () => {
 
   // Filtering & Search state
   const [searchQuery, setSearchQuery] = useState(urlSearch);
-  const [selectedGroup, setSelectedGroup] = useState('All');
-  const [selectedRole, setSelectedRole] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
-
-  // Bulk Actions & Drawer State
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [drawerUser, setDrawerUser] = useState<PlatformUser | null>(null);
+  const [selectedDept, setSelectedDept] = useState('All');
+  const [selectedYear, setSelectedYear] = useState('All');
 
   // Sync with URL search params changes (e.g. from top nav search)
   useEffect(() => {
@@ -54,7 +53,7 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<UserGroup[]>([]);
 
   const fetchUsersAndGroups = async () => {
     const token = localStorage.getItem('token');
@@ -87,17 +86,36 @@ export const UserManagement: React.FC = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<PlatformUser | null>(null);
 
-  // Delete modal state
-  const [userToDelete, setUserToDelete] = useState<PlatformUser | null>(null);
+  // Delete selection state
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-  // Filtered dataset (excluding internal platform SYSTEM_ADMIN / sysadmin accounts)
-  const filteredUsers = users.filter((u) => {
+  const getUserDbId = (u: PlatformUser) => u.db_id ?? Number(String(u.id).replace('usr-', ''));
+
+  const toggleUserSelection = (u: PlatformUser) => {
+    const dbId = getUserDbId(u);
+    setSelectedForDelete((prev) => {
+      const next = new Set(prev);
+      if (next.has(dbId)) next.delete(dbId);
+      else next.add(dbId);
+      return next;
+    });
+  };
+
+  // Group panel state
+  const [groupSearch, setGroupSearch] = useState('');
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [groupToEdit, setGroupToEdit] = useState<UserGroup | null>(null);
+  const [groupToDelete, setGroupToDelete] = useState<UserGroup | null>(null);
+
+  // Base dataset (excluding internal platform SYSTEM_ADMIN / sysadmin accounts), dept/year filtered
+  const baseUsers = users.filter((u) => {
     const roleLower = (u.role || '').toLowerCase();
     const nameLower = (u.fullName || '').toLowerCase();
     const emailLower = (u.email || '').toLowerCase();
-    
-    const isSysAdmin = 
-      roleLower.includes('sysadmin') || 
+
+    const isSysAdmin =
+      roleLower.includes('sysadmin') ||
       roleLower.includes('system_admin') ||
       nameLower.includes('sysadmin') ||
       nameLower.includes('sys admin') ||
@@ -105,17 +123,36 @@ export const UserManagement: React.FC = () => {
 
     if (isSysAdmin) return false;
 
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = !q ||
-      u.fullName.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      (u.groupName || '').toLowerCase().includes(q) ||
-      (u.role || '').toLowerCase().includes(q);
-    const matchesGroup = selectedGroup === 'All' || u.groupName === selectedGroup;
-    const matchesRole = selectedRole === 'All' || u.role === selectedRole;
-    const matchesStatus = selectedStatus === 'All' || u.status === selectedStatus;
-    return matchesSearch && matchesGroup && matchesRole && matchesStatus;
+    const matchesDept = selectedDept === 'All' || u.department === selectedDept;
+    const matchesYear = selectedYear === 'All' || u.year === selectedYear;
+    return matchesDept && matchesYear;
   });
+
+  const trimmedQuery = searchQuery.trim();
+  // A query made up only of digits/commas/hyphens/spaces is treated as an
+  // S.No range (e.g. "1-4,7,9-12") over the currently filtered list, instead
+  // of a name/roll/email/department text search.
+  const isSnoQuery = trimmedQuery !== '' && /^[\d,\-\s]+$/.test(trimmedQuery);
+
+  const filteredUsers = isSnoQuery
+    ? (() => {
+        const sNos = parseRangeSelection(trimmedQuery, baseUsers.length);
+        return baseUsers.filter((_, idx) => sNos.has(idx + 1));
+      })()
+    : baseUsers.filter((u) => {
+        const q = trimmedQuery.toLowerCase();
+        return !q ||
+          u.fullName.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          (u.rollNumber || '').toLowerCase().includes(q) ||
+          (u.department || '').toLowerCase().includes(q);
+      });
+
+  const filteredGroups = availableGroups.filter(
+    (g) =>
+      (g.name || '').toLowerCase().includes(groupSearch.toLowerCase()) ||
+      (g.description || '').toLowerCase().includes(groupSearch.toLowerCase())
+  );
 
   const parseErrorMessage = (errData: any): string => {
     if (!errData) return 'An unexpected error occurred.';
@@ -143,7 +180,6 @@ export const UserManagement: React.FC = () => {
     const targetGroupId = userData.groupId ? Number(String(userData.groupId).replace('grp-', '')) : null;
 
     if (userToEdit) {
-      // Edit mode update
       const dbId = userToEdit.db_id || Number(String(userToEdit.id).replace('usr-', ''));
       try {
         const res = await fetch(`/api/v1/admin/users/${dbId}`, {
@@ -170,7 +206,6 @@ export const UserManagement: React.FC = () => {
         alert('An error occurred while updating user.');
       }
     } else {
-      // Add mode create
       try {
         const res = await fetch('/api/v1/admin/users', {
           method: 'POST',
@@ -203,106 +238,149 @@ export const UserManagement: React.FC = () => {
     fetchUsersAndGroups();
   };
 
-  const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
+  const handleBulkDelete = async () => {
     const token = localStorage.getItem('token');
-    const dbId = userToDelete.db_id || Number(String(userToDelete.id).replace('usr-', ''));
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    let successCount = 0;
+    for (const dbId of selectedForDelete) {
+      try {
+        const res = await fetch(`/api/v1/admin/users/${dbId}`, { method: 'DELETE', headers });
+        if (res.ok) successCount++;
+      } catch (err) {
+        console.error(`Error deleting user ID ${dbId}:`, err);
+      }
+    }
+    setBulkDeleteOpen(false);
+    setSelectedForDelete(new Set());
+    await fetchUsersAndGroups();
+    if (successCount < selectedForDelete.size) {
+      alert(`Deleted ${successCount} of ${selectedForDelete.size} selected student(s). Some deletions failed.`);
+    }
+  };
+
+  // Group handlers
+  const handleSaveGroup = async (groupData: Partial<UserGroup>, memberIds: number[]) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
     try {
-      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+      let groupDbId: number | undefined = groupData.db_id;
+
+      if (groupToEdit) {
+        groupDbId = groupToEdit.db_id || Number(String(groupToEdit.id).replace('grp-', ''));
+        const res = await fetch(`/api/v1/admin/groups/${groupDbId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            name: groupData.name,
+            description: groupData.description,
+            max_size: groupData.maxSize
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert(parseErrorMessage(errData));
+          return;
+        }
+      } else {
+        const res = await fetch('/api/v1/admin/groups', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: groupData.name,
+            description: groupData.description,
+            max_size: groupData.maxSize
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert(parseErrorMessage(errData));
+          return;
+        }
+        const created = await res.json();
+        groupDbId = created.group_id;
+      }
+
+      if (groupDbId && memberIds.length > 0) {
+        const memberRes = await fetch(`/api/v1/admin/groups/${groupDbId}/members/bulk`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ user_ids: memberIds })
+        });
+        if (!memberRes.ok) {
+          const errData = await memberRes.json().catch(() => ({}));
+          alert(`Group saved, but adding students failed: ${parseErrorMessage(errData)}`);
+        }
+      }
+
+      await fetchUsersAndGroups();
+    } catch (err) {
+      console.error('Failed to save group:', err);
+      alert('An error occurred while saving the group.');
+    }
+  };
+
+  const handleConfirmDeleteGroup = async () => {
+    if (!groupToDelete) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
-        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id && u.db_id !== dbId));
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.detail || 'Failed to delete user.');
+        await fetchUsersAndGroups();
       }
     } catch (err) {
-      console.error('Error deleting user:', err);
+      console.error('Failed to delete group:', err);
     } finally {
-      setUserToDelete(null);
-    }
-  };
-
-  const handleToggleStatus = async (user: PlatformUser) => {
-    const token = localStorage.getItem('token');
-    const dbId = user.db_id || Number(String(user.id).replace('usr-', ''));
-    const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
-    try {
-      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          is_active: newStatus === 'Active'
-        })
-      });
-      if (res.ok) {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === user.id ? { ...u, status: newStatus } : u
-          )
-        );
-      }
-    } catch (err) {
-      console.error('Error toggling user status:', err);
+      setGroupToDelete(null);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Single Horizontal Row Toolbar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row items-center gap-3">
-          {/* Search bar (~55-60% width) */}
-          <div className="relative w-full md:w-[58%]">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search student by Name, Roll Number, Email or Department..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <div className="w-full md:w-[14%]">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+      {/* ───────────────────────── LEFT 60% — Student Management ───────────────────────── */}
+      <div className="lg:col-span-3 space-y-6">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3">
+          {/* Row 1: Import / Add buttons */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <option value="All">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-
-          {/* Year Filter */}
-          <div className="w-full md:w-[14%]">
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Import Student CSV
+            </button>
+            <button
+              onClick={() => {
+                setUserToEdit(null);
+                setIsAddModalOpen(true);
+              }}
+              className="flex-1 px-4 py-2 rounded-xl bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <option value="All">All Years</option>
-              <option value="1st Year">1st Year</option>
-              <option value="2nd Year">2nd Year</option>
-              <option value="3rd Year">3rd Year</option>
-              <option value="4th Year">4th Year</option>
-            </select>
+              <UserPlus className="w-4 h-4" /> Add Student
+            </button>
           </div>
 
-          {/* Department Filter */}
-          <div className="w-full md:w-[14%]">
+          {/* Row 2: Search + Dept + Year */}
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="relative w-full sm:flex-1">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search by Name, Roll Number, Dept — or S.No e.g. 1-4,7,9-12"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+              />
+            </div>
             <select
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="w-full sm:w-36 py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
             >
               <option value="All">All Depts</option>
               <option value="Cyber Security">Cyber Security</option>
@@ -313,217 +391,193 @@ export const UserManagement: React.FC = () => {
               <option value="Mechanical">Mechanical</option>
               <option value="Civil">Civil</option>
             </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-full sm:w-32 py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+            >
+              <option value="All">All Years</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Showing <strong className="text-slate-900 dark:text-slate-100">{filteredUsers.length}</strong> enrolled students
+              {selectedForDelete.size > 0 && (
+                <span className="ml-2 text-[#0052CC] dark:text-blue-400">({selectedForDelete.size} selected)</span>
+              )}
+            </span>
+            <button
+              onClick={() => selectedForDelete.size > 0 && setBulkDeleteOpen(true)}
+              disabled={selectedForDelete.size === 0}
+              title={selectedForDelete.size > 0 ? `Delete ${selectedForDelete.size} selected student(s)` : 'Select students to delete'}
+              className="p-1.5 rounded-lg text-slate-400 enabled:hover:text-rose-600 enabled:hover:bg-rose-50 dark:enabled:hover:bg-rose-950/40 disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Action Buttons Toolbar Below */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Showing <strong className="text-slate-900 dark:text-slate-100">{filteredUsers.length}</strong> enrolled students
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsBulkModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Import Student CSV
-            </button>
-
-            <button
-              onClick={() => {
-                setUserToEdit(null);
-                setIsAddModalOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" /> Add Student
-            </button>
-
-            <button
-              onClick={() => {
-                if (selectedUserIds.length === 0) alert('Select at least one student first.');
-                else alert(`Assigning group cohort to ${selectedUserIds.length} students`);
-              }}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs transition-colors cursor-pointer"
-            >
-              Assign Group
-            </button>
-
-            <button
-              onClick={async () => {
-                if (selectedUserIds.length === 0) {
-                  alert('Select students to delete.');
-                  return;
-                }
-                if (confirm(`Delete ${selectedUserIds.length} selected students? This action cannot be undone.`)) {
-                  const token = localStorage.getItem('token');
-                  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-                  let successCount = 0;
-
-                  for (const usrId of selectedUserIds) {
-                    const uObj = users.find(u => String(u.id) === usrId);
-                    if (!uObj) continue;
-                    const dbId = uObj.db_id || Number(String(usrId).replace('usr-', ''));
-                    try {
-                      const res = await fetch(`/api/v1/admin/users/${dbId}`, {
-                        method: 'DELETE',
-                        headers
-                      });
-                      if (res.ok) {
-                        successCount++;
-                      }
-                    } catch (err) {
-                      console.error(`Error deleting user ID ${dbId}:`, err);
-                    }
-                  }
-                  
-                  if (successCount > 0) {
-                    alert(`Successfully deleted ${successCount} user(s).`);
-                  }
-                  await fetchUsersAndGroups();
-                  setSelectedUserIds([]);
-                }
-              }}
-              className="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition-colors cursor-pointer"
-            >
-              Delete Selected
-            </button>
+        {/* Compact Student List — scrollable, no pagination */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+          <div className="overflow-auto max-h-[560px]">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm text-slate-600 dark:text-slate-300 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="p-3 w-8 text-center">#</th>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Dept</th>
+                  <th className="p-3">Year</th>
+                  <th className="p-3">Roll No.</th>
+                  <th className="p-3 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs">
+                      No matching students found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u, idx) => {
+                    const dbId = getUserDbId(u);
+                    const checked = selectedForDelete.has(dbId);
+                    return (
+                      <tr
+                        key={u.id}
+                        onClick={() => toggleUserSelection(u)}
+                        className={`cursor-pointer transition-colors ${checked ? 'bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'}`}
+                      >
+                        <td className="p-3 text-center text-slate-400 dark:text-slate-500 font-mono">{idx + 1}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            {checked ? (
+                              <div className="w-7 h-7 rounded-full bg-[#0052CC] text-white flex items-center justify-center flex-shrink-0">
+                                <CheckCircle2 className="w-4 h-4" />
+                              </div>
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-[10px] shadow-xs flex-shrink-0">
+                                {u.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                              </div>
+                            )}
+                            <span className="font-bold text-slate-900 dark:text-slate-100 leading-tight">{u.fullName}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
+                          {getDeptShortCode(u.department)}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
+                          {u.year || '-'}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
+                          {u.rollNumber || '-'}
+                        </td>
+                        <td className="p-3 text-right">
+                          <Link
+                            to={`/admin/student-management/student/${u.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1 rounded-lg bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-[11px] shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      {/* 5.2 Comprehensive User Data Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">            <thead className="bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
-              <tr>
-                <th className="p-4 w-10 text-center">
-                  <input 
-                    type="checkbox"
-                    checked={selectedUserIds.length === filteredUsers.length && filteredUsers.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedUserIds(filteredUsers.map(u => String(u.id)));
-                      else setSelectedUserIds([]);
-                    }}
-                    className="rounded border-slate-300"
-                  />
-                </th>
-                <th className="p-4">Student Name</th>
-                <th className="p-4">Roll Number</th>
-                <th className="p-4">Department</th>
-                <th className="p-4">Year</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Last Activity</th>
-                <th className="p-4 text-right">View Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
-                    No matching students found for current filter selections.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((u) => {
-                  return (
-                    <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="p-4 text-center">
-                        <input 
-                          type="checkbox"
-                          checked={selectedUserIds.includes(String(u.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedUserIds(prev => [...prev, String(u.id)]);
-                            else setSelectedUserIds(prev => prev.filter(id => id !== String(u.id)));
-                          }}
-                          className="rounded border-slate-300"
-                        />
-                      </td>
+      {/* ───────────────────────── RIGHT 40% — Groups Panel ───────────────────────── */}
+      <div className="lg:col-span-2 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3">
+          <button
+            onClick={() => {
+              setGroupToEdit(null);
+              setIsGroupModalOpen(true);
+            }}
+            className="w-full px-4 py-2.5 rounded-xl bg-[#FFA500] hover:bg-amber-500 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Create Group
+          </button>
 
-                      {/* Student Name */}
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0">
-                            {u.fullName.split(' ').map((n) => n[0]).join('')}
-                          </div>
-                          <span className="font-bold text-slate-900 leading-tight">{u.fullName}</span>
-                        </div>
-                      </td>
-
-                      {/* Roll Number */}
-                      <td className="p-4 text-xs font-semibold text-slate-700">
-                        {u.rollNumber || '22BCS104'}
-                      </td>
-
-                      {/* Department */}
-                      <td className="p-4 text-xs font-semibold text-slate-700">
-                        {u.department || 'Cyber Security'}
-                      </td>
-
-                      {/* Year */}
-                      <td className="p-4 text-xs font-semibold text-slate-700">
-                        {u.year || 'III Year'}
-                      </td>
-
-                      {/* Email */}
-                      <td className="p-4 text-xs text-slate-600 font-medium">
-                        {u.email}
-                      </td>
-
-                      {/* Status Chip */}
-                      <td className="p-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                            u.status === 'Active'
-                              ? 'bg-emerald-50 text-[#28A745] border border-emerald-200'
-                              : 'bg-slate-100 text-slate-500 border border-slate-200'
-                          }`}
-                        >
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              u.status === 'Active' ? 'bg-[#28A745]' : 'bg-slate-400'
-                            }`}
-                          ></span>
-                          {u.status}
-                        </span>
-                      </td>
-
-                      {/* Last Activity */}
-                      <td className="p-4 text-xs text-slate-500 font-medium">
-                        {u.lastActive || 'Today 10:30 AM'}
-                      </td>
-
-                      {/* View Details Button */}
-                      <td className="p-4 text-right">
-                        <Link
-                          to={`/admin/student-management/student/${u.id}`}
-                          className="px-3 py-1.5 rounded-lg bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          View Details
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input
+              type="text"
+              value={groupSearch}
+              onChange={(e) => setGroupSearch(e.target.value)}
+              placeholder="Search groups..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+            />
+          </div>
         </div>
 
-        {/* Table Footer Pagination */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
-          <span>Showing 1-5 of {filteredUsers.length} entries</span>
-          <div className="flex items-center gap-1">
-            <button disabled className="p-1 rounded text-slate-300">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="px-2 py-0.5 rounded bg-[#0052CC] text-white font-bold">1</span>
-            <button disabled className="p-1 rounded text-slate-300">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="space-y-3">
+          {filteredGroups.length === 0 ? (
+            <div className="py-10 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+              <UsersRound className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No Groups Yet</h3>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Create a group to get started.</p>
+            </div>
+          ) : (
+            filteredGroups.map((g) => (
+              <div
+                key={g.id}
+                onClick={() => navigate(`/admin/groups/${g.id}`)}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white truncate">{g.name}</h3>
+                    <span className="text-[11px] font-bold bg-blue-50 dark:bg-blue-950/50 text-[#0052CC] dark:text-blue-400 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1.5">
+                      <Users className="w-3 h-3" /> {g.memberCount}/{g.maxSize || 40} students
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupToEdit(g);
+                        setIsGroupModalOpen(true);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-[#0052CC] hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                      title="Edit Group"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGroupToDelete(g);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Group"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> {g.createdDate}
+                  </span>
+                  <span className="text-[#0052CC] dark:text-blue-400 font-bold inline-flex items-center gap-1">
+                    Open <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -541,33 +595,71 @@ export const UserManagement: React.FC = () => {
         onImportUsers={handleBulkImport}
       />
 
-      {/* 5.5 User Deletion Confirmation Dialog */}
-      {userToDelete && (
+      <GroupCreateModal
+        groupToEdit={groupToEdit}
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
+        onSave={handleSaveGroup}
+        allStudents={users}
+        onMembersChanged={fetchUsersAndGroups}
+      />
+
+      {/* Bulk Student Deletion Confirmation Dialog */}
+      {bulkDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full border border-slate-200 p-6 shadow-xl text-center space-y-4 animate-in fade-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">Remove Platform User?</h3>
+              <h3 className="text-base font-extrabold text-slate-900">Remove Selected Students?</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Are you sure you want to delete <span className="font-bold text-slate-800">{userToDelete.fullName}</span>? This action will revoke access and archive lab progress.
+                Are you sure you want to delete <span className="font-bold text-slate-800">{selectedForDelete.size}</span> selected student(s)? This action will revoke access and archive lab progress.
               </p>
             </div>
-
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
-                onClick={() => setUserToDelete(null)}
+                onClick={() => setBulkDeleteOpen(false)}
                 className="py-2 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100"
               >
                 Cancel
               </button>
               <button
-                onClick={handleConfirmDelete}
+                onClick={handleBulkDelete}
                 className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs"
               >
-                Delete User
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Deletion Confirmation Dialog */}
+      {groupToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full border border-slate-200 p-6 shadow-xl text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Delete Training Group?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Are you sure you want to delete <span className="font-bold text-slate-800">{groupToDelete.name}</span>?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => setGroupToDelete(null)}
+                className="py-2 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDeleteGroup}
+                className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs"
+              >
+                Delete Group
               </button>
             </div>
           </div>
