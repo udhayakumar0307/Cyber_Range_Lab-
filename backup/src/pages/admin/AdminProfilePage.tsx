@@ -485,7 +485,7 @@ export const AdminProfilePage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h2 className="text-sm font-bold text-slate-850 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
                 <UserIcon className="w-4.5 h-4.5 text-blue-600" /> Profile Details
               </h2>
               {editing ? (
@@ -527,7 +527,7 @@ export const AdminProfilePage: React.FC = () => {
                   disabled={!editing}
                   value={profileData.basic_info.name || ''} 
                   onChange={(e) => setProfileData({ ...profileData, basic_info: { ...profileData.basic_info, name: e.target.value } })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -537,7 +537,7 @@ export const AdminProfilePage: React.FC = () => {
                   disabled={!editing}
                   value={profileData.basic_info.designation || ''} 
                   onChange={(e) => setProfileData({ ...profileData, basic_info: { ...profileData.basic_info, designation: e.target.value } })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -547,7 +547,7 @@ export const AdminProfilePage: React.FC = () => {
                   disabled={!editing}
                   value={profileData.basic_info.phone || ''} 
                   onChange={(e) => setProfileData({ ...profileData, basic_info: { ...profileData.basic_info, phone: e.target.value } })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -557,7 +557,7 @@ export const AdminProfilePage: React.FC = () => {
                   disabled={!editing}
                   value={profileData.organization_info.gst_number || ''} 
                   onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, gst_number: e.target.value } })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -577,7 +577,7 @@ export const AdminProfilePage: React.FC = () => {
               </div>
 
               {affiliations.filter(a => a.affiliation_type === 'college').map((aff) => (
-                <div key={aff.id} className="p-4 bg-slate-50 dark:bg-slate-850 border border-slate-150 rounded-2xl flex items-center justify-between text-xs">
+                <div key={aff.id} className="p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-between text-xs">
                   <div>
                     <span className="font-extrabold text-slate-800 dark:text-slate-200 block">🏛 {aff.college_name}</span>
                     <span className="text-[10px] text-slate-400 block mt-1">Code: {aff.college_code || '--'}</span>
@@ -625,7 +625,7 @@ export const AdminProfilePage: React.FC = () => {
                 const isRejected = aff.status === 'REJECTED';
                 
                 return (
-                  <div key={aff.id} className="p-4 bg-slate-50 dark:bg-slate-850 border border-slate-150 rounded-2xl flex items-center justify-between text-xs">
+                  <div key={aff.id} className="p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-between text-xs">
                     <div>
                       <span className="font-extrabold text-slate-800 dark:text-slate-200 block">🏢 {aff.organization_name}</span>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold border mt-2 ${
@@ -667,21 +667,21 @@ export const AdminProfilePage: React.FC = () => {
             
             {/* KPI metrics row */}
             <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Purchased Labs</span>
-                <span className="text-lg font-black text-slate-800 block mt-0.5">{purchasedCount}</span>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Purchased Labs</span>
+                <span className="text-lg font-black text-slate-800 dark:text-slate-100 block mt-0.5">{purchasedCount}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Student Count</span>
-                <span className="text-lg font-black text-slate-800 block mt-0.5">{studentsCount}</span>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Student Count</span>
+                <span className="text-lg font-black text-slate-800 dark:text-slate-100 block mt-0.5">{studentsCount}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Assigned Labs</span>
-                <span className="text-lg font-black text-slate-800 block mt-0.5">{assignedCount}</span>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Assigned Labs</span>
+                <span className="text-lg font-black text-slate-800 dark:text-slate-100 block mt-0.5">{assignedCount}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Active Groups</span>
-                <span className="text-lg font-black text-slate-800 block mt-0.5">{activeGroups}</span>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Active Groups</span>
+                <span className="text-lg font-black text-slate-800 dark:text-slate-100 block mt-0.5">{activeGroups}</span>
               </div>
             </div>
 
