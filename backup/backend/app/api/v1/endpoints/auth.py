@@ -156,9 +156,11 @@ def _execute_login(
     else:
         validate_student_login_attempt(email_clean, user)
 
-    # Production MFA-OTP flow: every admin (and system admin) must verify a login OTP,
-    # regardless of email domain or account_type.
-    is_academic_admin_user = getattr(user, "role", "").lower() in ("admin", "system_admin", "super_admin")
+    # Production MFA-OTP flow: every academic admin must verify a login OTP, regardless
+    # of email domain or account_type. Excludes system_admin/super_admin: those log in
+    # through the separate System Admin Portal (SystemPortal.tsx), which calls this same
+    # /login endpoint directly and has no OTP-entry UI of its own.
+    is_academic_admin_user = getattr(user, "role", "").lower() == "admin"
 
     # Enforce email verification check for non-cyberrange accounts (except admins, who verify via MFA login OTP)
     is_cyberrange_domain = email_clean.endswith("@cyberrange.in")
