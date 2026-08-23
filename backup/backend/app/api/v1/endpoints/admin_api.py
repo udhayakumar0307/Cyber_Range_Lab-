@@ -1668,10 +1668,11 @@ def assign_lab_to_group(
             detail=f"Not enough hours remaining. Need {total_hours:.1f}h for {member_count} students, but only {hours_remaining:.1f}h remain on this purchase."
         )
 
+    from app.core.assignment_time import parse_client_datetime
     try:
-        start_dt = datetime.fromisoformat(data.start_datetime)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid start_datetime format.")
+        start_dt = parse_client_datetime(data.start_datetime, field_name="start_datetime")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     end_dt = start_dt + timedelta(hours=data.hours_per_student)
 
@@ -1693,6 +1694,9 @@ def assign_lab_to_group(
     db.refresh(assignment)
 
     # Notify every verified group member in-app
+    from app.core.assignment_time import format_utc_for_zone, utc_iso
+    display_date, display_time, _ = format_utc_for_zone(start_dt, "Asia/Kolkata")
+
     members = db.query(User).filter(
         User.group_id == group_id,
         not_(or_(
@@ -1704,7 +1708,7 @@ def assign_lab_to_group(
         db.add(Notification(
             user_id=m.id,
             title="New lab scheduled",
-            message=f"'{lab.name}' has been scheduled for your group '{g.name}', starting {start_dt.strftime('%Y-%m-%d %H:%M')}.",
+            message=f"'{lab.name}' has been scheduled for your group '{g.name}', starting {display_date} {display_time}.",
             type="LAB_ASSIGNED",
             priority="HIGH",
         ))
@@ -1714,8 +1718,8 @@ def assign_lab_to_group(
         _send_lab_assigned_emails,
         [m.email for m in members],
         lab.name,
-        start_dt.strftime('%Y-%m-%d'),
-        start_dt.strftime('%H:%M'),
+        display_date,
+        display_time,
         f"{data.hours_per_student}h",
     )
 
@@ -1723,12 +1727,48 @@ def assign_lab_to_group(
         "status": "success",
         "assignment_id": assignment.id,
         "lab_name": lab.name,
-        "start_datetime": start_dt.isoformat(),
-        "end_datetime": end_dt.isoformat(),
+        "start_datetime": utc_iso(start_dt),
+        "end_datetime": utc_iso(end_dt),
         "total_hours_deducted": total_hours,
         "hours_remaining": purchased_lab.hours_remaining,
         "students_notified": len(members),
     }
+
+
+@router.post("/groups/{group_id}/kill-lab")
+def kill_group_lab(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Force-ends the group's currently running/scheduled lab assignment immediately."""
+    from app.models.group import Group
+    from app.models.assignment import Assignment
+    from app.core.assignment_time import utc_now_naive
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    assignment = (
+        db.query(Assignment)
+        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
+        .order_by(Assignment.created_at.desc())
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="No lab assignment found for this group.")
+    if assignment.status == "Completed":
+        raise HTTPException(status_code=400, detail="This lab is already completed.")
+
+    now = utc_now_naive()
+    assignment.end_datetime = now
+    if assignment.start_datetime > now:
+        assignment.start_datetime = now
+    assignment.status = "Completed"
+    db.commit()
+
+    return {"status": "success", "assignment_id": assignment.id, "message": "Lab ended."}
 
 
 @router.get("/groups/{group_id}/lab-status")
@@ -1813,7 +1853,8 @@ def get_group_lab_status(
 
     leaderboard.sort(key=lambda x: x["score"], reverse=True)
 
-    now = now_ist()
+    from app.core.assignment_time import utc_now_naive, utc_iso
+    now = utc_now_naive()
     seconds_until_start = (assignment.start_datetime - now).total_seconds()
 
     return {
@@ -1821,8 +1862,8 @@ def get_group_lab_status(
         "assignment_id": assignment.id,
         "lab_id": assignment.lab_id,
         "lab_name": lab.name if lab else assignment.lab_id,
-        "start_datetime": assignment.start_datetime.isoformat(),
-        "end_datetime": assignment.end_datetime.isoformat(),
+        "start_datetime": utc_iso(assignment.start_datetime),
+        "end_datetime": utc_iso(assignment.end_datetime),
         "status": assignment.status,
         "seconds_until_start": seconds_until_start,
         "total_students": len(members),

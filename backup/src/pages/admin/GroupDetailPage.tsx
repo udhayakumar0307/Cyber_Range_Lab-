@@ -74,6 +74,8 @@ export const GroupDetailPage: React.FC = () => {
   const [assignLabOpen, setAssignLabOpen] = useState(false);
   const [labStatus, setLabStatus] = useState<LabStatus | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
+  const [killConfirmOpen, setKillConfirmOpen] = useState(false);
+  const [killing, setKilling] = useState(false);
   const tickRef = useRef<number | null>(null);
 
   const dbId = (groupId || '').replace('grp-', '');
@@ -149,6 +151,29 @@ export const GroupDetailPage: React.FC = () => {
         console.error('Export failed:', err);
         alert('Failed to export report.');
       });
+  };
+
+  const handleKillLab = async () => {
+    setKilling(true);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/admin/groups/${dbId}/kill-lab`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'Failed to end the lab.');
+      } else {
+        await fetchLabStatus();
+      }
+    } catch (err) {
+      console.error('Error ending lab:', err);
+      alert('Failed to end the lab.');
+    } finally {
+      setKilling(false);
+      setKillConfirmOpen(false);
+    }
   };
 
   if (loading) {
@@ -246,11 +271,19 @@ export const GroupDetailPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
-              <Hourglass className="w-4 h-4 text-[#0052CC] dark:text-blue-400" />
-              <span className="text-sm font-black text-slate-900 dark:text-slate-100">
-                {formatCountdown(countdown)}
-              </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+                <Hourglass className="w-4 h-4 text-[#0052CC] dark:text-blue-400" />
+                <span className="text-sm font-black text-slate-900 dark:text-slate-100">
+                  {formatCountdown(countdown)}
+                </span>
+              </div>
+              <button
+                onClick={() => setKillConfirmOpen(true)}
+                className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
+              >
+                Kill Lab
+              </button>
             </div>
           </div>
 
@@ -414,6 +447,33 @@ export const GroupDetailPage: React.FC = () => {
           fetchLabStatus();
         }}
       />
+
+      {killConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full border border-slate-200 dark:border-slate-800 shadow-xl p-6 space-y-4">
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Kill this lab?</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              This immediately ends "{labStatus?.lab_name}" for <strong>{group.name}</strong>. Students will no longer be able to access it, and the lab will be marked completed. This cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setKillConfirmOpen(false)}
+                disabled={killing}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleKillLab}
+                disabled={killing}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                {killing ? 'Ending...' : 'Yes, Kill Lab'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

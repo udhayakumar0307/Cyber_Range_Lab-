@@ -108,7 +108,11 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
         },
         body: JSON.stringify({
           purchased_lab_id: selectedLabId,
-          start_datetime: startDatetime,
+          // startDatetime is a <input type="datetime-local"> value (local wall clock,
+          // no offset). new Date(...) parses it as local time; toISOString() then
+          // gives the true UTC instant with an explicit "Z" offset, which is what
+          // the backend's parse_client_datetime requires.
+          start_datetime: new Date(startDatetime).toISOString(),
           hours_per_student: hoursPerStudent,
         }),
       });
