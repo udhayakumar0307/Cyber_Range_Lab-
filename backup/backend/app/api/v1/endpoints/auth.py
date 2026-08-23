@@ -830,6 +830,22 @@ def forgot_password(request_data: ForgotPasswordRequest, db: Session = Depends(g
     # 7. Commit database transaction only after successful email send
     db.commit()
     logger.info("Email successfully sent")
+
+    # 8. Generate and email a login-style OTP: reset-password now also requires MFA,
+    # not just possession of the reset link, for both student and admin accounts.
+    otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
+    db.query(OTPVerification).filter(OTPVerification.email == request_data.email).delete()
+    db.add(OTPVerification(
+        email=request_data.email,
+        otp_code=otp_code,
+        expires_at=datetime.utcnow() + timedelta(minutes=15),
+    ))
+    db.commit()
+    try:
+        ses_service.send_otp_email(request_data.email, otp_code)
+    except Exception as e:
+        logger.error(f"Failed to send password-reset OTP email: {e}")
+
     return {"success": True, "message": "Recovery email dispatched successfully."}
 
 @router.post("/reset-password")
@@ -885,7 +901,39 @@ def reset_password(request_data: ResetPasswordRequest, db: Session = Depends(get
         db.commit()
         logger.error(f"No user associated with reset token email: {reset_record.email}")
         raise AppError("User not found.", status_code=status.HTTP_404_NOT_FOUND)
-        
+
+    # 4b. MFA: require the OTP emailed alongside the reset link, not just the link itself.
+    otp_rec = db.query(OTPVerification).filter(
+        OTPVerification.email == reset_record.email,
+        OTPVerification.otp_code == request_data.otp_code,
+    ).first()
+    if not otp_rec:
+        log_entry = AuditLog(
+            user_id=user.id,
+            action="Password Reset",
+            resource="User",
+            resource_id=str(user.id),
+            status="FAILED",
+            new_value="Reset attempt with invalid MFA verification code"
+        )
+        db.add(log_entry)
+        db.commit()
+        raise AppError("Invalid verification code.", status_code=status.HTTP_400_BAD_REQUEST)
+    if otp_rec.expires_at < datetime.utcnow():
+        db.delete(otp_rec)
+        log_entry = AuditLog(
+            user_id=user.id,
+            action="Password Reset",
+            resource="User",
+            resource_id=str(user.id),
+            status="FAILED",
+            new_value="Reset attempt with expired MFA verification code"
+        )
+        db.add(log_entry)
+        db.commit()
+        raise AppError("Verification code has expired. Please request a new reset link.", status_code=status.HTTP_400_BAD_REQUEST)
+    db.delete(otp_rec)
+
     # 5. Hash new password and update user
     hashed_pw = get_password_hash(request_data.new_password)
     user.password_hash = hashed_pw
