@@ -156,20 +156,21 @@ def _execute_login(
     else:
         validate_student_login_attempt(email_clean, user)
 
-    # Implement Production MFA-OTP flow for Academic Admins
-    is_academic_admin_user = getattr(user, "role", "").lower() == "admin" and getattr(user, "account_type", "").lower() == "academic"
+    # Production MFA-OTP flow: every admin (and system admin) must verify a login OTP,
+    # regardless of email domain or account_type.
+    is_academic_admin_user = getattr(user, "role", "").lower() in ("admin", "system_admin", "super_admin")
 
-    # Enforce email verification check for non-cyberrange accounts (except academic admins who verify via MFA login OTP)
+    # Enforce email verification check for non-cyberrange accounts (except admins, who verify via MFA login OTP)
     is_cyberrange_domain = email_clean.endswith("@cyberrange.in")
     email_verified_status = getattr(user, "email_verified", True)
-    
+
     if not is_cyberrange_domain and not email_verified_status and not is_academic_admin_user:
         logger.warning(f"[AuthLog] Login rejected for unverified academic account: {email_clean}")
         raise AuthenticationError("Please verify your institutional email before logging in.")
     # Check if this request already includes the OTP verification code
     submitted_otp = getattr(login_data, "otp_code", None) or request.query_params.get("otp_code")
-    
-    if is_academic_admin_user and not is_cyberrange_domain:
+
+    if is_academic_admin_user:
         if not submitted_otp:
             # Generate new login OTP
             otp_code = "".join(secrets.choice("0123456789") for _ in range(6))

@@ -83,11 +83,6 @@ export const AdminRegisterPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (!adminKey.trim()) {
-      setError('Admin Registration Security Key is required.');
-      return;
-    }
-
     if (primaryAffiliationType === 'college' && !collegeId) {
       setError('Please search and select a college.');
       return;
@@ -184,26 +179,6 @@ export const AdminRegisterPage: React.FC = () => {
                 {error}
               </div>
             )}
-
-            {/* Section 0: Admin Security Key */}
-            <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                <Key className="w-4 h-4 text-amber-600" />
-                <span>Admin Registration Authorization</span>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 mb-1">Admin Registration Security Key *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Enter secret registration key"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-amber-600 font-mono tracking-wider"
-                />
-                <p className="text-[10px] text-amber-700 mt-1">Required key issued by system administration.</p>
-              </div>
-            </div>
 
             {/* Section 1: Affiliation details */}
             <div className="space-y-4">
