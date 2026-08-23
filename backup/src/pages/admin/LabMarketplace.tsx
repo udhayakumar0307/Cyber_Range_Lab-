@@ -390,8 +390,10 @@ export const LabMarketplace: React.FC = () => {
             sortedLabs.map((lab) => {
               const isPuzzle = lab.id.toLowerCase().includes('puzzle') || (lab.category ?? '').toLowerCase().includes('puzzle');
               const isCommandLine = lab.id.toLowerCase().includes('command-line') || lab.id.toLowerCase().includes('cmd');
-              // isFree: use backend isFree field (reflects sysadmin fixed_rate == 0), or puzzle labs
-              const isFree = lab.isFree === true || isPuzzle || (lab.priceInr ?? 0) === 0;
+              // isFree: driven entirely by the actual fetched price (reflects the sysadmin's
+              // fixed_rate for this org). Puzzle labs are not free by default — only when
+              // priced at 0, same as any other lab.
+              const isFree = lab.isFree === true || (lab.priceInr ?? 0) === 0;
               // isPurchased: only true for FREE labs (price=0). Priced labs always show Add to Cart so admins can buy more hours.
               const isPurchased = isFree ? (lab.isPurchased ?? false) : false;
               const isInCart = cartItems.some((i) => i.lab_id === lab.id);
@@ -486,7 +488,7 @@ export const LabMarketplace: React.FC = () => {
                           <Check className="w-3.5 h-3.5" />
                           <span>Assigned</span>
                         </button>
-                      ) : isPuzzle ? (
+                      ) : isPuzzle && isFree ? (
                         <button
                           onClick={() => {
                             // Auto purchase puzzle lab if needed then navigate

@@ -108,9 +108,8 @@ export const AvailableLabs: React.FC = () => {
           solvedChallenges: item?.solvedChallenges ?? 0,
         };
       });
-      // Filter out internal labs
+      // Filter out internal labs (puzzle labs now show as a normal card, not excluded)
       setLabs(normalized.filter(l =>
-        !l.id.toLowerCase().includes('puzzle') &&
         !l.id.toLowerCase().includes('techcorp')
       ));
     } catch {
@@ -252,6 +251,7 @@ export const AvailableLabs: React.FC = () => {
     if (id === 'command-line-lab') navigate('/labs/command-line-lab/session/sess-cll-01');
     else if (id === 'cryptography-lab') navigate('/labs/cryptography-lab/session/sess-crypto-01');
     else if (id === 'cloud-security-lab') navigate('/labs/cloud-security-lab/session/sess-cloud-01');
+    else if (id.includes('puzzle')) navigate('/puzzle');
     else navigate(`/labs/${lab.id}/session/sess-123`);
   };
 

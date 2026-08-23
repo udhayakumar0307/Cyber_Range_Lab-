@@ -37,7 +37,6 @@ export const UserSidebar: React.FC<UserSidebarProps> = ({ isOpen = true, onClose
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Available Labs', path: '/labs', icon: FlaskConical },
     { name: 'Assignments', path: '/assigned-labs', icon: Layers },
-    { name: 'Puzzle', path: '/puzzle', icon: Puzzle },
     { name: 'CTF Competitions', path: '/ctf', icon: Flag },
     { name: 'My Statistics', path: '/statistics', icon: BarChart2 },
     { name: 'Study Material', path: '/study-material', icon: BookOpen },
