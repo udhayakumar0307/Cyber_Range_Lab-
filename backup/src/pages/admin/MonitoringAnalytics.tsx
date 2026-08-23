@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Folder,
   User as UserIcon,
@@ -11,6 +12,7 @@ import {
   X
 } from 'lucide-react';
 import { downloadAuthenticatedFile } from '../../utils/exportUtils';
+import { formatUtcIsoLocal } from '../../utils/assignmentTime';
 import {
   Radar,
   RadarChart,
@@ -21,6 +23,9 @@ import {
 } from 'recharts';
 
 export const MonitoringAnalytics: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const assignmentQuery = searchParams.get('assignment');
+
   const [analyticsTab, setAnalyticsTab] = useState<'group' | 'individual'>('group');
   
   // Navigation states
@@ -143,12 +148,76 @@ export const MonitoringAnalytics: React.FC = () => {
     }
   };
 
+
+  // Point #9: assignment-aware deep link from the Assignments page.
+  useEffect(() => {
+    if (!assignmentQuery) return;
+
+    const assignmentId = Number(assignmentQuery);
+    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+      setErrorMsg('Invalid assignment analytics link.');
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDeepLinkedAssignment = async () => {
+      setLoading(true);
+      setErrorMsg('');
+
+      try {
+        const res = await fetch(
+          `/api/v1/admin/assignments/${assignmentId}/analytics`,
+          { headers }
+        );
+
+        if (!res.ok) {
+          let detail = 'No analytics available for this assignment.';
+          try {
+            const body = await res.json();
+            if (body?.detail) detail = String(body.detail);
+          } catch {
+            // Keep the stable fallback message.
+          }
+
+          if (!cancelled) setErrorMsg(detail);
+          return;
+        }
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        setAnalyticsTab(data.student_id ? 'individual' : 'group');
+        setSelectedGroupId(data.group_id ?? null);
+        setSelectedStudentId(null);
+        setStudentBreakdown(null);
+        setGroupDetails(null);
+
+        setLabAnalytics(data);
+        setSelectedLabId(data.lab_id);
+        setSelectedAssignmentId(data.assignment_id);
+      } catch {
+        if (!cancelled) {
+          setErrorMsg('Failed to load assignment analytics.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadDeepLinkedAssignment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignmentQuery]);
+
   // CSV Group Export helper
   const handleGroupExportCSV = async () => {
     if (!selectedGroupId || !selectedLabId) return;
     try {
       await downloadAuthenticatedFile(
-        `/api/v1/reporting/analytics/groups/${selectedGroupId}/labs/${selectedLabId}/export`,
+        `/api/v1/reporting/analytics/groups/${selectedGroupId}/labs/${selectedLabId}/export?assignment_id=${selectedAssignmentId}`,
         `group_${selectedGroupId}_lab_${selectedLabId}_analytics.csv`
       );
     } catch (err: any) {
@@ -160,7 +229,7 @@ export const MonitoringAnalytics: React.FC = () => {
   const handleStudentExportPDF = async (studentId: number, labId: string) => {
     try {
       await downloadAuthenticatedFile(
-        `/api/v1/reporting/analytics/students/${studentId}/labs/${labId}/pdf`,
+        `/api/v1/reporting/analytics/students/${studentId}/labs/${labId}/pdf?assignment_id=${selectedAssignmentId}`,
         `student_${studentId}_lab_${labId}_analytics.pdf`
       );
     } catch (err: any) {
@@ -287,8 +356,10 @@ export const MonitoringAnalytics: React.FC = () => {
                     <strong className="text-sm text-emerald-600">{groupDetails.overall_completion}%</strong>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Score</span>
-                    <strong className="text-sm text-blue-650 dark:text-blue-400">{groupDetails.average_score} pts</strong>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Automatic %</span>
+                    <strong className="text-sm text-blue-650 dark:text-blue-400">
+                      {groupDetails.overall_average_score_percent == null ? '—' : `${groupDetails.overall_average_score_percent}%`}
+                    </strong>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Time</span>
@@ -330,7 +401,7 @@ export const MonitoringAnalytics: React.FC = () => {
                   <div>
                     <h2 className="text-base font-black text-slate-900 dark:text-slate-100">{labAnalytics.lab_title}</h2>
                     <p className="text-slate-500 font-semibold mt-1">
-                      Assigned: {labAnalytics.assignment_date} ➔ Due: {labAnalytics.due_date}
+                      Assigned: {formatUtcIsoLocal(labAnalytics.assignment_date)} ➔ Due: {formatUtcIsoLocal(labAnalytics.due_date)}
                     </p>
                   </div>
                   <button
@@ -359,8 +430,10 @@ export const MonitoringAnalytics: React.FC = () => {
                     <strong className="text-sm text-rose-500">{labAnalytics.failed_count}</strong>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Score</span>
-                    <strong className="text-sm text-slate-800 dark:text-white">{labAnalytics.average_score}</strong>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Automatic %</span>
+                    <strong className="text-sm text-slate-800 dark:text-white">
+                      {labAnalytics.average_score_percent == null ? '—' : `${labAnalytics.average_score_percent}%`}
+                    </strong>
                   </div>
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">Completion %</span>
@@ -382,7 +455,7 @@ export const MonitoringAnalytics: React.FC = () => {
                         <th className="p-4">Started Time</th>
                         <th className="p-4">Completed Time</th>
                         <th className="p-4">Time Taken</th>
-                        <th className="p-4 text-center">Overall Score</th>
+                        <th className="p-4 text-center">Automatic %</th>
                         <th className="p-4 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -410,7 +483,9 @@ export const MonitoringAnalytics: React.FC = () => {
                           <td className="p-4 text-slate-500">{m.started_time}</td>
                           <td className="p-4 text-slate-500">{m.completed_time}</td>
                           <td className="p-4 text-slate-500">{m.time_taken}</td>
-                          <td className="p-4 text-center font-bold text-slate-900 dark:text-slate-100">{m.overall_score}</td>
+                          <td className="p-4 text-center font-bold text-slate-900 dark:text-slate-100">
+                            {m.score_percent == null ? '—' : `${m.score_percent}%`}
+                          </td>
                           <td className="p-4 text-right">
                             <button
                               onClick={() => loadStudentBreakdown(m.id, selectedLabId || 'lab-system-hardening', selectedAssignmentId)}
@@ -516,10 +591,18 @@ export const MonitoringAnalytics: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Overall Score</span>
-                      <strong className="text-sm text-slate-800 dark:text-white">{studentBreakdown.overall_score}</strong>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Raw Points</span>
+                      <strong className="text-sm text-slate-800 dark:text-white">
+                        {studentBreakdown.score_earned} / {studentBreakdown.score_possible ?? '—'}
+                      </strong>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Automatic %</span>
+                      <strong className="text-sm text-blue-650 dark:text-blue-400">
+                        {studentBreakdown.score_percent == null ? '—' : `${studentBreakdown.score_percent}%`}
+                      </strong>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800">
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">Completion %</span>
@@ -552,7 +635,11 @@ export const MonitoringAnalytics: React.FC = () => {
                           }`}>
                             {m.status}
                           </span>
-                          <strong className="text-sm text-slate-800 dark:text-white">{m.score} pts</strong>
+                          <strong className="text-sm text-slate-800 dark:text-white">
+                            {m.score_earned} / {m.score_possible ?? '—'} pts
+                            {' • '}
+                            {m.score_percent == null ? '—' : `${m.score_percent}%`}
+                          </strong>
                         </div>
                       </div>
                     ))}

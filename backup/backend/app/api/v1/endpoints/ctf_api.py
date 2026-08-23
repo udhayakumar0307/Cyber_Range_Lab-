@@ -54,6 +54,8 @@ from app.ws.ctf_ws import ctf_ws_manager
 
 
 from app.api.deps import get_current_admin_user, get_current_user, get_db
+from app.core.capabilities import Capability
+from app.services.authorization_service import AuthorizationService
 from app.models.ctf import (
     CTF,
     CTFChallenge,
@@ -290,44 +292,13 @@ def list_ctfs(
     current_user: User = Depends(get_current_user),
 ):
     """List CTFs. Admins see all; students see active/public only."""
-    role = (current_user.role or "").upper()
-    is_admin = role in ("ADMIN", "SYSTEM_ADMIN", "PROFESSOR", "SUPER_ADMIN")
+    is_admin = AuthorizationService.has_capability(
+        db, current_user, Capability.CTF_MANAGE
+    )
     q = db.query(CTF)
     if not is_admin:
         q = q.filter(CTF.status == "active", CTF.is_public == True)
-    events = q.order_by(CTF.start_time.desc()).all()
-
-    # Catalog price per CTF = sysadmin-assigned fixed_rate (organization_id IS NULL row),
-    # mirroring get_sysadmin_rate() for Labs - this is a PRICE, not a free grant.
-    from app.models.admin_models import PurchasedCTF, AdminProfile
-    org_id = None
-    admin_prof = db.query(AdminProfile).filter(AdminProfile.user_id == current_user.id).first()
-    if admin_prof:
-        org_id = admin_prof.organization_id
-
-    catalog_rows = db.query(PurchasedCTF).filter(
-        PurchasedCTF.organization_id.is_(None),
-        PurchasedCTF.status == "ACTIVE"
-    ).all()
-    price_by_ctf_id = {row.ctf_id: float(row.fixed_rate or 0.0) for row in catalog_rows}
-
-    # Actually purchased by this admin's own org (a real paid PurchasedCTF row, not the
-    # sysadmin catalog entry) - only this makes it "Included" for a priced event.
-    purchased_ctf_ids = set()
-    if org_id is not None:
-        purchased_ctf_ids = set(
-            row[0] for row in db.query(PurchasedCTF.ctf_id).filter(
-                PurchasedCTF.organization_id == org_id,
-                PurchasedCTF.status == "ACTIVE"
-            ).all()
-        )
-
-    for event in events:
-        price = price_by_ctf_id.get(event.id, 0.0)
-        event.price = price
-        event.is_included = (price == 0.0) or (event.id in purchased_ctf_ids)
-
-    return events
+    return q.order_by(CTF.start_time.desc()).all()
 
 
 @router.post("", response_model=CTFOut, status_code=status.HTTP_201_CREATED)
@@ -447,8 +418,9 @@ def list_challenges(
     Admins see all (including hidden). Students see only visible challenges.
     """
     _get_ctf_or_404(db, ctf_id)
-    role = (current_user.role or "").upper()
-    is_admin = role in ("ADMIN", "SYSTEM_ADMIN", "PROFESSOR", "SUPER_ADMIN")
+    is_admin = AuthorizationService.has_capability(
+        db, current_user, Capability.CTF_MANAGE
+    )
     q = db.query(CTFChallenge).filter(CTFChallenge.ctf_id == ctf_id)
     if not is_admin:
         q = q.filter(CTFChallenge.is_hidden == False, CTFChallenge.url_active == True)
@@ -1081,4 +1053,3 @@ async def ctf_websocket_endpoint(
         ctf_ws_manager.disconnect(ctf_id, websocket)
     except Exception:
         ctf_ws_manager.disconnect(ctf_id, websocket)
-

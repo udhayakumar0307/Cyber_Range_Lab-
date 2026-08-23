@@ -1,60 +1,40 @@
 from fastapi import Request, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.database.session import get_db
 from app.core.security import decode_access_token
 from app.repository.user import user_repository
 from app.models.user import User
 
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    """
-    Dependency resolves the logged-in user from either Authorization header or cookies.
-    """
+    """Resolve identity only. Authorization comes from UserRoleBinding rows."""
     token = None
-    
-    # 1. Try Authorization Bearer Header (for development localStorage storage)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        
-    # 2. Try HttpOnly cookie (for production secure cookie storage)
     if not token:
         token = request.cookies.get("access_token")
-
-    # 3. Try URL Query Parameter (for embedded iframe views like /api/v1/cll/view?token=...)
     if not token:
         token = request.query_params.get("token")
-        
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
-        
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     from app.security.token_manager import token_manager
     if token_manager.is_token_revoked(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
 
     payload = decode_access_token(token)
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired credentials"
-        )
-        
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired credentials")
+
     username = payload.get("sub")
     if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject identity"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing subject identity")
 
-    # Local development bypass for @testcyberrange.in
     from app.core.config import settings
     if username.endswith("@testcyberrange.in") and settings.ENV == "development":
-        test_student = User(
+        return User(
             id=-999,
             name="CyberRange Test Student",
             email=username,
@@ -63,86 +43,174 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             is_active=True,
             email_verified=True,
             department="Testing",
-            year=3
+            year=3,
         )
-        return test_student
-        
+
     try:
         user = user_repository.get_by_email(db, username)
         if not user:
             user = user_repository.get_by_name(db, username)
-    except Exception as exc:
+    except Exception:
         user = None
 
     if not user:
-        # Fallback to constructing user from verified JWT payload to prevent 500 crashes
-        user_id = payload.get("user_id", 4)
-        role = payload.get("role", "user")
-        account_type = payload.get("account_type", "student")
+        # Compatibility fallback grants no RBAC authority because it has no DB binding.
         user = User(
-            id=user_id,
-            name=username.split('@')[0],
+            id=payload.get("user_id", 4),
+            name=username.split("@")[0],
             email=username,
-            role=role,
-            account_type=account_type,
+            role=payload.get("role", "user"),
+            account_type=payload.get("account_type", "student"),
             is_active=True,
             profile_completed=True,
-            email_verified=True
+            email_verified=True,
         )
-
     return user
 
 
 def get_current_user_optional(request: Request, db: Session = Depends(get_db)):
-    """Optional dependency that returns User if authenticated, else None."""
     try:
         return get_current_user(request, db)
     except Exception:
         return None
 
-def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that ensures current user is an admin, SYSTEM_ADMIN, or SUPER_ADMIN."""
-    role_upper = (current_user.role or "").upper()
-    if role_upper not in ["ADMIN", "SYSTEM_ADMIN", "PROFESSOR", "SUPER_ADMIN"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrative privileges required"
-        )
+
+def require_capability(capability):
+    def dependency(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from app.services.authorization_service import AuthorizationService
+        return AuthorizationService.require_capability(db, current_user, capability)
+    return dependency
+
+
+def require_assignment_capability(capability):
+    def dependency(
+        assignment_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from app.services.authorization_service import AuthorizationService
+        AuthorizationService.require_capability(db, current_user, capability)
+        AuthorizationService.assert_assignment_access(db, current_user, assignment_id, capability)
+        return current_user
+    return dependency
+
+
+def require_group_capability(capability):
+    def dependency(
+        group_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from app.services.authorization_service import AuthorizationService
+        AuthorizationService.require_capability(db, current_user, capability)
+        AuthorizationService.assert_group_access(db, current_user, group_id, capability)
+        return current_user
+    return dependency
+
+
+def require_student_capability(capability):
+    def dependency(
+        student_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from app.services.authorization_service import AuthorizationService
+        AuthorizationService.require_capability(db, current_user, capability)
+        AuthorizationService.assert_user_access(db, current_user, student_id, capability)
+        return current_user
+    return dependency
+
+
+def require_user_capability(capability):
+    def dependency(
+        user_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        from app.services.authorization_service import AuthorizationService
+        AuthorizationService.require_capability(db, current_user, capability)
+        AuthorizationService.assert_user_access(db, current_user, user_id, capability)
+        return current_user
+    return dependency
+
+
+def enforce_admin_rbac(request: Request, db: Session = Depends(get_db)):
+    """Authoritative policy gate for every /api/v1/admin/* route."""
+    path = request.url.path.rstrip("/")
+    method = request.method.upper()
+
+    # Registration has its own verification workflow and grants only a scoped binding.
+    if path.endswith("/api/v1/admin/register"):
+        return None
+
+    current_user = get_current_user(request, db)
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+
+    capability = Capability.DASHBOARD_VIEW
+    if path.endswith("/labs/sync"):
+        capability = Capability.CONTENT_MANAGE
+    elif path.endswith("/ctf/sync"):
+        capability = Capability.CTF_MANAGE
+    elif "/organizations/" in path or path.endswith("/organizations/pending") or "/api-keys" in path:
+        capability = Capability.SYSTEM_ADMIN
+    elif "/users" in path:
+        if path.endswith("/export"):
+            capability = Capability.REPORT_EXPORT
+        elif "/analytics" in path:
+            capability = Capability.PROGRESS_VIEW
+        elif method == "GET":
+            capability = Capability.ROSTER_VIEW
+        else:
+            capability = Capability.ROSTER_MANAGE
+    elif "/groups" in path:
+        capability = Capability.ROSTER_VIEW if method == "GET" else Capability.ROSTER_MANAGE
+    elif "/assignments" in path:
+        capability = Capability.PROGRESS_VIEW if path.endswith("/analytics") else Capability.LAB_ASSIGN
+    elif "/allocations" in path:
+        capability = Capability.LAB_ASSIGN
+    elif any(token in path for token in ["/inventory", "/licenses", "/purchased-labs"]):
+        capability = Capability.LAB_PURCHASE
+    elif "/sessions" in path:
+        capability = Capability.PROGRESS_VIEW if method == "GET" else Capability.LAB_ASSIGN
+    elif "/dashboard" in path or "/global-search" in path or "/profile" in path:
+        capability = Capability.DASHBOARD_VIEW
+
+    AuthorizationService.require_capability(db, current_user, capability)
+
+    params = request.path_params or {}
+    if "assignment_id" in params:
+        AuthorizationService.assert_assignment_access(db, current_user, int(params["assignment_id"]), capability)
+    if "group_id" in params:
+        AuthorizationService.assert_group_access(db, current_user, int(params["group_id"]), capability)
+    if "user_id" in params:
+        AuthorizationService.assert_user_access(db, current_user, int(params["user_id"]), capability)
     return current_user
 
-def get_current_system_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that ensures current user has SYSTEM_ADMIN or SUPER_ADMIN role."""
-    role_upper = (current_user.role or "").upper()
-    if role_upper not in ["SYSTEM_ADMIN", "SUPER_ADMIN"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. System Admin role required."
-        )
-    return current_user
+
+def get_current_admin_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Compatibility dependency for platform-content admin operations."""
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    return AuthorizationService.require_capability(db, current_user, Capability.CONTENT_MANAGE)
+
+
+def get_current_system_admin(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    return AuthorizationService.require_capability(db, current_user, Capability.SYSTEM_ADMIN)
+
 
 def get_admin_org_id(user: User, db: Session) -> int:
-    """Returns the organization_id associated with the admin user, creating an org if needed."""
-    from app.models.admin_models import AdminProfile, Organization
-    profile = db.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
-    if profile and profile.organization_id:
-        return profile.organization_id
-    
-    # Check if an organization exists with default or user's college/organization name
-    org_name = user.organization or (user.college.name if user.college else "Default Enterprise Organization")
-    org = db.query(Organization).filter(Organization.name == org_name).first()
-    if not org:
-        org = Organization(name=org_name, institution_type="Enterprise")
-        db.add(org)
-        db.commit()
-        db.refresh(org)
-    
-    if profile:
-        profile.organization_id = org.id
-        db.commit()
-    else:
-        profile = AdminProfile(user_id=user.id, organization_id=org.id)
-        db.add(profile)
-        db.commit()
-        
-    return org.id
-
+    """Resolve an active organization scope without creating authorization data."""
+    from app.services.authorization_service import AuthorizationService
+    return AuthorizationService.primary_organization_id(db, user)

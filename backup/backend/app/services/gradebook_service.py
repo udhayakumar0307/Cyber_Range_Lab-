@@ -8,8 +8,8 @@ Point #5 scope:
 - Draft / publish / reopen workflow.
 - Published-grade snapshots.
 
-This intentionally does NOT define formal rubric semantics (#6) or globally
-normalize all platform score units (#7).
+Point #7 standardizes public score units through ScoreContractService.
+Database snapshot column names from Point #5 remain unchanged internally.
 """
 
 from __future__ import annotations
@@ -32,6 +32,8 @@ from app.models.user import User
 from app.models.user_lab_progress import UserLabProgress
 from app.models.user_progress import UserProgress
 from app.services.rubric_service import RubricService
+from app.core.assignment_time import utc_iso
+from app.services.score_contract_service import ScoreContractService
 
 
 MODULE_COMPLETION = "MODULE_COMPLETION"
@@ -81,40 +83,9 @@ class GradebookService:
         return []
 
     @staticmethod
-    def get_score_possible(db: Session, assignment: Assignment) -> Dict[str, float]:
-        module_total = (
-            db.query(func.sum(LabModule.points))
-            .filter(LabModule.lab_id == assignment.lab_id)
-            .scalar()
-        )
-        module_count = (
-            db.query(func.count(LabModule.id))
-            .filter(LabModule.lab_id == assignment.lab_id)
-            .scalar()
-            or 0
-        )
-
-        if module_total and float(module_total) > 0:
-            return {
-                "score_possible": float(module_total),
-                "total_modules": int(module_count),
-                "score_source": "lab_modules",
-            }
-
-        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
-        if lab is not None and (lab.max_points or 0) > 0:
-            return {
-                "score_possible": float(lab.max_points),
-                "total_modules": int(module_count),
-                "score_source": "lab.max_points",
-            }
-
-        # No arbitrary denominator. Point #7 will standardize score units.
-        return {
-            "score_possible": 0.0,
-            "total_modules": int(module_count),
-            "score_source": "unavailable",
-        }
+    def get_score_possible(db: Session, assignment: Assignment) -> Dict:
+        """Compatibility wrapper around the canonical Point #7 score contract."""
+        return ScoreContractService.get_score_possible(db, assignment)
 
     @staticmethod
     def calculate_student_metrics(
@@ -138,15 +109,11 @@ class GradebookService:
             .all()
         )
 
-        auto_score = float(
-            sum(Decimal(str(event.points or 0)) for event in completion_events)
-        )
-
-        possible = float(score_meta["score_possible"])
-        auto_percent = (
-            GradebookService._clamp_percent((auto_score / possible) * 100.0)
-            if possible > 0
-            else 0.0
+        score_contract = ScoreContractService.get_assignment_score(
+            db,
+            assignment,
+            student.id,
+            score_meta=score_meta,
         )
 
         ulp_rows = (
@@ -211,16 +178,18 @@ class GradebookService:
         )
 
         return {
-            "auto_score_earned": round(auto_score, 2),
-            "score_possible": round(possible, 2),
-            "auto_percent": round(auto_percent, 2),
+            "score_earned": score_contract["score_earned"],
+            "score_possible": score_contract["score_possible"],
+            "score_percent": score_contract["score_percent"],
             "completed_modules": completed_modules,
             "total_modules": total_modules,
             "completion_percent": completion_percent,
             "attempts": attempts,
             "completion_time_seconds": completion_time_seconds,
             "last_activity_at": last_activity_at,
-            "score_source": score_meta["score_source"],
+            "score_source": score_contract["score_source"],
+            "score_units": score_contract["score_units"],
+            "percent_units": score_contract["percent_units"],
             "rubric_percent": rubric_result["rubric_percent"],
             "rubric_version": rubric_result["rubric_version"],
             "rubric_name": rubric_result["rubric_name"],
@@ -252,9 +221,17 @@ class GradebookService:
         adjustment = float(grade.manual_adjustment or 0) if grade else 0.0
 
         if grade and grade.status == "PUBLISHED":
-            auto_score = float(grade.auto_score_earned or 0)
-            possible = float(grade.score_possible or 0)
-            auto_percent = float(grade.auto_percent or 0)
+            score_earned = float(grade.auto_score_earned or 0)
+            possible = (
+                float(grade.score_possible)
+                if grade.score_possible is not None
+                else None
+            )
+            score_percent = (
+                float(grade.auto_percent)
+                if grade.auto_percent is not None
+                else None
+            )
             rubric_percent = float(
                 grade.rubric_percent
                 if grade.rubric_percent is not None
@@ -263,9 +240,9 @@ class GradebookService:
             )
             final_percent = float(grade.final_percent or 0)
         else:
-            auto_score = float(metrics["auto_score_earned"])
-            possible = float(metrics["score_possible"])
-            auto_percent = float(metrics["auto_percent"])
+            score_earned = float(metrics["score_earned"])
+            possible = metrics["score_possible"]
+            score_percent = metrics["score_percent"]
             rubric_percent = float(metrics["rubric_percent"])
             final_percent = GradebookService._clamp_percent(
                 rubric_percent + adjustment
@@ -277,9 +254,17 @@ class GradebookService:
             "email": student.email,
             "department": getattr(student, "department", None) or "",
             "year": getattr(student, "year", None) or "",
-            "auto_score_earned": round(auto_score, 2),
-            "score_possible": round(possible, 2),
-            "auto_percent": round(auto_percent, 2),
+            "score_earned": round(score_earned, 2),
+            "score_possible": (
+                round(float(possible), 2)
+                if possible is not None
+                else None
+            ),
+            "score_percent": (
+                round(float(score_percent), 2)
+                if score_percent is not None
+                else None
+            ),
             "rubric_percent": round(rubric_percent, 2),
             "rubric_version": metrics["rubric_version"],
             "rubric_name": metrics["rubric_name"],
@@ -306,6 +291,8 @@ class GradebookService:
                 else None
             ),
             "score_source": metrics["score_source"],
+            "score_units": metrics["score_units"],
+            "percent_units": metrics["percent_units"],
         }
 
     @staticmethod
@@ -339,8 +326,18 @@ class GradebookService:
                 GradebookService._serialize_row(student, metrics, grade)
             )
 
-        avg_auto = (
-            round(sum(row["auto_percent"] for row in rows) / len(rows), 2)
+        percent_rows = [
+            row["score_percent"]
+            for row in rows
+            if row["score_percent"] is not None
+        ]
+        avg_score_percent = (
+            round(sum(percent_rows) / len(percent_rows), 2)
+            if percent_rows
+            else None
+        )
+        avg_score_earned = (
+            round(sum(row["score_earned"] for row in rows) / len(rows), 2)
             if rows
             else 0.0
         )
@@ -363,16 +360,8 @@ class GradebookService:
                 "group_id": assignment.group_id,
                 "group_name": group.name if group else None,
                 "student_id": assignment.student_id,
-                "start_datetime": (
-                    assignment.start_datetime.isoformat()
-                    if assignment.start_datetime
-                    else None
-                ),
-                "end_datetime": (
-                    assignment.end_datetime.isoformat()
-                    if assignment.end_datetime
-                    else None
-                ),
+                "start_datetime": utc_iso(assignment.start_datetime),
+                "end_datetime": utc_iso(assignment.end_datetime),
                 "status": assignment.status,
             },
             "summary": {
@@ -383,7 +372,8 @@ class GradebookService:
                 "published_count": sum(
                     1 for row in rows if row["grade_status"] == "PUBLISHED"
                 ),
-                "average_auto_percent": avg_auto,
+                "average_score_earned": avg_score_earned,
+                "average_score_percent": avg_score_percent,
                 "average_rubric_percent": avg_rubric,
                 "average_final_percent": avg_final,
                 "rubric_version": rows[0]["rubric_version"] if rows else None,
@@ -393,6 +383,8 @@ class GradebookService:
                 ),
                 "score_possible": score_meta["score_possible"],
                 "score_source": score_meta["score_source"],
+                "score_units": "points",
+                "percent_units": "percent_0_100",
             },
             "students": rows,
         }
@@ -460,10 +452,18 @@ class GradebookService:
         )
 
         grade.auto_score_earned = Decimal(
-            str(metrics["auto_score_earned"])
+            str(metrics["score_earned"])
         )
-        grade.score_possible = Decimal(str(metrics["score_possible"]))
-        grade.auto_percent = Decimal(str(metrics["auto_percent"]))
+        grade.score_possible = (
+            Decimal(str(metrics["score_possible"]))
+            if metrics["score_possible"] is not None
+            else None
+        )
+        grade.auto_percent = (
+            Decimal(str(metrics["score_percent"]))
+            if metrics["score_percent"] is not None
+            else None
+        )
         grade.rubric_percent = Decimal(str(metrics["rubric_percent"]))
         grade.final_percent = Decimal(str(final_percent))
 
@@ -520,10 +520,18 @@ class GradebookService:
             )
 
             grade.auto_score_earned = Decimal(
-                str(metrics["auto_score_earned"])
+                str(metrics["score_earned"])
             )
-            grade.score_possible = Decimal(str(metrics["score_possible"]))
-            grade.auto_percent = Decimal(str(metrics["auto_percent"]))
+            grade.score_possible = (
+                Decimal(str(metrics["score_possible"]))
+                if metrics["score_possible"] is not None
+                else None
+            )
+            grade.auto_percent = (
+                Decimal(str(metrics["score_percent"]))
+                if metrics["score_percent"] is not None
+                else None
+            )
             grade.rubric_percent = Decimal(str(metrics["rubric_percent"]))
             grade.final_percent = Decimal(str(final_percent))
             grade.graded_by = graded_by

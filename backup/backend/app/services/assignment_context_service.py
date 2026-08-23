@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.models.assignment import Assignment
 from app.models.user import User
-from app.core.timezone_utils import now_ist
+from app.core.assignment_time import utc_now_naive
 
 
 class AssignmentContextService:
@@ -78,7 +78,7 @@ class AssignmentContextService:
         }:
             return False
 
-        now = now_ist()
+        now = utc_now_naive()
 
         if assignment.start_datetime and now < assignment.start_datetime:
             return False

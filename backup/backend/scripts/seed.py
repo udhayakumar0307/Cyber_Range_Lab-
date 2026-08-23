@@ -62,12 +62,11 @@ def seed_colleges(session):
 
 
 def seed_professor(session):
-    from app.models.professor import Professor
-    if not session.query(Professor).filter(Professor.id == 1).first():
-        session.add(Professor(id=1, college_id=1, name="Dr. Bruce Wayne",
-                              email="bruce@iitm.ac.in", department="Computer Science"))
-        session.commit()
-        logger.info("  Default professor created.")
+    """Point #8: Professor is a User identity plus ProfessorProfile/RBAC."""
+    logger.info(
+        "  Legacy standalone professor seed skipped; "
+        "use User + ProfessorProfile + UserRoleBinding."
+    )
 
 
 def seed_achievements(session):

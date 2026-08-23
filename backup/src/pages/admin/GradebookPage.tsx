@@ -30,9 +30,14 @@ type GradeRow = {
   email: string;
   department: string;
   year: string;
-  auto_score_earned: number;
-  score_possible: number;
-  auto_percent: number;
+  score_earned: number;
+  score_possible: number | null;
+  score_percent: number | null;
+  rubric_percent: number;
+  rubric_version: number | null;
+  rubric_name: string | null;
+  rubric_criteria_count: number;
+  pending_manual_criteria: number;
   manual_adjustment: number;
   final_percent: number;
   feedback: string;
@@ -64,12 +69,53 @@ type GradebookData = {
     student_count: number;
     draft_count: number;
     published_count: number;
-    average_auto_percent: number;
+    average_score_earned: number;
+    average_score_percent: number | null;
+    average_rubric_percent: number;
     average_final_percent: number;
-    score_possible: number;
+    rubric_version: number | null;
+    rubric_name: string | null;
+    pending_manual_criteria: number;
+    score_possible: number | null;
     score_source: string;
   };
   students: GradeRow[];
+};
+
+type RubricCriterion = {
+  key: string;
+  title: string;
+  description: string;
+  weight_percent: number;
+  grading_mode: 'AUTO' | 'MANUAL';
+  evidence: {
+    type: string;
+    module_ids?: string[];
+    event_types?: string[];
+  };
+  score_percent: number;
+  weighted_contribution: number;
+  performance_level: {
+    label: string;
+    min_percent: number;
+    description: string;
+  } | null;
+  feedback: string;
+  raw_earned: number | null;
+  raw_possible: number | null;
+  pending: boolean;
+};
+
+type StudentRubric = {
+  assignment_id: number;
+  student_id: number;
+  student_name: string;
+  rubric_version: number;
+  rubric_name: string;
+  rubric_description: string;
+  rubric_percent: number;
+  pending_manual_criteria: number;
+  criteria: RubricCriterion[];
 };
 
 const clampPercent = (value: number) =>
@@ -100,6 +146,11 @@ export const GradebookPage: React.FC = () => {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [rubricStudent, setRubricStudent] = useState<GradeRow | null>(null);
+  const [rubricData, setRubricData] = useState<StudentRubric | null>(null);
+  const [rubricDraft, setRubricDraft] = useState<Record<string, { score_percent: number; feedback: string }>>({});
+  const [rubricLoading, setRubricLoading] = useState(false);
+  const [rubricSaving, setRubricSaving] = useState(false);
 
   const token = localStorage.getItem('token');
   const authHeaders: Record<string, string> = token
@@ -212,7 +263,7 @@ export const GradebookPage: React.FC = () => {
           ? patch.manual_adjustment
           : existing.manual_adjustment;
 
-      const finalPercent = clampPercent(existing.auto_percent + adjustment);
+      const finalPercent = clampPercent(existing.rubric_percent + adjustment);
 
       return {
         ...current,
@@ -229,7 +280,7 @@ export const GradebookPage: React.FC = () => {
   const saveDrafts = async () => {
     if (!gradebook || selectedAssignmentId === null) return;
 
-    const editableRows = Object.values(draftRows).filter(
+    const editableRows = (Object.values(draftRows) as GradeRow[]).filter(
       (row) => row.grade_status !== 'PUBLISHED'
     );
 
@@ -286,7 +337,7 @@ export const GradebookPage: React.FC = () => {
     try {
       // Save current draft edits first.
       if (!allPublished) {
-        const editableRows = Object.values(draftRows).filter(
+        const editableRows = (Object.values(draftRows) as GradeRow[]).filter(
           (row) => row.grade_status !== 'PUBLISHED'
         );
 
@@ -379,6 +430,91 @@ export const GradebookPage: React.FC = () => {
     }
   };
 
+  const openRubric = async (row: GradeRow) => {
+    if (selectedAssignmentId === null) return;
+    setRubricStudent(row);
+    setRubricLoading(true);
+    setRubricData(null);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/v1/rubrics/assignments/${selectedAssignmentId}/students/${row.student_id}`,
+        { headers: authHeaders }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.detail || 'Failed to load student rubric.');
+      }
+      const data = body as StudentRubric;
+      setRubricData(data);
+      const draft: Record<string, { score_percent: number; feedback: string }> = {};
+      data.criteria
+        .filter((criterion) => criterion.grading_mode === 'MANUAL')
+        .forEach((criterion) => {
+          draft[criterion.key] = {
+            score_percent: criterion.score_percent || 0,
+            feedback: criterion.feedback || '',
+          };
+        });
+      setRubricDraft(draft);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load student rubric.');
+      setRubricStudent(null);
+    } finally {
+      setRubricLoading(false);
+    }
+  };
+
+  const saveRubricCriteria = async () => {
+    if (
+      selectedAssignmentId === null ||
+      rubricStudent === null ||
+      rubricData === null
+    ) return;
+
+    const manualCriteria = rubricData.criteria.filter(
+      (criterion) => criterion.grading_mode === 'MANUAL'
+    );
+
+    setRubricSaving(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/v1/rubrics/assignments/${selectedAssignmentId}/students/${rubricStudent.student_id}`,
+        {
+          method: 'PUT',
+          headers: {
+            ...authHeaders,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            criteria: manualCriteria.map((criterion) => ({
+              criterion_key: criterion.key,
+              score_percent: Number(
+                rubricDraft[criterion.key]?.score_percent ?? criterion.score_percent ?? 0
+              ),
+              feedback:
+                rubricDraft[criterion.key]?.feedback ?? criterion.feedback ?? '',
+            })),
+          }),
+        }
+      );
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.detail || 'Failed to save rubric criteria.');
+      }
+
+      setRubricData(body.rubric);
+      showToast(`Saved rubric criteria for ${rubricStudent.student_name}.`);
+      await loadGradebook(selectedAssignmentId);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save rubric criteria.');
+    } finally {
+      setRubricSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 text-xs text-slate-800 dark:text-slate-200">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -448,7 +584,7 @@ export const GradebookPage: React.FC = () => {
 
       {!loadingGradebook && gradebook && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {[
               {
                 label: 'Students',
@@ -456,8 +592,13 @@ export const GradebookPage: React.FC = () => {
                 icon: Users,
               },
               {
-                label: 'Average Auto',
-                value: `${gradebook.summary.average_auto_percent}%`,
+                label: 'Average Automatic',
+                value: gradebook.summary.average_score_percent == null ? '—' : `${gradebook.summary.average_score_percent}%`,
+                icon: BookOpenCheck,
+              },
+              {
+                label: 'Average Rubric',
+                value: `${gradebook.summary.average_rubric_percent}%`,
                 icon: BookOpenCheck,
               },
               {
@@ -510,9 +651,16 @@ export const GradebookPage: React.FC = () => {
                   {formatDate(gradebook.assignment.end_datetime)}
                 </p>
                 <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                  Automatic denominator: {gradebook.summary.score_possible || 'Unavailable'} points
+                  Raw score denominator: {gradebook.summary.score_possible || 'Unavailable'} points
                   {' • '}
                   source: {gradebook.summary.score_source}
+                </p>
+                <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                  Rubric: {gradebook.summary.rubric_name || 'Assignment Rubric'}
+                  {' • '}
+                  version {gradebook.summary.rubric_version ?? '—'}
+                  {' • '}
+                  pending manual criteria: {gradebook.summary.pending_manual_criteria}
                 </p>
               </div>
 
@@ -570,8 +718,9 @@ export const GradebookPage: React.FC = () => {
                   <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase text-slate-400 dark:border-slate-700 dark:bg-slate-800/60">
                     <th className="p-3">Student</th>
                     <th className="p-3 text-center">Progress</th>
-                    <th className="p-3 text-center">Auto Score</th>
-                    <th className="p-3 text-center">Auto %</th>
+                    <th className="p-3 text-center">Raw Score</th>
+                    <th className="p-3 text-center">Automatic %</th>
+                    <th className="p-3 text-center">Rubric %</th>
                     <th className="p-3 text-center">Adjustment</th>
                     <th className="p-3 text-center">Final %</th>
                     <th className="p-3">Feedback</th>
@@ -612,7 +761,7 @@ export const GradebookPage: React.FC = () => {
                         </td>
 
                         <td className="p-3 text-center font-black">
-                          {row.auto_score_earned}
+                          {row.score_earned}
                           <span className="font-semibold text-slate-400">
                             {' / '}
                             {row.score_possible || '—'}
@@ -620,7 +769,21 @@ export const GradebookPage: React.FC = () => {
                         </td>
 
                         <td className="p-3 text-center font-black text-blue-600 dark:text-blue-400">
-                          {row.auto_percent}%
+                          {row.score_percent == null ? '—' : `${row.score_percent}%`}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openRubric(row)}
+                            className="inline-flex flex-col items-center rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 font-black text-violet-700 hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300"
+                          >
+                            <span>{row.rubric_percent}%</span>
+                            <span className="text-[8px] font-bold">
+                              {row.pending_manual_criteria > 0
+                                ? `${row.pending_manual_criteria} pending`
+                                : 'View rubric'}
+                            </span>
+                          </button>
                         </td>
 
                         <td className="p-3 text-center">
@@ -697,7 +860,7 @@ export const GradebookPage: React.FC = () => {
 
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="p-12 text-center font-bold text-slate-400">
+                      <td colSpan={11} className="p-12 text-center font-bold text-slate-400">
                         No students match this gradebook.
                       </td>
                     </tr>
@@ -707,6 +870,185 @@ export const GradebookPage: React.FC = () => {
             </div>
           </div>
         </>
+      )}
+
+      {rubricStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between border-b border-slate-200 p-5 dark:border-slate-800">
+              <div>
+                <h3 className="text-base font-black text-slate-950 dark:text-white">
+                  {rubricStudent.student_name} — Rubric
+                </h3>
+                {rubricData && (
+                  <p className="mt-1 text-slate-500">
+                    {rubricData.rubric_name} • version {rubricData.rubric_version} • weighted score {rubricData.rubric_percent}%
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRubricStudent(null);
+                  setRubricData(null);
+                }}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-black text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[68vh] overflow-auto p-5">
+              {rubricLoading && (
+                <div className="py-12 text-center font-bold text-slate-400">
+                  Loading rubric…
+                </div>
+              )}
+
+              {!rubricLoading && rubricData && (
+                <div className="space-y-3">
+                  {rubricData.criteria.map((criterion) => {
+                    const isManual = criterion.grading_mode === 'MANUAL';
+                    const locked = rubricStudent.grade_status === 'PUBLISHED';
+                    const draft = rubricDraft[criterion.key];
+
+                    return (
+                      <div
+                        key={criterion.key}
+                        className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="max-w-2xl">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-black text-slate-950 dark:text-white">
+                                {criterion.title}
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                {criterion.weight_percent}% weight
+                              </span>
+                              <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${
+                                isManual
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-blue-50 text-blue-700'
+                              }`}>
+                                {criterion.grading_mode}
+                              </span>
+                            </div>
+                            {criterion.description && (
+                              <p className="mt-1 text-slate-500">
+                                {criterion.description}
+                              </p>
+                            )}
+                            {!isManual && (
+                              <p className="mt-2 text-[10px] text-slate-400">
+                                Evidence: {(criterion.evidence.module_ids || []).join(', ') || criterion.evidence.type}
+                                {' • '}
+                                raw {criterion.raw_earned ?? 0}/{criterion.raw_possible ?? '—'}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="text-right">
+                            <div className="text-lg font-black text-violet-700 dark:text-violet-300">
+                              {isManual
+                                ? Number(draft?.score_percent ?? criterion.score_percent)
+                                : criterion.score_percent}%
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              contribution {criterion.weighted_contribution} pts
+                            </div>
+                            {criterion.performance_level && (
+                              <div className="mt-1 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                {criterion.performance_level.label}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {isManual && (
+                          <div className="mt-4 grid gap-3 lg:grid-cols-[140px_1fr]">
+                            <div>
+                              <label className="mb-1 block text-[9px] font-black uppercase text-slate-400">
+                                Criterion %
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="1"
+                                disabled={locked}
+                                value={draft?.score_percent ?? criterion.score_percent}
+                                onChange={(e) =>
+                                  setRubricDraft((current) => ({
+                                    ...current,
+                                    [criterion.key]: {
+                                      score_percent: Math.max(
+                                        0,
+                                        Math.min(100, Number(e.target.value || 0))
+                                      ),
+                                      feedback:
+                                        current[criterion.key]?.feedback ??
+                                        criterion.feedback ??
+                                        '',
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-black outline-none focus:border-blue-500 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[9px] font-black uppercase text-slate-400">
+                                Criterion feedback
+                              </label>
+                              <textarea
+                                rows={2}
+                                disabled={locked}
+                                value={draft?.feedback ?? criterion.feedback}
+                                onChange={(e) =>
+                                  setRubricDraft((current) => ({
+                                    ...current,
+                                    [criterion.key]: {
+                                      score_percent:
+                                        current[criterion.key]?.score_percent ??
+                                        criterion.score_percent ??
+                                        0,
+                                      feedback: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500 disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
+                                placeholder="Evidence-based feedback for this criterion…"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 p-4 dark:border-slate-800">
+              <div className="text-[10px] font-bold text-slate-400">
+                Published grades lock criterion editing until the gradebook is reopened.
+              </div>
+              <button
+                type="button"
+                onClick={saveRubricCriteria}
+                disabled={
+                  rubricSaving ||
+                  !rubricData ||
+                  rubricStudent.grade_status === 'PUBLISHED' ||
+                  rubricData.criteria.every((criterion) => criterion.grading_mode !== 'MANUAL')
+                }
+                className="rounded-xl bg-violet-600 px-4 py-2 font-black text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                {rubricSaving ? 'Saving…' : 'Save Manual Criteria'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

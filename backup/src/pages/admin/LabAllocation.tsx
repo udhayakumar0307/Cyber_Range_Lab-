@@ -11,6 +11,12 @@ import {
 } from 'lucide-react';
 import { usePurchasedLabs } from '../../services/purchasedLabsService';
 import { useNavigate } from 'react-router-dom';
+import {
+  addMinutesUtcIso,
+  getBrowserTimeZone,
+  localDateTimeToUtcIso,
+  utcIsoToLocalInput,
+} from '../../utils/assignmentTime';
 
 export const LabAllocation: React.FC = () => {
   const navigate = useNavigate();
@@ -123,11 +129,15 @@ export const LabAllocation: React.FC = () => {
       return;
     }
 
-    const startISO = `${formStartDate}T${formStartTime}:00`;
-    // Compute fallback endISO on frontend
-    const startDateObj = new Date(`${formStartDate}T${formStartTime}`);
-    startDateObj.setMinutes(startDateObj.getMinutes() + Number(formDuration));
-    const endISO = startDateObj.toISOString().split('.')[0]; // remove ms/Z
+    let startISO: string;
+    let endISO: string;
+    try {
+      startISO = localDateTimeToUtcIso(formStartDate, formStartTime);
+      endISO = addMinutesUtcIso(startISO, Number(formDuration));
+    } catch (err: any) {
+      alert(err?.message || 'Invalid assignment date/time.');
+      return;
+    }
 
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = {
@@ -147,7 +157,8 @@ export const LabAllocation: React.FC = () => {
           student_id: activeTargetStudent ? Number(activeTargetStudent.id) : null,
           start_datetime: startISO,
           end_datetime: endISO,
-          duration_minutes: formDuration
+          duration_minutes: formDuration,
+          timezone: getBrowserTimeZone()
         })
       });
       if (res.ok) {
@@ -164,8 +175,14 @@ export const LabAllocation: React.FC = () => {
 
   const openExtendModal = (assign: any) => {
     setActiveAssignment(assign);
-    setExtendEndDate(assign.end_datetime.split('T')[0]);
-    setExtendEndTime(new Date(assign.end_datetime).toTimeString().slice(0, 5));
+    try {
+      const localEnd = utcIsoToLocalInput(assign.end_datetime);
+      setExtendEndDate(localEnd.date);
+      setExtendEndTime(localEnd.time);
+    } catch {
+      setExtendEndDate('');
+      setExtendEndTime('');
+    }
     setIsExtendModalOpen(true);
   };
 
@@ -173,7 +190,14 @@ export const LabAllocation: React.FC = () => {
     e.preventDefault();
     if (!extendEndDate || !extendEndTime || !activeAssignment) return;
 
-    const newEndISO = `${extendEndDate}T${extendEndTime}:00`;
+    let newEndISO: string;
+    try {
+      newEndISO = localDateTimeToUtcIso(extendEndDate, extendEndTime);
+    } catch (err: any) {
+      alert(err?.message || 'Invalid end date/time.');
+      return;
+    }
+
     const currentEnd = new Date(activeAssignment.end_datetime);
     const proposedEnd = new Date(newEndISO);
     if (proposedEnd <= currentEnd) {
@@ -621,7 +645,7 @@ export const LabAllocation: React.FC = () => {
               <button
                 onClick={() => {
                   setIsDrawerOpen(false);
-                  navigate('/admin/analytics');
+                  navigate(`/admin/monitoring?assignment=${activeAssignment.id}`);
                 }}
                 className="w-full py-2.5 bg-blue-650 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -718,9 +742,9 @@ export const LabAllocation: React.FC = () => {
                       </span>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Score</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Avg Automatic %</span>
                       <span className="text-base font-black text-slate-850 dark:text-white">
-                        {analyticsData.average_score} / 100
+                        {analyticsData.average_score_percent == null ? '—' : `${analyticsData.average_score_percent}%`}
                       </span>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800">

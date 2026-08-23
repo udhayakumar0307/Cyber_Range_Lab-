@@ -20,7 +20,7 @@ from app.models.lab_module import LabModule
 from app.models.assignment import Assignment
 from app.models.user_progress import UserProgress
 from app.core.constants import TRACK_TO_LAB
-from app.core.timezone_utils import now_ist
+from app.core.assignment_time import utc_now_naive, utc_iso
 from app.core.security import get_password_hash, verify_password
 from app.security import password_validator
 
@@ -80,7 +80,7 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
     )
 
     assigned_labs = []
-    now = now_ist()
+    now = utc_now_naive()
 
     for assignment, lab in assignments:
         # --------------------------------------------------------------
@@ -203,13 +203,13 @@ def get_dashboard(current_user: User = Depends(get_current_user), db: Session = 
             ),
 
             "start_datetime": (
-                assignment.start_datetime.isoformat()
+                utc_iso(assignment.start_datetime)
                 if assignment.start_datetime
                 else None
             ),
 
             "end_datetime": (
-                assignment.end_datetime.isoformat()
+                utc_iso(assignment.end_datetime)
                 if assignment.end_datetime
                 else None
             ),
@@ -1090,9 +1090,9 @@ def get_user_assignments(
             if g:
                 group_name = g.name
 
-        from app.core.timezone_utils import now_ist
+        from app.core.assignment_time import utc_now_naive, utc_iso
         remaining_minutes = 0
-        now = now_ist()
+        now = utc_now_naive()
         if assoc.start_datetime <= now <= assoc.end_datetime:
             delta = assoc.end_datetime - now
             remaining_minutes = int(delta.total_seconds() / 60)
@@ -1153,8 +1153,8 @@ def get_user_assignments(
             "estimated_time": getattr(lab, "estimated_time", "2 Hours"),
             "assigned_by": assoc.assigned_by or "Admin",
             "group_name": group_name or "Individual",
-            "start_datetime": assoc.start_datetime.isoformat() if assoc.start_datetime else None,
-            "end_datetime": assoc.end_datetime.isoformat() if assoc.end_datetime else None,
+            "start_datetime": utc_iso(assoc.start_datetime),
+            "end_datetime": utc_iso(assoc.end_datetime),
             "total_hours": total_hours,
             "status": derived_status,
             "remaining_minutes": remaining_minutes,

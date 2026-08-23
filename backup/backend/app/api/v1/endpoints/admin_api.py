@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import not_, or_, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user, get_current_admin_user, get_admin_org_id
+from app.api.deps import get_db, get_current_user, get_current_admin_user, get_admin_org_id, enforce_admin_rbac
 from app.core.config import settings
 from app.core.security import get_password_hash, create_access_token, verify_password
 from app.security import password_validator
@@ -21,13 +21,13 @@ from app.services.ses_service import ses_service
 
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_admin_rbac)])
 
 SYNC_RATE_LIMIT: Dict[str, datetime] = {}
 
 
 @router.post("/labs/sync")
-def sync_lab_repository(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+def sync_lab_repository(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Admin-only, rate-limited registry sync. The database remains the catalog source."""
     now = datetime.utcnow()
     last_sync = SYNC_RATE_LIMIT.get(str(current_user.id))
@@ -39,7 +39,7 @@ def sync_lab_repository(current_user: User = Depends(get_current_admin_user), db
 
 
 @router.post("/ctf/sync")
-def sync_ctf_repository(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
+def sync_ctf_repository(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Admin-only, rate-limited CTF registry sync. Scans settings.CTF_DIRECTORY for
     new/updated event.json folders, mirroring /labs/sync for the CTF catalog."""
     now = datetime.utcnow()
@@ -176,7 +176,14 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
     
     account_type = "internal" if is_cyberrange else "academic"
     email_verified = True if is_cyberrange else False
-    role_name = data.role_text.lower() if data.role_text else "admin"
+    from app.core.capabilities import normalize_role
+    requested_role = normalize_role(data.role_text or "ADMIN")
+    if requested_role not in {"ADMIN", "PROFESSOR"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Administrative self-registration supports only ADMIN or PROFESSOR.",
+        )
+    role_name = "professor" if requested_role == "PROFESSOR" else "admin"
 
     user = User(
         name=data.admin_name,
@@ -218,6 +225,35 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
         verification_token=verification_token
     )
     db.add(admin_prof)
+
+    # Point #8: User is the identity; role binding is the authorization record.
+    from app.models.rbac import UserRoleBinding
+    from app.models.professor import ProfessorProfile
+
+    db.add(UserRoleBinding(
+        user_id=user.id,
+        role=requested_role,
+        scope_type="ORGANIZATION",
+        scope_key=f"ORG:{org_id}",
+        organization_id=org_id,
+        is_active=True,
+    ))
+    if college_target_id is not None:
+        db.add(UserRoleBinding(
+            user_id=user.id,
+            role=requested_role,
+            scope_type="COLLEGE",
+            scope_key=f"COLLEGE:{college_target_id}",
+            college_id=college_target_id,
+            is_active=True,
+        ))
+
+    if requested_role == "PROFESSOR":
+        db.add(ProfessorProfile(
+            user_id=user.id,
+            department=data.department,
+            academic_title=data.designation or "Professor",
+        ))
 
     # For Academic Admins, generate & send secure 6-digit OTP code
     if not is_cyberrange:
@@ -263,7 +299,7 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
             "email": email_clean
         }
 
-    token = create_access_token(data={"sub": user.email, "role": "admin", "org_id": org.id})
+    token = create_access_token(data={"sub": user.email, "role": user.role, "org_id": org.id})
     return {
         "status": "success",
         "message": "Admin account registered successfully.",
@@ -641,6 +677,12 @@ def get_admin_users(
         q = q.filter(User.is_active == is_active)
 
     users = q.all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    users = [
+        user for user in users
+        if AuthorizationService.can_access_user(db, current_user, user, Capability.ROSTER_VIEW)
+    ]
     user_ids = [u.id for u in users]
     user_id_strs = [str(u.id) for u in users]
 
@@ -1064,7 +1106,13 @@ def get_admin_groups(
     from sqlalchemy import not_, or_
 
     org_id = get_admin_org_id(current_user, db)
-    groups = db.query(Group).filter((Group.organization_id == org_id) | (Group.organization_id.is_(None))).all()
+    groups = db.query(Group).filter(Group.organization_id == org_id).all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    groups = [
+        group for group in groups
+        if AuthorizationService.can_access_group(db, current_user, group, Capability.ROSTER_VIEW)
+    ]
 
     is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
     valid_user_ids = None
@@ -1250,6 +1298,10 @@ def add_group_member(
     u = db.query(User).filter(User.id == data.user_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
+
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    AuthorizationService.assert_user_access(db, current_user, u.id, Capability.ROSTER_MANAGE)
 
     # Enforce maximum 40 students per group
     member_count = db.query(User).filter(User.group_id == group_id).count()
@@ -2029,10 +2081,7 @@ def get_admin_allocations(
 
     # Primary: query by org_id OR globally assigned to admin/both
     purchased = db.query(PurchasedLab).filter(
-        or_(
-            PurchasedLab.organization_id == org_id,
-            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
-        )
+        PurchasedLab.organization_id == org_id
     ).all()
 
     # Fallback: also include labs purchased directly by this user (catches NULL org_id from older records)
@@ -2076,10 +2125,7 @@ def get_purchased_labs_matrix(
 
     # Dual-query for resilience
     purchased = db.query(PurchasedLab).filter(
-        or_(
-            PurchasedLab.organization_id == org_id,
-            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
-        )
+        PurchasedLab.organization_id == org_id
     ).all()
     if not purchased:
         purchased = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).all()
@@ -2169,6 +2215,10 @@ def allocate_lab_to_user(
     if not target_user:
         raise HTTPException(status_code=404, detail=f"User '{data.user_email}' not found in the platform.")
 
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    AuthorizationService.assert_user_access(db, current_user, target_user.id, Capability.LAB_ASSIGN)
+
     from app.models.admin_models import License
     import secrets
 
@@ -2229,6 +2279,9 @@ def allocate_lab_to_group(
     """Bulk-assign purchased lab seats to all users in a group.
     Backend-enforced seat validation."""
     org_id = get_admin_org_id(current_user, db)
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    AuthorizationService.assert_group_access(db, current_user, data.group_id, Capability.LAB_ASSIGN)
 
     p = db.query(PurchasedLab).filter(
         PurchasedLab.lab_id == data.lab_id,
@@ -2318,6 +2371,7 @@ class AssignLabRequest(BaseModel):
     start_datetime: str
     end_datetime: Optional[str] = None
     duration_minutes: Optional[int] = 60
+    timezone: Optional[str] = None
 
 @router.get("/assignments")
 def get_scheduled_assignments(
@@ -2327,7 +2381,12 @@ def get_scheduled_assignments(
     from app.models.assignment import Assignment
     from app.models.lab import Lab
 
-    assignments = db.query(Assignment).all()
+    assignments = db.query(Assignment).filter(Assignment.deleted_at.is_(None)).all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    assignments = AuthorizationService.filter_accessible_assignments(
+        db, current_user, assignments, Capability.LAB_ASSIGN
+    )
     lab_ids = {a.lab_id for a in assignments if a.lab_id}
     labs = db.query(Lab.id, Lab.name).filter(Lab.id.in_(lab_ids)).all() if lab_ids else []
     lab_names = {l.id: l.name for l in labs}
@@ -2336,9 +2395,9 @@ def get_scheduled_assignments(
     for a in assignments:
         lab_title = lab_names.get(a.lab_id) or a.lab_id
         
-        # Calculate derived status
-        from app.core.timezone_utils import now_ist
-        now = now_ist()
+        # Point #10: Assignment DateTime columns are UTC-naive.
+        from app.core.assignment_time import utc_now_naive, utc_iso
+        now = utc_now_naive()
         if a.status == "Completed":
             derived_status = "Completed"
         elif a.paused_at is not None:
@@ -2356,11 +2415,11 @@ def get_scheduled_assignments(
             "lab_title": lab_title,
             "group_id": a.group_id,
             "student_id": a.student_id,
-            "start_datetime": a.start_datetime.isoformat(),
-            "end_datetime": a.end_datetime.isoformat(),
+            "start_datetime": utc_iso(a.start_datetime),
+            "end_datetime": utc_iso(a.end_datetime),
             "assigned_by": a.assigned_by,
             "status": derived_status,
-            "created_at": a.created_at.isoformat() if a.created_at else None
+            "created_at": utc_iso(a.created_at)
         })
     return result
 
@@ -2373,11 +2432,46 @@ def create_scheduled_assignment(
 ):
     from app.models.assignment import Assignment
     from app.models.admin_models import PurchasedLab
-    from datetime import datetime, timedelta
+    from app.core.assignment_time import parse_client_datetime
+    from datetime import timedelta
 
-    start_dt = datetime.fromisoformat(data.start_datetime.replace('Z', ''))
-    duration = data.duration_minutes or 60
+    try:
+        start_dt = parse_client_datetime(
+            data.start_datetime,
+            field_name="start_datetime",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    duration = int(data.duration_minutes or 60)
+    if duration <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="duration_minutes must be greater than zero.",
+        )
+
     end_dt = start_dt + timedelta(minutes=duration)
+
+    if data.end_datetime:
+        try:
+            supplied_end = parse_client_datetime(
+                data.end_datetime,
+                field_name="end_datetime",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        if abs((supplied_end - end_dt).total_seconds()) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail="end_datetime must match start_datetime + duration_minutes.",
+            )
+
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    AuthorizationService.assert_assignment_target_access(
+        db, current_user, group_id=data.group_id, student_id=data.student_id, capability=Capability.LAB_ASSIGN
+    )
 
     org_id = get_admin_org_id(current_user, db)
     purchased_list = db.query(PurchasedLab).filter(
@@ -2446,16 +2540,6 @@ def create_scheduled_assignment(
         assigned_by=current_user.email
     )
     db.add(a)
-    db.flush()
-
-    # Point #6: freeze the active lab rubric into this assignment.
-    from app.services.rubric_service import RubricService
-    RubricService.snapshot_assignment(
-        db,
-        a.id,
-        created_by=current_user.id,
-    )
-
     db.commit()
     db.refresh(a)
 
@@ -2488,8 +2572,12 @@ def create_scheduled_assignment(
             
             # 2. Trigger SES email notification
             try:
-                date_str = start_dt.strftime("%Y-%m-%d")
-                time_str = start_dt.strftime("%I:%M %p") + " (IST)"
+                from app.core.assignment_time import format_utc_for_zone
+                date_str, local_time, zone_label = format_utc_for_zone(
+                    start_dt,
+                    data.timezone,
+                )
+                time_str = f"{local_time} ({zone_label})"
                 dur_str = f"{duration} mins"
                 ses_service.send_lab_assigned_email(
                     email=user.email,
@@ -2516,20 +2604,34 @@ def update_scheduled_assignment(
     a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    old_lab_id = a.lab_id
-    a.lab_id = data.lab_id
-    a.start_datetime = datetime.fromisoformat(data.start_datetime.replace('Z', ''))
-    a.end_datetime = datetime.fromisoformat(data.end_datetime.replace('Z', ''))
+    from app.core.assignment_time import parse_client_datetime
 
-    # Point #6: scored/graded assignments cannot silently change rubric contract.
-    if old_lab_id != data.lab_id:
-        from app.services.rubric_service import RubricService
-        RubricService.resnapshot_assignment_for_lab_change(
-            db,
-            a.id,
-            created_by=current_user.id,
+    try:
+        start_dt = parse_client_datetime(
+            data.start_datetime,
+            field_name="start_datetime",
+        )
+        if data.end_datetime:
+            end_dt = parse_client_datetime(
+                data.end_datetime,
+                field_name="end_datetime",
+            )
+        else:
+            end_dt = start_dt + timedelta(
+                minutes=int(data.duration_minutes or 60)
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if end_dt <= start_dt:
+        raise HTTPException(
+            status_code=422,
+            detail="end_datetime must be after start_datetime.",
         )
 
+    a.lab_id = data.lab_id
+    a.start_datetime = start_dt
+    a.end_datetime = end_dt
     db.commit()
     return {"status": "success"}
 
@@ -2547,7 +2649,23 @@ def extend_scheduled_assignment(
     a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    a.end_datetime = datetime.fromisoformat(data.end_datetime.replace('Z', ''))
+
+    from app.core.assignment_time import parse_client_datetime
+    try:
+        new_end = parse_client_datetime(
+            data.end_datetime,
+            field_name="end_datetime",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if new_end <= a.end_datetime:
+        raise HTTPException(
+            status_code=422,
+            detail="New end_datetime must be after the current end_datetime.",
+        )
+
+    a.end_datetime = new_end
     db.commit()
     return {"status": "success"}
 
@@ -2561,7 +2679,8 @@ def pause_scheduled_assignment(
     a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    a.paused_at = datetime.utcnow()
+    from app.core.assignment_time import utc_now_naive
+    a.paused_at = utc_now_naive()
     a.status = "Paused"
     db.commit()
     return {"status": "success"}
@@ -2577,7 +2696,8 @@ def resume_scheduled_assignment(
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
     a.paused_at = None
-    a.resumed_at = datetime.utcnow()
+    from app.core.assignment_time import utc_now_naive
+    a.resumed_at = utc_now_naive()
     a.status = "In Progress"
     db.commit()
     return {"status": "success"}
@@ -2589,184 +2709,316 @@ def get_assignment_analytics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.assignment import Assignment
-    from app.models.user_lab_progress import UserLabProgress
-    from app.models.user import User as DBUser
-    from app.models.lab import Lab
+    """
+    Assignment analytics with explicit Point #7 score units.
 
-    a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    score_earned / score_possible are raw points.
+    score_percent / rubric_percent / final_percent are percentages in 0..100.
+    """
+    from sqlalchemy import not_, or_
+
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.models.user import User as DBUser
+    from app.models.user_affiliation import UserAffiliation as UA
+    from app.models.user_lab_progress import UserLabProgress
+    from app.models.user_progress import UserProgress
+    from app.services.gradebook_service import GradebookService
+    from app.core.assignment_time import utc_iso
+
+    a = (
+        db.query(Assignment)
+        .filter(
+            Assignment.id == assignment_id,
+            Assignment.deleted_at.is_(None),
+        )
+        .first()
+    )
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    lab_title = db.query(Lab.name).filter(Lab.id == a.lab_id).scalar() or a.lab_id
-
-    # Determine targeted user list
+    # Preserve the existing organization/college visibility filtering while
+    # replacing score math with the canonical assignment-scoped contract.
     if a.student_id:
         students = db.query(DBUser).filter(DBUser.id == a.student_id).all()
     elif a.group_id:
-        from app.models.user_affiliation import UserAffiliation as UA
-        from sqlalchemy import not_, or_
-        
-        is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+        is_super_admin = (current_user.role or "").lower() in (
+            "super_admin", "system_admin", "sysadmin"
+        )
         valid_user_ids = None
+
         if not is_super_admin:
-            admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
-            admin_col_ids = [aff.college_id for aff in admin_affs if aff.college_id is not None]
-            raw_org_ids = [aff.organization_id for aff in admin_affs if aff.organization_id is not None]
+            admin_affs = (
+                db.query(UA)
+                .filter(UA.user_id == current_user.id)
+                .all()
+            )
+            admin_col_ids = [
+                aff.college_id
+                for aff in admin_affs
+                if aff.college_id is not None
+            ]
+            raw_org_ids = [
+                aff.organization_id
+                for aff in admin_affs
+                if aff.organization_id is not None
+            ]
+
             admin_org_ids = []
             if raw_org_ids:
                 from app.models.admin_models import Organization
-                approved_orgs = db.query(Organization.id).filter(
-                    Organization.id.in_(raw_org_ids),
-                    Organization.status.in_(["APPROVED", "ACTIVE"])
-                ).all()
-                admin_org_ids = [o[0] for o in approved_orgs]
+
+                approved_orgs = (
+                    db.query(Organization.id)
+                    .filter(
+                        Organization.id.in_(raw_org_ids),
+                        Organization.status.in_(["APPROVED", "ACTIVE"]),
+                    )
+                    .all()
+                )
+                admin_org_ids = [row[0] for row in approved_orgs]
 
             filter_conds = []
             if admin_col_ids:
-                filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+                filter_conds.append(
+                    (UA.affiliation_type == "college")
+                    & (UA.college_id.in_(admin_col_ids))
+                )
             if admin_org_ids:
-                filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+                filter_conds.append(
+                    (UA.affiliation_type == "organization")
+                    & (UA.organization_id.in_(admin_org_ids))
+                )
 
             if filter_conds:
-                valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+                valid_user_ids = (
+                    db.query(UA.user_id)
+                    .filter(or_(*filter_conds))
+                    .subquery()
+                )
 
         member_q = db.query(DBUser).filter(
             DBUser.group_id == a.group_id,
-            not_(or_(
-                DBUser.role.ilike('%sysadmin%'),
-                DBUser.role.ilike('%system_admin%'),
-                DBUser.name.ilike('%sysadmin%'),
-                DBUser.name.ilike('%sys admin%'),
-                DBUser.email.ilike('%sysadmin%'),
-            ))
+            not_(
+                or_(
+                    DBUser.role.ilike("%sysadmin%"),
+                    DBUser.role.ilike("%system_admin%"),
+                    DBUser.name.ilike("%sysadmin%"),
+                    DBUser.name.ilike("%sys admin%"),
+                    DBUser.email.ilike("%sysadmin%"),
+                )
+            ),
         )
+
         if not is_super_admin and valid_user_ids is not None:
             member_q = member_q.filter(DBUser.id.in_(valid_user_ids))
-            
+
         students = member_q.all()
     else:
         students = []
 
-    student_ids = [s.id for s in students]
+    score_meta = GradebookService.get_score_possible(db, a)
 
     members_list = []
     started_cnt = 0
     completed_cnt = 0
     not_started_cnt = 0
     failed_cnt = 0
-    total_score = 0
-    scores_count = 0
+    total_time_seconds = 0
 
-    from app.models.user_progress import UserProgress
-    from app.core.constants import TRACK_TO_LAB
-    tracks = [t for t, l in TRACK_TO_LAB.items() if l == a.lab_id]
+    for student in students:
+        metrics = GradebookService.calculate_student_metrics(
+            db,
+            a,
+            student,
+            score_meta=score_meta,
+        )
+        grade = GradebookService._grade_row(db, a.id, student.id)
+        row = GradebookService._serialize_row(student, metrics, grade)
 
-    for s in students:
-        progress_records = db.query(UserLabProgress).filter(
-            UserLabProgress.user_id == s.id,
-            UserLabProgress.lab_id == a.lab_id,
-            UserLabProgress.started_at >= a.start_datetime
-        ).all()
+        ulp_rows = (
+            db.query(UserLabProgress)
+            .filter(
+                UserLabProgress.user_id == student.id,
+                UserLabProgress.assignment_id == a.id,
+            )
+            .all()
+        )
+        up_rows = (
+            db.query(UserProgress)
+            .filter(
+                UserProgress.user_id == str(student.id),
+                UserProgress.assignment_id == a.id,
+            )
+            .all()
+        )
 
-        up_records = []
-        if tracks:
-            up_records = db.query(UserProgress).filter(
-                UserProgress.user_id == str(s.id),
-                UserProgress.track_id.in_(tracks),
-                UserProgress.started_at >= a.start_datetime
-            ).all()
+        starts = [
+            item.started_at
+            for item in [*ulp_rows, *up_rows]
+            if getattr(item, "started_at", None) is not None
+        ]
+        completes = [
+            item.completed_at
+            for item in [*ulp_rows, *up_rows]
+            if getattr(item, "completed_at", None) is not None
+        ]
 
-        status = "Not Started"
-        started_time = "N/A"
-        completed_time = "N/A"
-        time_taken = "N/A"
-        overall_score = 0
+        started_time = (
+            min(starts).strftime("%Y-%m-%d %H:%M:%S")
+            if starts
+            else "N/A"
+        )
+        completed_time = (
+            max(completes).strftime("%Y-%m-%d %H:%M:%S")
+            if completes
+            else "N/A"
+        )
 
-        # Combine progress records
-        has_any_progress = len(progress_records) > 0 or len(up_records) > 0
+        has_failed = any(
+            (item.status or "").upper() == "FAILED"
+            for item in ulp_rows
+        )
+        has_started = bool(
+            starts
+            or row["last_activity_at"]
+            or row["score_earned"] > 0
+        )
+        has_completed = (
+            row["completion_percent"] is not None
+            and row["completion_percent"] >= 100
+        )
 
-        if has_any_progress:
-            ulp_score = sum(p.score or 0 for p in progress_records)
-            up_score = sum(p.module_score or 0 for p in up_records)
-            overall_score = max(ulp_score, up_score)
-            total_score += overall_score
-            scores_count += 1
-
-            # Check completion
-            from app.models.lab_module import LabModule
-            total_mods = db.query(LabModule).filter(LabModule.lab_id == a.lab_id).count()
-            if total_mods == 0:
-                total_mods = 5
-
-            ulp_completed_cnt = sum(1 for p in progress_records if p.status == "COMPLETED")
-            up_completed_cnt = sum(1 for p in up_records if p.completed)
-            solved_mods = max(ulp_completed_cnt, up_completed_cnt)
-
-            has_completed = solved_mods >= total_mods
-            has_failed = any(p.status == "FAILED" for p in progress_records)
-
-            if has_completed:
-                status = "Completed"
-                completed_cnt += 1
-            elif has_failed:
-                status = "Failed"
-                failed_cnt += 1
-            else:
-                status = "Running"
-                started_cnt += 1
-
-            first_start = None
-            starts = [p.started_at for p in progress_records if p.started_at] + [p.started_at for p in up_records if p.started_at]
-            if starts:
-                first_start = min(starts)
-
-            last_complete = None
-            completes = [p.completed_at for p in progress_records if p.completed_at] + [p.completed_at for p in up_records if p.completed_at]
-            if completes:
-                last_complete = max(completes)
-            
-            if first_start:
-                started_time = first_start.strftime("%Y-%m-%d %H:%M:%S")
-            if last_complete:
-                completed_time = last_complete.strftime("%Y-%m-%d %H:%M:%S")
-            
-            total_sec = sum(p.time_taken_seconds or 0 for p in progress_records)
-            if total_sec > 0:
-                time_taken = f"{round(total_sec / 60)} min"
+        if has_completed:
+            status = "Completed"
+            completed_cnt += 1
+        elif has_failed:
+            status = "Failed"
+            failed_cnt += 1
+        elif has_started:
+            status = "Running"
+            started_cnt += 1
         else:
+            status = "Not Started"
             not_started_cnt += 1
 
-        members_list.append({
-            "id": s.id,
-            "fullName": s.name,
-            "department": s.department or "Cyber Security",
-            "year": s.year or "III Year",
-            "status": status,
-            "started_time": started_time,
-            "completed_time": completed_time,
-            "time_taken": time_taken,
-            "overall_score": overall_score
-        })
+        seconds = int(row["completion_time_seconds"] or 0)
+        total_time_seconds += seconds
+        time_taken = (
+            f"{round(seconds / 60)} min"
+            if seconds > 0
+            else "N/A"
+        )
+
+        members_list.append(
+            {
+                "id": student.id,
+                "fullName": student.name or student.email.split("@")[0],
+                "department": student.department or "Cyber Security",
+                "year": student.year or "III Year",
+                "status": status,
+                "started_time": started_time,
+                "completed_time": completed_time,
+                "time_taken": time_taken,
+                "score_earned": row["score_earned"],
+                "score_possible": row["score_possible"],
+                "score_percent": row["score_percent"],
+                "rubric_percent": row["rubric_percent"],
+                "final_percent": row["final_percent"],
+                "grade_status": row["grade_status"],
+            }
+        )
 
     total_cnt = len(students)
-    completion_pct = round((completed_cnt / total_cnt) * 100) if total_cnt > 0 else 0
-    avg_score = round(total_score / scores_count) if scores_count > 0 else 0
+    completion_pct = (
+        round((completed_cnt / total_cnt) * 100, 2)
+        if total_cnt > 0
+        else 0.0
+    )
+
+    percent_values = [
+        row["score_percent"]
+        for row in members_list
+        if row["score_percent"] is not None
+    ]
+    average_score_percent = (
+        round(sum(percent_values) / len(percent_values), 2)
+        if percent_values
+        else None
+    )
+    average_score_earned = (
+        round(
+            sum(row["score_earned"] for row in members_list)
+            / len(members_list),
+            2,
+        )
+        if members_list
+        else 0.0
+    )
+    average_rubric_percent = (
+        round(
+            sum(row["rubric_percent"] for row in members_list)
+            / len(members_list),
+            2,
+        )
+        if members_list
+        else 0.0
+    )
+    average_final_percent = (
+        round(
+            sum(row["final_percent"] for row in members_list)
+            / len(members_list),
+            2,
+        )
+        if members_list
+        else 0.0
+    )
+
+    avg_seconds = (
+        total_time_seconds / len(members_list)
+        if members_list
+        else 0
+    )
+    average_time = (
+        f"{round(avg_seconds / 60)} min"
+        if avg_seconds > 0
+        else "0 min"
+    )
+
+    top_performer = None
+    if members_list:
+        top = max(
+            members_list,
+            key=lambda row: row["final_percent"],
+        )
+        top_performer = top["fullName"]
 
     return {
         "assignment_id": a.id,
+        "group_id": a.group_id,
+        "student_id": a.student_id,
         "lab_id": a.lab_id,
-        "lab_title": lab_title,
-        "assignment_date": a.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if a.start_datetime else "N/A",
-        "due_date": a.end_datetime.strftime("%Y-%m-%d %H:%M:%S") if a.end_datetime else "N/A",
+        "lab_title": (
+            db.query(Lab.name).filter(Lab.id == a.lab_id).scalar()
+            or a.lab_id
+        ),
+        "assignment_date": utc_iso(a.start_datetime),
+        "due_date": utc_iso(a.end_datetime),
         "started_count": started_cnt,
         "completed_count": completed_cnt,
         "not_started_count": not_started_cnt,
         "failed_count": failed_cnt,
-        "average_score": avg_score,
-        "average_time": "Estimated",
         "completion_percentage": completion_pct,
-        "members": members_list
+        "average_score_earned": average_score_earned,
+        "score_possible": score_meta["score_possible"],
+        "average_score_percent": average_score_percent,
+        "average_rubric_percent": average_rubric_percent,
+        "average_final_percent": average_final_percent,
+        "score_units": "points",
+        "percent_units": "percent_0_100",
+        "average_time": average_time,
+        "top_performer": top_performer,
+        "members": members_list,
     }
 
 @router.delete("/assignments/{assignment_id}")
@@ -2781,7 +3033,8 @@ def delete_scheduled_assignment(
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
-    a.end_datetime = datetime.utcnow()
+    from app.core.assignment_time import utc_now_naive
+    a.end_datetime = utc_now_naive()
     a.status = "Completed"
     
     # Try to release allocated seat if PurchasedLab model contains assigned_seats
@@ -2806,6 +3059,9 @@ def create_admin_allocation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    AuthorizationService.assert_group_access(db, current_user, data.group_id, Capability.LAB_ASSIGN)
     org_id = get_admin_org_id(current_user, db)
     p = db.query(PurchasedLab).filter(PurchasedLab.lab_id == data.lab_id, PurchasedLab.organization_id == org_id).first()
     if not p:
@@ -2971,9 +3227,25 @@ def transfer_admin_license(
     """
     Transfers an assigned seat license from Student A to Student B without consuming an additional seat.
     """
-    lic = db.query(License).filter(License.id == data.license_id).first()
+    org_id = get_admin_org_id(current_user, db)
+    lic = db.query(License).join(
+        PurchasedLab, PurchasedLab.id == License.purchased_lab_id
+    ).filter(
+        License.id == data.license_id,
+        PurchasedLab.organization_id == org_id,
+    ).first()
     if not lic:
-        raise HTTPException(status_code=404, detail="Individual seat license record not found.")
+        raise HTTPException(status_code=404, detail="Individual seat license record not found in your organization.")
+
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    source_user = db.query(User).filter(User.email == data.from_user_email).first()
+    target_user = db.query(User).filter(User.email == data.to_user_email).first()
+    if source_user:
+        AuthorizationService.assert_user_access(db, current_user, source_user.id, Capability.LAB_PURCHASE)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found.")
+    AuthorizationService.assert_user_access(db, current_user, target_user.id, Capability.LAB_PURCHASE)
 
     lic.allocated_user_email = data.to_user_email
     lic.status = "ASSIGNED"
@@ -3007,7 +3279,15 @@ def get_admin_running_sessions(
     db: Session = Depends(get_db)
 ):
     from app.models.study_session import StudySession
-    sessions = db.query(StudySession).filter(StudySession.logout_time.is_(None)).limit(10).all()
+    sessions = db.query(StudySession).filter(StudySession.logout_time.is_(None)).limit(50).all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    visible_sessions = []
+    for session in sessions:
+        target = db.query(User).filter(User.id == session.user_id).first()
+        if target and AuthorizationService.can_access_user(db, current_user, target, Capability.PROGRESS_VIEW):
+            visible_sessions.append(session)
+    sessions = visible_sessions[:10]
     result = []
     for s in sessions:
         result.append({
@@ -3084,7 +3364,13 @@ def admin_global_search(
                     User.email.ilike('%sysadmin%'),
                 ))
             )
-        users = u_query.limit(5).all()
+        users = u_query.limit(25).all()
+        from app.core.capabilities import Capability
+        from app.services.authorization_service import AuthorizationService
+        users = [
+            user for user in users
+            if AuthorizationService.can_access_user(db, current_user, user, Capability.ROSTER_VIEW)
+        ][:5]
         for u in users:
             results.append({
                 "category": "Users",
@@ -3096,7 +3382,11 @@ def admin_global_search(
 
         # 2. Search Groups
         from app.models.group import Group
-        groups = db.query(Group).filter(Group.name.ilike(search_pattern)).limit(5).all()
+        groups = db.query(Group).filter(Group.name.ilike(search_pattern)).limit(25).all()
+        groups = [
+            group for group in groups
+            if AuthorizationService.can_access_group(db, current_user, group, Capability.ROSTER_VIEW)
+        ][:5]
         for g in groups:
             results.append({
                 "category": "Training Groups",
@@ -3119,7 +3409,11 @@ def admin_global_search(
             })
 
         # 4. Search Purchased Enterprise Labs
-        p_labs = db.query(PurchasedLab).filter(PurchasedLab.lab_title.ilike(search_pattern)).limit(5).all()
+        search_org_id = get_admin_org_id(current_user, db)
+        p_labs = db.query(PurchasedLab).filter(
+            PurchasedLab.organization_id == search_org_id,
+            PurchasedLab.lab_title.ilike(search_pattern),
+        ).limit(5).all()
         for pl in p_labs:
             results.append({
                 "category": "Purchased Labs",
@@ -3175,7 +3469,7 @@ async def bulk_import_users(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     request: Request = None,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3327,7 +3621,7 @@ def export_users_report(
     query: Optional[str] = None,
     role: Optional[str] = None,
     status: Optional[str] = None,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3353,6 +3647,12 @@ def export_users_report(
         q = q.filter(User.is_active == (status.lower() == "active"))
 
     users = q.all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    users = [
+        user for user in users
+        if AuthorizationService.can_access_user(db, current_user, user, Capability.REPORT_EXPORT)
+    ]
     headers = ["ID", "Full Name", "Email", "Role", "Training Group", "Status", "Score", "Created Date"]
     
     export_rows = []
@@ -3411,7 +3711,7 @@ def export_users_report(
 def export_analytics_report(
     format: str = Query("csv", regex="^(csv|xlsx|xml|pdf)$"),
     group: Optional[str] = None,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3419,6 +3719,12 @@ def export_analytics_report(
     """
     from app.models.group import Group
     groups = db.query(Group).all()
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    groups = [
+        group for group in groups
+        if AuthorizationService.can_access_group(db, current_user, group, Capability.REPORT_EXPORT)
+    ]
     headers = ["Training Group", "Member Count", "Description"]
     
     rows = []
@@ -3473,7 +3779,7 @@ class ApiKeyCreateRequest(BaseModel):
 
 @router.get("/api-keys")
 def list_organization_api_keys(
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3497,7 +3803,7 @@ def list_organization_api_keys(
 def create_organization_api_key(
     data: ApiKeyCreateRequest,
     request: Request,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3536,7 +3842,7 @@ def create_organization_api_key(
 def revoke_organization_api_key(
     key_id: int,
     request: Request,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3575,7 +3881,7 @@ class OrgMergeRequest(BaseModel):
 
 @router.get("/organizations/pending")
 def list_pending_organizations(
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3602,7 +3908,7 @@ def list_pending_organizations(
 def approve_pending_organization(
     org_id: int,
     request: Request,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -3637,7 +3943,7 @@ def merge_pending_organization(
     org_id: int,
     data: OrgMergeRequest,
     request: Request,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

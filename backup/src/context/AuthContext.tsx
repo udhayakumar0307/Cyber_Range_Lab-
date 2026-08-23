@@ -1,19 +1,10 @@
-/**
- * AuthContext.tsx — Production-Optimized Auth Context
- *
- * Optimizations applied:
- *  1. Token cached in useRef — apiFetch reads the ref instead of hitting
- *     localStorage on every single API call (was: localStorage.getItem on
- *     every apiFetch invocation).
- *  2. Session check useEffect dependency changed from [token] → [] (mount only).
- *     The original [token] dependency caused a double /auth/me call: once on
- *     mount, and again immediately after login() set the token state.
- *  3. All console.log debug statements removed from the login() hot path.
- *  4. Token ref kept in sync with state so apiFetch always uses the latest
- *     value without needing to read localStorage.
- */
-
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
 
 export interface User {
   id: number;
@@ -28,11 +19,40 @@ export interface User {
   auth_type?: 'INDIVIDUAL' | 'SSO';
 }
 
+export interface AuthorizationInfo {
+  user_id: number;
+  legacy_role: string;
+  roles: string[];
+  capabilities: string[];
+  scopes: Array<{
+    binding_id: number;
+    role: string;
+    scope_type: 'GLOBAL' | 'ORGANIZATION' | 'COLLEGE' | 'UNSCOPED';
+    organization_id?: number | null;
+    college_id?: number | null;
+  }>;
+  professor_profile?: {
+    id: number;
+    department?: string | null;
+    academic_title?: string | null;
+    employee_id?: string | null;
+    office?: string | null;
+  } | null;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean, portal?: 'student' | 'admin', otpCode?: string) => Promise<{ role: string; user?: any; status?: string; message?: string }>;
+  authorization: AuthorizationInfo | null;
+  hasCapability: (capability: string) => boolean;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+    portal?: 'student' | 'admin',
+    otpCode?: string
+  ) => Promise<{ role: string; user?: any; status?: string; message?: string }>;
   setSessionToken: (token: string, userData?: User) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -45,57 +65,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
-
-  // Token ref — keeps current token accessible in apiFetch without re-renders
-  // and without touching localStorage on every call.
+  const [authorization, setAuthorization] = useState<AuthorizationInfo | null>(null);
   const tokenRef = useRef<string | null>(token);
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
-  // Keep ref in sync whenever state changes
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
+
+  const loadAuthorization = useCallback(async (explicitToken?: string | null) => {
+    const currentToken = explicitToken ?? tokenRef.current;
+    if (!currentToken) {
+      setAuthorization(null);
+      return null;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/rbac/me`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        setAuthorization(null);
+        return null;
+      }
+      const data = (await response.json()) as AuthorizationInfo;
+      setAuthorization(data);
+      return data;
+    } catch {
+      setAuthorization(null);
+      return null;
+    }
+  }, [API_BASE]);
 
   const setSessionToken = useCallback((newToken: string, userData?: User) => {
     localStorage.setItem('token', newToken);
     tokenRef.current = newToken;
     setToken(newToken);
-    if (userData) {
-      setUser(userData);
-    }
-  }, []);
-  const API_BASE = import.meta.env.VITE_API_URL || "";
+    if (userData) setUser(userData);
+    void loadAuthorization(newToken);
+  }, [loadAuthorization]);
 
   const logout = useCallback(async () => {
     try {
-    await fetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
+      await fetch(`${API_BASE}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch {
-      // Logout errors are non-fatal — proceed with local cleanup
+      // Logout errors are non-fatal.
     }
     localStorage.removeItem('token');
     document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax;';
     tokenRef.current = null;
     setToken(null);
     setUser(null);
+    setAuthorization(null);
     window.location.href = '/login';
-  }, []);
+  }, [API_BASE]);
 
-  /**
-   * apiFetch — reads token from ref (O(1), no localStorage hit per call).
-   * Handles 401 by clearing session and redirecting.
-   */
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
     const currentToken = tokenRef.current;
     const headers = new Headers(options.headers || {});
-
-    if (currentToken) {
-      headers.set('Authorization', `Bearer ${currentToken}`);
-    }
-
+    if (currentToken) headers.set('Authorization', `Bearer ${currentToken}`);
     if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
     }
-
-    const API_BASE = import.meta.env.VITE_API_URL || "";
 
     const response = await fetch(`${API_BASE}${url}`, {
       ...options,
@@ -103,30 +137,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       credentials: 'include',
     });
 
-    // Only treat 401 on /auth/me (session restore) as a hard session expiry.
-    // For all other endpoints, return the response and let the caller decide —
-    // a single failing background request (e.g. notifications) should never
-    // silently log the user out.
     if (response.status === 401 && url.includes('/auth/me')) {
       localStorage.removeItem('token');
       document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax;';
       tokenRef.current = null;
       setToken(null);
       setUser(null);
+      setAuthorization(null);
 
       const publicPaths = [
         '/login', '/register', '/forgot-password', '/reset-password',
         '/admin/login', '/admin/register', '/admin/forgot-password', '/admin/reset-password',
-        '/adminform', '/admin-login', '/system'
+        '/adminform', '/admin-login', '/system',
       ];
-      const isPublicPath = publicPaths.some(path => window.location.pathname.toLowerCase().startsWith(path));
+      const isPublicPath = publicPaths.some((path) =>
+        window.location.pathname.toLowerCase().startsWith(path)
+      );
       if (!isPublicPath && window.location.pathname !== '/') {
         window.location.href = '/login';
       }
     }
-
     return response;
-  }, []);
+  }, [API_BASE]);
 
   const login = useCallback(async (
     email: string,
@@ -135,100 +167,93 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     portal: 'student' | 'admin' = 'student',
     otpCode?: string
   ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
-    const API_BASE = import.meta.env.VITE_API_URL || "";
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
-    let response: Response;
-    try {
-      response = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, remember_me: rememberMe, portal, otp_code: otpCode }),
-      });
-    } catch {
-      throw new Error('Unable to reach the server. Please check your connection and try again.');
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    const isJson = contentType.includes('application/json');
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        remember_me: rememberMe,
+        portal,
+        otp_code: otpCode,
+      }),
+    });
 
     if (!response.ok) {
-      const errData = isJson ? await response.json().catch(() => ({})) : {};
-      const msg = errData.detail || errData.message ||
-        (isJson ? 'Invalid Email or Password' : `Server error (${response.status}). Please try again later.`);
+      const errData = await response.json().catch(() => ({}));
+      const msg = errData.detail || errData.message || 'Invalid Email or Password';
       throw new Error(typeof msg === 'string' ? msg : 'Invalid Email or Password');
     }
 
-    if (!isJson) {
-      throw new Error('Unexpected response from server. Please try again later.');
-    }
-
-    const data = await response.json().catch(() => {
-      throw new Error('Unexpected response from server. Please try again later.');
-    });
+    const data = await response.json();
     if (data.status === 'otp_required') {
       return { role: '', user: null, status: 'otp_required', message: data.message };
     }
-    if (!data.success) {
-      throw new Error(data.message || 'Invalid Email or Password');
-    }
+    if (!data.success) throw new Error(data.message || 'Invalid Email or Password');
 
     if (data.token) {
       localStorage.setItem('token', data.token);
       tokenRef.current = data.token;
       setToken(data.token);
     }
-
     setUser(data.user);
+    await loadAuthorization(data.token || tokenRef.current);
     return { role: data.role, user: data.user, status: 'success' };
-  }, []);
+  }, [API_BASE, loadAuthorization]);
 
   const refreshUser = useCallback(async () => {
     try {
       const response = await apiFetch('/api/v1/auth/me');
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
+        setUser(await response.json());
+        await loadAuthorization();
       }
     } catch {
-      // Non-fatal — user state remains unchanged
+      // Non-fatal.
     }
-  }, [apiFetch]);
+  }, [apiFetch, loadAuthorization]);
 
-  /**
-   * Mount-only session restore.
-   *
-   * Previously this had `[token]` as a dependency which caused a second
-   * /auth/me call immediately after login() set the token state.
-   * Using [] means it runs exactly once — on app mount.
-   */
+  const hasCapability = useCallback((capability: string) =>
+    Boolean(authorization?.capabilities?.includes(capability.toUpperCase())),
+  [authorization]);
+
   useEffect(() => {
     const checkSession = async () => {
       try {
         const response = await apiFetch('/api/v1/auth/me');
         if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
+          setUser(await response.json());
+          await loadAuthorization();
         } else {
           setUser(null);
+          setAuthorization(null);
         }
       } catch {
         setUser(null);
+        setAuthorization(null);
       } finally {
         setIsLoading(false);
       }
     };
-
-    checkSession();
+    void checkSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount-only — intentionally no [token] dependency
+  }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ user, token, isLoading, login, setSessionToken, logout, refreshUser, apiFetch }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      token,
+      isLoading,
+      authorization,
+      hasCapability,
+      login,
+      setSessionToken,
+      logout,
+      refreshUser,
+      apiFetch,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-

@@ -1,11 +1,27 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+"""Professor academic metadata. Authentication identity is always User."""
+
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
 from app.models.base import Base
 
-class Professor(Base):
-    __tablename__ = "professors"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    college_id = Column(Integer, ForeignKey("colleges.id", ondelete="CASCADE"), nullable=False)
-    name = Column(String(100), nullable=False)
-    email = Column(String(150), unique=True, nullable=False, index=True)
+
+class ProfessorProfile(Base):
+    __tablename__ = "professor_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     department = Column(String(100), nullable=True)
+    academic_title = Column(String(100), nullable=True)
+    employee_id = Column(String(100), nullable=True)
+    office = Column(String(150), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+
+# Compatibility import only. New runtime code should use ProfessorProfile.
+Professor = ProfessorProfile

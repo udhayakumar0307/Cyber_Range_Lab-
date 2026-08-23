@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.assignment import Assignment
 from app.models.otp import OTPVerification
 from app.models.password_reset import PasswordReset
-from app.models.professor import Professor
+from app.models.professor import ProfessorProfile, Professor
 from app.models.lab import Lab
 from app.models.lab_module import LabModule
 from app.models.user_lab_progress import UserLabProgress
@@ -45,6 +45,7 @@ __all__ = [
     "OTPVerification",
     "PasswordReset",
     "Professor",
+    "ProfessorProfile",
     "Lab",
     "LabModule",
     "UserLabProgress",
@@ -78,4 +79,7 @@ __all__ = [
     "CTFHintUnlock",
     "CTFSubmission",
     "CTFParticipation",
+    "UserRoleBinding"
 ]
+
+from app.models.rbac import UserRoleBinding

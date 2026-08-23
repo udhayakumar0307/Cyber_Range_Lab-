@@ -1,28 +1,30 @@
 """
 Acceptance test for Point #5 interactive gradebook.
 
+Updated for Point #6 rubric invariants.
+
 Runs inside a transaction and rolls everything back.
 
 Validates:
 - assignment-specific auto score
+- rubric snapshot exists for the assignment
 - manual adjustment + feedback
-- draft grade tracks live automatic evidence
+- draft grade tracks live automatic/rubric evidence
 - publish freezes a grade snapshot
 - published grade cannot be edited
 - reopen unlocks the grade
 """
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 from app.database.session import SessionLocal
 from app.models.assignment import Assignment
-from app.models.assignment_grade import AssignmentGrade
 from app.models.lab import Lab
 from app.models.lab_module import LabModule
 from app.models.score_event import ScoreEvent
 from app.models.user import User
 from app.services.gradebook_service import GradebookService
+from app.services.rubric_service import RubricService
 
 
 def run():
@@ -42,6 +44,7 @@ def run():
             .all()
         )
         assert users, "Need at least one non-admin user."
+
         student = users[0]
         grader = users[1] if len(users) > 1 else users[0]
 
@@ -55,13 +58,17 @@ def run():
         modules = (
             db.query(LabModule)
             .filter(LabModule.lab_id == lab.id)
-            .order_by(LabModule.display_order.asc(), LabModule.module_number.asc())
+            .order_by(
+                LabModule.display_order.asc(),
+                LabModule.module_number.asc(),
+            )
             .limit(2)
             .all()
         )
         assert modules, "Need at least one module."
 
         now = datetime.utcnow()
+
         assignment = Assignment(
             lab_id=lab.id,
             student_id=student.id,
@@ -73,6 +80,23 @@ def run():
         )
         db.add(assignment)
         db.flush()
+
+        # Point #6 invariant:
+        # every Assignment owns an immutable rubric snapshot.
+        #
+        # Production Assignment creation performs this inside admin_api.py.
+        # This test creates its Assignment directly, so it must explicitly
+        # reproduce that invariant.
+        snapshot = RubricService.snapshot_assignment(
+            db,
+            assignment.id,
+            created_by=grader.id,
+        )
+        db.flush()
+
+        assert snapshot.assignment_id == assignment.id
+        assert snapshot.rubric_version >= 1
+        print("✅ CASE 0: assignment rubric snapshot created")
 
         first = modules[0]
         db.add(
@@ -93,8 +117,13 @@ def run():
         row = book["students"][0]
 
         assert row["student_id"] == student.id
-        assert row["auto_score_earned"] == float(first.points)
+        assert row["score_earned"] == float(first.points)
+        assert "score_possible" in row
+        assert "score_percent" in row
+        assert "auto_score_earned" not in row
+        assert "auto_percent" not in row
         assert row["grade_status"] == "DRAFT"
+        assert row["rubric_version"] == snapshot.rubric_version
         print("✅ CASE A: assignment-scoped automatic score loaded")
 
         GradebookService.save_draft(
@@ -113,7 +142,8 @@ def run():
         assert row["manual_adjustment"] == 5.0
         assert row["feedback"] == "Strong work."
         assert row["final_percent"] == min(
-            100.0, round(row["auto_percent"] + 5.0, 2)
+            100.0,
+            round(row["rubric_percent"] + 5.0, 2),
         )
         print("✅ CASE B: professor adjustment + feedback saved as draft")
 
@@ -124,10 +154,15 @@ def run():
         )
         db.flush()
 
-        published_book = GradebookService.get_gradebook(db, assignment.id)
+        published_book = GradebookService.get_gradebook(
+            db,
+            assignment.id,
+        )
         published_row = published_book["students"][0]
+
         frozen_final = published_row["final_percent"]
-        frozen_auto = published_row["auto_score_earned"]
+        frozen_auto = published_row["score_earned"]
+        frozen_rubric = published_row["rubric_percent"]
 
         assert published_row["grade_status"] == "PUBLISHED"
         assert published_row["published_at"] is not None
@@ -151,11 +186,17 @@ def run():
             db.flush()
 
             still_published = GradebookService.get_gradebook(
-                db, assignment.id
+                db,
+                assignment.id,
             )["students"][0]
-            assert still_published["auto_score_earned"] == frozen_auto
+
+            assert still_published["score_earned"] == frozen_auto
+            assert still_published["rubric_percent"] == frozen_rubric
             assert still_published["final_percent"] == frozen_final
-            print("✅ CASE D: published grade did not drift after new evidence")
+            print(
+                "✅ CASE D: published auto/rubric/final grade did not drift "
+                "after new evidence"
+            )
         else:
             print("⚠️ CASE D skipped: lab only has one module")
 
@@ -183,14 +224,17 @@ def run():
         db.flush()
 
         reopened = GradebookService.get_gradebook(
-            db, assignment.id
+            db,
+            assignment.id,
         )["students"][0]
+
         assert reopened["grade_status"] == "DRAFT"
 
         if len(modules) > 1:
-            assert reopened["auto_score_earned"] >= frozen_auto
+            assert reopened["score_earned"] >= frozen_auto
+            assert reopened["rubric_percent"] >= frozen_rubric
 
-        print("✅ CASE F: reopen returns grade to live draft state")
+        print("✅ CASE F: reopen returns grade to live rubric-backed draft state")
 
         print("=" * 80)
         print("✅ ALL INTERACTIVE GRADEBOOK TESTS PASSED")

@@ -38,9 +38,12 @@ db_manager.init_db()
 
 
 def upsert_user(session, email: str, name: str, password: str, role: str, organization: str = None):
-    """Create or update a user account."""
-    from app.models.user import User
+    """Create/update a User identity and its canonical Point #8 role binding."""
+    from app.core.capabilities import normalize_role
     from app.core.security import get_password_hash
+    from app.models.admin_models import AdminProfile, Organization
+    from app.models.rbac import UserRoleBinding
+    from app.models.user import User
 
     hashed = get_password_hash(password)
     user = session.query(User).filter(User.email == email).first()
@@ -62,6 +65,60 @@ def upsert_user(session, email: str, name: str, password: str, role: str, organi
         if organization:
             user.organization = organization
         logger.info(f"  Updated: {email} (role={role})")
+    session.flush()
+
+    canonical = normalize_role(role)
+    session.query(UserRoleBinding).filter(
+        UserRoleBinding.user_id == user.id,
+        UserRoleBinding.role == canonical,
+    ).delete(synchronize_session=False)
+
+    if canonical == "SYSTEM_ADMIN":
+        session.add(UserRoleBinding(
+            user_id=user.id,
+            role="SYSTEM_ADMIN",
+            scope_type="GLOBAL",
+            scope_key="GLOBAL",
+            is_active=True,
+        ))
+    elif canonical in {"ADMIN", "PROFESSOR", "TA"}:
+        if organization:
+            org = session.query(Organization).filter(Organization.name == organization).first()
+            if org is None:
+                org = Organization(name=organization, institution_type="Enterprise", status="ACTIVE")
+                session.add(org)
+                session.flush()
+            profile = session.query(AdminProfile).filter(AdminProfile.user_id == user.id).first()
+            if profile is None:
+                profile = AdminProfile(user_id=user.id, organization_id=org.id, is_verified=True)
+                session.add(profile)
+            else:
+                profile.organization_id = org.id
+                profile.is_verified = True
+            session.add(UserRoleBinding(
+                user_id=user.id,
+                role=canonical,
+                scope_type="ORGANIZATION",
+                scope_key=f"ORG:{org.id}",
+                organization_id=org.id,
+                is_active=True,
+            ))
+        else:
+            session.add(UserRoleBinding(
+                user_id=user.id,
+                role=canonical,
+                scope_type="UNSCOPED",
+                scope_key="UNSCOPED",
+                is_active=True,
+            ))
+    else:
+        session.add(UserRoleBinding(
+            user_id=user.id,
+            role="STUDENT",
+            scope_type="UNSCOPED",
+            scope_key="UNSCOPED",
+            is_active=True,
+        ))
     session.flush()
     return user
 
