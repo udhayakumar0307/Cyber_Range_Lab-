@@ -369,6 +369,16 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  purchased_labs: column migrations applied")
 
+            # Manual sysadmin lab allocations used to hardcode 999999 "unlimited" hours
+            # instead of the hours the sysadmin actually entered. Reset those placeholder
+            # values back to a sane default so real remaining-hour totals display correctly.
+            conn.execute(text("""
+                UPDATE purchased_labs
+                SET hours_purchased = 40, hours_remaining = 40
+                WHERE hours_purchased >= 999999 AND hours_used = 0;
+            """))
+            logger.info("  purchased_labs: reset placeholder 999999-hour allocations to 40")
+
         if table_exists("cart_items"):
             conn.execute(text("""
                 ALTER TABLE cart_items

@@ -1044,7 +1044,7 @@ def assign_lab_manually(
         seats=1,
         duration_months=12,
         price=data.total_price or 0.0,
-        hours_purchased=999999.0
+        hours_purchased=data.hours
     )
     db.add(order_item)
 
@@ -1070,8 +1070,8 @@ def assign_lab_manually(
         assigned_seats=0,
         status="ACTIVE",
         expiry_date=datetime.utcnow() + timedelta(days=365),
-        hours_purchased=999999.0, # Unlimited
-        hours_remaining=999999.0, # Unlimited
+        hours_purchased=data.hours,
+        hours_remaining=data.hours,
         hours_used=0.0,
         assigned_to=assigned_to,
         fixed_rate=data.total_price or 0.0

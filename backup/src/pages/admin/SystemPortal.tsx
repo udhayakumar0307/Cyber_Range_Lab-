@@ -98,6 +98,7 @@ export const SystemPortal: React.FC = () => {
   const [formHours, setFormHours] = useState<number>(9999);
   const [formLabLevel, setFormLabLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'custom'>('beginner');
   const [formPricePerHour, setFormPricePerHour] = useState<number>(100);
+  const [formHoursAllocated, setFormHoursAllocated] = useState<number>(40);
   const [formAssignTarget, setFormAssignTarget] = useState<'org' | 'student' | 'both'>('org');
   const [formStudentId, setFormStudentId] = useState<string>('');
   const [formOrgId, setFormOrgId] = useState<string>('');
@@ -857,7 +858,7 @@ export const SystemPortal: React.FC = () => {
         body: JSON.stringify({
           lab_id: formLabId,
           lab_title: formLabTitle,
-          hours: 999999.0,
+          hours: formHoursAllocated,
           user_id: targetUserId,
           price_per_hour: rate,
           total_price: totalPrice
@@ -869,6 +870,7 @@ export const SystemPortal: React.FC = () => {
         setIsAssignModalOpen(false);
         setFormLabId('');
         setFormLabTitle('');
+        setFormHoursAllocated(40);
         alert(`Lab allocations completed successfully!`);
         fetchDashboard();
         fetchAllocatedLabs();
@@ -2362,6 +2364,19 @@ export const SystemPortal: React.FC = () => {
                   onChange={(e) => setFormPricePerHour(Number(e.target.value))}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Set to 0 for a free lab.</p>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Hours Allocated</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formHoursAllocated}
+                  onChange={(e) => setFormHoursAllocated(Number(e.target.value))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Total lab hours available to the organization/students before renewal.</p>
               </div>
 
             </div>
