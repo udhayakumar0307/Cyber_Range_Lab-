@@ -235,6 +235,15 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS designation VARCHAR(100) NULL;
             """))
+            # Registration can carry a full college/organization name (address-length);
+            # widen to avoid StringDataRightTruncation on legitimate long names.
+            try:
+                conn.execute(text("""
+                    ALTER TABLE users
+                    ALTER COLUMN organization TYPE VARCHAR(255);
+                """))
+            except Exception as alt_err:
+                logger.warning(f"Could not alter users.organization column size: {alt_err}")
             logger.info("  users: column migrations applied")
 
         if table_exists("colleges"):

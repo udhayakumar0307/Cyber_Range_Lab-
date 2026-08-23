@@ -49,7 +49,7 @@ class User(Base):
     state = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
     profession = Column(String(100), nullable=True)
-    organization = Column(String(100), nullable=True)
+    organization = Column(String(255), nullable=True)
     experience = Column(String(100), nullable=True)
     highest_qualification = Column(String(100), nullable=True)
     course = Column(String(100), nullable=True)
