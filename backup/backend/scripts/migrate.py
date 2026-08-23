@@ -331,6 +331,25 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  groups: column migrations applied")
 
+            # Group names were globally unique; must be unique per-organization instead
+            # so different orgs can each have a group named e.g. "testing".
+            conn.execute(text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'groups_name_key') THEN
+                        ALTER TABLE groups DROP CONSTRAINT groups_name_key;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_groups_name' AND indexdef ILIKE '%UNIQUE%') THEN
+                        DROP INDEX ix_groups_name;
+                        CREATE INDEX ix_groups_name ON groups (name);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_groups_organization_id_name') THEN
+                        ALTER TABLE groups ADD CONSTRAINT uq_groups_organization_id_name UNIQUE (organization_id, name);
+                    END IF;
+                END $$;
+            """))
+            logger.info("  groups: name uniqueness scoped to organization_id")
+
         if table_exists("orders"):
             conn.execute(text("""
                 ALTER TABLE orders
