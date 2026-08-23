@@ -626,8 +626,7 @@ def get_admin_users(
 
     q = db.query(User).options(joinedload(User.group)).filter(
         not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
+            User.role.ilike('%admin%'),
             User.name.ilike('%sysadmin%'),
             User.name.ilike('%sys admin%'),
             User.email.ilike('%sysadmin%'),
@@ -1143,8 +1142,7 @@ def get_admin_groups(
         member_q = db.query(User).filter(
             User.group_id == g.id,
             not_(or_(
-                User.role.ilike('%sysadmin%'),
-                User.role.ilike('%system_admin%'),
+                User.role.ilike('%admin%'),
                 User.name.ilike('%sysadmin%'),
                 User.name.ilike('%sys admin%'),
                 User.email.ilike('%sysadmin%'),
@@ -1463,8 +1461,7 @@ def get_group_detail(
     members = db.query(User).filter(
         User.group_id == g.id,
         not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
+            User.role.ilike('%admin%'),
             User.name.ilike('%sysadmin%'),
             User.name.ilike('%sys admin%'),
             User.email.ilike('%sysadmin%'),
@@ -1526,10 +1523,7 @@ def get_lab_assignment_reports(
 
         members = db.query(User).filter(
             User.group_id == g.id,
-            not_(or_(
-                User.role.ilike('%sysadmin%'),
-                User.role.ilike('%system_admin%'),
-            ))
+            not_(User.role.ilike('%admin%'))
         ).all()
 
         participated = 0
@@ -1656,10 +1650,7 @@ def assign_lab_to_group(
 
     member_count = db.query(User).filter(
         User.group_id == group_id,
-        not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
-        ))
+        not_(User.role.ilike('%admin%'))
     ).count()
 
     if member_count == 0:
@@ -1705,10 +1696,7 @@ def assign_lab_to_group(
 
     members = db.query(User).filter(
         User.group_id == group_id,
-        not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
-        ))
+        not_(User.role.ilike('%admin%'))
     ).all()
     for m in members:
         db.add(Notification(
@@ -1812,10 +1800,7 @@ def get_group_lab_status(
 
     members = db.query(User).filter(
         User.group_id == group_id,
-        not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
-        ))
+        not_(User.role.ilike('%admin%'))
     ).all()
 
     not_started = 0
@@ -1919,10 +1904,7 @@ def export_group_lab_report(
 
     members = db.query(User).filter(
         User.group_id == group_id,
-        not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
-        ))
+        not_(User.role.ilike('%admin%'))
     ).all()
 
     rows = []
@@ -3680,8 +3662,7 @@ def export_users_report(
     from app.models.group import Group
     q = db.query(User).filter(
         not_(or_(
-            User.role.ilike('%sysadmin%'),
-            User.role.ilike('%system_admin%'),
+            User.role.ilike('%admin%'),
             User.email.ilike('%sysadmin%')
         ))
     )
