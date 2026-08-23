@@ -1191,9 +1191,9 @@ def create_admin_group(
 ):
     from app.models.group import Group
     org_id = get_admin_org_id(current_user, db)
-    existing = db.query(Group).filter(Group.name == data.name).first()
+    existing = db.query(Group).filter(Group.name == data.name, Group.organization_id == org_id).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Group with this name already exists.")
+        raise HTTPException(status_code=400, detail="A group with this name already exists in your organization.")
 
     g = Group(name=data.name, description=data.description, organization_id=org_id)
     db.add(g)
