@@ -2,7 +2,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, UploadFile, File, Response, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import not_, or_, func
 from sqlalchemy.orm import Session
@@ -1128,6 +1128,7 @@ def get_admin_groups(
             "name": g.name,
             "description": g.description or "",
             "memberCount": member_count,
+            "maxSize": g.max_size or 40,
             "createdDate": c_date,
             "assignedLabsCount": assigned_labs
         })
@@ -1309,6 +1310,691 @@ def remove_group_member(
     db.commit()
     return {"status": "success"}
 
+class BulkRemoveGroupMembersRequest(BaseModel):
+    user_ids: list[int]
+
+
+@router.post("/groups/{group_id}/members/bulk-remove")
+def bulk_remove_group_members(
+    group_id: int,
+    data: BulkRemoveGroupMembersRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    updated = (
+        db.query(User)
+        .filter(User.group_id == group_id, User.id.in_(data.user_ids))
+        .update({User.group_id: None}, synchronize_session=False)
+    )
+    db.commit()
+    return {"status": "success", "removed_count": updated}
+
+
+class BulkAddGroupMembersRequest(BaseModel):
+    user_ids: list[int]
+
+
+def _send_added_to_group_emails(members: list, group_name: str, admin_name: str):
+    """Runs after the response is sent — a synchronous loop here would block
+    the request on one SES network round trip per student being added."""
+    from app.services.ses_service import ses_service
+    for email, name in members:
+        try:
+            ses_service.send_added_to_group_email(
+                email=email,
+                student_name=name,
+                group_name=group_name,
+                admin_name=admin_name,
+            )
+        except Exception as mail_err:
+            logger.error(f"Cohort addition email failed for {email}: {mail_err}")
+
+
+@router.post("/groups/{group_id}/members/bulk")
+def bulk_add_group_members(
+    group_id: int,
+    data: BulkAddGroupMembersRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.group import Group
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    max_size = g.max_size or 40
+    current_count = db.query(User).filter(User.group_id == group_id).count()
+    requested_ids = list(dict.fromkeys(data.user_ids))  # de-dupe, preserve order
+
+    if current_count + len(requested_ids) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Adding {len(requested_ids)} students would exceed the group's max size of {max_size} (currently {current_count})."
+        )
+
+    users = db.query(User).filter(User.id.in_(requested_ids)).all()
+    found_ids = {u.id for u in users}
+    missing_ids = [uid for uid in requested_ids if uid not in found_ids]
+
+    for u in users:
+        u.group_id = g.id
+    db.commit()
+
+    background_tasks.add_task(
+        _send_added_to_group_emails,
+        [(u.email, u.name or u.email) for u in users],
+        g.name,
+        current_user.name or current_user.email,
+    )
+
+    return {
+        "status": "success",
+        "added_count": len(users),
+        "missing_ids": missing_ids
+    }
+
+
+@router.get("/groups/{group_id}")
+def get_group_detail(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.group import Group
+    from sqlalchemy import not_, or_
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    members = db.query(User).filter(
+        User.group_id == g.id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+            User.name.ilike('%sysadmin%'),
+            User.name.ilike('%sys admin%'),
+            User.email.ilike('%sysadmin%'),
+        ))
+    ).all()
+
+    return {
+        "id": f"grp-{g.id}",
+        "db_id": g.id,
+        "name": g.name,
+        "description": g.description or "",
+        "maxSize": g.max_size or 40,
+        "createdDate": g.created_at.strftime("%Y-%m-%d") if getattr(g, 'created_at', None) else "-",
+        "members": [
+            {
+                "id": u.id,
+                "fullName": u.name or u.email.split("@")[0],
+                "email": u.email,
+                "rollNumber": u.roll_number or f"22BCS{u.id:03d}",
+                "department": u.department or ("Cyber Security" if u.id % 2 == 0 else "Computer Science"),
+                "year": _format_year_display(u.year, u.id),
+            }
+            for u in members
+        ]
+    }
+
+
+@router.get("/reports/lab-assignments")
+def get_lab_assignment_reports(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Lists each group's most recent lab assignment, for the unified Reports page."""
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.assignment import Assignment
+    from app.models.user_lab_progress import UserLabProgress
+    from app.models.lab_module import LabModule
+    from app.core.timezone_utils import now_ist
+    from sqlalchemy import not_, or_
+
+    org_id = get_admin_org_id(current_user, db)
+    groups = db.query(Group).filter((Group.organization_id == org_id) | (Group.organization_id.is_(None))).all()
+
+    now = now_ist()
+    result = []
+    for g in groups:
+        assignment = (
+            db.query(Assignment)
+            .filter(Assignment.group_id == g.id, Assignment.deleted_at.is_(None))
+            .order_by(Assignment.created_at.desc())
+            .first()
+        )
+        if not assignment:
+            continue
+
+        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+        total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+
+        members = db.query(User).filter(
+            User.group_id == g.id,
+            not_(or_(
+                User.role.ilike('%sysadmin%'),
+                User.role.ilike('%system_admin%'),
+            ))
+        ).all()
+
+        participated = 0
+        total_score = 0
+        for m in members:
+            progress_rows = db.query(UserLabProgress).filter(
+                UserLabProgress.assignment_id == assignment.id,
+                UserLabProgress.user_id == m.id,
+            ).all()
+            if progress_rows:
+                participated += 1
+            total_score += sum(r.score or 0 for r in progress_rows)
+
+        avg_score = round(total_score / len(members), 1) if members else 0
+
+        if now < assignment.start_datetime:
+            status = "Scheduled"
+        elif now > assignment.end_datetime:
+            status = "Completed"
+        else:
+            status = "Running"
+
+        result.append({
+            "group_id": g.id,
+            "group_name": g.name,
+            "lab_name": lab.name if lab else assignment.lab_id,
+            "assigned_date": assignment.start_datetime.strftime("%Y-%m-%d %H:%M") if assignment.start_datetime else "",
+            "end_date": assignment.end_datetime.strftime("%Y-%m-%d %H:%M") if assignment.end_datetime else "",
+            "total_students": len(members),
+            "participated": participated,
+            "total_modules": total_modules,
+            "avg_score": avg_score,
+            "status": status,
+        })
+
+    result.sort(key=lambda r: r["assigned_date"], reverse=True)
+    return result
+
+
+class AssignLabToGroupRequest(BaseModel):
+    purchased_lab_id: int
+    start_datetime: str  # ISO 8601, naive IST wall-clock (matches Assignment convention)
+    hours_per_student: float = 1.0
+
+
+@router.get("/purchased-labs/available")
+def get_available_purchased_labs_for_assignment(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Purchased labs with remaining hours, for the Assign Lab picker."""
+    org_id = get_admin_org_id(current_user, db)
+    purchased = db.query(PurchasedLab).filter(
+        or_(
+            PurchasedLab.organization_id == org_id,
+            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+        )
+    ).all()
+    if not purchased:
+        purchased = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).all()
+
+    return [
+        {
+            "id": p.id,
+            "lab_id": p.lab_id,
+            "lab_title": p.lab_title,
+            "hours_remaining": p.hours_remaining or 0,
+            "status": p.status,
+        }
+        for p in purchased
+        if p.status == "ACTIVE" and (p.hours_remaining or 0) > 0
+    ]
+
+
+def _send_lab_assigned_emails(emails: list, lab_name: str, date_str: str, time_str: str, duration: str):
+    """Runs after the response is sent — must not block the assign-lab request,
+    since each SES call is a real (and here, currently failing) network round trip."""
+    from app.services.ses_service import ses_service
+    for email in emails:
+        try:
+            ses_service.send_lab_assigned_email(
+                email=email,
+                lab_name=lab_name,
+                date=date_str,
+                time=time_str,
+                duration=duration,
+            )
+        except Exception as mail_err:
+            logger.error(f"Lab assigned email failed for {email}: {mail_err}")
+
+
+@router.post("/groups/{group_id}/assign-lab")
+def assign_lab_to_group(
+    group_id: int,
+    data: AssignLabToGroupRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.assignment import Assignment
+    from app.models.notification import Notification
+    from datetime import timedelta
+    from sqlalchemy import not_, or_
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    purchased_lab = db.query(PurchasedLab).filter(PurchasedLab.id == data.purchased_lab_id).first()
+    if not purchased_lab:
+        raise HTTPException(status_code=404, detail="Purchased lab not found")
+
+    lab = db.query(Lab).filter(Lab.id == purchased_lab.lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Lab definition not found for this purchase")
+
+    member_count = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+        ))
+    ).count()
+
+    if member_count == 0:
+        raise HTTPException(status_code=400, detail="This group has no students to assign a lab to.")
+
+    total_hours = member_count * data.hours_per_student
+    hours_remaining = purchased_lab.hours_remaining or 0
+
+    if total_hours > hours_remaining:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough hours remaining. Need {total_hours:.1f}h for {member_count} students, but only {hours_remaining:.1f}h remain on this purchase."
+        )
+
+    try:
+        start_dt = datetime.fromisoformat(data.start_datetime)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid start_datetime format.")
+
+    end_dt = start_dt + timedelta(hours=data.hours_per_student)
+
+    assignment = Assignment(
+        lab_id=lab.id,
+        group_id=g.id,
+        student_id=None,
+        start_datetime=start_dt,
+        end_datetime=end_dt,
+        status="Scheduled",
+        assigned_by=current_user.name or current_user.email,
+    )
+    db.add(assignment)
+
+    purchased_lab.hours_used = (purchased_lab.hours_used or 0) + total_hours
+    purchased_lab.hours_remaining = hours_remaining - total_hours
+
+    db.commit()
+    db.refresh(assignment)
+
+    # Notify every verified group member in-app
+    members = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+        ))
+    ).all()
+    for m in members:
+        db.add(Notification(
+            user_id=m.id,
+            title="New lab scheduled",
+            message=f"'{lab.name}' has been scheduled for your group '{g.name}', starting {start_dt.strftime('%Y-%m-%d %H:%M')}.",
+            type="LAB_ASSIGNED",
+            priority="HIGH",
+        ))
+    db.commit()
+
+    background_tasks.add_task(
+        _send_lab_assigned_emails,
+        [m.email for m in members],
+        lab.name,
+        start_dt.strftime('%Y-%m-%d'),
+        start_dt.strftime('%H:%M'),
+        f"{data.hours_per_student}h",
+    )
+
+    return {
+        "status": "success",
+        "assignment_id": assignment.id,
+        "lab_name": lab.name,
+        "start_datetime": start_dt.isoformat(),
+        "end_datetime": end_dt.isoformat(),
+        "total_hours_deducted": total_hours,
+        "hours_remaining": purchased_lab.hours_remaining,
+        "students_notified": len(members),
+    }
+
+
+@router.get("/groups/{group_id}/lab-status")
+def get_group_lab_status(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.assignment import Assignment
+    from app.models.user_lab_progress import UserLabProgress
+    from app.core.timezone_utils import now_ist
+    from sqlalchemy import not_, or_
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    assignment = (
+        db.query(Assignment)
+        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
+        .order_by(Assignment.created_at.desc())
+        .first()
+    )
+    if not assignment:
+        return {"assigned": False}
+
+    lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+    total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+
+    members = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+        ))
+    ).all()
+
+    not_started = 0
+    in_progress = 0
+    completed = 0
+    leaderboard = []
+    students = []
+
+    for m in members:
+        progress_rows = db.query(UserLabProgress).filter(
+            UserLabProgress.assignment_id == assignment.id,
+            UserLabProgress.user_id == m.id,
+        ).all()
+
+        total_score = sum(r.score or 0 for r in progress_rows)
+        completed_count = sum(1 for r in progress_rows if r.status == "COMPLETED" or r.completed_at is not None)
+        time_taken_seconds = sum(r.time_taken_seconds or 0 for r in progress_rows)
+
+        if not progress_rows:
+            not_started += 1
+            student_status = "not_started"
+        elif total_modules > 0 and completed_count >= total_modules:
+            completed += 1
+            student_status = "completed"
+        else:
+            in_progress += 1
+            student_status = "in_progress"
+
+        leaderboard.append({
+            "user_id": m.id,
+            "name": m.name or m.email.split("@")[0],
+            "score": total_score,
+        })
+
+        students.append({
+            "user_id": m.id,
+            "name": m.name or m.email.split("@")[0],
+            "modules_completed": completed_count,
+            "total_modules": total_modules,
+            "score": total_score,
+            "time_taken_seconds": time_taken_seconds,
+            "status": student_status,
+        })
+
+    leaderboard.sort(key=lambda x: x["score"], reverse=True)
+
+    now = now_ist()
+    seconds_until_start = (assignment.start_datetime - now).total_seconds()
+
+    return {
+        "assigned": True,
+        "assignment_id": assignment.id,
+        "lab_id": assignment.lab_id,
+        "lab_name": lab.name if lab else assignment.lab_id,
+        "start_datetime": assignment.start_datetime.isoformat(),
+        "end_datetime": assignment.end_datetime.isoformat(),
+        "status": assignment.status,
+        "seconds_until_start": seconds_until_start,
+        "total_students": len(members),
+        "total_modules": total_modules,
+        "not_started": not_started,
+        "in_progress": in_progress,
+        "completed": completed,
+        "leaderboard": leaderboard[:3],
+        "students": students,
+    }
+
+
+@router.get("/groups/{group_id}/lab-report/export")
+def export_group_lab_report(
+    group_id: int,
+    format: str = "csv",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Exports the group's most recent lab assignment report as CSV or PDF."""
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.assignment import Assignment
+    from app.models.user_lab_progress import UserLabProgress
+    from sqlalchemy import not_, or_
+    import io
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    assignment = (
+        db.query(Assignment)
+        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
+        .order_by(Assignment.created_at.desc())
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="No lab assignment found for this group")
+
+    lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+    total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+
+    members = db.query(User).filter(
+        User.group_id == group_id,
+        not_(or_(
+            User.role.ilike('%sysadmin%'),
+            User.role.ilike('%system_admin%'),
+        ))
+    ).all()
+
+    rows = []
+    for m in members:
+        progress_rows = db.query(UserLabProgress).filter(
+            UserLabProgress.assignment_id == assignment.id,
+            UserLabProgress.user_id == m.id,
+        ).all()
+        score = sum(r.score or 0 for r in progress_rows)
+        completed_count = sum(1 for r in progress_rows if r.status == "COMPLETED" or r.completed_at is not None)
+        time_seconds = sum(r.time_taken_seconds or 0 for r in progress_rows)
+        attempts = sum(r.attempts or 0 for r in progress_rows)
+        rows.append({
+            "name": m.name or m.email.split("@")[0],
+            "email": m.email,
+            "modules_completed": completed_count,
+            "total_modules": total_modules,
+            "score": score,
+            "attempts": attempts,
+            "time_taken_seconds": time_seconds,
+        })
+
+    lab_name = lab.name if lab else assignment.lab_id
+    filename_base = f"{g.name}_{lab_name}_report".replace(" ", "_")
+
+    if format == "pdf":
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=letter)
+        styles = getSampleStyleSheet()
+        elements = [
+            Paragraph(f"Lab Report: {lab_name}", styles["Title"]),
+            Paragraph(f"Group: {g.name}", styles["Normal"]),
+            Paragraph(f"Assignment window: {assignment.start_datetime} to {assignment.end_datetime}", styles["Normal"]),
+            Spacer(1, 16),
+        ]
+        table_data = [["Name", "Email", "Modules", "Score", "Attempts", "Time (min)"]]
+        for r in rows:
+            table_data.append([
+                r["name"], r["email"],
+                f'{r["modules_completed"]}/{r["total_modules"]}',
+                str(r["score"]), str(r["attempts"]),
+                str(round(r["time_taken_seconds"] / 60, 1)),
+            ])
+        table = Table(table_data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0052CC")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
+        ]))
+        elements.append(table)
+        doc.build(elements)
+        buf.seek(0)
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename_base}.pdf"}
+        )
+
+    # Default: CSV
+    output = io.StringIO()
+    output.write("Name,Email,Modules Completed,Total Modules,Score,Attempts,Time Taken (min)\n")
+    for r in rows:
+        output.write(
+            f'"{r["name"]}","{r["email"]}",{r["modules_completed"]},{r["total_modules"]},'
+            f'{r["score"]},{r["attempts"]},{round(r["time_taken_seconds"] / 60, 1)}\n'
+        )
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename_base}.csv"}
+    )
+
+
+@router.get("/groups/{group_id}/students/{user_id}/report")
+def get_student_lab_report(
+    group_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Per-student detailed lab performance report for a group's active/last assignment."""
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.assignment import Assignment
+    from app.models.user_lab_progress import UserLabProgress
+
+    g = db.query(Group).filter(Group.id == group_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    student = db.query(User).filter(User.id == user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    assignment = (
+        db.query(Assignment)
+        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
+        .order_by(Assignment.created_at.desc())
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="No lab assignment found for this group")
+
+    lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+    modules = (
+        db.query(LabModule)
+        .filter(LabModule.lab_id == assignment.lab_id)
+        .order_by(LabModule.display_order)
+        .all()
+    )
+
+    progress_rows = db.query(UserLabProgress).filter(
+        UserLabProgress.assignment_id == assignment.id,
+        UserLabProgress.user_id == user_id,
+    ).all()
+    progress_by_module = {r.module_id: r for r in progress_rows}
+
+    module_breakdown = []
+    for mod in modules:
+        r = progress_by_module.get(mod.id)
+        module_breakdown.append({
+            "module_id": mod.id,
+            "title": mod.title,
+            "track": mod.track,
+            "max_points": mod.points,
+            "score": (r.score if r else 0) or 0,
+            "attempts": (r.attempts if r else 0) or 0,
+            "time_taken_seconds": (r.time_taken_seconds if r else 0) or 0,
+            "status": (r.status if r else "NOT_STARTED"),
+            "flag_correct": bool(r.flag_correct) if r else False,
+        })
+
+    total_score = sum(m["score"] for m in module_breakdown)
+    total_time_seconds = sum(m["time_taken_seconds"] for m in module_breakdown)
+    total_attempts = sum(m["attempts"] for m in module_breakdown)
+    completed_count = sum(1 for m in module_breakdown if m["status"] == "COMPLETED")
+
+    # Spiderweb/radar: group modules by track, normalize avg score % per track
+    track_scores: dict = {}
+    for m in module_breakdown:
+        track = m["track"] or "general"
+        pct = (m["score"] / m["max_points"] * 100) if m["max_points"] else 0
+        track_scores.setdefault(track, []).append(pct)
+    radar_labels = list(track_scores.keys()) or ["General"]
+    radar_values = [round(sum(v) / len(v)) if v else 0 for v in track_scores.values()] or [0]
+
+    return {
+        "student": {
+            "id": student.id,
+            "name": student.name or student.email.split("@")[0],
+            "email": student.email,
+            "department": student.department or "",
+            "year": _format_year_display(student.year, student.id),
+            "roll_number": student.roll_number or "",
+        },
+        "lab_name": lab.name if lab else assignment.lab_id,
+        "assignment_id": assignment.id,
+        "total_modules": len(modules),
+        "modules_completed": completed_count,
+        "total_score": total_score,
+        "total_time_seconds": total_time_seconds,
+        "total_attempts": total_attempts,
+        "modules": module_breakdown,
+        "radar_labels": radar_labels,
+        "radar_values": radar_values,
+    }
 
 # ==========================================
 # LAB ALLOCATIONS ENDPOINTS (PostgreSQL DB)
@@ -2473,8 +3159,20 @@ def sanitize_csv_formula(val: str) -> str:
     return val_str
 
 
+def _send_welcome_emails(created_users: list, admin_name: str):
+    """Runs after the response is sent — a synchronous loop here would block
+    the whole bulk-import request on one SES network round trip per student."""
+    from app.services.ses_service import ses_service
+    for email, pwd in created_users:
+        try:
+            ses_service.send_welcome_email(email, pwd, admin_name)
+        except Exception as mail_err:
+            logger.error(f"Welcome email failed for {email}: {mail_err}")
+
+
 @router.post("/users/import")
 async def bulk_import_users(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     request: Request = None,
     current_user: User = Depends(get_current_admin_user),
@@ -2593,13 +3291,8 @@ async def bulk_import_users(
 
         db.commit()
 
-        # Send welcome emails after successful commit
-        from app.services.ses_service import ses_service
-        for email, pwd in created_users:
-            try:
-                ses_service.send_welcome_email(email, pwd, current_user.name or current_user.email)
-            except Exception as mail_err:
-                logger.error(f"Welcome email failed for {email}: {mail_err}")
+        # Send welcome emails after the response is sent (non-blocking)
+        background_tasks.add_task(_send_welcome_emails, created_users, current_user.name or current_user.email)
 
     except Exception as exc:
         db.rollback()

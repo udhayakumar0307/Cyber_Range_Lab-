@@ -13,12 +13,12 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   onClose,
   onImportUsers,
 }) => {
-  if (!isOpen) return null;
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [importSummary, setImportSummary] = useState<any>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

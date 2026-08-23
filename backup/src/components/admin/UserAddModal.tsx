@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { PlatformUser, UserRole, AccountStatus } from '../../types/admin';
+import type { PlatformUser } from '../../types/admin';
 import { X, UserPlus, Save } from 'lucide-react';
 
 interface UserAddModalProps {
@@ -15,45 +15,21 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
   onClose,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const isEditMode = !!userToEdit;
 
   const [fullName, setFullName] = useState(userToEdit?.fullName || '');
   const [email, setEmail] = useState(userToEdit?.email || '');
-  const [role, setRole] = useState<UserRole>(userToEdit?.role || 'User');
-  const [groupName, setGroupName] = useState(userToEdit?.groupName || 'Unassigned');
-  const [status, setStatus] = useState<AccountStatus>(userToEdit?.status || 'Active');
   const [year, setYear] = useState<string>(userToEdit?.year || 'III Year');
   const [department, setDepartment] = useState<string>(userToEdit?.department || 'Cyber Security');
   const [rollNumber, setRollNumber] = useState<string>(userToEdit?.rollNumber || '');
-  const [groupsList, setGroupsList] = useState<any[]>([]);
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ fullName?: string; email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
 
-  React.useEffect(() => {
-    const fetchGroups = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) setGroupsList(data);
-        }
-      } catch (err) {
-        console.error('Error fetching groups in modal:', err);
-      }
-    };
-    fetchGroups();
-  }, []);
+  if (!isOpen) return null;
 
   const validate = () => {
-    const errs: { fullName?: string; email?: string; password?: string } = {};
+    const errs: { fullName?: string; email?: string } = {};
     if (!fullName.trim()) errs.fullName = 'Full name is required.';
     if (!email.trim() || !email.includes('@')) errs.email = 'Valid email is required.';
-    if (!isEditMode && password && password.length < 6) {
-      errs.password = 'Password must be at least 6 characters.';
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -62,19 +38,15 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
     e.preventDefault();
     if (!validate()) return;
 
-    const selectedGroupObj = groupsList.find(g => g.name === groupName);
-    const selectedGroupId = selectedGroupObj ? (selectedGroupObj.db_id || Number(String(selectedGroupObj.id).replace('grp-', ''))) : null;
-
     onSave({
       id: userToEdit?.id || `usr-${Date.now()}`,
       db_id: userToEdit?.db_id || userToEdit?.id,
       fullName,
       email,
-      role,
-      groupName,
-      groupId: selectedGroupId ? `grp-${selectedGroupId}` : undefined,
-      status,
-      password: password || 'CyberRange#2026!',
+      role: userToEdit?.role || 'User',
+      groupName: userToEdit?.groupName || 'Unassigned',
+      groupId: userToEdit?.groupId,
+      status: userToEdit?.status || 'Active',
       year,
       department,
       rollNumber,
@@ -98,9 +70,9 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
-                {isEditMode ? 'Edit User Credentials' : 'Add New Platform User'}
+                {isEditMode ? 'Edit Student Details' : 'Add New Student'}
               </h2>
-              <p className="text-xs text-slate-500">Assign academic details, role permissions, and group</p>
+              <p className="text-xs text-slate-500">Basic academic details for this student</p>
             </div>
           </div>
 
@@ -117,30 +89,26 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
           {/* Full Name */}
           <div>
             <label className="font-bold text-slate-700 block mb-1">Full Name</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Sarah Connor"
-                className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-              />
-            </div>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Sarah Connor"
+              className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+            />
             {errors.fullName && <p className="text-rose-500 mt-1">{errors.fullName}</p>}
           </div>
 
           {/* Email Address */}
           <div>
             <label className="font-bold text-slate-700 block mb-1">Email Address</label>
-            <div className="relative">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. sarah@cyberrange.io"
-                className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-              />
-            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. sarah@cyberrange.io"
+              className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+            />
             {errors.email && <p className="text-rose-500 mt-1">{errors.email}</p>}
           </div>
 
@@ -192,65 +160,10 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
           </div>
 
           {!isEditMode && (
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Account Password (Optional)</label>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Leave empty for default password (CyberRange#2026!)"
-                  className="w-full pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
-                />
-              </div>
-              {errors.password && <p className="text-rose-500 mt-1">{errors.password}</p>}
-            </div>
+            <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+              A default password will be generated automatically and can be reset later from the student's profile.
+            </p>
           )}
-
-          {/* Role & Status Row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Platform Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
-              >
-                <option value="User">Regular User</option>
-                <option value="Admin">Administrator</option>
-                <option value="CIA">CIA (Cyber Infrastructure Administrator)</option>
-                <option value="Instructor">Instructor</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Account Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as AccountStatus)}
-                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Pending">Pending Invite</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Training Group Selection */}
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Assign Training Group</label>
-            <select
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none"
-            >
-              <option value="Unassigned">Unassigned</option>
-              {groupsList.map((g) => (
-                <option key={g.id || g.name} value={g.name}>{g.name}</option>
-              ))}
-            </select>
-          </div>
 
           {/* Form Actions */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
@@ -266,7 +179,7 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
               className="px-5 py-2 rounded-xl bg-[#0052CC] hover:bg-blue-700 text-white font-bold transition-colors shadow-xs inline-flex items-center gap-1.5"
             >
               <Save className="w-4 h-4" />
-              {isEditMode ? 'Update Account' : 'Create User'}
+              {isEditMode ? 'Update Student' : 'Create Student'}
             </button>
           </div>
         </form>

@@ -43,6 +43,8 @@ const LabPurchaseConfirmation = lazy(() => import('./pages/admin/LabPurchaseConf
 const UserManagement       = lazy(() => import('./pages/admin/UserManagement').then(m => ({ default: m.UserManagement })));
 const StudentDetailsPage   = lazy(() => import('./pages/admin/StudentDetailsPage').then(m => ({ default: m.StudentDetailsPage })));
 const GroupManagement      = lazy(() => import('./pages/admin/GroupManagement').then(m => ({ default: m.GroupManagement })));
+const GroupDetailPage      = lazy(() => import('./pages/admin/GroupDetailPage').then(m => ({ default: m.GroupDetailPage })));
+const StudentLabReportPage = lazy(() => import('./pages/admin/StudentLabReportPage').then(m => ({ default: m.StudentLabReportPage })));
 const LabAllocation        = lazy(() => import('./pages/admin/LabAllocation').then(m => ({ default: m.LabAllocation })));
 const LabControlPanel      = lazy(() => import('./pages/admin/LabControlPanel').then(m => ({ default: m.LabControlPanel })));
 const MonitoringAnalytics  = lazy(() => import('./pages/admin/MonitoringAnalytics').then(m => ({ default: m.MonitoringAnalytics })));
@@ -59,6 +61,7 @@ const AdminProfilePage     = lazy(() => import('./pages/admin/AdminProfilePage')
 const PaymentHistoryPage   = lazy(() => import('./pages/admin/PaymentHistoryPage').then(m => ({ default: m.PaymentHistoryPage })));
 const PurchasedLabsPage    = lazy(() => import('./pages/admin/PurchasedLabsPage').then(m => ({ default: m.PurchasedLabsPage })));
 const ReportsPage          = lazy(() => import('./pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const ReportGroupDetailPage = lazy(() => import('./pages/admin/ReportGroupDetailPage').then(m => ({ default: m.ReportGroupDetailPage })));
 const GradebookPage        = lazy(() => import('./pages/admin/GradebookPage').then(m => ({ default: m.GradebookPage })));
 
 // ─── User Chunk ───────────────────────────────────────────────────────────────
@@ -620,6 +623,26 @@ export function App() {
                 }
               />
               <Route
+                path="/admin/groups/:groupId"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><GroupDetailPage /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/groups/:groupId/students/:userId/report"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><StudentLabReportPage /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/allocations"
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
@@ -675,6 +698,16 @@ export function App() {
                   <ProtectedRoute allowedRoles={['admin']}>
                     <ErrorBoundary>
                       <AdminLayout><ReportsPage /></AdminLayout>
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/reports/groups/:groupId"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ErrorBoundary>
+                      <AdminLayout><ReportGroupDetailPage /></AdminLayout>
                     </ErrorBoundary>
                   </ProtectedRoute>
                 }

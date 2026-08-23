@@ -1141,16 +1141,21 @@ def get_user_assignments(
         else:
             derived_status = "Scheduled"
 
+        total_hours = None
+        if assoc.start_datetime and assoc.end_datetime:
+            total_hours = round((assoc.end_datetime - assoc.start_datetime).total_seconds() / 3600, 1)
+
         res.append({
             "id": assoc.id,
             "lab_id": lab.id,
             "lab_name": lab.name,
             "difficulty": getattr(lab, "difficulty", "Intermediate"),
             "estimated_time": getattr(lab, "estimated_time", "2 Hours"),
-            "assigned_by": assoc.assigned_by or "Dr. Ravi",
+            "assigned_by": assoc.assigned_by or "Admin",
             "group_name": group_name or "Individual",
             "start_datetime": assoc.start_datetime.isoformat() if assoc.start_datetime else None,
             "end_datetime": assoc.end_datetime.isoformat() if assoc.end_datetime else None,
+            "total_hours": total_hours,
             "status": derived_status,
             "remaining_minutes": remaining_minutes,
             "progress_percent": progress_percent

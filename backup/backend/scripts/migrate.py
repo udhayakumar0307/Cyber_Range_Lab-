@@ -153,6 +153,14 @@ def run_sqlite_column_migrations(engine):
 
         # groups
         add_col_if_missing("groups", "organization_id", "VARCHAR(100) NULL")
+        add_col_if_missing("groups", "max_size", "INTEGER DEFAULT 40")
+        add_col_if_missing("groups", "created_at", "TIMESTAMP NULL")
+
+        # user_lab_progress
+        add_col_if_missing("user_lab_progress", "assignment_id", "INTEGER NULL")
+
+        # user_progress
+        add_col_if_missing("user_progress", "assignment_id", "INTEGER NULL")
 
         # purchased_labs
         add_col_if_missing("purchased_labs", "hours_purchased", "INTEGER DEFAULT 0")

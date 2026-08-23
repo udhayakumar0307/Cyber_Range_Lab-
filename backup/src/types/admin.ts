@@ -91,7 +91,22 @@ export interface UserGroup {
   name: string;
   description: string;
   memberCount: number;
+  maxSize?: number;
   createdDate: string;
+  assignedLabsCount?: number;
+}
+
+export interface GroupMember {
+  id: number;
+  fullName: string;
+  email: string;
+  rollNumber: string;
+  department: string;
+  year: string;
+}
+
+export interface GroupDetail extends UserGroup {
+  members: GroupMember[];
 }
 
 export interface PlatformUser {
