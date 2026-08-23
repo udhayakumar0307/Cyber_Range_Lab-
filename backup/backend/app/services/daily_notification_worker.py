@@ -93,19 +93,41 @@ async def daily_notification_loop() -> None:
 
 
 async def check_assignment_reminders() -> None:
+    """Sends a one-time 'starting in 15 minutes' email + in-app notification for
+    every assignment whose start_datetime falls within the next 15 minutes."""
     from app.models.assignment import Assignment
     from app.models.notification import Notification
     from app.models.user import User
+    from app.models.lab import Lab
     from app.services.ses_service import ses_service
+    from app.core.assignment_time import utc_now_naive, format_utc_for_zone
     from sqlalchemy import not_, or_, func
 
     db = db_manager.get_session()
     try:
-        from app.core.timezone_utils import now_ist
-        now = now_ist()
+        now = utc_now_naive()
+        window_end = now + timedelta(minutes=15)
+        recently_reminded_cutoff = now - timedelta(hours=2)
+
         active_assigns = db.query(Assignment).filter(
-            or_(Assignment.status != "Completed", Assignment.status.is_(None))
+            or_(Assignment.status != "Completed", Assignment.status.is_(None)),
+            Assignment.deleted_at.is_(None),
+            Assignment.start_datetime > now,
+            Assignment.start_datetime <= window_end,
         ).all()
+
+        if not active_assigns:
+            return
+
+        already_reminded = db.query(Notification).filter(
+            Notification.type == "LAB_STARTING_SOON",
+            Notification.created_at >= recently_reminded_cutoff,
+        ).all()
+        reminded_pairs = {
+            (n.user_id, n.meta_data.get("assignment_id"))
+            for n in already_reminded
+            if isinstance(n.meta_data, dict)
+        }
 
         for a in active_assigns:
             users = []
@@ -120,11 +142,33 @@ async def check_assignment_reminders() -> None:
                 if u:
                     users = [u]
 
-            for user in users:
-                # Starting notifications and 15m reminders removed per user request.
-                # Only direct notification on creation is sent.
-                pass
+            if not users:
+                continue
 
+            lab = db.query(Lab).filter(Lab.id == a.lab_id).first()
+            lab_name = lab.name if lab else a.lab_id
+            date_str, time_str, _ = format_utc_for_zone(a.start_datetime, "Asia/Kolkata")
+            duration_hours = round((a.end_datetime - a.start_datetime).total_seconds() / 3600, 1)
+
+            for user in users:
+                if (user.id, a.id) in reminded_pairs:
+                    continue
+                db.add(Notification(
+                    user_id=user.id,
+                    title="Lab starting soon",
+                    message=f"'{lab_name}' starts in 15 minutes.",
+                    type="LAB_STARTING_SOON",
+                    priority="HIGH",
+                    meta_data={"assignment_id": a.id},
+                ))
+                try:
+                    ses_service.send_lab_reminder_email(
+                        user.email, lab_name, date_str, time_str, f"{duration_hours}h"
+                    )
+                except Exception as mail_err:
+                    logger.error(f"Lab reminder email failed for {user.email}: {mail_err}")
+
+        db.commit()
     except Exception:
         db.rollback()
         logger.exception("check_assignment_reminders failed")

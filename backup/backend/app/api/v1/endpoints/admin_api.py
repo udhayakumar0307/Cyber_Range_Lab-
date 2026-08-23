@@ -1604,7 +1604,10 @@ def get_available_purchased_labs_for_assignment(
     ]
 
 
-def _send_lab_assigned_emails(emails: list, lab_name: str, date_str: str, time_str: str, duration: str):
+def _send_lab_assigned_emails(
+    emails: list, lab_name: str, date_str: str, time_str: str, duration: str,
+    professor_name: str = None, organization_name: str = None, department: str = None,
+):
     """Runs after the response is sent — must not block the assign-lab request,
     since each SES call is a real (and here, currently failing) network round trip."""
     from app.services.ses_service import ses_service
@@ -1616,6 +1619,9 @@ def _send_lab_assigned_emails(emails: list, lab_name: str, date_str: str, time_s
                 date=date_str,
                 time=time_str,
                 duration=duration,
+                professor_name=professor_name,
+                organization_name=organization_name,
+                department=department,
             )
         except Exception as mail_err:
             logger.error(f"Lab assigned email failed for {email}: {mail_err}")
@@ -1721,6 +1727,9 @@ def assign_lab_to_group(
         display_date,
         display_time,
         f"{data.hours_per_student}h",
+        current_user.name or current_user.email,
+        current_user.organization,
+        current_user.department,
     )
 
     return {

@@ -457,15 +457,37 @@ class SESService:
         except Exception as e:
             logger.error(f"Failed to send welcome email: {e}")
 
-    def send_lab_assigned_email(self, email: str, lab_name: str, date: str, time: str, duration: str):
+    def send_lab_assigned_email(
+        self, email: str, lab_name: str, date: str, time: str, duration: str,
+        professor_name: str = None, organization_name: str = None, department: str = None,
+    ):
         """
         Sends lab assigned email.
         """
+        assigned_by_line = ""
+        if professor_name:
+            assigned_by_line = f"<p>Assigned by <strong>{professor_name}</strong>"
+            if department:
+                assigned_by_line += f", {department}"
+            if organization_name:
+                assigned_by_line += f" &mdash; {organization_name}"
+            assigned_by_line += ".</p>"
+
+        assigned_by_text = ""
+        if professor_name:
+            parts = [professor_name]
+            if department:
+                parts.append(department)
+            if organization_name:
+                parts.append(organization_name)
+            assigned_by_text = f"Assigned by: {', '.join(parts)}\n"
+
         html_body = f"""<!DOCTYPE html>
 <html>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; color: #333;">
     <h2>New Lab Assigned: {lab_name}</h2>
     <p>A new lab assessment has been assigned to you.</p>
+    {assigned_by_line}
     <ul>
         <li><strong>Lab:</strong> {lab_name}</li>
         <li><strong>Date:</strong> {date}</li>
@@ -476,7 +498,7 @@ class SESService:
 </body>
 </html>
 """
-        text_body = f"New Lab Assigned: {lab_name}\nDate: {date}\nTime: {time}\nDuration: {duration}"
+        text_body = f"New Lab Assigned: {lab_name}\n{assigned_by_text}Date: {date}\nTime: {time}\nDuration: {duration}"
         try:
             if not self.is_enabled or not self.client:
                 logger.warning(f"[SES Sandbox Mode Bypass] Lab Assigned email bypass to {email}.")
