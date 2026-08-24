@@ -282,6 +282,15 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  lab_modules: column migrations applied")
 
+        if table_exists("labs"):
+            conn.execute(text("""
+                UPDATE labs
+                SET difficulty = 'Intermediate',
+                    description = 'You are a junior security engineer at TechCorp. Protect a customer backup with AES-256-GCM, catch a tampered release with SHA-256, harden password storage, generate an RSA keypair, verify a digital signature, perform a Diffie-Hellman key exchange, and close out a real cryptographic incident across 7 hands-on modules.'
+                WHERE id = 'cryptography-lab';
+            """))
+            logger.info("  labs: cryptography-lab bumped to Intermediate difficulty")
+
         if table_exists("organizations"):
             conn.execute(text("""
                 ALTER TABLE organizations
