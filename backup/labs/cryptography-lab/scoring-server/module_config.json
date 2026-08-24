@@ -2,164 +2,262 @@
   "tracks": {
     "crypto": {
       "title": "Cryptography Track",
-      "subtitle": "Encoding, Hashes & Classical Ciphers",
-      "description": "Master data encoding, cryptographic hash algorithms, message digests, and encryption/decryption mechanisms.",
-      "difficulty": 1,
-      "total_points": 1000,
+      "subtitle": "TechCorp Security Engineer Practical Course",
+      "description": "You are a junior security engineer at TechCorp. Across 7 modules you handle one continuous incident: protect a customer backup with symmetric encryption, catch a tampered software release with hashing, harden the login database's password storage, set up RSA for a new partner integration, verify a digital signature, exchange a key with Diffie-Hellman, and close out a real cryptographic incident that combines everything.",
+      "difficulty": 2,
+      "total_points": 1125,
       "modules": {
         "module1": {
-          "title": "Cryptography Basics",
+          "title": "Symmetric Encryption",
           "difficulty": 1,
-          "points": 200,
+          "points": 150,
+          "mission": "Protect a TechCorp customer backup with AES-256-GCM",
+          "concept": "Symmetric encryption uses ONE shared secret key for both encryption and decryption. It's fast, but both parties must already have the key.",
           "objectives": [
             {
               "id": "m1_obj1",
-              "label": "Encode the word \"Cyber\" into Base64.",
+              "label": "SCENARIO: TechCorp needs to send a customer backup to a partner system over an untrusted network. As the on-call security engineer, inspect the plaintext before protecting it.\n\ncustomer_data.txt contents:\n\"TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified\"\n\nCONCEPT: Symmetric encryption uses ONE secret key for both encryption and decryption \u2014 fast, but both sides must already share that key.\n\nTASK: How many customer records does this backup report? Submit just the number.",
+              "cmd": "cat customer_data.txt",
               "type": "input_match"
             },
             {
               "id": "m1_obj2",
-              "label": "Decode the following Base64 string:\nQ3liZXJSYW5nZQ==",
+              "label": "CONCEPT: AES-256 uses a 256-bit key. In hex, each byte is 2 characters, so a 256-bit (32-byte) key is 64 hex characters long.\n\nTASK: Generate a real AES-256 key with OpenSSL, then submit how many hex characters it contains (this confirms you understand the key size \u2014 not the random value itself, since every engineer's generated key will differ).",
+              "cmd": "openssl rand -hex 32 | tr -d '\\r\\n' | wc -c",
               "type": "input_match"
             },
             {
               "id": "m1_obj3",
-              "label": "Encode the word \"Hello\" into Hex.",
+              "label": "TASK: TechCorp already shares a secret key with this specific partner system (key=6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f, nonce=a1b2c3d4e5f6a7b8c9d0e1f2). Encrypt customer_data.txt with AES-256-GCM using that exact key and nonce. Submit the resulting ciphertext as lowercase hex (authentication tag excluded).",
+              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')\nnonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')\npt = open('customer_data.txt','rb').read()\nct = AESGCM(key).encrypt(nonce, pt, None)\nprint(ct[:-16].hex())\"",
               "type": "input_match"
             },
             {
               "id": "m1_obj4",
-              "label": "Decode the following Hex string and submit the output as the flag:\n57656c636f6d65",
+              "label": "Final flag \u2014 the partner system sends back this ciphertext (tag=e50423ef9eb279c198b246068bc4f60c):\n4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77\n\nTASK: Decrypt it using the same key and nonce from the previous step, recovering the original plaintext. Submit the recovered plaintext exactly.",
+              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')\nnonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')\nct = bytes.fromhex('4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77') + bytes.fromhex('e50423ef9eb279c198b246068bc4f60c')\nprint(AESGCM(key).decrypt(nonce, ct, None).decode())\"",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Base64 converts 3 bytes of binary data into 4 ASCII printable characters (ending with '=' for padding).",
-            "Hint 2: Select 'Base64 Decode' for 'SGVsbG8=' in the Decoder Panel to get 'hello', then submit FLAG{hello}."
+            "Hint 1: openssl rand -hex 32 generates a real 256-bit key \u2014 count the characters it prints.",
+            "Hint 2: AES-256-GCM needs a key, a nonce, and the plaintext; the Python cryptography library's AESGCM class handles the authentication tag automatically."
           ]
         },
         "module2": {
-          "title": "Hash Basics",
-          "difficulty": 1,
-          "points": 200,
+          "title": "Hash Functions & Integrity",
+          "difficulty": 2,
+          "points": 150,
+          "mission": "Verify software_update.bin wasn't tampered with",
+          "concept": "A hash function is one-way and produces a fixed-length digest for any input. It's not encryption \u2014 you can't reverse a hash back into the original file.",
           "objectives": [
             {
               "id": "m2_obj1",
-              "label": "Generate the MD5 hash of:\npassword",
+              "label": "SCENARIO: TechCorp just published software_update.bin for customers to download.\n\nCONCEPT: A hash function is one-way (you can't reverse a digest back into the file) and produces a fixed-length digest no matter the input size. This is NOT encryption \u2014 there's no key and no decrypting a hash back to the file.\n\nsoftware_update.bin contents:\n\"TechCorp Update Agent v4.2.0\nbuild=20260824\nchecksum-protected release binary (simulated).\"\n\nTASK: Calculate its SHA-256 hash. This becomes the value TechCorp publishes for customers to verify against.",
+              "cmd": "sha256sum software_update.bin",
               "type": "input_match"
             },
             {
               "id": "m2_obj2",
-              "label": "Generate the SHA1 hash of:\nadmin",
+              "label": "TASK: A tampered build (\"v4.2.1\" instead of \"v4.2.0\" \u2014 one character changed) is floating around. Its content:\n\"TechCorp Update Agent v4.2.1\nbuild=20260824\nchecksum-protected release binary (simulated).\"\n\nCalculate ITS SHA-256 hash too, and compare it by eye to the one from the previous step. Submit this new hash.",
+              "cmd": "sha256sum software_update_tampered.bin",
               "type": "input_match"
             },
             {
               "id": "m2_obj3",
-              "label": "Generate the SHA256 hash of:\nsecurity",
+              "label": "TASK \u2014 integrity check: TechCorp's official site published this hash for software_update.bin:\na8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260\n\nA partner mirror is serving a copy of the file. Download it, hash it, and compare against the published value. Submit MATCH if the mirror's file is authentic, or MISMATCH if it's been tampered with.",
+              "cmd": "sha256sum update_from_mirror.bin  # compare its output to the published hash above",
               "type": "input_match"
             },
             {
               "id": "m2_obj4",
-              "label": "Which hash algorithm produces a 32-character hexadecimal output? (Submit the name, e.g. SHA256)",
+              "label": "Final flag: which single security property of SHA-256 made it computationally infeasible for the attacker to tamper with the file while keeping the SAME hash? Submit the two-word term (lowercase, e.g. 'x resistance').",
+              "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: SHA256 outputs 256 bits = 32 bytes = 64 hexadecimal characters.",
-            "Hint 2: MD5 hash '5f4dcc3b5aa765d61d8327deb882cf99' corresponds to the common password 'password'. Submit FLAG{password_found}."
+            "Hint 1: sha256sum <file> always prints a 64-character hex digest, no matter the file's size.",
+            "Hint 2: If a mirror's hash doesn't match the vendor's published hash, the file has been altered \u2014 full stop."
           ]
         },
         "module3": {
-          "title": "Hash Calculator",
-          "difficulty": 1,
-          "points": 200,
+          "title": "Password Hashing",
+          "difficulty": 2,
+          "points": 150,
+          "mission": "Harden TechCorp's login database against fast-hash attacks",
+          "concept": "SHA-256 is too fast for password storage \u2014 attackers can try billions of guesses per second. Password hashing needs to be deliberately slow (PBKDF2/bcrypt/Argon2) and salted.",
           "objectives": [
             {
               "id": "m3_obj1",
-              "label": "Generate the MD5 hash of:\nCyber",
+              "label": "SCENARIO: TechCorp's login database was found storing plain SHA-256(password) \u2014 no salt, no slowdown.\n\nCONCEPT: SHA-256 is fast by design, which is exactly wrong for passwords \u2014 attackers can hash billions of guesses per second. Password hashing needs to be deliberately SLOW (PBKDF2, bcrypt, Argon2) and use a per-user SALT so identical passwords don't produce identical hashes.\n\nTASK: What do you add to each password before hashing so two users with the same password get different stored hashes? Submit the one-word term.",
+              "cmd": "",
               "type": "input_match"
             },
             {
               "id": "m3_obj2",
-              "label": "Generate the SHA1 hash of:\nCyber",
+              "label": "TASK: TechCorp is migrating to PBKDF2-HMAC-SHA256 with salt=4f1a9c3e7b2d5f8a and 100000 iterations. Compute the password hash for the candidate password 'Summer2026!'. Submit the resulting hash as lowercase hex.",
+              "cmd": "python3 -c \"import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'Summer2026!', bytes.fromhex('4f1a9c3e7b2d5f8a'), 100000).hex())\"",
               "type": "input_match"
             },
             {
               "id": "m3_obj3",
-              "label": "Generate the SHA256 hash of:\nCyber",
-              "type": "input_match"
-            },
-            {
-              "id": "m3_obj4",
-              "label": "Generate the SHA512 hash of the following and submit the hash as the flag:\nCyberRange",
+              "label": "Final flag: an account's stored hash is:\nbbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90\n(salt=4f1a9c3e7b2d5f8a, 100000 iterations, PBKDF2-HMAC-SHA256)\n\nTASK: One of these candidate passwords is the real one: Winter2025!, TechCorp123, Summer2026!, P@ssw0rd!. Compute each candidate's hash the same way and find the match. Submit the correct password.",
+              "cmd": "python3 -c \"import hashlib; candidates = ['Winter2025!', 'TechCorp123', 'Summer2026!', 'P@ssw0rd!']; target = 'bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90'; salt = bytes.fromhex('4f1a9c3e7b2d5f8a'); [print(c) for c in candidates if hashlib.pbkdf2_hmac('sha256', c.encode(), salt, 100000).hex() == target]\"",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Select the required hashing algorithm from the dropdown in the Hash Calculator tool.",
-            "Hint 2: For Objective 4, compute SHA256 for 'CryptoMaster2026' and submit FLAG{sha256_master_2026}."
+            "Hint 1: hashlib.pbkdf2_hmac('sha256', password_bytes, salt_bytes, iterations) computes PBKDF2-HMAC-SHA256 in Python.",
+            "Hint 2: To find which candidate password is correct, hash each one with the SAME salt and iteration count and compare to the stored hash."
           ]
         },
         "module4": {
-          "title": "Encryption Basics",
-          "difficulty": 1,
-          "points": 200,
+          "title": "Asymmetric Cryptography (RSA)",
+          "difficulty": 2,
+          "points": 150,
+          "mission": "Generate TechCorp's RSA keypair for a new partner integration",
+          "concept": "Asymmetric cryptography uses a matched key PAIR: whatever the public key encrypts, only the matching private key can decrypt. The private key never has to be shared.",
           "objectives": [
             {
               "id": "m4_obj1",
-              "label": "Encode the word into Base64:\nSecurity",
+              "label": "SCENARIO: TechCorp's partner integration needs to send a secret value without ever having shared a symmetric key.\n\nCONCEPT: Asymmetric (public-key) cryptography uses a MATCHED PAIR of keys: whatever the PUBLIC key encrypts, only the PRIVATE key can decrypt \u2014 and the private key never has to leave TechCorp's server.\n\nTASK: Generate an RSA keypair: given primes p=61 and q=53, compute the modulus n = p x q. This n is shared as part of the PUBLIC key. Submit n.",
+              "cmd": "python3 -c \"print(61 * 53)\"",
               "type": "input_match"
             },
             {
               "id": "m4_obj2",
-              "label": "Encode the word into Hex:\nHash",
+              "label": "TASK: Compute phi(n) = (p-1)(q-1) for p=61, q=53. This value is needed to derive the PRIVATE key and must never be published. Submit it.",
+              "cmd": "python3 -c \"print((61-1) * (53-1))\"",
               "type": "input_match"
             },
             {
               "id": "m4_obj3",
-              "label": "Encode the word into Binary (space separated):\nKey",
+              "label": "TASK: TechCorp's public exponent is e=17. Using phi(n)=3120, compute the PRIVATE exponent d \u2014 the modular inverse of e mod phi(n), satisfying (e x d) mod phi(n) = 1. This d, kept secret on TechCorp's server, is the private key. Submit d.",
+              "cmd": "python3 -c \"print(pow(17, -1, 3120))\"",
               "type": "input_match"
             },
             {
               "id": "m4_obj4",
-              "label": "Generate the SHA256 hash of the following and submit it as the flag:\nCyber123",
+              "label": "Final flag: put TechCorp's PUBLIC key to work. Using n=3233 and e=17, encrypt the partner's secret value m=88 by computing c = m^e mod n. This is exactly what the partner does with TechCorp's public key \u2014 they never need the private key to send a message only TechCorp can read. Submit c as FLAG{{c}}.",
+              "cmd": "python3 -c \"print(pow(88, 17, 3233))\"",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Caesar Cipher shifts each alphabet letter forward by N positions.",
-            "Hint 2: Encrypting 'HELLO' with a Caesar shift of 3 produces 'KHOOR'. Submit FLAG{khoor}."
+            "Hint 1: n = p*q and phi(n) = (p-1)*(q-1) are simple arithmetic once you have the primes.",
+            "Hint 2: Python's pow(e, -1, phi_n) computes the modular inverse directly \u2014 that's your private exponent d."
           ]
         },
         "module5": {
-          "title": "Decryption Basics",
-          "difficulty": 1,
-          "points": 200,
+          "title": "Digital Signatures",
+          "difficulty": 3,
+          "points": 175,
+          "mission": "Confirm update.bin really came from TechCorp, unmodified",
+          "concept": "A signature is created with the PRIVATE key and checked with the PUBLIC key \u2014 proving both who signed something and that it hasn't changed since.",
           "objectives": [
             {
               "id": "m5_obj1",
-              "label": "Step 1: Decode the following Base64 string:\nSGFzaA==",
+              "label": "SCENARIO: TechCorp's release team published update.bin along with a digital signature and their public key. Your job is to confirm the update really came from TechCorp and wasn't altered.\n\nCONCEPT: A digital signature flips RSA around: you sign with your PRIVATE key so ANYONE can verify with your PUBLIC key. It proves both authenticity (who signed it) and integrity (it hasn't changed since).\n\nTASK: Using TechCorp's private key (d=2753, n=3233 from Module 4), sign the release's hash-digest stand-in h=15 by computing s = h^d mod n. Submit s \u2014 this is the signature TechCorp attaches to update.bin.",
+              "cmd": "python3 -c \"print(pow(15, 2753, 3233))\"",
               "type": "input_match"
             },
             {
               "id": "m5_obj2",
-              "label": "Step 2: Convert the decoded word (\"Hash\") into Hex.",
+              "label": "TASK: Verify the signature the way any customer could, using only TechCorp's PUBLIC key: compute h' = s^e mod n with e=17, n=3233, and signature s=452. If h' equals update.bin's real hash-digest (15), the signature is valid. Submit h'.",
+              "cmd": "python3 -c \"print(pow(452, 17, 3233))\"",
               "type": "input_match"
             },
             {
               "id": "m5_obj3",
-              "label": "Step 3: Generate the SHA256 hash of the Hex output (\"48617368\").",
+              "label": "TASK: An attacker now modifies update.bin after it was signed. The modified file's hash-digest is now 22 instead of 15 \u2014 but the attacker kept the ORIGINAL signature (452), since they don't have TechCorp's private key to forge a new one.\n\nVerify the SAME signature against the NEW (tampered) hash-digest. Does it still check out? Submit VALID or INVALID.",
+              "cmd": "",
               "type": "input_match"
             },
             {
               "id": "m5_obj4",
-              "label": "Step 4: Decode this Base64 string to find the final flag: RkxBR3tDcnlwdG9fTWFzdGVyfQ==",
+              "label": "Final flag: which single property did this whole exercise demonstrate \u2014 the one guaranteeing a signed file can't be silently modified without breaking verification? Submit one word: 'integrity', 'confidentiality', or 'availability'.",
+              "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Decryption reverses encryption using the exact shift or key.",
-            "Hint 2: Decrypting 'KHOOR' with shift 3 restores 'HELLO'. Submit FLAG{hello}."
+            "Hint 1: Signing and decrypting use the identical formula: value^d mod n. Verifying and encrypting both use value^e mod n.",
+            "Hint 2: If the file changes after signing, its hash-digest changes too \u2014 but the OLD signature only verifies against the OLD digest."
+          ]
+        },
+        "module6": {
+          "title": "Key Exchange (Diffie-Hellman)",
+          "difficulty": 3,
+          "points": 175,
+          "mission": "Agree on a shared secret with a brand-new partner system",
+          "concept": "Diffie-Hellman lets two sides who've never met derive the same shared secret over a public channel, without ever transmitting the secret itself.",
+          "objectives": [
+            {
+              "id": "m6_obj1",
+              "label": "SCENARIO: TechCorp is integrating with a brand-new partner system. Neither side has ever shared a secret key, and there's no secure channel yet to send one over.\n\nCONCEPT: Diffie-Hellman lets two sides agree on a shared secret over a channel an attacker can freely watch, without ever transmitting the secret itself.\n\nTASK: Both sides publicly agree on prime p=23 and generator g=5. TechCorp picks private value a=6 and computes its public value A = g^a mod p. Submit A (safe to publish \u2014 this is the 'public value' side of the exchange).",
+              "cmd": "python3 -c \"print(pow(5, 6, 23))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "m6_obj2",
+              "label": "TASK: The partner system picks its own private value b=15 and computes its public value B = g^b mod p. Submit B.",
+              "cmd": "python3 -c \"print(pow(5, 15, 23))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "m6_obj3",
+              "label": "TASK: TechCorp now combines the PARTNER's public value (B=19) with its OWN private value (a=6): shared = B^a mod p. Submit the shared secret TechCorp derives.",
+              "cmd": "python3 -c \"print(pow(19, 6, 23))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "m6_obj4",
+              "label": "Final flag: now compute it from the PARTNER's side: combine TechCorp's public value (A=8) with the partner's own private value (b=15): shared = A^b mod p. Submit this value \u2014 it should exactly match what TechCorp derived, proving both sides landed on the same shared secret without ever transmitting it.",
+              "cmd": "python3 -c \"print(pow(8, 15, 23))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Both public values are computed the same way: pow(g, private_value, p).",
+            "Hint 2: The shared secret is pow(their_public_value, your_private_value, p) \u2014 both sides land on the identical number."
+          ]
+        },
+        "module7": {
+          "title": "Final Incident: Verify & Recover",
+          "difficulty": 3,
+          "points": 175,
+          "mission": "Investigate and close a real cryptographic incident end-to-end",
+          "concept": "Real incident response always verifies BEFORE trusting: check integrity (hash), check authenticity (signature), and only then decrypt and act on the data.",
+          "objectives": [
+            {
+              "id": "m7_obj1",
+              "label": "FINAL INCIDENT: TechCorp received an encrypted customer backup (backup.enc) from a partner server, along with a published hash and a claim it was properly signed. Your job as the security engineer on call: verify it, then recover the data.\n\nTASK \u2014 Step 1, verify integrity: the partner published this hash out-of-band for the backup's plaintext:\n1692b4ee2bd6bf14cc1f52759ed7efd6cdfe274677004f4f881bcf8b0889ff05\n\nThe backup's actual plaintext (once decrypted) is provided below for this hash check:\n\"INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully\"\n\nHash it and confirm it matches. Submit MATCH or MISMATCH.",
+              "cmd": "echo -n \"INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully\" | sha256sum",
+              "type": "input_match"
+            },
+            {
+              "id": "m7_obj2",
+              "label": "TASK \u2014 Step 2, verify the sender: the partner claims this backup's hash-digest (15) was signed with their private key, producing signature 452 (reusing the keypair from Modules 4-5: n=3233, e=17). Verify it the same way as Module 5: compute h' = s^e mod n and confirm it matches. Submit VALID or INVALID.",
+              "cmd": "python3 -c \"print(pow(452, 17, 3233))\"  # compare to 15",
+              "type": "input_match"
+            },
+            {
+              "id": "m7_obj3",
+              "label": "TASK \u2014 Step 3, decrypt the backup: now that it's verified, decrypt backup.enc using AES-256-GCM with key=1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a, nonce=f0e1d2c3b4a5968778695a4b, ciphertext=f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c, tag=d61e4da10998b899f2c9c6945ff15415. Submit the recovered plaintext exactly.",
+              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a')\nnonce = bytes.fromhex('f0e1d2c3b4a5968778695a4b')\nct = bytes.fromhex('f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c') + bytes.fromhex('d61e4da10998b899f2c9c6945ff15415')\nprint(AESGCM(key).decrypt(nonce, ct, None).decode())\"",
+              "type": "input_match"
+            },
+            {
+              "id": "m7_obj4",
+              "label": "FINAL FLAG: you've now completed the full incident \u2014 integrity check, signature verification, and decryption. Submit the case status exactly as it should be logged, wrapped as FLAG{...} (see the recovered plaintext above for the exact case ID and status).",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work the steps in order \u2014 hash check, then signature check, then decrypt. Don't decrypt first.",
+            "Hint 2: Reuse the exact AES-256-GCM and RSA-verification approach from Modules 1 and 5 \u2014 the mechanics are identical, only the values differ."
           ]
         }
       }

@@ -171,13 +171,24 @@
               <p class="text-xs sm:text-sm text-slate-600 leading-relaxed" id="detail-story"></p>
             </div>
 
-            <!-- Mission Overview Card -->
+            <!-- Concept Card (the "professor explains" step) -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1.5 shadow-xs">
+              <div class="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+                Concept
+              </div>
+              <p class="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed" id="detail-concept"></p>
+            </div>
+
+            <!-- Mission Overview Card (the TechCorp scenario + practical objective) -->
             <div class="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 space-y-1.5 shadow-xs">
               <div class="flex items-center gap-2 text-xs font-bold text-[#2563EB] uppercase tracking-wider">
                 <svg class="w-4 h-4 text-[#2563EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
-                Mission
+                Today's Objective
               </div>
               <p class="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed" id="detail-mission"></p>
             </div>
@@ -264,14 +275,18 @@
                 <div class="flex items-center gap-2">
                   <span class="p-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-base" id="tool-panel-icon">🛠️</span>
                   <div>
-                    <h3 class="text-base font-extrabold text-slate-900" id="tool-panel-title">Interactive Tool Panel</h3>
-                    <p class="text-xs text-slate-500" id="tool-panel-subtitle">Use tool to solve active module objectives</p>
+                    <h3 class="text-base font-extrabold text-slate-900" id="tool-panel-title">Quick-Check Calculator</h3>
+                    <p class="text-xs text-slate-500" id="tool-panel-subtitle">Double-check your terminal command's output — not required to solve</p>
                   </div>
                 </div>
-                <span class="px-3 py-1 bg-blue-50 text-[#2563EB] border border-blue-200 rounded-full text-xs font-bold uppercase tracking-wider">
-                  Interactive Workspace
+                <span class="px-3 py-1 bg-slate-50 text-slate-500 border border-slate-200 rounded-full text-xs font-bold uppercase tracking-wider">
+                  Optional
                 </span>
               </div>
+
+              <p class="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+                📟 Each objective on the left gives you the exact terminal command to run yourself. Use this calculator only to sanity-check a result — solving objectives by running the real commands is how you actually learn the material.
+              </p>
 
               <!-- Universal Cryptography Tool -->
               <div id="universal-tool" class="space-y-4">
@@ -279,13 +294,20 @@
                   <div class="grid grid-cols-1 gap-3">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Operation:</label>
-                      <select id="uni-algo" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold">
+                      <select id="uni-algo" onchange="toggleKeyField()" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold">
                         <option value="b64_enc">Base64 Encode</option>
                         <option value="b64_dec">Base64 Decode</option>
                         <option value="hex_enc">Hex Encode</option>
                         <option value="hex_dec">Hex Decode</option>
                         <option value="bin_enc">Binary Encode</option>
                         <option value="bin_dec">Binary Decode</option>
+                        <option value="rot13">ROT13</option>
+                        <option value="caesar_enc">Caesar Encode</option>
+                        <option value="caesar_dec">Caesar Decode</option>
+                        <option value="xor_enc">XOR Encrypt (text -> hex)</option>
+                        <option value="xor_dec">XOR Decrypt (hex -> text)</option>
+                        <option value="vig_enc">Vigenère Encrypt</option>
+                        <option value="vig_dec">Vigenère Decrypt</option>
                         <option value="MD5">MD5</option>
                         <option value="SHA-1">SHA1</option>
                         <option value="SHA-224">SHA224</option>
@@ -297,6 +319,10 @@
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Input:</label>
                       <input type="text" id="uni-input" placeholder="Enter text or string..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900" />
+                    </div>
+                    <div id="uni-key-wrap" class="hidden">
+                      <label class="block text-xs font-bold text-slate-700 mb-1" id="uni-key-label">Key / Shift:</label>
+                      <input type="text" id="uni-key" placeholder="e.g. 3, or a keyword..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900" />
                     </div>
                   </div>
 
@@ -670,6 +696,7 @@
       document.getElementById("detail-badge").textContent = `${currentTrack.title} — Module ${modNum}`;
       document.getElementById("detail-title").textContent = currentModule.title;
       document.getElementById("detail-story").textContent = currentModule.story;
+      document.getElementById("detail-concept").textContent = currentModule.concept || "";
       document.getElementById("detail-mission").textContent = currentModule.mission;
       
       const counterEl = document.getElementById("header-module-counter");
@@ -690,6 +717,16 @@
       pollTimer = setInterval(pollProgress, 4000);
     }
 
+    function copyCommand(id, btn) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      navigator.clipboard.writeText(el.textContent).then(() => {
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 1200);
+      }).catch(() => {});
+    }
+
     // Command Line Lab Style Clean Objectives List
     function renderStepObjectives(objectives) {
       const list = document.getElementById("detail-objectives");
@@ -705,12 +742,26 @@
             ? "bg-emerald-50 text-emerald-900 border border-emerald-200" 
             : "bg-slate-50 text-slate-600 border border-slate-100"
         }`;
+        const cmdId = `cmd-${Math.random().toString(36).slice(2, 9)}`;
+        const cmdBlock = o.cmd ? `
+          <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+            <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-200 bg-white">
+              <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Terminal</span>
+              <button onclick="copyCommand('${cmdId}', this)" class="text-[9px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer uppercase tracking-wider">Copy</button>
+            </div>
+            <pre id="${cmdId}" class="px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap break-all">${o.cmd.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          </div>
+        ` : '';
         li.innerHTML = `
-          <span class="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+          <span class="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] mt-0.5 ${
             o.complete ? "bg-[#10B981] text-white" : "border-2 border-slate-300 text-transparent"
           }">&#10003;</span>
-          <span>${o.label}</span>
+          <div class="flex-1 min-w-0">
+            <span>${o.label}</span>
+            ${cmdBlock}
+          </div>
         `;
+        li.className = li.className.replace("items-center", "items-start");
         list.appendChild(li);
       });
 
@@ -718,8 +769,8 @@
     }
 
     function switchToolPanel(moduleId) {
-      document.getElementById("tool-panel-title").textContent = "Universal Cryptography Tool";
-      document.getElementById("tool-panel-subtitle").textContent = "All encodings and hashes in one place";
+      document.getElementById("tool-panel-title").textContent = "Quick-Check Calculator";
+      document.getElementById("tool-panel-subtitle").textContent = "Double-check your terminal command's output — not required to solve";
       document.getElementById("tool-panel-icon").textContent = "🛠️";
     }
 
@@ -819,13 +870,80 @@
       return (WordToHex(a)+WordToHex(b)+WordToHex(c)+WordToHex(d)).toLowerCase();
     }
 
+    const KEY_REQUIRED_OPS = {
+      caesar_enc: "Shift (number):",
+      caesar_dec: "Shift (number):",
+      xor_enc: "Key (text):",
+      xor_dec: "Key (text):",
+      vig_enc: "Keyword:",
+      vig_dec: "Keyword:",
+    };
+
+    function toggleKeyField() {
+      const algo = document.getElementById("uni-algo").value;
+      const wrap = document.getElementById("uni-key-wrap");
+      const label = document.getElementById("uni-key-label");
+      if (KEY_REQUIRED_OPS[algo]) {
+        wrap.classList.remove("hidden");
+        label.textContent = KEY_REQUIRED_OPS[algo];
+      } else {
+        wrap.classList.add("hidden");
+      }
+    }
+
+    function caesarShift(text, shift) {
+      shift = ((shift % 26) + 26) % 26;
+      return Array.from(text).map(ch => {
+        const code = ch.charCodeAt(0);
+        if (code >= 65 && code <= 90) return String.fromCharCode((code - 65 + shift) % 26 + 65);
+        if (code >= 97 && code <= 122) return String.fromCharCode((code - 97 + shift) % 26 + 97);
+        return ch;
+      }).join('');
+    }
+
+    function xorHexEncrypt(text, key) {
+      const data = new TextEncoder().encode(text);
+      const keyBytes = new TextEncoder().encode(key);
+      const out = Array.from(data).map((b, i) => b ^ keyBytes[i % keyBytes.length]);
+      return out.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function xorHexDecrypt(hexStr, key) {
+      const bytes = (hexStr.match(/.{1,2}/g) || []).map(h => parseInt(h, 16));
+      const keyBytes = new TextEncoder().encode(key);
+      const out = bytes.map((b, i) => b ^ keyBytes[i % keyBytes.length]);
+      return new TextDecoder().decode(new Uint8Array(out));
+    }
+
+    function vigenere(text, key, decrypt) {
+      key = key.toUpperCase().replace(/[^A-Z]/g, '');
+      if (!key) return text;
+      let ki = 0;
+      return Array.from(text).map(ch => {
+        const code = ch.charCodeAt(0);
+        let base = null;
+        if (code >= 65 && code <= 90) base = 65;
+        else if (code >= 97 && code <= 122) base = 97;
+        if (base === null) return ch;
+        const keyShift = key.charCodeAt(ki % key.length) - 65;
+        const shift = decrypt ? -keyShift : keyShift;
+        ki++;
+        return String.fromCharCode((code - base + shift + 26) % 26 + base);
+      }).join('');
+    }
+
     async function processUniversalTool() {
       const algo = document.getElementById("uni-algo").value;
       const input = document.getElementById("uni-input").value;
+      const key = document.getElementById("uni-key").value;
       const out = document.getElementById("uni-output");
 
       if (!input) {
         out.innerHTML = `<span class="text-rose-400">Please enter an input string.</span>`;
+        return;
+      }
+      if (KEY_REQUIRED_OPS[algo] && !key) {
+        out.innerHTML = `<span class="text-rose-400">This operation needs a ${KEY_REQUIRED_OPS[algo].toLowerCase().replace(':', '')}.</span>`;
         return;
       }
 
@@ -845,6 +963,20 @@
         } else if (algo === 'bin_dec') {
           const bins = input.replace(/\s+/g, '').match(/.{1,8}/g) || [];
           result = bins.map(b => String.fromCharCode(parseInt(b, 2))).join('');
+        } else if (algo === 'rot13') {
+          result = caesarShift(input, 13);
+        } else if (algo === 'caesar_enc') {
+          result = caesarShift(input, parseInt(key, 10) || 0);
+        } else if (algo === 'caesar_dec') {
+          result = caesarShift(input, -(parseInt(key, 10) || 0));
+        } else if (algo === 'xor_enc') {
+          result = xorHexEncrypt(input, key);
+        } else if (algo === 'xor_dec') {
+          result = xorHexDecrypt(input.replace(/\s+/g, ''), key);
+        } else if (algo === 'vig_enc') {
+          result = vigenere(input, key, false);
+        } else if (algo === 'vig_dec') {
+          result = vigenere(input, key, true);
         } else if (algo === 'MD5') {
           result = md5(input);
         } else if (algo.startsWith('SHA')) {
