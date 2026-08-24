@@ -149,6 +149,7 @@ export const AssignedLabsPage: React.FC = () => {
           const isCll = targetLabId === 'command-line-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
           const isCrypto = targetLabId === 'cryptography-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
           const isCloud = targetLabId === 'cloud-security-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
+          const isPuzzle = targetLabId === 'techcorp-sysadmin-labs' || targetLabId === 'puzzle-lab' || targetLabId.toLowerCase().includes('puzzle');
           if (isCll) {
             navigate('/labs/command-line-lab/session/sess-cll-01');
           } else if (isCrypto) {
@@ -157,6 +158,8 @@ export const AssignedLabsPage: React.FC = () => {
             navigate('/labs/cloud-security-lab/session/sess-cloud-01');
           } else if (targetLabId === 'lab1-recon' || targetLabId === 'recon-lab') {
             navigate('/labs/lab1-recon/session/sess-recon-01');
+          } else if (isPuzzle) {
+            navigate('/puzzle');
           } else {
             navigate(`/labs/${targetLabId}/session/sess-123`);
           }
