@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudCorp AWS Odyssey - Level 1: IAM Inline Policy Audit & Role Escalation'
+
+Parameters:
+  StudentSessionId:
+    Type: String
+    Description: 'Unique identifier for the student session'
+    Default: 'student'
+
+Resources:
+  DevAliceUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub 'dev-alice-${StudentSessionId}'
+      Policies:
+        - PolicyName: 'DevUserPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'sts:AssumeRole'
+                  - 'iam:List*'
+                  - 'iam:Get*'
+                Resource: '*'
+
+  DevOpsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'CloudCorpDevOpsRole-${StudentSessionId}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              AWS: !GetAtt DevAliceUser.Arn
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/PowerUserAccess'
+
+Outputs:
+  UserName:
+    Value: !Ref DevAliceUser
+  RoleArn:
+    Value: !GetAtt DevOpsRole.Arn

@@ -331,6 +331,48 @@ def seed_default_users(session):
     session.commit()
 
 
+def seed_sysadmin_lab_assignments(session, sysadmin_user_id: int):
+    from app.models.admin_models import PurchasedLab
+    import uuid
+    from datetime import datetime, timedelta
+
+    core_labs = [
+        ("cloud-security-lab", "Cloud Security Lab"),
+        ("command-line-lab", "Linux Command Line Fundamentals"),
+        ("lab1-recon", "Network Reconnaissance Lab"),
+        ("cryptography-lab", "Cryptography & PKI Lab"),
+        ("ot-security-lab", "OT & ICS Security Simulator Lab"),
+        ("puzzle-lab", "Sysadmin Hardening Puzzle Lab"),
+    ]
+
+    for lab_id, lab_title in core_labs:
+        existing = session.query(PurchasedLab).filter(
+            PurchasedLab.lab_id == lab_id,
+            PurchasedLab.user_id == sysadmin_user_id,
+            PurchasedLab.status == "ACTIVE"
+        ).first()
+        if not existing:
+            session.add(PurchasedLab(
+                user_id=sysadmin_user_id,
+                organization_id=None,
+                lab_id=lab_id,
+                lab_title=lab_title,
+                license_key=f"GLOBAL-SYSADMIN-{lab_id}-{uuid.uuid4().hex[:6]}",
+                total_seats=9999,
+                assigned_seats=0,
+                status="ACTIVE",
+                purchased_date=datetime.utcnow(),
+                expiry_date=datetime.utcnow() + timedelta(days=3650),
+                hours_purchased=9999.0,
+                hours_used=0.0,
+                hours_remaining=9999.0,
+                assigned_to="both",
+                fixed_rate=0.0,
+            ))
+            logger.info(f"  Assigned lab '{lab_id}' globally in SysAdmin catalog.")
+    session.flush()
+
+
 def main():
     with db_manager.transaction() as session:
         logger.info("Seeding roles...")
@@ -345,8 +387,15 @@ def main():
         seed_achievements(session)
         logger.info("Seeding labs and modules...")
         seed_labs_and_modules(session)
+        logger.info("Seeding SysAdmin global lab assignments...")
+        from app.models.user import User
+        sys_user = session.query(User).filter(User.email == "sysadmin@cyberrange.in").first()
+        if sys_user:
+            seed_sysadmin_lab_assignments(session, sys_user.id)
     logger.info("Seed complete.")
 
 
 if __name__ == "__main__":
     main()
+
+

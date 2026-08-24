@@ -1024,3 +1024,134 @@ def get_cloud_module_guide(filename: str):
         content=module_path.read_text(encoding="utf-8"),
         media_type="text/plain"
     )
+
+
+# =========================================================================
+# CLOUDCORP AWS-NATIVE ODYSSEY ENDPOINTS
+# =========================================================================
+
+from app.services.aws_lab_service import aws_lab_service
+from app.services.aws_state_validator import aws_state_validator
+
+@router.post("/aws/launch")
+def launch_aws_cloudcorp_session(
+    payload: Dict[str, Any] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Launches a real AWS-Native CloudCorp lab session.
+    Provisions temporary AWS STS credentials and deploys CloudFormation level stacks.
+    """
+    user_id = current_user.id if current_user else 9999
+    session_id = f"stu{user_id}"
+    level = int((payload or {}).get("level", 0))
+
+    # 1. Generate STS Credentials
+    credentials = aws_lab_service.generate_sts_credentials(user_id=user_id)
+
+    # 2. Generate Federated AWS Management Console Login URL
+    console_url = aws_lab_service.generate_console_federation_url(credentials)
+
+    # 3. Deploy CloudFormation stack for level
+    stack_info = aws_lab_service.deploy_level_stack(level=level, session_id=session_id)
+
+    return {
+        "status": "success",
+        "message": f"CloudCorp Level {level} session launched successfully!",
+        "session_id": session_id,
+        "current_level": level,
+        "credentials": credentials,
+        "console_url": console_url,
+        "stack_info": stack_info,
+    }
+
+
+@router.get("/aws/credentials")
+def get_aws_cloudcorp_credentials(
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Returns active temporary AWS STS credentials and federated Console link."""
+    user_id = current_user.id if current_user else 9999
+    credentials = aws_lab_service.generate_sts_credentials(user_id=user_id)
+    console_url = aws_lab_service.generate_console_federation_url(credentials)
+
+    return {
+        "user_id": user_id,
+        "credentials": credentials,
+        "console_url": console_url,
+    }
+
+
+@router.post("/aws/check-level")
+def check_aws_cloudcorp_level(
+    payload: Dict[str, Any],
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Real-Time Boto3 AWS API State Inspection.
+    Validates infrastructure security remediations for Level N against live AWS resources.
+    """
+    level = int(payload.get("level", 0))
+    user_id = current_user.id if current_user else 9999
+    session_id = f"stu{user_id}"
+
+    # Execute Boto3 State Inspection
+    passed, feedback = aws_state_validator.validate_level(level=level, session_id=session_id)
+
+    points_awarded = 0
+    new_total_score = current_user.total_score if current_user else 0
+
+    if passed and current_user:
+        mod_pk = f"cloud-security-lab_cloud_mod{level + 1}"
+        stage_pts = {0: 100, 1: 150, 2: 200, 3: 250, 4: 300, 5: 500}
+        pts = stage_pts.get(level, 100)
+
+        try:
+            res = CompletionService.complete_lab_module(
+                db=db,
+                user=current_user,
+                lab_id="cloud-security-lab",
+                module_id=mod_pk,
+                track_id="cloud",
+                base_points=pts,
+                submitted_flag=f"AWS_BOTO3_VERIFIED_LEVEL_{level}",
+            )
+            db.commit()
+            points_awarded = res.points_awarded
+            new_total_score = res.new_total_score
+        except Exception as db_err:
+            logger.warning(f"Failed to record level completion in DB: {db_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    return {
+        "status": "correct" if passed else "incorrect",
+        "passed": passed,
+        "feedback": feedback,
+        "level": level,
+        "next_level": level + 1 if passed else level,
+        "points_awarded": points_awarded,
+        "total_score": new_total_score,
+    }
+
+
+@router.post("/aws/teardown")
+def teardown_aws_cloudcorp_session(
+    payload: Dict[str, Any] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Tears down deployed CloudFormation level stacks and closes active AWS session."""
+    user_id = current_user.id if current_user else 9999
+    session_id = f"stu{user_id}"
+    level = int((payload or {}).get("level", 0))
+
+    success = aws_lab_service.delete_level_stack(level=level, session_id=session_id)
+    return {
+        "status": "success" if success else "failed",
+        "message": f"CloudCorp Level {level} stack teardown requested.",
+    }
+

@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudCorp AWS Odyssey - Level 4: CloudTrail Threat Hunting & Key Revocation'
+
+Parameters:
+  StudentSessionId:
+    Type: String
+    Default: 'student'
+
+Resources:
+  BackdoorAdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub 'backdoor_admin_${StudentSessionId}'
+
+  BackdoorAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref BackdoorAdminUser
+      Status: 'Active'
+
+  BackdoorUserPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: 'AdministratorAccess'
+      Users:
+        - !Ref BackdoorAdminUser
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action: '*'
+            Resource: '*'
+
+Outputs:
+  BackdoorUserName:
+    Value: !Ref BackdoorAdminUser
+  AccessKeyId:
+    Value: !Ref BackdoorAccessKey

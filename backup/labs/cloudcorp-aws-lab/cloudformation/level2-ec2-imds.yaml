@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudCorp AWS Odyssey - Level 2: EC2 SSRF & IMDSv1 Metadata Hardening'
+
+Parameters:
+  StudentSessionId:
+    Type: String
+    Default: 'student'
+
+Resources:
+  EC2InstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'EC2AdminProfile-${StudentSessionId}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub 'EC2AdminProfile-${StudentSessionId}'
+      Roles:
+        - !Ref EC2InstanceProfileRole
+
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: 't3.micro'
+      ImageId: 'ami-0c2af51e265bd5e0e' # Standard Amazon Linux 2 AMI placeholder
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      MetadataOptions:
+        HttpTokens: 'optional' # IMDSv1 vulnerable state
+        HttpEndpoint: 'enabled'
+      Tags:
+        - Key: 'Name'
+          Value: !Sub 'CloudCorpWebServer-${StudentSessionId}'
+
+Outputs:
+  InstanceId:
+    Value: !Ref WebServerInstance

@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudCorp AWS Odyssey - Level 5 Capstone: Account Governance & SCP Hardening'
+
+Parameters:
+  StudentSessionId:
+    Type: String
+    Default: 'student'
+
+Resources:
+  CapstoneCompliancePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub 'CloudCorpCapstoneBoundary-${StudentSessionId}'
+      Description: 'Capstone Compliance Policy enforcing region & MFA'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'EnforceRegionMumbai'
+            Effect: 'Deny'
+            NotAction:
+              - 'iam:*'
+              - 'sts:*'
+            Resource: '*'
+            Condition:
+              StringNotEquals:
+                'aws:RequestedRegion': 'ap-south-1'
+
+Outputs:
+  BoundaryArn:
+    Value: !Ref CapstoneCompliancePolicy

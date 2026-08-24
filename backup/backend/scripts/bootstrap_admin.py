@@ -123,6 +123,48 @@ def upsert_user(session, email: str, name: str, password: str, role: str, organi
     return user
 
 
+def seed_sysadmin_lab_assignments(session, sysadmin_user_id: int):
+    from app.models.admin_models import PurchasedLab
+    import uuid
+    from datetime import datetime, timedelta
+
+    core_labs = [
+        ("cloud-security-lab", "Cloud Security Lab"),
+        ("command-line-lab", "Linux Command Line Fundamentals"),
+        ("lab1-recon", "Network Reconnaissance Lab"),
+        ("cryptography-lab", "Cryptography & PKI Lab"),
+        ("ot-security-lab", "OT & ICS Security Simulator Lab"),
+        ("puzzle-lab", "Sysadmin Hardening Puzzle Lab"),
+    ]
+
+    for lab_id, lab_title in core_labs:
+        existing = session.query(PurchasedLab).filter(
+            PurchasedLab.lab_id == lab_id,
+            PurchasedLab.user_id == sysadmin_user_id,
+            PurchasedLab.status == "ACTIVE"
+        ).first()
+        if not existing:
+            session.add(PurchasedLab(
+                user_id=sysadmin_user_id,
+                organization_id=None,
+                lab_id=lab_id,
+                lab_title=lab_title,
+                license_key=f"GLOBAL-SYSADMIN-{lab_id}-{uuid.uuid4().hex[:6]}",
+                total_seats=9999,
+                assigned_seats=0,
+                status="ACTIVE",
+                purchased_date=datetime.utcnow(),
+                expiry_date=datetime.utcnow() + timedelta(days=3650),
+                hours_purchased=9999.0,
+                hours_used=0.0,
+                hours_remaining=9999.0,
+                assigned_to="both",
+                fixed_rate=0.0,
+            ))
+            logger.info(f"  Assigned lab '{lab_id}' globally in SysAdmin catalog.")
+    session.flush()
+
+
 def main():
     with db_manager.transaction() as session:
         # 1. Default admin
@@ -138,13 +180,19 @@ def main():
         sys_email = settings.SYSTEM_ADMIN_EMAIL or "sysadmin@cyberrange.in"
         sys_password = settings.SYSTEM_ADMIN_PASSWORD or "sysadmin_password_2026"
         sys_name = settings.SYSTEM_ADMIN_NAME or "System Admin"
-        upsert_user(session, sys_email, sys_name, sys_password, "SYSTEM_ADMIN", "CyberRange Platform")
+        sys_user = upsert_user(session, sys_email, sys_name, sys_password, "SYSTEM_ADMIN", "CyberRange Platform")
 
         # 4. Demo user
         upsert_user(session, "user@cyberrange.in", "Alex Operator", "password", "user")
+
+        # 5. Global Lab Assignments using sysadmin user_id
+        if sys_user and sys_user.id:
+            seed_sysadmin_lab_assignments(session, sys_user.id)
 
     logger.info("Admin bootstrap complete.")
 
 
 if __name__ == "__main__":
     main()
+
+

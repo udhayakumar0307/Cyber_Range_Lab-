@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyAllOutsideRegionMumbai",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:*",
+        "sts:*",
+        "cloudfront:*",
+        "route53:*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:RequestedRegion": [
+            "ap-south-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyExpensiveEC2Instances",
+      "Effect": "Deny",
+      "Action": "ec2:RunInstances",
+      "Resource": "arn:aws:ec2:*:*:instance/*",
+      "Condition": {
+        "StringLike": {
+          "ec2:InstanceType": [
+            "p3.*",
+            "p4.*",
+            "g4.*",
+            "g5.*",
+            "c5.*",
+            "m5.*",
+            "r5.*"
+          ]
+        }
+      }
+    }
+  ]
+}
