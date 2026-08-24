@@ -68,8 +68,8 @@ class AWSLabService:
             except Exception as id_err:
                 logger.info(f"[AWSLabService] get_caller_identity failed: {id_err}")
 
-        # 1. Try AssumeRole if account_id is valid
-        if account_id:
+        # 1. Try AssumeRole if explicitly enabled via USE_ASSUME_ROLE=true
+        if os.getenv("USE_ASSUME_ROLE", "false").lower() in ("true", "1") and account_id:
             for role_name in [f"CyberRangeStudentRole-{user_id}", "CyberRangeStudentRole"]:
                 try:
                     role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
@@ -89,7 +89,7 @@ class AWSLabService:
                         "Arn": f"arn:aws:sts::{account_id}:assumed-role/{role_name}/student-{user_id}",
                     }
                 except Exception as exc:
-                    logger.info(f"[AWSLabService] AssumeRole '{role_name}' skipped ({exc}).")
+                    logger.debug(f"[AWSLabService] AssumeRole '{role_name}' skipped ({exc}).")
 
         # 2. Fallback to GetSessionToken (generates temporary session credentials)
         try:
