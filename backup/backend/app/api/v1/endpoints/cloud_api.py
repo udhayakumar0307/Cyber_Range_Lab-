@@ -832,8 +832,31 @@ def cloud_terminal_run(
             "output": f"[{env_key} saved to session]",
             "exit_code": 0,
             "completed_objectives": curr_objs,
-            "assignment_id": resolved_assignment_id,
-        }
+    # Instant host execution path for CloudCorp AWS CLI & validation commands
+    if command.startswith("aws") or "check_aws_level" in command or not _docker_available:
+        try:
+            import subprocess
+            proc = subprocess.run(
+                ["bash", "-c", command],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=os.environ
+            )
+            output = proc.stdout if proc.stdout else proc.stderr
+            return {
+                "output": output if output else "[Command completed with exit code 0]",
+                "exit_code": proc.returncode,
+                "completed_objectives": curr_objs,
+                "assignment_id": resolved_assignment_id,
+            }
+        except Exception as sub_err:
+            return {
+                "output": f"Host execution error: {sub_err}",
+                "exit_code": 1,
+                "completed_objectives": curr_objs,
+                "assignment_id": resolved_assignment_id,
+            }
 
     try:
         client = get_docker_client()

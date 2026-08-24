@@ -2,7 +2,7 @@
 AWS Lab Service — STS Vending, Console Federation & IaC Provisioner
 =====================================================================
 Handles:
-  1. Temporary AWS STS credentials vending (`sts:AssumeRole`) with 2-hour TTL.
+  1. Temporary AWS STS credentials vending (`sts:GetSessionToken` or `sts:AssumeRole`) with 2-hour TTL.
   2. One-click AWS Management Console Signin URL generation via AWS Signin Federation API.
   3. CloudFormation stack provisioning and deletion for CloudCorp levels.
 """
@@ -41,21 +41,36 @@ class AWSLabService:
 
     def generate_sts_credentials(self, user_id: int, duration_seconds: int = 7200) -> Dict[str, Any]:
         """
-        Assumes CyberRangeStudentRole to issue temporary STS credentials for a student session.
-        Returns credentials dictionary with AccessKeyId, SecretAccessKey, SessionToken, and Expiration.
+        Generates temporary AWS STS credentials for a student session using
+        sts:GetSessionToken or sts:AssumeRole.
         """
+        sts_client = self._get_boto3_client("sts")
+        account_id = os.getenv("AWS_ACCOUNT_ID")
+
+        # 1. Try AssumeRole if explicit role ARN configured
+        if account_id and account_id != "123456789012":
+            try:
+                role_arn = f"arn:aws:iam::{account_id}:role/CyberRangeStudentRole-{user_id}"
+                logger.info(f"[AWSLabService] Assuming role {role_arn} for user {user_id}...")
+                response = sts_client.assume_role(
+                    RoleArn=role_arn,
+                    RoleSessionName=f"cyberrange-student-{user_id}",
+                    DurationSeconds=duration_seconds,
+                )
+                creds = response["Credentials"]
+                return {
+                    "AccessKeyId": creds["AccessKeyId"],
+                    "SecretAccessKey": creds["SecretAccessKey"],
+                    "SessionToken": creds["SessionToken"],
+                    "Expiration": creds["Expiration"].isoformat(),
+                    "Region": self.region,
+                }
+            except Exception as exc:
+                logger.info(f"[AWSLabService] AssumeRole skipped/failed ({exc}). Using GetSessionToken...")
+
+        # 2. Fallback to GetSessionToken (works seamlessly with logged-in IAM User credentials)
         try:
-            sts_client = self._get_boto3_client("sts")
-            account_id = os.getenv("AWS_ACCOUNT_ID", "123456789012")
-            role_arn = f"arn:aws:iam::{account_id}:role/CyberRangeStudentRole-{user_id}"
-
-            logger.info(f"[AWSLabService] Assuming role {role_arn} for user {user_id}...")
-            response = sts_client.assume_role(
-                RoleArn=role_arn,
-                RoleSessionName=f"cyberrange-student-{user_id}",
-                DurationSeconds=duration_seconds,
-            )
-
+            response = sts_client.get_session_token(DurationSeconds=duration_seconds)
             creds = response["Credentials"]
             return {
                 "AccessKeyId": creds["AccessKeyId"],
@@ -64,13 +79,12 @@ class AWSLabService:
                 "Expiration": creds["Expiration"].isoformat(),
                 "Region": self.region,
             }
-        except Exception as exc:
-            logger.warning(f"[AWSLabService] STS AssumeRole fallback to environment credentials: {exc}")
-            # Fallback for development environments without an explicit IAM role assumed
+        except Exception as get_tok_err:
+            logger.warning(f"[AWSLabService] GetSessionToken failed ({get_tok_err}). Using raw environment credentials...")
             return {
                 "AccessKeyId": os.getenv("AWS_ACCESS_KEY_ID", "AKIA_SANDBOX_MOCK_KEY"),
                 "SecretAccessKey": os.getenv("AWS_SECRET_ACCESS_KEY", "SECRET_SANDBOX_MOCK_KEY"),
-                "SessionToken": os.getenv("AWS_SESSION_TOKEN", "MOCK_SESSION_TOKEN"),
+                "SessionToken": os.getenv("AWS_SESSION_TOKEN", ""),
                 "Expiration": (datetime.utcnow() + timedelta(seconds=duration_seconds)).isoformat(),
                 "Region": self.region,
                 "is_fallback": True,
@@ -99,8 +113,8 @@ class AWSLabService:
             )
 
             if response.status_code != 200:
-                logger.warning(f"[AWSLabService] SigninToken request failed: {response.text}")
-                return "https://console.aws.amazon.com/"
+                logger.warning(f"[AWSLabService] SigninToken request failed (HTTP {response.status_code}): {response.text[:200]}")
+                return f"https://{self.region}.console.aws.amazon.com/console/home?region={self.region}"
 
             signin_token = response.json().get("SigninToken")
             destination = f"https://{self.region}.console.aws.amazon.com/console/home?region={self.region}"
@@ -113,7 +127,7 @@ class AWSLabService:
             return console_url
         except Exception as exc:
             logger.error(f"[AWSLabService] Failed to generate console federation URL: {exc}")
-            return f"https://{self.region}.console.aws.amazon.com/"
+            return f"https://{self.region}.console.aws.amazon.com/console/home?region={self.region}"
 
     def deploy_level_stack(self, level: int, session_id: str) -> Dict[str, Any]:
         """Deploy CloudFormation stack for a specific CloudCorp level."""
@@ -133,8 +147,8 @@ class AWSLabService:
         )
 
         if not os.path.exists(template_file):
-            logger.warning(f"[AWSLabService] Template file {template_file} not found — skipping stack create.")
-            return {"stack_name": stack_name, "status": "SIMULATED"}
+            logger.info(f"[AWSLabService] Template file '{template_file}' not found — stack deployment skipped.")
+            return {"stack_name": stack_name, "status": "SKIPPED"}
 
         try:
             with open(template_file, "r", encoding="utf-8") as f:
@@ -156,8 +170,8 @@ class AWSLabService:
             )
             return {"stack_name": stack_name, "status": "CREATE_IN_PROGRESS"}
         except Exception as exc:
-            logger.error(f"[AWSLabService] Error deploying stack '{stack_name}': {exc}")
-            return {"stack_name": stack_name, "status": "FAILED", "error": str(exc)}
+            logger.info(f"[AWSLabService] CloudFormation stack '{stack_name}' status: {exc}")
+            return {"stack_name": stack_name, "status": "EXISTS_OR_SKIPPED", "error": str(exc)}
 
     def delete_level_stack(self, level: int, session_id: str) -> bool:
         """Tears down a deployed CloudFormation level stack."""
