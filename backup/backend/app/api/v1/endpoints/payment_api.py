@@ -539,8 +539,6 @@ def get_purchased_labs(
     # Point #8: purchased-lab visibility follows the actor's authorized org context.
     user_org_id = get_admin_org_id(current_user, db)
 
-    # Only show labs that were actually paid for via Razorpay.
-    # SysAdmin-assigned labs (organization_id IS NULL) are catalog entries — NOT purchases.
     # Paid purchases always have organization_id set (to the admin's org).
     paid_labs = db.query(PurchasedLab).filter(
         PurchasedLab.user_id == current_user.id,
@@ -557,10 +555,20 @@ def get_purchased_labs(
     else:
         org_labs = []
 
-    # Merge, de-duplicate by lab_id (personal purchase takes precedence)
+    # Also include labs the SysAdmin granted globally (organization_id IS NULL) —
+    # these are real usable inventory for this org (same set the Assign Lab
+    # picker draws from), so they must appear here too with correct hours/price,
+    # not just disappear from the org's own "Purchased Labs" view.
+    granted_labs = db.query(PurchasedLab).filter(
+        PurchasedLab.organization_id.is_(None),
+        PurchasedLab.assigned_to.in_(["admin", "both", "org"]),
+        PurchasedLab.status == "ACTIVE"
+    ).order_by(PurchasedLab.purchased_date.desc()).all()
+
+    # Merge, de-duplicate by lab_id (personal purchase takes precedence, then org purchase)
     seen = set()
     labs = []
-    for lab in paid_labs + org_labs:
+    for lab in paid_labs + org_labs + granted_labs:
         if lab.lab_id not in seen:
             seen.add(lab.lab_id)
             labs.append(lab)

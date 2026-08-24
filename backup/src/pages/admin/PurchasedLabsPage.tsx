@@ -12,6 +12,7 @@ interface PurchasedLabRecord {
   hours_purchased?: number;
   hours_remaining?: number;
   hours_used?: number;
+  fixed_rate?: number;
   status: string;
   purchased_date: string;
   expiry_date: string;
@@ -104,6 +105,12 @@ export const PurchasedLabsPage: React.FC = () => {
               </div>
 
               <div className="p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-3 flex-1 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400 font-medium">Price</span>
+                  <span className={`font-bold ${(lab.fixed_rate ?? 0) <= 0 ? 'text-emerald-600' : ''}`}>
+                    {(lab.fixed_rate ?? 0) <= 0 ? 'Free' : `₹${lab.fixed_rate}`}
+                  </span>
+                </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
                   <span className="text-slate-400 font-medium">Hours Purchased</span>
                   <span className="font-bold">{lab.hours_purchased ?? 0} hrs</span>
