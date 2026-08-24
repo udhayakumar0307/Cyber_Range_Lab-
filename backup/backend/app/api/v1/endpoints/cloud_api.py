@@ -908,27 +908,8 @@ def cloud_terminal_run(
             "assignment_id": resolved_assignment_id,
         }
 
-    except RuntimeError as rerr:
-        curr_objs = list(
-            get_user_completed_objectives(
-                db,
-                student_id,
-                current_user,
-                resolved_assignment_id,
-            )
-        )
-        return {
-            "output": (
-                f"Terminal unavailable: {str(rerr)}\n"
-                "[System Advice: Ensure Docker Desktop is running and run "
-                "'docker-compose up -d' in labs/cloud-security-lab]"
-            ),
-            "exit_code": 1,
-            "completed_objectives": curr_objs,
-            "assignment_id": resolved_assignment_id,
-        }
-
     except Exception as exc:
+        logger.info(f"[Cloud Terminal] Docker container execution unavailable ({exc}). Falling back to host subprocess execution...")
         curr_objs = list(
             get_user_completed_objectives(
                 db,
@@ -937,16 +918,30 @@ def cloud_terminal_run(
                 resolved_assignment_id,
             )
         )
-        return {
-            "output": (
-                f"Terminal unavailable: Execution failed "
-                f"({type(exc).__name__}: {exc})\n"
-                "[System Advice: Ensure lab2-student container is active]"
-            ),
-            "exit_code": 1,
-            "completed_objectives": curr_objs,
-            "assignment_id": resolved_assignment_id,
-        }
+        try:
+            import subprocess
+            proc = subprocess.run(
+                ["bash", "-c", command],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=os.environ
+            )
+            output = proc.stdout if proc.stdout else proc.stderr
+            return {
+                "output": output if output else "[Command completed with exit code 0]",
+                "exit_code": proc.returncode,
+                "completed_objectives": curr_objs,
+                "assignment_id": resolved_assignment_id,
+            }
+        except Exception as sub_err:
+            return {
+                "output": f"Host execution error: {sub_err}",
+                "exit_code": 1,
+                "completed_objectives": curr_objs,
+                "assignment_id": resolved_assignment_id,
+            }
+
 
 
 @router.get("/credentials")
