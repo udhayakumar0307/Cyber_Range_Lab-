@@ -832,8 +832,19 @@ def cloud_terminal_run(
             "output": f"[{env_key} saved to session]",
             "exit_code": 0,
             "completed_objectives": curr_objs,
+            "assignment_id": resolved_assignment_id,
+        }
+
     # Instant host execution path for CloudCorp AWS CLI & validation commands
     if command.startswith("aws") or "check_aws_level" in command or not _docker_available:
+        curr_objs = list(
+            get_user_completed_objectives(
+                db,
+                student_id,
+                current_user,
+                resolved_assignment_id,
+            )
+        )
         try:
             import subprocess
             proc = subprocess.run(
