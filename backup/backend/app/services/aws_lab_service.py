@@ -37,6 +37,19 @@ class AWSLabService:
                 aws_secret_access_key=credentials.get("SecretAccessKey"),
                 aws_session_token=credentials.get("SessionToken"),
             )
+        
+        key = getattr(settings, "AWS_ACCESS_KEY_ID", None) or os.getenv("AWS_ACCESS_KEY_ID")
+        secret = getattr(settings, "AWS_SECRET_ACCESS_KEY", None) or os.getenv("AWS_SECRET_ACCESS_KEY")
+        token = getattr(settings, "AWS_SESSION_TOKEN", None) or os.getenv("AWS_SESSION_TOKEN")
+
+        if key and secret:
+            return boto3.client(
+                service_name,
+                region_name=self.region,
+                aws_access_key_id=key,
+                aws_secret_access_key=secret,
+                aws_session_token=token,
+            )
         return boto3.client(service_name, region_name=self.region)
 
     def generate_sts_credentials(self, user_id: int, duration_seconds: int = 7200) -> Dict[str, Any]:
