@@ -338,6 +338,7 @@ def seed_sysadmin_lab_assignments(session, sysadmin_user_id: int):
 
     core_labs = [
         ("cloud-security-lab", "Cloud Security Lab"),
+        ("cloudcorp-aws-lab", "CloudCorp AWS Security Odyssey"),
         ("command-line-lab", "Linux Command Line Fundamentals"),
         ("lab1-recon", "Network Reconnaissance Lab"),
         ("cryptography-lab", "Cryptography & PKI Lab"),

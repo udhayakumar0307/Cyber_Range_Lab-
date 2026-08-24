@@ -1,0 +1,39 @@
+{
+  "tracks": {
+    "cloud": {
+      "name": "CloudCorp AWS Security Odyssey",
+      "modules": {
+        "cloud_mod1": {
+          "title": "Level 0: S3 Public Access & Policy Hardening",
+          "mission": "A rogue contractor left a storage bucket publicly accessible. Enumerate public S3 buckets anonymously, retrieve unencrypted audit logs, and reconfigure S3 Block Public Access & Bucket Policies.",
+          "points": 100
+        },
+        "cloud_mod2": {
+          "title": "Level 1: IAM Inline Policy Audit & Role Delegation",
+          "mission": "Investigate developer account permissions. Locate an overly permissive IAM role allowing sts:AssumeRole without external ID verification, assume the DevOps role, and fix the trust policy.",
+          "points": 150
+        },
+        "cloud_mod3": {
+          "title": "Level 2: EC2 SSRF & IMDSv2 Hardening",
+          "mission": "A web application on an EC2 instance suffers from SSRF. Exploit the SSRF to query legacy IMDSv1, then harden the EC2 instance by enforcing IMDSv2 (HttpTokens: required).",
+          "points": 200
+        },
+        "cloud_mod4": {
+          "title": "Level 3: Lambda, SSM & Secrets Manager Hardening",
+          "mission": "Analyze a serverless Lambda order processor leaking environment variables. Retrieve master DB passwords from AWS Secrets Manager and KMS re-encrypt the secret using a Customer-Managed Key.",
+          "points": 250
+        },
+        "cloud_mod5": {
+          "title": "Level 4: Forensic Log Analysis & Key Revocation",
+          "mission": "Investigate CloudTrail event logs to trace unauthorized user creation overnight. Identify the compromised developer access key, deactivate the key, and delete the backdoor IAM user.",
+          "points": 300
+        },
+        "cloud_mod6": {
+          "title": "Level 5: Capstone: Account Governance & SCP Guardrails",
+          "mission": "Perform a final platform compliance audit for CloudCorp CISO. Attach an account governance boundary enforcing region ap-south-1 and complete the master Cloud Security certification.",
+          "points": 500
+        }
+      }
+    }
+  }
+}

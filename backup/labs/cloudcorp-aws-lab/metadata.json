@@ -1,0 +1,9 @@
+{
+  "name": "CloudCorp AWS Security Odyssey",
+  "category": "Cloud Security",
+  "difficulty": "Intermediate",
+  "description": "Enterprise AWS Cloud Security hands-on sandbox covering S3 public asset hardening, IAM inline policies, EC2 SSRF & IMDSv2, Lambda & Secrets Manager, CloudTrail forensics, and Organizations governance.",
+  "duration": "4",
+  "price": "24999",
+  "docker_image": "cyberrange/cloudcorp-aws-lab:latest"
+}
