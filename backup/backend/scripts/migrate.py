@@ -372,12 +372,15 @@ def run_postgres_column_migrations(engine):
             # Manual sysadmin lab allocations used to hardcode 999999 "unlimited" hours
             # instead of the hours the sysadmin actually entered. Reset those placeholder
             # values back to a sane default so real remaining-hour totals display correctly.
+            # Threshold is 9999 (not an exact 999999 match) because some of these rows have
+            # already been decremented slightly by test assignments made against them.
             conn.execute(text("""
                 UPDATE purchased_labs
-                SET hours_purchased = 40, hours_remaining = 40
-                WHERE hours_purchased >= 999999 AND hours_used = 0;
+                SET hours_remaining = GREATEST(40 - hours_used, 0),
+                    hours_purchased = 40
+                WHERE hours_purchased >= 9999;
             """))
-            logger.info("  purchased_labs: reset placeholder 999999-hour allocations to 40")
+            logger.info("  purchased_labs: reset placeholder ~999999-hour allocations to 40")
 
         if table_exists("cart_items"):
             conn.execute(text("""
