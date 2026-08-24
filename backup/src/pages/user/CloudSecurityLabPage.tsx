@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
-import { AWSCredentials, CloudLevelInfo, AWSLevelCheckResponse } from '../../types/cloud';
+import type { AWSCredentials, CloudLevelInfo, AWSLevelCheckResponse } from '../../types/cloud';
 
 const CLOUD_LEVELS: CloudLevelInfo[] = [
   {
