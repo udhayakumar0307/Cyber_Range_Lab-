@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudCorp AWS Odyssey - Level 0: Public S3 Bucket Recon & Policy Audit'
+
+Parameters:
+  StudentSessionId:
+    Type: String
+    Description: 'Unique identifier for the student session'
+    Default: 'student'
+
+Resources:
+  PublicAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'cloudcorp-public-assets-${StudentSessionId}'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: 'Environment'
+          Value: 'CyberRangeLab'
+        - Key: 'Level'
+          Value: 'Level0'
+        - Key: 'SessionId'
+          Value: !Ref StudentSessionId
+
+  PublicAssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PublicAssetsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'AllowPublicRead'
+            Effect: 'Allow'
+            Principal: '*'
+            Action:
+              - 's3:GetObject'
+              - 's3:ListBucket'
+            Resource:
+              - !Sub 'arn:aws:s3:::cloudcorp-public-assets-${StudentSessionId}'
+              - !Sub 'arn:aws:s3:::cloudcorp-public-assets-${StudentSessionId}/*'
+
+Outputs:
+  BucketName:
+    Description: 'Public S3 Bucket Name'
+    Value: !Ref PublicAssetsBucket

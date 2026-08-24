@@ -77,3 +77,30 @@ def cleanup_stale_ecs_tasks():
                             logger.error(f"[ECS GC] Error stopping idle task {task_arn}: {stop_err}")
     except Exception as exc:
         logger.error(f"[ECS Garbage Collector] Task sweep failed: {exc}")
+
+
+def cleanup_stale_cloud_stacks():
+    """Finds and deletes CloudCorp CloudFormation stacks older than 2 hours or idle >10 min."""
+    region = os.getenv("AWS_REGION", "ap-south-1")
+    try:
+        import boto3
+        cfn = boto3.client("cloudformation", region_name=region)
+        now = time.time()
+
+        paginator = cfn.get_paginator("list_stacks")
+        for page in paginator.paginate(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"]):
+            for summary in page.get("StackSummaries", []):
+                stack_name = summary.get("StackName", "")
+                if stack_name.startswith("cloudcorp-"):
+                    creation_time = summary.get("CreationTime")
+                    age_seconds = now - creation_time.timestamp() if creation_time else 0
+
+                    if age_seconds > (2 * 3600):  # 2-hour hard stack TTL
+                        logger.warning(f"[Cloud GC] Deleting stale CloudCorp stack '{stack_name}' (age >2h)...")
+                        try:
+                            cfn.delete_stack(StackName=stack_name)
+                        except Exception as del_err:
+                            logger.error(f"[Cloud GC] Failed to delete stack '{stack_name}': {del_err}")
+    except Exception as exc:
+        logger.warning(f"[Cloud GC] Stack sweep error: {exc}")
+
