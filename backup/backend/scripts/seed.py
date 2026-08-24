@@ -331,6 +331,34 @@ def seed_default_users(session):
     session.commit()
 
 
+def seed_sysadmin_lab_assignments(session):
+    from app.models.admin_models import PurchasedLab
+    core_labs = [
+        "cloud-security-lab",
+        "command-line-lab",
+        "lab1-recon",
+        "cryptography-lab",
+        "ot-security-lab",
+        "puzzle-lab"
+    ]
+    for lab_id in core_labs:
+        existing = session.query(PurchasedLab).filter(
+            PurchasedLab.lab_id == lab_id,
+            PurchasedLab.organization_id.is_(None),
+            PurchasedLab.status == "ACTIVE"
+        ).first()
+        if not existing:
+            session.add(PurchasedLab(
+                lab_id=lab_id,
+                organization_id=None,
+                assigned_to="both",
+                fixed_rate=0.0,
+                status="ACTIVE"
+            ))
+            logger.info(f"  Assigned lab '{lab_id}' globally in SysAdmin catalog.")
+    session.commit()
+
+
 def main():
     with db_manager.transaction() as session:
         logger.info("Seeding roles...")
@@ -345,8 +373,11 @@ def main():
         seed_achievements(session)
         logger.info("Seeding labs and modules...")
         seed_labs_and_modules(session)
+        logger.info("Seeding SysAdmin global lab assignments...")
+        seed_sysadmin_lab_assignments(session)
     logger.info("Seed complete.")
 
 
 if __name__ == "__main__":
     main()
+
