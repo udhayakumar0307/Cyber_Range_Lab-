@@ -850,6 +850,12 @@ def cloud_terminal_run(
             term_env = dict(os.environ)
             user_id = current_user.id if current_user else 9999
             student_creds = aws_lab_service.generate_sts_credentials(user_id=user_id)
+
+            # Prevent AWS CLI from reading host ~/.aws/credentials or AWS_PROFILE
+            term_env.pop("AWS_PROFILE", None)
+            term_env["AWS_SHARED_CREDENTIALS_FILE"] = "/dev/null"
+            term_env["AWS_CONFIG_FILE"] = "/dev/null"
+
             if student_creds.get("AccessKeyId"):
                 term_env["AWS_ACCESS_KEY_ID"] = student_creds["AccessKeyId"]
                 term_env["AWS_SECRET_ACCESS_KEY"] = student_creds["SecretAccessKey"]
@@ -858,6 +864,7 @@ def cloud_terminal_run(
                 else:
                     term_env.pop("AWS_SESSION_TOKEN", None)
                 term_env["AWS_DEFAULT_REGION"] = student_creds.get("Region", "ap-south-1")
+                term_env["AWS_REGION"] = student_creds.get("Region", "ap-south-1")
 
             proc = subprocess.run(
                 ["bash", "-c", command],

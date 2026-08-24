@@ -2,7 +2,7 @@
 AWS Lab Service — STS Vending, Console Federation & IaC Provisioner
 =====================================================================
 Handles:
-  1. Temporary AWS STS credentials vending (`sts:GetSessionToken` or `sts:AssumeRole`) with 2-hour TTL.
+  1. Temporary AWS STS credentials vending (`sts:AssumeRole` or `sts:GetSessionToken`) with 2-hour TTL.
   2. One-click AWS Management Console Signin URL generation via AWS Signin Federation API.
   3. CloudFormation stack provisioning and deletion for CloudCorp levels.
 """
@@ -42,33 +42,43 @@ class AWSLabService:
     def generate_sts_credentials(self, user_id: int, duration_seconds: int = 7200) -> Dict[str, Any]:
         """
         Generates temporary AWS STS credentials for a student session using
-        sts:GetSessionToken or sts:AssumeRole.
+        sts:AssumeRole or sts:GetSessionToken.
         """
         sts_client = self._get_boto3_client("sts")
+
+        # Dynamically auto-detect current AWS Account ID
         account_id = os.getenv("AWS_ACCOUNT_ID")
-
-        # 1. Try AssumeRole if explicit role ARN configured
-        if account_id and account_id != "123456789012":
+        if not account_id or account_id == "123456789012":
             try:
-                role_arn = f"arn:aws:iam::{account_id}:role/CyberRangeStudentRole-{user_id}"
-                logger.info(f"[AWSLabService] Assuming role {role_arn} for user {user_id}...")
-                response = sts_client.assume_role(
-                    RoleArn=role_arn,
-                    RoleSessionName=f"cyberrange-student-{user_id}",
-                    DurationSeconds=duration_seconds,
-                )
-                creds = response["Credentials"]
-                return {
-                    "AccessKeyId": creds["AccessKeyId"],
-                    "SecretAccessKey": creds["SecretAccessKey"],
-                    "SessionToken": creds["SessionToken"],
-                    "Expiration": creds["Expiration"].isoformat(),
-                    "Region": self.region,
-                }
-            except Exception as exc:
-                logger.info(f"[AWSLabService] AssumeRole skipped/failed ({exc}). Using GetSessionToken...")
+                caller_id = sts_client.get_caller_identity()
+                account_id = caller_id.get("Account")
+            except Exception as id_err:
+                logger.info(f"[AWSLabService] get_caller_identity failed: {id_err}")
 
-        # 2. Fallback to GetSessionToken (works seamlessly with logged-in IAM User credentials)
+        # 1. Try AssumeRole if account_id is valid
+        if account_id:
+            for role_name in [f"CyberRangeStudentRole-{user_id}", "CyberRangeStudentRole"]:
+                try:
+                    role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+                    logger.info(f"[AWSLabService] Assuming role {role_arn} for student session {user_id}...")
+                    response = sts_client.assume_role(
+                        RoleArn=role_arn,
+                        RoleSessionName=f"student-{user_id}",
+                        DurationSeconds=duration_seconds,
+                    )
+                    creds = response["Credentials"]
+                    return {
+                        "AccessKeyId": creds["AccessKeyId"],
+                        "SecretAccessKey": creds["SecretAccessKey"],
+                        "SessionToken": creds["SessionToken"],
+                        "Expiration": creds["Expiration"].isoformat(),
+                        "Region": self.region,
+                        "Arn": f"arn:aws:sts::{account_id}:assumed-role/{role_name}/student-{user_id}",
+                    }
+                except Exception as exc:
+                    logger.info(f"[AWSLabService] AssumeRole '{role_name}' skipped ({exc}).")
+
+        # 2. Fallback to GetSessionToken (generates temporary session credentials)
         try:
             response = sts_client.get_session_token(DurationSeconds=duration_seconds)
             creds = response["Credentials"]
@@ -80,10 +90,10 @@ class AWSLabService:
                 "Region": self.region,
             }
         except Exception as get_tok_err:
-            logger.warning(f"[AWSLabService] GetSessionToken failed ({get_tok_err}). Using raw environment credentials...")
+            logger.warning(f"[AWSLabService] GetSessionToken failed ({get_tok_err}).")
             return {
-                "AccessKeyId": os.getenv("AWS_ACCESS_KEY_ID", "AKIA_SANDBOX_MOCK_KEY"),
-                "SecretAccessKey": os.getenv("AWS_SECRET_ACCESS_KEY", "SECRET_SANDBOX_MOCK_KEY"),
+                "AccessKeyId": os.getenv("AWS_ACCESS_KEY_ID", ""),
+                "SecretAccessKey": os.getenv("AWS_SECRET_ACCESS_KEY", ""),
                 "SessionToken": os.getenv("AWS_SESSION_TOKEN", ""),
                 "Expiration": (datetime.utcnow() + timedelta(seconds=duration_seconds)).isoformat(),
                 "Region": self.region,
