@@ -1592,6 +1592,7 @@ def get_available_purchased_labs_for_assignment(
             "lab_title": p.lab_title,
             "hours_remaining": p.hours_remaining or 0,
             "status": p.status,
+            "is_free": (p.fixed_rate or 0) <= 0,
         }
         for p in purchased
         if p.status == "ACTIVE" and (p.hours_remaining or 0) > 0

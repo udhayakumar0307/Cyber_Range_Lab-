@@ -7,6 +7,7 @@ interface PurchasedLabOption {
   lab_title: string;
   hours_remaining: number;
   status: string;
+  is_free: boolean;
 }
 
 interface AssignLabModalProps {
@@ -171,7 +172,7 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
                   <option value="">Select a lab...</option>
                   {labs.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.lab_title} — {l.hours_remaining.toFixed(1)}h remaining
+                      {l.lab_title} — {l.is_free ? 'Free' : `${l.hours_remaining.toFixed(1)}h remaining`}
                     </option>
                   ))}
                 </select>
