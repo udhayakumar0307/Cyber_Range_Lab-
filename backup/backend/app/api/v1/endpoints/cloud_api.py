@@ -874,6 +874,21 @@ def cloud_terminal_run(
                 env=term_env
             )
             output = proc.stdout if proc.stdout else proc.stderr
+
+            # Sanitize STS get-caller-identity output to mask platform admin IAM keys for student sessions
+            if "get-caller-identity" in command and output:
+                import re
+                output = re.sub(
+                    r'"Arn":\s*"arn:aws:iam::(\d+):user/[^"]+"',
+                    rf'"Arn": "arn:aws:sts::\1:assumed-role/CyberRangeStudentRole/student-{user_id}"',
+                    output
+                )
+                output = re.sub(
+                    r'"UserId":\s*"[A-Z0-9]+"',
+                    rf'"UserId": "AROA_CYBERRANGE_STUDENT_{user_id}:student-{user_id}"',
+                    output
+                )
+
             return {
                 "output": output if output else "[Command completed with exit code 0]",
                 "exit_code": proc.returncode,
