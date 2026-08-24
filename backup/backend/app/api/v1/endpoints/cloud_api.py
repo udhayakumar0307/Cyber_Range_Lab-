@@ -847,12 +847,24 @@ def cloud_terminal_run(
         )
         try:
             import subprocess
+            term_env = dict(os.environ)
+            user_id = current_user.id if current_user else 9999
+            student_creds = aws_lab_service.generate_sts_credentials(user_id=user_id)
+            if student_creds.get("AccessKeyId"):
+                term_env["AWS_ACCESS_KEY_ID"] = student_creds["AccessKeyId"]
+                term_env["AWS_SECRET_ACCESS_KEY"] = student_creds["SecretAccessKey"]
+                if student_creds.get("SessionToken"):
+                    term_env["AWS_SESSION_TOKEN"] = student_creds["SessionToken"]
+                else:
+                    term_env.pop("AWS_SESSION_TOKEN", None)
+                term_env["AWS_DEFAULT_REGION"] = student_creds.get("Region", "ap-south-1")
+
             proc = subprocess.run(
                 ["bash", "-c", command],
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env=os.environ
+                env=term_env
             )
             output = proc.stdout if proc.stdout else proc.stderr
             return {
