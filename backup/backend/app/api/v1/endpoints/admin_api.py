@@ -1659,8 +1659,9 @@ def assign_lab_to_group(
 
     total_hours = member_count * data.hours_per_student
     hours_remaining = purchased_lab.hours_remaining or 0
+    is_free_lab = (purchased_lab.fixed_rate or 0) <= 0
 
-    if total_hours > hours_remaining:
+    if not is_free_lab and total_hours > hours_remaining:
         raise HTTPException(
             status_code=400,
             detail=f"Not enough hours remaining. Need {total_hours:.1f}h for {member_count} students, but only {hours_remaining:.1f}h remain on this purchase."
@@ -1685,8 +1686,9 @@ def assign_lab_to_group(
     )
     db.add(assignment)
 
-    purchased_lab.hours_used = (purchased_lab.hours_used or 0) + total_hours
-    purchased_lab.hours_remaining = hours_remaining - total_hours
+    if not is_free_lab:
+        purchased_lab.hours_used = (purchased_lab.hours_used or 0) + total_hours
+        purchased_lab.hours_remaining = hours_remaining - total_hours
 
     db.commit()
     db.refresh(assignment)

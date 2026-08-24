@@ -85,7 +85,7 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
       setError('Choose a start date/time.');
       return;
     }
-    if (selectedLab && totalHours > selectedLab.hours_remaining) {
+    if (selectedLab && !selectedLab.is_free && totalHours > selectedLab.hours_remaining) {
       setError(
         `Not enough hours remaining: need ${totalHours.toFixed(1)}h for ${memberCount} students, only ${selectedLab.hours_remaining.toFixed(1)}h left.`
       );
@@ -215,8 +215,10 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
               <p>Starts: <strong>{new Date(startDatetime).toLocaleString()}</strong></p>
               <p>
                 Total <strong>{memberCount}</strong> student(s) × {hoursPerStudent}h ={' '}
-                <strong>{totalHours.toFixed(1)} hours</strong> will be deducted from your purchased balance
-                ({selectedLab ? (selectedLab.hours_remaining - totalHours).toFixed(1) : '-'}h will remain).
+                <strong>{totalHours.toFixed(1)} hours</strong>.{' '}
+                {selectedLab?.is_free
+                  ? 'This lab is free — no hours will be deducted from your purchased balance.'
+                  : `This will be deducted from your purchased balance (${selectedLab ? (selectedLab.hours_remaining - totalHours).toFixed(1) : '-'}h will remain).`}
               </p>
               <p>All verified students in this group will receive an in-app notification.</p>
             </div>
