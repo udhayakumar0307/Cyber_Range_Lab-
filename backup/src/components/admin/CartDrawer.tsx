@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, Trash2, ArrowRight, Clock, Zap, Users, ChevronDown } from 'lucide-react';
+import { X, ShoppingCart, Trash2, ArrowRight, Clock, Zap, Users } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 
 interface CartDrawerProps {
@@ -14,22 +14,10 @@ interface CartDrawerProps {
   onProceedToCheckout: (cartSummary: any) => void;
 }
 
-const HOUR_PRESETS = [1, 5, 10, 50, 100, 400];
+const MAX_HOURS = 400;
+const MAX_STUDENTS = 50;
 
 const inr = (n: number) => '\u20B9' + n.toLocaleString('en-IN');
-
-/** All (students, hoursPerStudent) whole-number pairs that multiply to `hours`. */
-const allocationOptions = (hours: number): { students: number; hoursPerStudent: number }[] => {
-  if (!Number.isFinite(hours) || hours < 1) return [];
-  const options: { students: number; hoursPerStudent: number }[] = [];
-  for (let students = 1; students <= hours; students++) {
-    if (hours % students === 0) {
-      options.push({ students, hoursPerStudent: hours / students });
-    }
-  }
-  // Cap the list so huge totals (e.g. 400hr) don't dump dozens of rows.
-  return options.length > 8 ? options.slice(0, 8) : options;
-};
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
@@ -40,22 +28,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClearCart,
   onProceedToCheckout,
 }) => {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const toggleExpanded = (id: number | string) => {
-    const key = String(id);
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
+  const getStudents = (id: number | string) => studentCounts[String(id)] ?? 1;
+  const setStudents = (id: number | string, count: number) => {
+    setStudentCounts((prev) => ({ ...prev, [String(id)]: count }));
   };
 
   if (!isOpen) return null;
 
   const safeItems = cartItems ?? [];
   const subtotal = safeItems.reduce(
-    (acc, item) => acc + (item.price_inr ?? 0) * (item.hours_purchased ?? 1),
+    (acc, item) =>
+      acc + (item.price_inr ?? 0) * (item.hours_purchased ?? 1) * getStudents(item.id),
     0
   );
   const tax = Math.round(subtotal * 0.18);
@@ -107,7 +91,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             safeItems.map((item) => {
               const hours = item.hours_purchased ?? 1;
               const ratePerHr = item.price_inr ?? 0;
-              const itemTotal = ratePerHr * hours;
+              const students = getStudents(item.id);
+              const itemTotal = ratePerHr * hours * students;
 
               return (
                 <div
@@ -137,67 +122,65 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </button>
                   </div>
 
-                  {/* Hour presets */}
+                  {/* Top summary: hr x student count */}
+                  <div className="flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl py-2">
+                    <span className="text-sm font-black text-blue-700 dark:text-blue-300">
+                      {hours} hr &times; {students} student{students !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Hours slider */}
                   <div>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-450 dark:text-slate-400" />
-                      <span className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wide">
-                        Select Hours
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wide">
+                        <Clock className="w-3.5 h-3.5 text-slate-450 dark:text-slate-400" />
+                        Select Hours (per student)
                       </span>
+                      <span className="text-[12px] font-black text-blue-600 dark:text-blue-400">{hours}hr</span>
                     </div>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {HOUR_PRESETS.map((h) => (
-                        <button
-                          key={h}
-                          onClick={() => onUpdateHours(item.id, h)}
-                          className={`py-2 rounded-xl text-[12px] font-black transition-all ${
-                            hours === h
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/35 scale-105'
-                              : 'bg-white dark:bg-slate-700/60 text-slate-650 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-600/40'
-                          }`}
-                        >
-                          {h}hr
-                        </button>
-                      ))}
+                    <input
+                      type="range"
+                      min={1}
+                      max={MAX_HOURS}
+                      step={1}
+                      value={hours}
+                      onChange={(e) => onUpdateHours(item.id, Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-blue-600"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      <span>1</span>
+                      <span>{MAX_HOURS}</span>
                     </div>
                   </div>
 
-                  {/* Allocation possibilities for the selected hour total — collapsible */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => toggleExpanded(item.id)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wide cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        Possibilities
+                  {/* Student count slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wide">
+                        <Users className="w-3.5 h-3.5 text-slate-450 dark:text-slate-400" />
+                        Students
                       </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                          expandedIds.has(String(item.id)) ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
-                    {expandedIds.has(String(item.id)) && (
-                      <div className="px-3 pb-3 space-y-1.5">
-                        {allocationOptions(hours).map(({ students, hoursPerStudent }) => (
-                          <div
-                            key={`${students}-${hoursPerStudent}`}
-                            className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg px-2.5 py-1.5"
-                          >
-                            <span>
-                              <strong className="text-slate-900 dark:text-white">{students}</strong> student{students !== 1 ? 's' : ''} &times; <strong className="text-slate-900 dark:text-white">{hoursPerStudent}</strong> hr each
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      <span className="text-[12px] font-black text-blue-600 dark:text-blue-400">{students}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={MAX_STUDENTS}
+                      step={1}
+                      value={students}
+                      onChange={(e) => setStudents(item.id, Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-blue-600"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      <span>1</span>
+                      <span>{MAX_STUDENTS}</span>
+                    </div>
                   </div>
 
                   {/* Item total */}
                   <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <span className="text-[12px] text-slate-500 dark:text-slate-450">
-                      {hours} hr &times; {inr(ratePerHr)}
+                      {hours} hr &times; {students} &times; {inr(ratePerHr)}
                     </span>
                     <span className="text-sm font-black text-slate-900 dark:text-white">
                       {inr(itemTotal)}
