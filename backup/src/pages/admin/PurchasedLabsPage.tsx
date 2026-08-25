@@ -16,6 +16,7 @@ interface PurchasedLabRecord {
   status: string;
   purchased_date: string;
   expiry_date: string;
+  is_sysadmin_assigned?: boolean;
 }
 
 export const PurchasedLabsPage: React.FC = () => {
@@ -94,8 +95,12 @@ export const PurchasedLabsPage: React.FC = () => {
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
                     {lab.lab_id.includes('cloud') ? 'Cloud' : lab.lab_id.includes('ot') ? 'OT' : lab.lab_id.includes('recon') ? 'Recon' : lab.lab_id.includes('puzzle') ? 'Puzzle' : 'Linux'}
                   </span>
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#28A745] border border-emerald-200">
-                    {lab.status || 'Active'}
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    lab.is_sysadmin_assigned
+                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                      : 'bg-emerald-50 text-[#28A745] border-emerald-200'
+                  }`}>
+                    {lab.is_sysadmin_assigned ? 'Granted by SysAdmin' : (lab.status || 'Purchased')}
                   </span>
                 </div>
 
@@ -112,7 +117,7 @@ export const PurchasedLabsPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                  <span className="text-slate-400 font-medium">Hours Purchased</span>
+                  <span className="text-slate-400 font-medium">{lab.is_sysadmin_assigned ? 'Hours Granted' : 'Hours Purchased'}</span>
                   <span className="font-bold">{lab.hours_purchased ?? 0} hrs</span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -127,6 +132,12 @@ export const PurchasedLabsPage: React.FC = () => {
                   <span className="text-slate-400 font-medium">Expiry Date</span>
                   <span className="font-bold">{lab.expiry_date || '2027-01-15'}</span>
                 </div>
+                {!lab.is_sysadmin_assigned && (
+                  <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                    <span className="text-slate-400 font-medium">Purchased Date</span>
+                    <span className="font-bold">{lab.purchased_date || '—'}</span>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">

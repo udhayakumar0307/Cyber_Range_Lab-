@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, ShoppingCart, Trash2, ArrowRight, Clock, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ShoppingCart, Trash2, ArrowRight, Clock, Zap, Users, ChevronDown } from 'lucide-react';
 import type { CartItem } from '../../types/cart';
 
 interface CartDrawerProps {
@@ -18,6 +18,19 @@ const HOUR_PRESETS = [1, 5, 10, 50, 100, 400];
 
 const inr = (n: number) => '\u20B9' + n.toLocaleString('en-IN');
 
+/** All (students, hoursPerStudent) whole-number pairs that multiply to `hours`. */
+const allocationOptions = (hours: number): { students: number; hoursPerStudent: number }[] => {
+  if (!Number.isFinite(hours) || hours < 1) return [];
+  const options: { students: number; hoursPerStudent: number }[] = [];
+  for (let students = 1; students <= hours; students++) {
+    if (hours % students === 0) {
+      options.push({ students, hoursPerStudent: hours / students });
+    }
+  }
+  // Cap the list so huge totals (e.g. 400hr) don't dump dozens of rows.
+  return options.length > 8 ? options.slice(0, 8) : options;
+};
+
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
@@ -27,6 +40,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClearCart,
   onProceedToCheckout,
 }) => {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: number | string) => {
+    const key = String(id);
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   if (!isOpen) return null;
 
   const safeItems = cartItems ?? [];
@@ -136,6 +160,38 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Allocation possibilities for the selected hour total — collapsible */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => toggleExpanded(item.id)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wide cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        Possibilities
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                          expandedIds.has(String(item.id)) ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    {expandedIds.has(String(item.id)) && (
+                      <div className="px-3 pb-3 space-y-1.5">
+                        {allocationOptions(hours).map(({ students, hoursPerStudent }) => (
+                          <div
+                            key={`${students}-${hoursPerStudent}`}
+                            className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg px-2.5 py-1.5"
+                          >
+                            <span>
+                              <strong className="text-slate-900 dark:text-white">{students}</strong> student{students !== 1 ? 's' : ''} &times; <strong className="text-slate-900 dark:text-white">{hoursPerStudent}</strong> hr each
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Item total */}
