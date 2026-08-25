@@ -555,14 +555,16 @@ def get_purchased_labs(
     else:
         org_labs = []
 
-    # Also include labs the SysAdmin granted globally (organization_id IS NULL) —
-    # these are real usable inventory for this org (same set the Assign Lab
-    # picker draws from), so they must appear here too with correct hours/price,
-    # not just disappear from the org's own "Purchased Labs" view.
+    # Explicit SysAdmin grants are real inventory and should appear here.
+    # The bootstrap/seed process also creates GLOBAL-SYSADMIN-* rows so the
+    # core labs are visible in the platform catalog.  Those rows are catalog
+    # defaults, not purchases or grants to this organization, and must not be
+    # presented as "purchased hours".
     granted_labs = db.query(PurchasedLab).filter(
         PurchasedLab.organization_id.is_(None),
         PurchasedLab.assigned_to.in_(["admin", "both", "org"]),
-        PurchasedLab.status == "ACTIVE"
+        PurchasedLab.status == "ACTIVE",
+        ~PurchasedLab.license_key.like("GLOBAL-SYSADMIN-%")
     ).order_by(PurchasedLab.purchased_date.desc()).all()
 
     # Merge, de-duplicate by lab_id (personal purchase takes precedence, then org purchase)
