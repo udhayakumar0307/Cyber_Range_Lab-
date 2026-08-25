@@ -488,22 +488,31 @@ export const SystemAuditPortal: React.FC = () => {
                     <th className="py-2.5 px-4">Txn ID</th>
                     <th className="py-2.5 px-4">Order ID</th>
                     <th className="py-2.5 px-4">Gateway</th>
+                    <th className="py-2.5 px-4">Type</th>
                     <th className="py-2.5 px-4">Amount</th>
                     <th className="py-2.5 px-4">Status</th>
                     <th className="py-2.5 px-4">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {data.payments.map((p) => (
+                  {data.payments.map((p) => {
+                    const isReal = p.gateway === 'razorpay';
+                    return (
                     <tr key={p.id}>
                       <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">{p.transaction_id}</td>
                       <td className="py-3 px-4 font-mono text-slate-500">#{p.order_id}</td>
                       <td className="py-3 px-4 capitalize">{p.gateway}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${isReal ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {isReal ? 'Real Payment' : 'Free / Manual'}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 font-bold text-slate-900 dark:text-slate-100">₹{p.amount}</td>
                       <td className="py-3 px-4"><span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold text-[10px]">{p.payment_status}</span></td>
                       <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">{p.created_at}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

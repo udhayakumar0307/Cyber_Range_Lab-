@@ -97,10 +97,14 @@ export const PurchasedLabsPage: React.FC = () => {
                   </span>
                   <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                     lab.is_sysadmin_assigned
-                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                      ? (lab.fixed_rate ?? 0) <= 0
+                        ? 'bg-emerald-50 text-[#28A745] border-emerald-200'
+                        : 'bg-blue-50 text-blue-600 border-blue-200'
                       : 'bg-emerald-50 text-[#28A745] border-emerald-200'
                   }`}>
-                    {lab.is_sysadmin_assigned ? 'Granted by SysAdmin' : (lab.status || 'Purchased')}
+                    {lab.is_sysadmin_assigned
+                      ? ((lab.fixed_rate ?? 0) <= 0 ? 'Free' : 'Granted by SysAdmin')
+                      : (lab.status || 'Purchased')}
                   </span>
                 </div>
 
@@ -130,7 +134,11 @@ export const PurchasedLabsPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
                   <span className="text-slate-400 font-medium">Expiry Date</span>
-                  <span className="font-bold">{lab.expiry_date || '2027-01-15'}</span>
+                  <span className="font-bold">
+                    {lab.is_sysadmin_assigned && (lab.fixed_rate ?? 0) <= 0
+                      ? 'No Expiry'
+                      : (lab.expiry_date || '2027-01-15')}
+                  </span>
                 </div>
                 {!lab.is_sysadmin_assigned && (
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
