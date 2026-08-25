@@ -14,10 +14,10 @@ interface CartDrawerProps {
   onProceedToCheckout: (cartSummary: any) => void;
 }
 
-const MAX_HOURS = 400;
-const MAX_STUDENTS = 50;
+const MAX_HOURS_PER_STUDENT = 10;
+const MAX_STUDENTS = 100;
 
-const inr = (n: number) => '\u20B9' + n.toLocaleString('en-IN');
+const inr = (n: number) => '₹' + n.toLocaleString('en-IN');
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
@@ -28,10 +28,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClearCart,
   onProceedToCheckout,
 }) => {
+  // Hours-per-student and student-count are tracked locally so the sliders can
+  // be adjusted independently; the actual value synced to the cart/purchase
+  // backend (via onUpdateHours) is always their PRODUCT — the real total
+  // hours that need to be bought (e.g. 1hr x 50 students = 50hr purchased).
+  const [hourPerStudent, setHourPerStudentState] = useState<Record<string, number>>({});
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
+
+  const getHours = (id: number | string) => hourPerStudent[String(id)] ?? 1;
   const getStudents = (id: number | string) => studentCounts[String(id)] ?? 1;
-  const setStudents = (id: number | string, count: number) => {
-    setStudentCounts((prev) => ({ ...prev, [String(id)]: count }));
+
+  const applyChange = (id: number | string, hours: number, students: number) => {
+    setHourPerStudentState((prev) => ({ ...prev, [String(id)]: hours }));
+    setStudentCounts((prev) => ({ ...prev, [String(id)]: students }));
+    onUpdateHours(id, hours * students);
   };
 
   if (!isOpen) return null;
@@ -39,7 +49,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const safeItems = cartItems ?? [];
   const subtotal = safeItems.reduce(
     (acc, item) =>
-      acc + (item.price_inr ?? 0) * (item.hours_purchased ?? 1) * getStudents(item.id),
+      acc + (item.price_inr ?? 0) * getHours(item.id) * getStudents(item.id),
     0
   );
   const tax = Math.round(subtotal * 0.18);
@@ -89,10 +99,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
           ) : (
             safeItems.map((item) => {
-              const hours = item.hours_purchased ?? 1;
+              const hours = getHours(item.id);
               const ratePerHr = item.price_inr ?? 0;
               const students = getStudents(item.id);
-              const itemTotal = ratePerHr * hours * students;
+              const totalHours = hours * students;
+              const itemTotal = ratePerHr * totalHours;
 
               return (
                 <div
@@ -141,15 +152,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <input
                       type="range"
                       min={1}
-                      max={MAX_HOURS}
+                      max={MAX_HOURS_PER_STUDENT}
                       step={1}
                       value={hours}
-                      onChange={(e) => onUpdateHours(item.id, Number(e.target.value))}
+                      onChange={(e) => applyChange(item.id, Number(e.target.value), students)}
                       className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-blue-600"
                     />
                     <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1">
                       <span>1</span>
-                      <span>{MAX_HOURS}</span>
+                      <span>{MAX_HOURS_PER_STUDENT}</span>
                     </div>
                   </div>
 
@@ -168,7 +179,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       max={MAX_STUDENTS}
                       step={1}
                       value={students}
-                      onChange={(e) => setStudents(item.id, Number(e.target.value))}
+                      onChange={(e) => applyChange(item.id, hours, Number(e.target.value))}
                       className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-blue-600"
                     />
                     <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1">
@@ -177,10 +188,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   </div>
 
+                  {/* Total hours actually being purchased */}
+                  <div className="flex items-center justify-between text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">
+                      Buying <strong className="text-slate-900 dark:text-white">{totalHours}hr</strong> total ({hours}hr &times; {students})
+                    </span>
+                  </div>
+
                   {/* Item total */}
                   <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <span className="text-[12px] text-slate-500 dark:text-slate-450">
-                      {hours} hr &times; {students} &times; {inr(ratePerHr)}
+                      {totalHours} hr &times; {inr(ratePerHr)}
                     </span>
                     <span className="text-sm font-black text-slate-900 dark:text-white">
                       {inr(itemTotal)}
