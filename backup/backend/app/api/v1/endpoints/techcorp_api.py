@@ -747,12 +747,40 @@ def advance_level(
         try:
             import subprocess as _sp
 
-            key_path = f"/opt/validation/level{next_lvl}.key"
+            # Do NOT read /opt/validation/level{N}.key directly here. Those key
+            # files are intentionally root:systemd-journal 0640, so the student
+            # account cannot cat them over SSH. The old implementation always
+            # attempted the read as level0:starthere, which makes ECS advancement
+            # fail immediately after the browser has already observed
+            # "Level 0 solved!".
+            #
+            # Each level user is granted password-less sudo for exactly its own
+            # validation script. Re-run that trusted validator server-side: it
+            # both proves the current level is solved and returns the next-level
+            # credential without exposing arbitrary validation keys to students.
+            ssh_user = str(redis_sess.get("ssh_user") or f"level{current_lvl}")
+            ssh_pass = str(
+                redis_sess.get("ssh_pass")
+                or ("starthere" if current_lvl == 0 else "")
+            )
+
+            if not ssh_pass:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Current level SSH credential is missing from the runtime. "
+                        "Restart the Puzzle Lab and try again."
+                    ),
+                )
+
+            validation_cmd = (
+                f"sudo /opt/validation/validate_level_{current_lvl}.sh"
+            )
             ssh_result = _sp.run(
                 [
                     "sshpass",
                     "-p",
-                    "starthere",
+                    ssh_pass,
                     "ssh",
                     "-o",
                     "StrictHostKeyChecking=no",
@@ -762,30 +790,36 @@ def advance_level(
                     "ConnectTimeout=5",
                     "-p",
                     str(port),
-                    f"level0@{host}",
-                    f"cat {key_path}",
+                    f"{ssh_user}@{host}",
+                    validation_cmd,
                 ],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
 
-            next_password = ssh_result.stdout.strip()
+            validator_output = ssh_result.stdout.strip()
 
             logger.info(
-                f"[Advance] ECS key read for user {current_user.id}, "
+                f"[Advance] ECS validation for user {current_user.id}, "
                 f"level={current_lvl}, assignment={resolved_assignment_id}, "
+                f"returncode={ssh_result.returncode}, "
                 f"stderr='{ssh_result.stderr.strip()}'"
             )
 
-            if not next_password:
+            if ssh_result.returncode != 0 or not validator_output:
                 raise HTTPException(
                     status_code=400,
                     detail=(
-                        "Level not yet solved. Run check_level in your terminal "
+                        "Level validation failed. Run check_level in your terminal "
                         "first, then click Advance."
                     ),
                 )
+
+            # Validators 0-32 emit the next password as their final non-empty
+            # stdout line. Taking only that line avoids carrying incidental
+            # command output into the SSH credential.
+            next_password = validator_output.splitlines()[-1].strip()
 
         except HTTPException:
             raise

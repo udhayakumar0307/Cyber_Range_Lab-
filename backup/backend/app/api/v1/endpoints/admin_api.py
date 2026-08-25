@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, UploadFile, File, Response, BackgroundTasks
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import not_, or_, func
+from sqlalchemy import and_, not_, or_, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, get_current_admin_user, get_admin_org_id, enforce_admin_rbac
@@ -1578,12 +1578,23 @@ def get_available_purchased_labs_for_assignment(
     org_id = get_admin_org_id(current_user, db)
     purchased = db.query(PurchasedLab).filter(
         or_(
+            # Inventory purchased for this organization.
             PurchasedLab.organization_id == org_id,
-            PurchasedLab.assigned_to.in_(["admin", "both", "org"])
+            # Explicit global SysAdmin grants.  Exclude the GLOBAL-SYSADMIN-*
+            # bootstrap rows: they only make the core labs visible in the
+            # catalog and are not an organization's purchased-hour pool.
+            and_(
+                PurchasedLab.organization_id.is_(None),
+                PurchasedLab.assigned_to.in_(["admin", "both", "org"]),
+                ~PurchasedLab.license_key.like("GLOBAL-SYSADMIN-%")
+            )
         )
     ).all()
     if not purchased:
-        purchased = db.query(PurchasedLab).filter(PurchasedLab.user_id == current_user.id).all()
+        purchased = db.query(PurchasedLab).filter(
+            PurchasedLab.user_id == current_user.id,
+            ~PurchasedLab.license_key.like("GLOBAL-SYSADMIN-%")
+        ).all()
 
     return [
         {

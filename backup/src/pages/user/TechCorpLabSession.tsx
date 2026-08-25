@@ -409,8 +409,12 @@ export const TechCorpLabSession: React.FC = () => {
       const res = await apiFetch('/api/v1/labs/techcorp/advance', {
         method: 'POST'
       });
-      if (!res.ok) throw new Error("Failed to advance level");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          data?.detail || `Failed to advance level (HTTP ${res.status})`
+        );
+      }
       
       if (data.status === 'completed' || data.status === 'success') {
         setCurrentLevel(data.next_level);
@@ -457,9 +461,12 @@ export const TechCorpLabSession: React.FC = () => {
           if (sshPort) connectTerminal(sshPort);
         }, 800);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Advancement validation failed. Make sure you solved the level correctly!");
+      alert(
+        err?.message ||
+        "Advancement validation failed. Make sure you solved the level correctly!"
+      );
     } finally {
       setAdvancing(false);
     }
