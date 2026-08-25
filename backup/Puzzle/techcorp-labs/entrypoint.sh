@@ -38,6 +38,37 @@ if [ ! -f /opt/validation/.passwords_initialized ]; then
         
         echo "${USERNAME}: ${PASSWORD}" >> "$PASSWORD_FILE"
     done
+
+    # Levels 0-4 contain the next-level password inside challenge artifacts
+    # created when the Docker image is built. Because passwords are regenerated
+    # per container above, refresh those artifacts as well; otherwise the
+    # validators return stale image-build credentials and the WebSocket cannot
+    # reconnect as the newly unlocked user.
+    LEVEL1_PASS=$(cat "${VALIDATION_DIR}/level1.key")
+    LEVEL2_PASS=$(cat "${VALIDATION_DIR}/level2.key")
+    LEVEL3_PASS=$(cat "${VALIDATION_DIR}/level3.key")
+    LEVEL4_PASS=$(cat "${VALIDATION_DIR}/level4.key")
+    LEVEL5_PASS=$(cat "${VALIDATION_DIR}/level5.key")
+
+    echo "level1_password: ${LEVEL1_PASS}" > /opt/labs/level0/deploy.log
+    chmod 000 /opt/labs/level0/deploy.log
+    chown level0:level0 /opt/labs/level0/deploy.log
+
+    echo "level2_password: ${LEVEL2_PASS}" > /opt/labs/level1/.secret_config
+    chmod 644 /opt/labs/level1/.secret_config
+    chown level1:level1 /opt/labs/level1/.secret_config
+
+    echo "level3_password: ${LEVEL3_PASS}" > /opt/labs/level2/config.conf
+    chmod 640 /opt/labs/level2/config.conf
+    chown alice:users /opt/labs/level2/config.conf
+
+    echo "level4_password: ${LEVEL4_PASS}" > /opt/labs/level3/protected_data.txt
+    chmod 640 /opt/labs/level3/protected_data.txt
+    chown root:protected_data /opt/labs/level3/protected_data.txt
+
+    echo "level5_password: ${LEVEL5_PASS}" > /opt/labs/level4/report.txt
+    chmod 600 /opt/labs/level4/report.txt
+    chown level4:level4 /opt/labs/level4/report.txt
     
     # Mark as initialized
     touch /opt/validation/.passwords_initialized
