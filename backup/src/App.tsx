@@ -299,6 +299,30 @@ export function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/labs/cloudcorp-aws-lab"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CloudSecurityLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/cloudcorp-aws-lab/session"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CloudSecurityLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/cloudcorp-aws-lab/session/:sessionId"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CloudSecurityLabPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* TechCorp Lab Session */}
               <Route

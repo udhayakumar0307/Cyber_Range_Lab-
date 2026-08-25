@@ -148,7 +148,7 @@ export const AssignedLabsPage: React.FC = () => {
           const targetLabId = lab.lab_id;
           const isCll = targetLabId === 'command-line-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
           const isCrypto = targetLabId === 'cryptography-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
-          const isCloud = targetLabId === 'cloud-security-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'cloudsecuritylab';
+          const isCloud = targetLabId === 'cloud-security-lab' || targetLabId === 'cloudcorp-aws-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '').includes('cloud');
           const isPuzzle = targetLabId === 'techcorp-sysadmin-labs' || targetLabId === 'puzzle-lab' || targetLabId.toLowerCase().includes('puzzle');
           if (isCll) {
             navigate('/labs/command-line-lab/session/sess-cll-01');
