@@ -4,6 +4,7 @@ from app.models.college import College
 from app.models.group import Group
 from app.models.user import User
 from app.models.assignment import Assignment
+from app.models.sysadmin_submission import SysadminSubmission
 from app.models.otp import OTPVerification
 from app.models.password_reset import PasswordReset
 from app.models.professor import ProfessorProfile, Professor
@@ -42,6 +43,7 @@ __all__ = [
     "User",
     "UserAffiliation",
     "Assignment",
+    "SysadminSubmission",
     "OTPVerification",
     "PasswordReset",
     "Professor",
