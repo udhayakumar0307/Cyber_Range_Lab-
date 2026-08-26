@@ -44,3 +44,31 @@ class SysadminGradingStatusResponse(BaseModel):
     configured: bool
     available_labs: list[str]
     detail: str
+
+
+class WorkspaceTokenRequest(BaseModel):
+    lab_id: str = Field(min_length=3, max_length=64)
+
+    @field_validator("lab_id")
+    @classmethod
+    def strip_lab_id(cls, value: str) -> str:
+        return value.strip()
+
+
+class WorkspaceTokenResponse(BaseModel):
+    token: str
+    token_type: str = "Bearer"
+    lab_id: str
+    workspace_id: str
+    expires_at: datetime
+    submit_endpoint: str = "/api/v1/sysadmin-grading/workspace-submit"
+
+
+class WorkspaceSubmissionRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=128)
+    content: str = Field(min_length=1)
+
+    @field_validator("filename")
+    @classmethod
+    def strip_filename(cls, value: str) -> str:
+        return value.strip()

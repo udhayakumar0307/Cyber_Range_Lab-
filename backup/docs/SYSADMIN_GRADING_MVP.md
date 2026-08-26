@@ -74,3 +74,39 @@ submit --lab RHSA-USERS-001 provision_user.sh
 A correct submission should return the same rubric-level 100/100 result produced by
 the standalone question-bank smoke test. An academically failing result returns CLI
 exit code `2`; an infrastructure/API failure returns exit code `1`.
+
+## Workspace v0.1: submission-only credentials
+
+The terminal workspace must **not** receive a normal CyberRange access JWT.
+Workspace v0.1 uses a separately signed, short-lived credential whose claims pin
+it to one persisted `user_id`, one RHSA `lab_id`, and one `workspace_id`. The
+credential is accepted only by:
+
+```text
+POST /api/v1/sysadmin-grading/workspace-submit
+```
+
+The request contains only `filename` and `content`; the client cannot choose a
+lab ID because lab scope comes from the credential.
+
+For local integration only, set:
+
+```text
+SYSADMIN_ALLOW_USER_WORKSPACE_TOKEN_MINTING=true
+```
+
+and use an authenticated persisted user to call:
+
+```text
+POST /api/v1/sysadmin-grading/workspace-token
+```
+
+Keep that setting `false` in production. The production ECS workspace
+orchestrator should mint the token internally after assignment authorization.
+
+### Production boundary
+
+`LocalDockerExecutor` is a development executor. Do not enable student grading
+on the production FastAPI host. Production student submissions must run in a
+dedicated, disposable ECS grading task with no host mounts, Docker socket, or
+application/AWS credentials available to the submitted script.

@@ -75,10 +75,20 @@ class QuestionBankRepository:
         if not self.labs_root.is_dir():
             return []
         values: list[str] = []
+        locations: dict[str, list[Path]] = {}
         for module_dir in sorted(self.labs_root.iterdir()):
             if not module_dir.is_dir():
                 continue
             for lab_dir in sorted(module_dir.iterdir()):
                 if lab_dir.is_dir() and LAB_ID_RE.fullmatch(lab_dir.name):
                     values.append(lab_dir.name)
+                    locations.setdefault(lab_dir.name, []).append(lab_dir)
+
+        duplicates = {key: paths for key, paths in locations.items() if len(paths) > 1}
+        if duplicates:
+            detail = "; ".join(
+                f"{lab_id}: {', '.join(str(p.relative_to(self.root)) for p in paths)}"
+                for lab_id, paths in sorted(duplicates.items())
+            )
+            raise QuestionBankError(f"Duplicate Sysadmin lab IDs in question bank: {detail}")
         return values
