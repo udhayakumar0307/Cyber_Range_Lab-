@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.sysadmin_submission import SysadminSubmission
 
 from .config import GradingConfigurationError, SysadminGradingSettings
-from .executor import GradingExecutionError, LocalDockerExecutor
+from .executor import GradingExecutionError, build_grading_executor
 from .question_bank import QuestionBankError, QuestionBankRepository
 
 
@@ -23,7 +23,7 @@ class SysadminGradingService:
     def __init__(self, settings: SysadminGradingSettings | None = None) -> None:
         self.settings = settings or SysadminGradingSettings.from_env()
         self.repository = QuestionBankRepository(self.settings.question_bank_root)
-        self.executor = LocalDockerExecutor(self.settings, self.repository)
+        self.executor = build_grading_executor(self.settings, self.repository)
 
     def validate_submission(self, *, lab_id: str, filename: str, content: str) -> None:
         encoded = content.encode("utf-8")

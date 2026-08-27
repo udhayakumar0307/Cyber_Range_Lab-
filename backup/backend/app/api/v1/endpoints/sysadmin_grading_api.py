@@ -54,19 +54,25 @@ def _assert_real_active_user(user: User) -> None:
 
 @router.get("/status", response_model=SysadminGradingStatusResponse)
 def grading_status(current_user: User = Depends(get_current_user)):
-    settings = SysadminGradingSettings.from_env()
-    repository = QuestionBankRepository(settings.question_bank_root)
     try:
+        settings = SysadminGradingSettings.from_env()
+        repository = QuestionBankRepository(settings.question_bank_root)
         settings.assert_ready()
+        detail = (
+            "Local Docker grading executor is ready."
+            if settings.executor == "local"
+            else "Dedicated ECS grading executor is configured."
+        )
         return SysadminGradingStatusResponse(
             enabled=settings.enabled,
             configured=True,
             available_labs=repository.available_lab_ids(),
-            detail="Local Docker grading executor is ready.",
+            detail=detail,
         )
     except (GradingConfigurationError, QuestionBankError) as exc:
+        enabled = locals().get("settings").enabled if "settings" in locals() else False
         return SysadminGradingStatusResponse(
-            enabled=settings.enabled,
+            enabled=enabled,
             configured=False,
             available_labs=[],
             detail=str(exc),
