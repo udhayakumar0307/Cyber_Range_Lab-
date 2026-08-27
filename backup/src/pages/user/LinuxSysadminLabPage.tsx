@@ -224,7 +224,7 @@ const ResultPanel: React.FC<{
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
             {submission.tests.map((test) => (
               <div
                 key={test.id}
@@ -450,8 +450,8 @@ export const LinuxSysadminLabPage: React.FC = () => {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-5 p-4 sm:p-6 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <aside className="space-y-4">
+      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-5 p-4 sm:p-6 xl:grid-cols-[290px_minmax(0,1fr)] xl:items-start">
+        <aside className="space-y-4 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:pr-1 [scrollbar-gutter:stable]">
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -578,8 +578,8 @@ export const LinuxSysadminLabPage: React.FC = () => {
                 )}
               </section>
 
-              <div className="grid gap-5 2xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.55fr)]">
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="grid gap-5 xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.55fr)] xl:items-start">
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:max-h-[58vh] xl:overflow-y-auto xl:pr-4 2xl:max-h-[600px] [scrollbar-gutter:stable]">
                   <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
                     <BookOpen className="h-4 w-4 text-blue-600" />
                     <h2 className="text-sm font-black">Challenge Instructions</h2>
@@ -604,7 +604,7 @@ export const LinuxSysadminLabPage: React.FC = () => {
                       labId={selectedLabId}
                       wsPath={`/api/v1/sysadmin-grading/workspaces/terminal?lab_id=${encodeURIComponent(selectedLabId)}`}
                       terminalTitle={`RHSA — ${detail.title}`}
-                      height="600px"
+                      height="clamp(420px, 58vh, 600px)"
                       onCommand={handleTerminalCommand}
                     />
                   ) : (
@@ -633,23 +633,25 @@ export const LinuxSysadminLabPage: React.FC = () => {
                 </section>
               </div>
 
-              <ResultPanel
-                submission={latestSubmission}
-                waitingForResult={waitingForResult}
-                onRefresh={() => { void refreshSubmissions(); void refreshWorkspace(); }}
-              />
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)] xl:items-start">
+                <ResultPanel
+                  submission={latestSubmission}
+                  waitingForResult={waitingForResult}
+                  onRefresh={() => { void refreshSubmissions(); void refreshWorkspace(); }}
+                />
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-3 text-xs font-black uppercase tracking-wider text-slate-400">Rubric</div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {detail.rubric.map((criterion) => (
-                    <div key={criterion.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-xs dark:border-slate-800">
-                      <span className="font-bold text-slate-700 dark:text-slate-300">{formatCriterionId(criterion.id)}</span>
-                      <span className="font-black text-blue-600">{criterion.points} pts</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="mb-3 text-xs font-black uppercase tracking-wider text-slate-400">Rubric</div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    {detail.rubric.map((criterion) => (
+                      <div key={criterion.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-xs dark:border-slate-800">
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{formatCriterionId(criterion.id)}</span>
+                        <span className="font-black text-blue-600">{criterion.points} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </>
           )}
         </main>
