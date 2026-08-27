@@ -4,7 +4,9 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
+from ipaddress import ip_address, ip_network
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 class GradingConfigurationError(RuntimeError):
@@ -16,6 +18,50 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+_RFC1918_NETWORKS = (
+    ip_network("10.0.0.0/8"),
+    ip_network("172.16.0.0/12"),
+    ip_network("192.168.0.0/16"),
+)
+
+
+def _is_rfc1918_http_origin(value: str) -> bool:
+    """
+    Permit plaintext workspace submission traffic only when the production
+    API base is a literal RFC1918 IPv4 origin inside the private VPC.
+
+    Public HTTP origins and hostname-based HTTP origins remain forbidden.
+    """
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+
+    if parsed.scheme != "http" or not parsed.hostname:
+        return False
+
+    # API base must be an origin, not a URL containing credentials,
+    # query parameters, fragments, or application paths.
+    if (
+        parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+    ):
+        return False
+
+    try:
+        address = ip_address(parsed.hostname)
+    except ValueError:
+        return False
+
+    if address.version != 4:
+        return False
+
+    return any(address in network for network in _RFC1918_NETWORKS)
 
 
 @dataclass(frozen=True)
@@ -354,13 +400,22 @@ class SysadminGradingSettings:
                 "Sysadmin workspace configuration is incomplete; missing: " + ", ".join(missing)
             )
 
-        if not (
+        environment = os.getenv("ENV", "development").strip().lower()
+
+        api_base_is_safe = (
             self.workspace_api_base.startswith("https://")
             or (
-                os.getenv("ENV", "development").strip().lower() != "production"
+                environment != "production"
                 and self.workspace_api_base.startswith("http://")
             )
-        ):
+            or (
+                environment == "production"
+                and _is_rfc1918_http_origin(self.workspace_api_base)
+            )
+        )
+
+        if not api_base_is_safe:
             raise GradingConfigurationError(
-                "SYSADMIN_WORKSPACE_API_BASE must use HTTPS in production."
+                "SYSADMIN_WORKSPACE_API_BASE must use HTTPS in production "
+                "unless it targets a literal RFC1918 private IPv4 origin."
             )

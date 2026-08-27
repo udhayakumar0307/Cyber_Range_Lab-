@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from app.services.sysadmin_grading.config import SysadminGradingSettings
+from app.services.sysadmin_grading.config import (
+    GradingConfigurationError,
+    SysadminGradingSettings,
+)
 from app.services.sysadmin_grading.question_bank import QuestionBankRepository
 from app.services.sysadmin_grading.workspace import SysadminWorkspaceService
 
@@ -93,6 +97,38 @@ class SysadminWorkspaceTests(unittest.TestCase):
             workspace_start_timeout_seconds=60,
             workspace_poll_interval_seconds=1,
         )
+
+    def test_production_allows_rfc1918_http_workspace_api_base(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._bank(root)
+
+            settings = replace(
+                self._settings(root),
+                workspace_api_base="http://172.31.37.185:8081",
+            )
+
+            with patch.dict("os.environ", {"ENV": "production"}, clear=False):
+                settings.assert_workspace_ready()
+
+    def test_production_rejects_public_http_workspace_api_base(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._bank(root)
+
+            settings = replace(
+                self._settings(root),
+                workspace_api_base="http://8.8.8.8:8081",
+            )
+
+            with (
+                patch.dict("os.environ", {"ENV": "production"}, clear=False),
+                self.assertRaisesRegex(
+                    GradingConfigurationError,
+                    "literal RFC1918 private IPv4 origin",
+                ),
+            ):
+                settings.assert_workspace_ready()
 
     def test_start_uses_separate_fargate_task_and_stores_only_narrow_session(self):
         with tempfile.TemporaryDirectory() as tmp:
