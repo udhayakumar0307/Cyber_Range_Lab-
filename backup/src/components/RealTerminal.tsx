@@ -12,6 +12,10 @@ interface RealTerminalProps {
   className?: string;
   /** Called every time the user submits a command (presses Enter) */
   onCommand?: (cmd: string) => void;
+  /** Optional WebSocket path override. Auth token is appended automatically. */
+  wsPath?: string;
+  /** Optional terminal title override. */
+  terminalTitle?: string;
 }
 
 export const RealTerminal: React.FC<RealTerminalProps> = ({
@@ -21,6 +25,8 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
   height = '450px',
   className = '',
   onCommand,
+  wsPath,
+  terminalTitle,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<Terminal | null>(null);
@@ -55,9 +61,13 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const params = new URLSearchParams({ level: String(levelNum) });
+    const basePath = wsPath || `/api/v1/terminal/ws/${labId}`;
+    const [pathOnly, existingQuery = ''] = basePath.split('?', 2);
+    const params = new URLSearchParams(existingQuery);
+    if (!wsPath) params.set('level', String(levelNum));
     if (token) params.set('token', token);
-    const wsUrl = `${protocol}//${host}/api/v1/terminal/ws/${labId}?${params.toString()}`;
+    const query = params.toString();
+    const wsUrl = `${protocol}//${host}${pathOnly}${query ? `?${query}` : ''}`;
 
     console.log('[RealTerminal] Connecting to WebSocket:', wsUrl);
     const socket = new WebSocket(wsUrl);
@@ -197,7 +207,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
       }
       term.dispose();
     };
-  }, [labId, levelNum, token]);
+  }, [labId, levelNum, token, wsPath]);
 
   return (
     <div className={`w-full flex flex-col bg-[#0B0F17] rounded-xl border border-slate-800 shadow-xl overflow-hidden ${isFullscreen ? 'fixed inset-4 z-50 h-[calc(100vh-2rem)]' : ''} ${className}`}>
@@ -212,9 +222,9 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 pl-2">
             <TerminalIcon className="w-3.5 h-3.5 text-blue-400" />
             <span>
-              {labId === 'lab1-recon'
+              {terminalTitle || (labId === 'lab1-recon'
                 ? 'SecureGuard Red Team — Kali Linux Shell'
-                : `Puzzle Infrastructure Shell — Level ${levelNum} (student${levelNum})`}
+                : `Puzzle Infrastructure Shell — Level ${levelNum} (student${levelNum})`)}
             </span>
           </div>
         </div>

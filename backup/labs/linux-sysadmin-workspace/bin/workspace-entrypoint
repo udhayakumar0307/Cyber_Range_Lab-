@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${SYSADMIN_WORKSPACE_SSH_PASSWORD:?SYSADMIN_WORKSPACE_SSH_PASSWORD is required}"
+: "${CYBERRANGE_SUBMISSION_TOKEN:?CYBERRANGE_SUBMISSION_TOKEN is required}"
+: "${CYBERRANGE_API_BASE:?CYBERRANGE_API_BASE is required}"
+
+TTL_SECONDS="${SYSADMIN_WORKSPACE_TTL_SECONDS:-7200}"
+case "$TTL_SECONDS" in
+  ''|*[!0-9]*) echo "Invalid SYSADMIN_WORKSPACE_TTL_SECONDS" >&2; exit 2 ;;
+esac
+
+# Materialize the narrow submission credential into a student-readable file and
+# remove it from the long-running sshd process environment. A student can still
+# read their own scoped token (by design), but it is not a normal CyberRange JWT
+# and carries no AWS permissions.
+install -o student -g student -m 0600 /dev/null /run/cyberrange/submission-token
+printf '%s' "$CYBERRANGE_SUBMISSION_TOKEN" > /run/cyberrange/submission-token
+install -o student -g student -m 0600 /dev/null /run/cyberrange/api-base
+printf '%s' "$CYBERRANGE_API_BASE" > /run/cyberrange/api-base
+
+# Student-visible workspace metadata. The submission token remains the
+# authoritative source of lab scope on the backend; this file is informational.
+install -o student -g student -m 0600 /dev/null /run/cyberrange/lab-id
+printf '%s' "${RHSA_LAB_ID:-unknown}" > /run/cyberrange/lab-id
+
+printf '%s:%s\n' student "$SYSADMIN_WORKSPACE_SSH_PASSWORD" | chpasswd
+ssh-keygen -A >/dev/null 2>&1
+
+unset CYBERRANGE_SUBMISSION_TOKEN
+unset CYBERRANGE_API_BASE
+unset SYSADMIN_WORKSPACE_SSH_PASSWORD
+
+cat > /etc/motd <<MOTD
+CyberRange Linux System Administration Workspace
+Question: ${RHSA_LAB_ID:-unknown}
+
+Write your Bash script in /home/student and submit it from this terminal:
+  submit <script.sh>
+MOTD
+
+# The task self-terminates with the same lifetime as the submission credential,
+# preventing orphaned Fargate workspaces even if the browser disappears.
+exec timeout --signal=TERM "$TTL_SECONDS" /usr/sbin/sshd -D -e

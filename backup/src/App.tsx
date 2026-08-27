@@ -84,6 +84,7 @@ const PdfViewerPage        = lazy(() => import('./pages/user/PdfViewerPage').the
 const AssignedLabsPage     = lazy(() => import('./pages/user/AssignedLabsPage').then(m => ({ default: m.AssignedLabsPage })));
 const MyLabsPage           = lazy(() => import('./pages/user/MyLabsPage').then(m => ({ default: m.MyLabsPage })));
 const StatisticsPage       = lazy(() => import('./pages/user/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
+const LinuxSysadminLabPage = lazy(() => import('./pages/user/LinuxSysadminLabPage').then(m => ({ default: m.LinuxSysadminLabPage })));
 
 // ─── CTF Chunk ────────────────────────────────────────────────────────────────
 const CtfPortalPage         = lazy(() => import('./pages/user/CtfPortalPage').then(m => ({ default: m.CtfPortalPage })));
@@ -221,6 +222,28 @@ export function App() {
               />
 
 
+
+              {/* Linux Sysadmin — terminal-first workspace + trusted autograding */}
+              <Route
+                path="/labs/linux-sysadmin"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <LinuxSysadminLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/linux-sysadmin/:labId"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <LinuxSysadminLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/linux-sysadmin-lab"
+                element={<Navigate to="/labs/linux-sysadmin" replace />}
+              />
 
               {/* Command Line Lab — canonical routes only */}
               <Route

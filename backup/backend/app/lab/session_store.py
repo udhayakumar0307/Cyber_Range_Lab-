@@ -25,11 +25,18 @@ def _get_redis():
 SESSION_TTL = 8 * 3600  # 8 hours
 
 
-def save_session(user_id: str, lab_id: str, data: Dict[str, Any]) -> None:
-    """Store session routing metadata in Redis with an 8-hour TTL."""
+def save_session(
+    user_id: str,
+    lab_id: str,
+    data: Dict[str, Any],
+    *,
+    ttl_seconds: int | None = None,
+) -> None:
+    """Store session routing metadata in Redis with a bounded TTL."""
     try:
         key = f"session:{user_id}:{lab_id}"
-        _get_redis().setex(key, SESSION_TTL, json.dumps(data))
+        ttl = SESSION_TTL if ttl_seconds is None else max(60, int(ttl_seconds))
+        _get_redis().setex(key, ttl, json.dumps(data))
         logger.info(f"[SessionStore] Saved session for user={user_id} lab={lab_id}")
     except Exception as exc:
         logger.error(f"[SessionStore] Failed to save session for user={user_id}: {exc}")

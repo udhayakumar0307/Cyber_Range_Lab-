@@ -46,6 +46,21 @@ class SysadminGradingSettings:
     s3_url_ttl_seconds: int = 900
     s3_cleanup: bool = True
 
+    # Student workspace configuration. Production workspaces run on a separate
+    # Fargate cluster and never share the trusted grading host.
+    workspace_enabled: bool = False
+    workspace_ecs_cluster: str = ""
+    workspace_task_definition: str = ""
+    workspace_container_name: str = "rhsa-workspace"
+    workspace_subnet_ids: tuple[str, ...] = ()
+    workspace_security_group_ids: tuple[str, ...] = ()
+    workspace_assign_public_ip: bool = True
+    workspace_api_base: str = ""
+    workspace_start_timeout_seconds: int = 180
+    workspace_poll_interval_seconds: float = 3.0
+    marketplace_lab_id: str = "linux-sysadmin-lab"
+    workspace_require_marketplace_access: bool = False
+
     @classmethod
     def from_env(cls) -> "SysadminGradingSettings":
         root_raw = os.getenv("SYSADMIN_QUESTION_BANK_ROOT", "").strip()
@@ -89,6 +104,44 @@ class SysadminGradingSettings:
         s3_prefix = os.getenv("SYSADMIN_GRADING_S3_PREFIX", "sysadmin-grading").strip("/")
         s3_url_ttl = int(os.getenv("SYSADMIN_GRADING_S3_URL_TTL_SECONDS", "900"))
 
+        workspace_enabled = _env_bool("SYSADMIN_WORKSPACE_ENABLED", False)
+        workspace_ecs_cluster = os.getenv(
+            "SYSADMIN_WORKSPACE_ECS_CLUSTER", "cyberrange-sysadmin-workspaces"
+        ).strip()
+        workspace_task_definition = os.getenv(
+            "SYSADMIN_WORKSPACE_ECS_TASK_DEFINITION", ""
+        ).strip()
+        workspace_container_name = os.getenv(
+            "SYSADMIN_WORKSPACE_ECS_CONTAINER_NAME", "rhsa-workspace"
+        ).strip()
+        workspace_subnet_ids = tuple(
+            value.strip()
+            for value in os.getenv("SYSADMIN_WORKSPACE_SUBNET_IDS", "").split(",")
+            if value.strip()
+        )
+        workspace_security_group_ids = tuple(
+            value.strip()
+            for value in os.getenv("SYSADMIN_WORKSPACE_SECURITY_GROUP_IDS", "").split(",")
+            if value.strip()
+        )
+        workspace_assign_public_ip = _env_bool(
+            "SYSADMIN_WORKSPACE_ASSIGN_PUBLIC_IP", True
+        )
+        workspace_api_base = os.getenv("SYSADMIN_WORKSPACE_API_BASE", "").strip().rstrip("/")
+        workspace_start_timeout = int(
+            os.getenv("SYSADMIN_WORKSPACE_START_TIMEOUT_SECONDS", "180")
+        )
+        workspace_poll_interval = float(
+            os.getenv("SYSADMIN_WORKSPACE_POLL_INTERVAL_SECONDS", "3")
+        )
+        marketplace_lab_id = os.getenv(
+            "SYSADMIN_MARKETPLACE_LAB_ID", "linux-sysadmin-lab"
+        ).strip()
+        production_default = os.getenv("ENV", "development").strip().lower() == "production"
+        workspace_require_marketplace_access = _env_bool(
+            "SYSADMIN_WORKSPACE_REQUIRE_MARKETPLACE_ACCESS", production_default
+        )
+
         if timeout < 10 or timeout > 600:
             raise GradingConfigurationError(
                 "SYSADMIN_GRADING_TIMEOUT_SECONDS must be between 10 and 600 seconds."
@@ -121,6 +174,16 @@ class SysadminGradingSettings:
             raise GradingConfigurationError(
                 "SYSADMIN_GRADING_S3_URL_TTL_SECONDS must be between 300 and 3600 seconds."
             )
+        if workspace_start_timeout < 30 or workspace_start_timeout > 600:
+            raise GradingConfigurationError(
+                "SYSADMIN_WORKSPACE_START_TIMEOUT_SECONDS must be between 30 and 600 seconds."
+            )
+        if workspace_poll_interval < 0.5 or workspace_poll_interval > 30:
+            raise GradingConfigurationError(
+                "SYSADMIN_WORKSPACE_POLL_INTERVAL_SECONDS must be between 0.5 and 30 seconds."
+            )
+        if not marketplace_lab_id:
+            raise GradingConfigurationError("SYSADMIN_MARKETPLACE_LAB_ID cannot be empty.")
 
         return cls(
             enabled=enabled,
@@ -145,6 +208,18 @@ class SysadminGradingSettings:
             s3_prefix=s3_prefix or "sysadmin-grading",
             s3_url_ttl_seconds=s3_url_ttl,
             s3_cleanup=_env_bool("SYSADMIN_GRADING_S3_CLEANUP", True),
+            workspace_enabled=workspace_enabled,
+            workspace_ecs_cluster=workspace_ecs_cluster,
+            workspace_task_definition=workspace_task_definition,
+            workspace_container_name=workspace_container_name,
+            workspace_subnet_ids=workspace_subnet_ids,
+            workspace_security_group_ids=workspace_security_group_ids,
+            workspace_assign_public_ip=workspace_assign_public_ip,
+            workspace_api_base=workspace_api_base,
+            workspace_start_timeout_seconds=workspace_start_timeout,
+            workspace_poll_interval_seconds=workspace_poll_interval,
+            marketplace_lab_id=marketplace_lab_id,
+            workspace_require_marketplace_access=workspace_require_marketplace_access,
         )
 
     def assert_ready(self) -> None:
@@ -252,4 +327,40 @@ class SysadminGradingSettings:
             raise GradingConfigurationError(
                 "SYSADMIN_GRADING_S3_URL_TTL_SECONDS must be at least 60 seconds longer than "
                 "SYSADMIN_GRADING_ECS_TASK_TIMEOUT_SECONDS."
+            )
+
+    def assert_workspace_ready(self) -> None:
+        """Validate the student-facing Fargate workspace configuration."""
+        if not self.workspace_enabled:
+            raise GradingConfigurationError(
+                "Linux Sysadmin workspaces are disabled. Set SYSADMIN_WORKSPACE_ENABLED=true."
+            )
+        # Workspace submissions ultimately use the grader, so require the
+        # grading side to be healthy as well.
+        self.assert_ready()
+
+        required = {
+            "SYSADMIN_GRADING_AWS_REGION": self.aws_region,
+            "SYSADMIN_WORKSPACE_ECS_CLUSTER": self.workspace_ecs_cluster,
+            "SYSADMIN_WORKSPACE_ECS_TASK_DEFINITION": self.workspace_task_definition,
+            "SYSADMIN_WORKSPACE_ECS_CONTAINER_NAME": self.workspace_container_name,
+            "SYSADMIN_WORKSPACE_SUBNET_IDS": ",".join(self.workspace_subnet_ids),
+            "SYSADMIN_WORKSPACE_SECURITY_GROUP_IDS": ",".join(self.workspace_security_group_ids),
+            "SYSADMIN_WORKSPACE_API_BASE": self.workspace_api_base,
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise GradingConfigurationError(
+                "Sysadmin workspace configuration is incomplete; missing: " + ", ".join(missing)
+            )
+
+        if not (
+            self.workspace_api_base.startswith("https://")
+            or (
+                os.getenv("ENV", "development").strip().lower() != "production"
+                and self.workspace_api_base.startswith("http://")
+            )
+        ):
+            raise GradingConfigurationError(
+                "SYSADMIN_WORKSPACE_API_BASE must use HTTPS in production."
             )

@@ -146,11 +146,15 @@ export const AssignedLabsPage: React.FC = () => {
           setSelectedDetailLab(null);
           
           const targetLabId = lab.lab_id;
-          const isCll = targetLabId === 'command-line-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'commandlinelab';
-          const isCrypto = targetLabId === 'cryptography-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '') === 'cryptographylab';
-          const isCloud = targetLabId === 'cloud-security-lab' || targetLabId === 'cloudcorp-aws-lab' || targetLabId.toLowerCase().replace(/[\s_-]+/g, '').includes('cloud');
+          const normalizedLabId = targetLabId.toLowerCase().replace(/[\s_-]+/g, '');
+          const isSysadmin = targetLabId === 'linux-sysadmin-lab' || normalizedLabId === 'linuxsysadminlab';
+          const isCll = targetLabId === 'command-line-lab' || normalizedLabId === 'commandlinelab';
+          const isCrypto = targetLabId === 'cryptography-lab' || normalizedLabId === 'cryptographylab';
+          const isCloud = targetLabId === 'cloud-security-lab' || targetLabId === 'cloudcorp-aws-lab' || normalizedLabId.includes('cloud');
           const isPuzzle = targetLabId === 'techcorp-sysadmin-labs' || targetLabId === 'puzzle-lab' || targetLabId.toLowerCase().includes('puzzle');
-          if (isCll) {
+          if (isSysadmin) {
+            navigate('/labs/linux-sysadmin');
+          } else if (isCll) {
             navigate('/labs/command-line-lab/session/sess-cll-01');
           } else if (isCrypto) {
             navigate('/labs/cryptography-lab/session/sess-crypto-01');

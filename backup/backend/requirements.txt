@@ -30,6 +30,7 @@ asyncssh>=2.14.0
 
 # Utilities, PDFs & Reports
 python-dotenv>=1.0.1
+PyYAML>=6.0.1
 requests>=2.31.0
 pillow>=10.2.0
 reportlab>=4.1.0

@@ -72,3 +72,48 @@ class WorkspaceSubmissionRequest(BaseModel):
     @classmethod
     def strip_filename(cls, value: str) -> str:
         return value.strip()
+
+
+class SysadminRubricCriterion(BaseModel):
+    id: str
+    points: int = Field(ge=0)
+
+
+class SysadminLabSummary(BaseModel):
+    lab_id: str
+    title: str
+    version: str
+    module: str
+    difficulty: str
+    learning_objectives: list[str] = Field(default_factory=list)
+    submission_filename: str
+    interpreter: str
+    total_points: int = Field(ge=0)
+    pass_score: int = Field(ge=0)
+    rubric: list[SysadminRubricCriterion] = Field(default_factory=list)
+
+
+class SysadminLabDetail(SysadminLabSummary):
+    question_markdown: str
+
+
+class SysadminWorkspaceStartRequest(BaseModel):
+    lab_id: str = Field(min_length=3, max_length=64)
+
+    @field_validator("lab_id")
+    @classmethod
+    def strip_workspace_lab_id(cls, value: str) -> str:
+        return value.strip()
+
+
+class SysadminWorkspaceResponse(BaseModel):
+    workspace_id: str
+    lab_id: str
+    status: str
+    terminal_ready: bool
+    started_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class SysadminWorkspaceStopResponse(BaseModel):
+    stopped: bool

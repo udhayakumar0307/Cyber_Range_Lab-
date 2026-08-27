@@ -1,4 +1,4 @@
-# Linux Sysadmin Terminal Workspace v0.1
+# Linux Sysadmin Terminal Workspace v0.2
 
 This is the student-facing terminal environment for RHSA Bash assignments. It is
 separate from the disposable grading image.
@@ -38,7 +38,7 @@ docker run --rm -it \
   -e CYBERRANGE_API_BASE=http://host.docker.internal:8000 \
   -e CYBERRANGE_SUBMISSION_TOKEN="$CYBERRANGE_SUBMISSION_TOKEN" \
   -v "$HOME/Desktop/sysadmin/linux-sysadmin-autograder/examples:/home/student/examples:ro" \
-  cyberrange/rhsa-workspace:0.1
+  cyberrange/rhsa-workspace:0.2
 ```
 
 Inside the container:
@@ -54,3 +54,12 @@ No `--lab` argument is accepted: lab scope comes from the workspace credential.
 Keep `SYSADMIN_ALLOW_USER_WORKSPACE_TOKEN_MINTING=false`. The ECS workspace
 orchestrator will mint the credential internally after assignment authorization
 and inject it only into that student's workspace task.
+
+
+## Production runtime
+
+Production uses a dedicated ECS Fargate task. The backend injects a random SSH
+password and a short-lived, question-scoped submission token. The entrypoint
+materializes the submission token into `/run/cyberrange/submission-token`, removes
+it from the long-running sshd environment, and exits automatically when the
+workspace TTL expires. No AWS task role is assigned to the student container.

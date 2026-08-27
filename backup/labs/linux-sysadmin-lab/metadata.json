@@ -1,0 +1,9 @@
+{
+  "name": "Linux System Administration",
+  "category": "Linux & System Administration",
+  "difficulty": "Beginner",
+  "description": "Red Hat-aligned hands-on Linux system administration through terminal-only Bash scripting, state-based autograding, and criterion-level feedback.",
+  "duration": "5",
+  "price": "19999",
+  "docker_image": "cyberrange/rhsa-workspace:0.2"
+}

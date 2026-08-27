@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
-from fastapi import Request
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -14,8 +13,13 @@ from app.models.sysadmin_submission import SysadminSubmission
 from app.models.user import User
 from app.schemas.sysadmin_grading import (
     SysadminGradingStatusResponse,
+    SysadminLabDetail,
+    SysadminLabSummary,
     SysadminSubmissionRequest,
     SysadminSubmissionResponse,
+    SysadminWorkspaceResponse,
+    SysadminWorkspaceStartRequest,
+    SysadminWorkspaceStopResponse,
     WorkspaceSubmissionRequest,
     WorkspaceTokenRequest,
     WorkspaceTokenResponse,
@@ -28,6 +32,10 @@ from app.services.sysadmin_grading.question_bank import QuestionBankError, Quest
 from app.services.sysadmin_grading.service import (
     SubmissionValidationError,
     SysadminGradingService,
+)
+from app.services.sysadmin_grading.workspace import (
+    SysadminWorkspaceService,
+    WorkspaceExecutionError,
 )
 from app.services.sysadmin_grading.workspace_tokens import (
     WorkspaceTokenError,
@@ -50,6 +58,48 @@ def _assert_real_active_user(user: User) -> None:
         )
     if not getattr(user, "is_active", True):
         raise HTTPException(status_code=403, detail="Inactive users cannot submit work.")
+
+
+def _assert_marketplace_access(
+    settings: SysadminGradingSettings,
+    current_user: User,
+    db: Session,
+) -> None:
+    """Mirror the current Available Labs purchase/free-lab access contract."""
+    if not settings.workspace_require_marketplace_access:
+        return
+
+    role = str(getattr(current_user, "role", "") or "").lower()
+    if role in {"admin", "system_admin", "sysadmin", "super_admin"}:
+        return
+
+    # Import lazily to avoid coupling the Sysadmin grading module to marketplace
+    # initialization at application import time.
+    from app.api.v1.endpoints.labs_api import _get_purchased_lab, _get_sysadmin_assignments
+
+    assignment = next(
+        (
+            item
+            for item in _get_sysadmin_assignments(db)
+            if item.get("lab_id") == settings.marketplace_lab_id
+        ),
+        None,
+    )
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Linux System Administration is not currently assigned to this portal.",
+        )
+
+    if float(assignment.get("fixed_rate") or 0.0) == 0.0:
+        return
+
+    purchased = _get_purchased_lab(db, int(current_user.id), settings.marketplace_lab_id)
+    if not purchased:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Purchase or assignment access is required for Linux System Administration.",
+        )
 
 
 @router.get("/status", response_model=SysadminGradingStatusResponse)
@@ -79,6 +129,59 @@ def grading_status(current_user: User = Depends(get_current_user)):
         )
 
 
+@router.get("/labs", response_model=list[SysadminLabSummary])
+def list_sysadmin_labs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_real_active_user(current_user)
+    settings = SysadminGradingSettings.from_env()
+    _assert_marketplace_access(settings, current_user, db)
+    try:
+        settings.assert_ready()
+        return QuestionBankRepository(settings.question_bank_root).student_lab_summaries()
+    except GradingConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except QuestionBankError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/labs/{lab_id}", response_model=SysadminLabDetail)
+def get_sysadmin_lab(
+    lab_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_real_active_user(current_user)
+    settings = SysadminGradingSettings.from_env()
+    _assert_marketplace_access(settings, current_user, db)
+    try:
+        settings.assert_ready()
+        return QuestionBankRepository(settings.question_bank_root).student_view(lab_id).detail()
+    except GradingConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except QuestionBankError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/submissions", response_model=list[SysadminSubmissionResponse])
+def list_submissions(
+    lab_id: str | None = Query(default=None, min_length=3, max_length=64),
+    limit: int = Query(default=10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_real_active_user(current_user)
+    query = db.query(SysadminSubmission).filter(
+        SysadminSubmission.student_id == int(current_user.id)
+    )
+    if lab_id:
+        query = query.filter(SysadminSubmission.lab_id == lab_id.strip())
+    rows = query.order_by(SysadminSubmission.id.desc()).limit(limit).all()
+    service = SysadminGradingService()
+    return [service.student_view(row) for row in rows]
+
+
 @router.post(
     "/submissions",
     response_model=SysadminSubmissionResponse,
@@ -93,9 +196,9 @@ def submit_script(
 
     try:
         service = SysadminGradingService()
-        # This endpoint is intentionally synchronous for the MVP. FastAPI runs
-        # sync route handlers in its worker threadpool, so the SQLAlchemy Session
-        # and blocking Docker subprocess stay in the same worker thread.
+        # This endpoint remains synchronous for v0.5. FastAPI runs sync route
+        # handlers in its worker threadpool, keeping blocking ECS/S3 work off the
+        # event loop while preserving the established CLI contract.
         row = service.grade_submission(
             db,
             student_id=int(current_user.id),
@@ -151,6 +254,117 @@ def get_submission(
     return SysadminGradingService().student_view(row)
 
 
+@router.post(
+    "/workspaces/start",
+    response_model=SysadminWorkspaceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def start_workspace(
+    payload: SysadminWorkspaceStartRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_real_active_user(current_user)
+    settings = SysadminGradingSettings.from_env()
+    _assert_marketplace_access(settings, current_user, db)
+    try:
+        service = SysadminWorkspaceService(settings)
+        session = service.start(user_id=int(current_user.id), lab_id=payload.lab_id)
+        return service.student_view(session)
+    except QuestionBankError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except GradingConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (WorkspaceExecutionError, WorkspaceTokenError) as exc:
+        logger.warning("Sysadmin workspace start failed user=%s: %s", current_user.id, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/workspaces/session", response_model=SysadminWorkspaceResponse | None)
+def get_workspace_session(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_real_active_user(current_user)
+    settings = SysadminGradingSettings.from_env()
+    _assert_marketplace_access(settings, current_user, db)
+    try:
+        service = SysadminWorkspaceService(settings)
+        session = service.current(user_id=int(current_user.id))
+        return service.student_view(session) if session else None
+    except WorkspaceExecutionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.delete("/workspaces/session", response_model=SysadminWorkspaceStopResponse)
+def stop_workspace_session(
+    current_user: User = Depends(get_current_user),
+):
+    _assert_real_active_user(current_user)
+    try:
+        stopped = SysadminWorkspaceService().stop(user_id=int(current_user.id))
+        return SysadminWorkspaceStopResponse(stopped=stopped)
+    except WorkspaceExecutionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.websocket("/workspaces/terminal")
+async def workspace_terminal(
+    websocket: WebSocket,
+    lab_id: str = Query(..., min_length=3, max_length=64),
+    token: str | None = Query(default=None),
+):
+    await websocket.accept()
+    if not token:
+        await websocket.send_text("\r\n[ERROR] Authentication token required.\r\n")
+        await websocket.close(code=1008, reason="Token required")
+        return
+
+    try:
+        from app.core.security import decode_access_token
+
+        payload = decode_access_token(token)
+        if not payload:
+            raise ValueError("Invalid token payload")
+        user_id = int(payload.get("user_id") or payload.get("sub"))
+        if user_id <= 0:
+            raise ValueError("Workspace requires a persisted user")
+    except Exception as exc:
+        logger.warning("Sysadmin terminal authentication failed: %s", exc)
+        await websocket.send_text("\r\n[ERROR] Invalid or expired CyberRange session.\r\n")
+        await websocket.close(code=1008, reason="Invalid token")
+        return
+
+    try:
+        service = SysadminWorkspaceService()
+        session = await asyncio.to_thread(service.current, user_id=user_id)
+    except Exception as exc:
+        logger.warning("Unable to resolve Sysadmin workspace for user=%s: %s", user_id, exc)
+        await websocket.send_text("\r\n[ERROR] Unable to resolve your workspace.\r\n")
+        await websocket.close(code=1011, reason="Workspace lookup failed")
+        return
+
+    if not session or session.get("lab_id") != lab_id:
+        await websocket.send_text(
+            "\r\n[ERROR] No active workspace exists for this question. "
+            "Click Start Workspace first.\r\n"
+        )
+        await websocket.close(code=1008, reason="Workspace not running")
+        return
+
+    from app.api.v1.endpoints.terminal_api import _bridge_ssh_to_websocket
+
+    await _bridge_ssh_to_websocket(
+        websocket=websocket,
+        host=str(session["student_host"]),
+        port=int(session.get("student_port") or 22),
+        username=str(session.get("ssh_username") or "student"),
+        password=str(session.get("ssh_password") or ""),
+        user_id=str(user_id),
+        lab_id="linux-sysadmin-workspace",
+    )
+
+
 @router.post("/workspace-token", response_model=WorkspaceTokenResponse)
 def create_workspace_token(
     payload: WorkspaceTokenRequest,
@@ -159,9 +373,8 @@ def create_workspace_token(
     """
     Development bridge for provisioning a terminal-only workspace credential.
 
-    Production workspace provisioning should call the token service internally
-    after validating the student's assignment. User self-minting is disabled by
-    default and must be explicitly enabled for local integration testing.
+    Production workspace provisioning calls the token service internally after
+    access validation. User self-minting remains disabled by default.
     """
     _assert_real_active_user(current_user)
     settings = SysadminGradingSettings.from_env()

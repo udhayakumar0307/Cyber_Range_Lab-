@@ -1,0 +1,40 @@
+{
+  "family": "cyberrange-sysadmin-workspace",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::766363046973:role/CyberRangeSysadminWorkspaceTaskExecutionRole",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "rhsa-workspace",
+      "image": "766363046973.dkr.ecr.ap-south-1.amazonaws.com/cyberrange/rhsa-workspace:0.2",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 22,
+          "protocol": "tcp",
+          "name": "ssh"
+        }
+      ],
+      "environment": [
+        {"name": "TERM", "value": "xterm-256color"}
+      ],
+      "linuxParameters": {
+        "initProcessEnabled": true
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cyberrange-sysadmin-workspace",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "workspace"
+        }
+      }
+    }
+  ]
+}
