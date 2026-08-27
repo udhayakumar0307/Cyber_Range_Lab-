@@ -299,6 +299,8 @@ class ECSGradingExecutor:
     def _wait_for_task(self, task_arn: str) -> dict[str, Any]:
         deadline = self._monotonic() + self.settings.ecs_task_timeout_seconds
         last_status = "UNKNOWN"
+        task_seen = False
+        missing_backoff = max(1.0, self.settings.ecs_poll_interval_seconds)
 
         while True:
             try:
@@ -313,12 +315,39 @@ class ECSGradingExecutor:
 
             failures = response.get("failures") or []
             tasks = response.get("tasks") or []
-            if failures or not tasks:
+
+            # ECS is eventually consistent. Immediately after RunTask,
+            # DescribeTasks can transiently return MISSING for the task ARN.
+            if not tasks:
+                reasons = [str(item.get("reason") or "") for item in failures]
+                only_missing = bool(failures) and all(
+                    reason.upper() == "MISSING" for reason in reasons
+                )
+                now = self._monotonic()
+
+                if not task_seen and only_missing and now < deadline:
+                    delay = min(
+                        missing_backoff,
+                        max(0.0, deadline - now),
+                    )
+                    if delay > 0:
+                        self._sleep(delay)
+
+                    missing_backoff = min(missing_backoff * 2.0, 30.0)
+                    continue
+
                 reason = failures[0].get("reason") if failures else "task disappeared"
                 raise GradingExecutionError(
                     f"Unable to inspect ECS grading task {task_arn}: {reason}"
                 )
 
+            if failures:
+                reason = failures[0].get("reason") or "unknown ECS failure"
+                raise GradingExecutionError(
+                    f"Unable to inspect ECS grading task {task_arn}: {reason}"
+                )
+
+            task_seen = True
             task = tasks[0]
             last_status = str(task.get("lastStatus") or "UNKNOWN")
             if last_status == "STOPPED":

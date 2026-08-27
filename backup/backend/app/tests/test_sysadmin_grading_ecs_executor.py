@@ -74,6 +74,28 @@ class FakeECS:
         return {}
 
 
+class EventuallyConsistentECS(FakeECS):
+    def __init__(self, exit_code: int = 0):
+        super().__init__(exit_code=exit_code)
+        self.describe_calls = 0
+
+    def describe_tasks(self, **kwargs):
+        self.describe_calls += 1
+
+        if self.describe_calls == 1:
+            return {
+                "tasks": [],
+                "failures": [
+                    {
+                        "arn": kwargs["tasks"][0],
+                        "reason": "MISSING",
+                    }
+                ],
+            }
+
+        return super().describe_tasks(**kwargs)
+
+
 class SysadminECSExecutorTests(unittest.TestCase):
     def _bank(self, root: Path) -> None:
         lab = root / "labs" / "03-users-groups" / "RHSA-USERS-001"
@@ -165,6 +187,48 @@ class SysadminECSExecutorTests(unittest.TestCase):
             self.assertEqual(env["RHSA_SEED"], "424242")
             self.assertTrue(env["RHSA_SUBMISSION_URL"].startswith("https://"))
             self.assertTrue(env["RHSA_RESULT_URL"].startswith("https://"))
+
+
+    def test_ecs_executor_retries_initial_missing_from_eventual_consistency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._bank(root)
+
+            settings = self._settings(root)
+            repo = QuestionBankRepository(root)
+
+            s3 = FakeS3(
+                self._result(
+                    passed=True,
+                    score=100,
+                )
+            )
+            ecs = EventuallyConsistentECS(exit_code=0)
+
+            executor = ECSGradingExecutor(
+                settings,
+                repo,
+                s3_client=s3,
+                s3_presign_client=FakePresignS3(),
+                ecs_client=ecs,
+                sleep_fn=lambda _: None,
+            )
+
+            with patch.object(
+                SysadminGradingSettings,
+                "assert_ready",
+                return_value=None,
+            ):
+                execution = executor.grade(
+                    lab=repo.resolve_lab("RHSA-USERS-001"),
+                    filename="answer.sh",
+                    content="#!/bin/bash\\nexit 0\\n",
+                    seed=424242,
+                )
+
+            self.assertTrue(execution.result["passed"])
+            self.assertEqual(execution.result["score"], 100)
+            self.assertEqual(ecs.describe_calls, 2)
 
     def test_ecs_executor_treats_nonzero_worker_exit_as_infrastructure_error(self):
         with tempfile.TemporaryDirectory() as tmp:
