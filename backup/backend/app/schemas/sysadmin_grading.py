@@ -35,6 +35,8 @@ class SysadminSubmissionResponse(BaseModel):
     passed: bool | None = None
     tests: list[CriterionResult] = Field(default_factory=list)
     submitted_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     graded_at: datetime | None = None
     error: str | None = None
 

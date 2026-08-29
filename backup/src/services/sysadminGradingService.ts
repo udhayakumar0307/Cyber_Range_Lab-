@@ -40,6 +40,8 @@ export interface SysadminSubmission {
   passed: boolean | null;
   tests: SysadminCriterionResult[];
   submitted_at: string;
+  started_at: string | null;
+  completed_at: string | null;
   graded_at: string | null;
   error: string | null;
 }

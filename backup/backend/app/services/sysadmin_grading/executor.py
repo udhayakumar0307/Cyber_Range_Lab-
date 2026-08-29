@@ -19,7 +19,18 @@ from .question_bank import QuestionBankLab, QuestionBankRepository
 
 
 class GradingExecutionError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        task_arn: str | None = None,
+        worker_exit_code: int | None = None,
+        timed_out: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.task_arn = task_arn
+        self.worker_exit_code = worker_exit_code
+        self.timed_out = timed_out
 
 
 @dataclass(frozen=True)
@@ -28,6 +39,8 @@ class GradingExecution:
     runner_stdout: str
     runner_stderr: str
     question_bank_commit: str | None
+    task_arn: str | None = None
+    worker_exit_code: int | None = None
 
 
 class GradingExecutor(Protocol):
@@ -38,6 +51,9 @@ class GradingExecutor(Protocol):
         filename: str,
         content: str,
         seed: int,
+        job_id: str | None = None,
+        task_started: Callable[[str], None] | None = None,
+        cleanup: bool = True,
     ) -> GradingExecution: ...
 
 
@@ -100,7 +116,11 @@ class LocalDockerExecutor:
         filename: str,
         content: str,
         seed: int,
+        job_id: str | None = None,
+        task_started: Callable[[str], None] | None = None,
+        cleanup: bool = True,
     ) -> GradingExecution:
+        del job_id, task_started, cleanup
         self.settings.assert_ready()
         self.repository.resolve_lab(lab.lab_id)  # re-validate at execution boundary
 
@@ -161,6 +181,7 @@ class LocalDockerExecutor:
                 runner_stdout=stdout,
                 runner_stderr=stderr,
                 question_bank_commit=self.repository.git_commit(),
+                worker_exit_code=0,
             )
 
 
@@ -364,7 +385,9 @@ class ECSGradingExecutor:
                     pass
                 raise GradingExecutionError(
                     f"ECS grading task exceeded {self.settings.ecs_task_timeout_seconds} seconds "
-                    f"(last_status={last_status}, task={task_arn})."
+                    f"(last_status={last_status}, task={task_arn}).",
+                    task_arn=task_arn,
+                    timed_out=True,
                 )
 
             self._sleep(self.settings.ecs_poll_interval_seconds)
@@ -417,6 +440,82 @@ class ECSGradingExecutor:
                 # Cleanup must never rewrite the academic/infrastructure result.
                 pass
 
+    def cleanup_job(self, *, lab_id: str, job_id: str) -> None:
+        """Remove transient S3 transport objects after the DB result is durable."""
+        self._cleanup(
+            self._key(lab_id, job_id, "submission.sh"),
+            self._key(lab_id, job_id, "result.json"),
+        )
+
+    def _complete_existing_task(
+        self,
+        *,
+        lab: QuestionBankLab,
+        task_arn: str,
+        result_key: str,
+    ) -> GradingExecution:
+        task = self._wait_for_task(task_arn)
+        worker = self._worker_container(task)
+        exit_code = worker.get("exitCode")
+
+        # Worker contract: exit 0 means grading completed, regardless of
+        # academic PASS/FAIL. Nonzero means infrastructure failure.
+        if exit_code != 0:
+            error_detail = self._read_error_message(result_key)
+            reason = worker.get("reason") or task.get("stoppedReason") or "unknown"
+            suffix = f"; worker_error={error_detail}" if error_detail else ""
+            numeric_exit = int(exit_code) if exit_code is not None else None
+            raise GradingExecutionError(
+                f"ECS grading worker failed: exit_code={exit_code}; reason={reason}; "
+                f"task={task_arn}{suffix}",
+                task_arn=task_arn,
+                worker_exit_code=numeric_exit,
+            )
+
+        result = validate_grading_result(
+            self._read_result_object(result_key),
+            lab.lab_id,
+        )
+        remote_commit = self._remote_question_bank_commit(result)
+        return GradingExecution(
+            result=result,
+            runner_stdout=f"ECS grading task completed successfully: {task_arn}",
+            runner_stderr="",
+            question_bank_commit=remote_commit or self.repository.git_commit(),
+            task_arn=task_arn,
+            worker_exit_code=0,
+        )
+
+    def resume(
+        self,
+        *,
+        lab: QuestionBankLab,
+        task_arn: str,
+        job_id: str,
+        cleanup: bool = True,
+    ) -> GradingExecution:
+        """
+        Resume a task whose ARN was durably stored before dispatcher failure.
+
+        Async grading uses deterministic S3 object keys per submission. If the
+        dispatcher dies after RunTask, the redelivered SQS job can therefore
+        observe the same ECS task and persist its result instead of launching a
+        second grader task.
+        """
+        self.settings.assert_ready()
+        self.repository.resolve_lab(lab.lab_id)
+        submission_key = self._key(lab.lab_id, job_id, "submission.sh")
+        result_key = self._key(lab.lab_id, job_id, "result.json")
+        try:
+            return self._complete_existing_task(
+                lab=lab,
+                task_arn=task_arn,
+                result_key=result_key,
+            )
+        finally:
+            if cleanup:
+                self._cleanup(submission_key, result_key)
+
     @staticmethod
     def _remote_question_bank_commit(result: dict[str, Any]) -> str | None:
         metadata = result.get("metadata")
@@ -435,12 +534,15 @@ class ECSGradingExecutor:
         filename: str,
         content: str,
         seed: int,
+        job_id: str | None = None,
+        task_started: Callable[[str], None] | None = None,
+        cleanup: bool = True,
     ) -> GradingExecution:
         del filename  # Remote worker intentionally normalizes the file to submission.sh.
         self.settings.assert_ready()
         self.repository.resolve_lab(lab.lab_id)  # re-validate at execution boundary
 
-        job_id = uuid.uuid4().hex
+        job_id = job_id or uuid.uuid4().hex
         submission_key = self._key(lab.lab_id, job_id, "submission.sh")
         result_key = self._key(lab.lab_id, job_id, "result.json")
         task_arn: str | None = None
@@ -460,31 +562,12 @@ class ECSGradingExecutor:
                 submission_url=submission_url,
                 result_url=result_url,
             )
-            task = self._wait_for_task(task_arn)
-            worker = self._worker_container(task)
-            exit_code = worker.get("exitCode")
-
-            # Worker contract: exit 0 means grading completed, regardless of
-            # academic PASS/FAIL. Nonzero means infrastructure failure.
-            if exit_code != 0:
-                error_detail = self._read_error_message(result_key)
-                reason = worker.get("reason") or task.get("stoppedReason") or "unknown"
-                suffix = f"; worker_error={error_detail}" if error_detail else ""
-                raise GradingExecutionError(
-                    f"ECS grading worker failed: exit_code={exit_code}; reason={reason}; "
-                    f"task={task_arn}{suffix}"
-                )
-
-            result = validate_grading_result(
-                self._read_result_object(result_key),
-                lab.lab_id,
-            )
-            remote_commit = self._remote_question_bank_commit(result)
-            return GradingExecution(
-                result=result,
-                runner_stdout=f"ECS grading task completed successfully: {task_arn}",
-                runner_stderr="",
-                question_bank_commit=remote_commit or self.repository.git_commit(),
+            if task_started is not None:
+                task_started(task_arn)
+            return self._complete_existing_task(
+                lab=lab,
+                task_arn=task_arn,
+                result_key=result_key,
             )
         except GradingExecutionError:
             raise
@@ -495,7 +578,8 @@ class ECSGradingExecutor:
             detail = f" task={task_arn}" if task_arn else ""
             raise GradingExecutionError(f"Unexpected ECS grading failure:{detail} {exc}") from exc
         finally:
-            self._cleanup(submission_key, result_key)
+            if cleanup:
+                self._cleanup(submission_key, result_key)
 
 
 def build_grading_executor(

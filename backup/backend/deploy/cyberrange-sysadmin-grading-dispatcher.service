@@ -1,0 +1,21 @@
+[Unit]
+Description=CyberRange Linux Sysadmin SQS Grading Dispatcher
+After=network-online.target cyberrange-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/Cyber_Range_Lab-/backup/backend
+# Source the same production environment used by the backend. The explicit
+# shared-credentials override is applied after sourcing so this new service uses
+# the EC2 instance role instead of /home/ubuntu/.aws/credentials.
+ExecStart=/bin/bash -lc 'set -a; source /home/ubuntu/Cyber_Range_Lab-/backup/.env; export AWS_SHARED_CREDENTIALS_FILE=/tmp/nonexistent-aws-credentials AWS_CONFIG_FILE=/tmp/nonexistent-aws-config; exec /home/ubuntu/Cyber_Range_Lab-/backup/backend/venv/bin/python scripts/sysadmin_grading_dispatcher.py'
+Restart=always
+RestartSec=5
+TimeoutStopSec=700
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-# Linux Sysadmin Terminal Workspace v0.2
+# Linux Sysadmin Terminal Workspace v0.3
 
 This is the student-facing terminal environment for RHSA Bash assignments. It is
 separate from the disposable grading image.
@@ -38,7 +38,7 @@ docker run --rm -it \
   -e CYBERRANGE_API_BASE=http://host.docker.internal:8000 \
   -e CYBERRANGE_SUBMISSION_TOKEN="$CYBERRANGE_SUBMISSION_TOKEN" \
   -v "$HOME/Desktop/sysadmin/linux-sysadmin-autograder/examples:/home/student/examples:ro" \
-  cyberrange/rhsa-workspace:0.2
+  cyberrange/rhsa-workspace:0.3
 ```
 
 Inside the container:
@@ -48,6 +48,9 @@ submit examples/student_good.sh
 ```
 
 No `--lab` argument is accepted: lab scope comes from the workspace credential.
+The v0.3 `submit` client generates one UUID idempotency key per logical submit
+invocation, reuses it across network retries, and returns as soon as the backend
+accepts the job for asynchronous grading.
 
 ## Production rule
 

@@ -27,6 +27,12 @@ export SYSADMIN_GRADING_S3_PREFIX=sysadmin-grading
 export SYSADMIN_GRADING_S3_URL_TTL_SECONDS=900
 export SYSADMIN_GRADING_S3_CLEANUP=true
 
+export SYSADMIN_GRADING_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/766363046973/cyberrange-sysadmin-grading-jobs
+export SYSADMIN_GRADING_QUEUE_WAIT_SECONDS=20
+export SYSADMIN_GRADING_QUEUE_VISIBILITY_SECONDS=900
+export SYSADMIN_GRADING_QUEUE_RETRY_VISIBILITY_SECONDS=60
+export SYSADMIN_GRADING_QUEUE_MAX_RECEIVES=3
+
 # Production workspaces must receive their narrow submission token from the
 # orchestrator rather than minting it themselves.
 export SYSADMIN_ALLOW_USER_WORKSPACE_TOKEN_MINTING=false
@@ -114,6 +120,17 @@ The trusted worker contract intentionally distinguishes academic outcome from in
 
 The executor validates contract version `1`, verifies the requested lab ID, stores the structured rubric result, and takes the question-bank revision from `metadata.worker.question_bank_revision` when present.
 
-## Current execution model
+## v0.6 asynchronous execution model
 
-The API remains synchronous for the first production integration. One FastAPI worker thread waits for the ECS task. A later revision can move ECS orchestration to a queue/worker without changing the grading result contract or student API response.
+`POST /api/v1/sysadmin-grading/workspace-submit` is durable and asynchronous:
+
+1. validate the narrow workspace credential and Bash submission;
+2. create one `sysadmin_submissions` row with `status=QUEUED`;
+3. publish `{\"version\":1,\"submission_id\":...}` to SQS;
+4. return HTTP `202` without waiting for ECS capacity or grading;
+5. `cyberrange-sysadmin-grading-dispatcher.service` consumes SQS and runs the existing trusted ECS executor;
+6. persist `PASS`, `FAIL`, `ERROR`, or `TIMED_OUT` before deleting the SQS message.
+
+The DB row is also the outbox record. If `SendMessage` fails after the row is accepted, `queue_message_id` remains null and the dispatcher republishes the row. SQS duplicate deliveries are guarded by a DB claim/lease; completed submissions are never graded again. Final infrastructure failures are left unacknowledged so the queue redrive policy can move them to the DLQ.
+
+The legacy authenticated `/submissions` endpoint remains synchronous for development compatibility in this milestone. The production browser-terminal path uses `workspace-submit`.

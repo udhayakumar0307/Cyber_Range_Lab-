@@ -181,6 +181,40 @@ def run_sqlite_column_migrations(engine):
         add_col_if_missing("licenses", "hours_allocated", "FLOAT DEFAULT 1.0")
         add_col_if_missing("licenses", "hours_used", "FLOAT DEFAULT 0.0")
 
+        # sysadmin_submissions — v0.6 durable async grading
+        sysadmin_submission_cols = [
+            ("idempotency_key", "VARCHAR(64) NULL"),
+            ("queue_message_id", "VARCHAR(128) NULL"),
+            ("enqueued_at", "TIMESTAMP NULL"),
+            ("attempt_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("processing_token", "VARCHAR(64) NULL"),
+            ("lease_expires_at", "TIMESTAMP NULL"),
+            ("started_at", "TIMESTAMP NULL"),
+            ("completed_at", "TIMESTAMP NULL"),
+            ("ecs_task_arn", "VARCHAR(500) NULL"),
+            ("worker_exit_code", "INTEGER NULL"),
+        ]
+        for col, definition in sysadmin_submission_cols:
+            add_col_if_missing("sysadmin_submissions", col, definition)
+        if table_exists("sysadmin_submissions"):
+            conn.execute(text("""
+                UPDATE sysadmin_submissions
+                SET status = CASE
+                    WHEN status = 'COMPLETED' AND passed = 1 THEN 'PASS'
+                    WHEN status = 'COMPLETED' AND passed = 0 THEN 'FAIL'
+                    WHEN status = 'PENDING' THEN 'QUEUED'
+                    ELSE status
+                END,
+                completed_at = CASE
+                    WHEN completed_at IS NULL AND graded_at IS NOT NULL THEN graded_at
+                    ELSE completed_at
+                END;
+            """))
+            conn.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_sysadmin_submissions_student_id_idempotency_key
+                ON sysadmin_submissions (student_id, idempotency_key);
+            """))
+
 
 
 
@@ -423,6 +457,39 @@ def run_postgres_column_migrations(engine):
             """))
             logger.info("  licenses: column migrations applied")
 
+        if table_exists("sysadmin_submissions"):
+            conn.execute(text("""
+                ALTER TABLE sysadmin_submissions
+                ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL,
+                ADD COLUMN IF NOT EXISTS queue_message_id VARCHAR(128) NULL,
+                ADD COLUMN IF NOT EXISTS enqueued_at TIMESTAMP NULL,
+                ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS processing_token VARCHAR(64) NULL,
+                ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP NULL,
+                ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NULL,
+                ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL,
+                ADD COLUMN IF NOT EXISTS ecs_task_arn VARCHAR(500) NULL,
+                ADD COLUMN IF NOT EXISTS worker_exit_code INTEGER NULL;
+            """))
+            conn.execute(text("""
+                UPDATE sysadmin_submissions
+                SET status = CASE
+                    WHEN status = 'COMPLETED' AND passed IS TRUE THEN 'PASS'
+                    WHEN status = 'COMPLETED' AND passed IS FALSE THEN 'FAIL'
+                    WHEN status = 'PENDING' THEN 'QUEUED'
+                    ELSE status
+                END,
+                completed_at = CASE
+                    WHEN completed_at IS NULL AND graded_at IS NOT NULL THEN graded_at
+                    ELSE completed_at
+                END;
+            """))
+            conn.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_sysadmin_submissions_student_id_idempotency_key
+                ON sysadmin_submissions (student_id, idempotency_key);
+            """))
+            logger.info("  sysadmin_submissions: async grading columns applied")
+
 
 
 
@@ -455,6 +522,9 @@ def apply_indexes(engine):
         # certificates
         ("ix_cert_user_lab", "certificates", "user_id, lab_id"),
         ("ix_cert_display_id", "certificates", "display_certificate_id"),
+        # sysadmin submissions
+        ("ix_sysadmin_submissions_enqueued_at", "sysadmin_submissions", "enqueued_at"),
+        ("ix_sysadmin_submissions_lease_expires_at", "sysadmin_submissions", "lease_expires_at"),
     ]
 
     inspector = inspect(engine)

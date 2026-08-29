@@ -92,6 +92,14 @@ class SysadminGradingSettings:
     s3_url_ttl_seconds: int = 900
     s3_cleanup: bool = True
 
+    # v0.6 durable async grading queue. The database stores authoritative
+    # submission state; SQS carries only the submission identifier.
+    grading_queue_url: str = ""
+    grading_queue_wait_seconds: int = 20
+    grading_queue_visibility_seconds: int = 900
+    grading_queue_retry_visibility_seconds: int = 60
+    grading_queue_max_receives: int = 3
+
     # Student workspace configuration. Production workspaces run on a separate
     # Fargate cluster and never share the trusted grading host.
     workspace_enabled: bool = False
@@ -149,6 +157,19 @@ class SysadminGradingSettings:
         s3_bucket = os.getenv("SYSADMIN_GRADING_S3_BUCKET", "").strip()
         s3_prefix = os.getenv("SYSADMIN_GRADING_S3_PREFIX", "sysadmin-grading").strip("/")
         s3_url_ttl = int(os.getenv("SYSADMIN_GRADING_S3_URL_TTL_SECONDS", "900"))
+        grading_queue_url = os.getenv("SYSADMIN_GRADING_QUEUE_URL", "").strip()
+        grading_queue_wait_seconds = int(
+            os.getenv("SYSADMIN_GRADING_QUEUE_WAIT_SECONDS", "20")
+        )
+        grading_queue_visibility_seconds = int(
+            os.getenv("SYSADMIN_GRADING_QUEUE_VISIBILITY_SECONDS", "900")
+        )
+        grading_queue_retry_visibility_seconds = int(
+            os.getenv("SYSADMIN_GRADING_QUEUE_RETRY_VISIBILITY_SECONDS", "60")
+        )
+        grading_queue_max_receives = int(
+            os.getenv("SYSADMIN_GRADING_QUEUE_MAX_RECEIVES", "3")
+        )
 
         workspace_enabled = _env_bool("SYSADMIN_WORKSPACE_ENABLED", False)
         workspace_ecs_cluster = os.getenv(
@@ -220,6 +241,25 @@ class SysadminGradingSettings:
             raise GradingConfigurationError(
                 "SYSADMIN_GRADING_S3_URL_TTL_SECONDS must be between 300 and 3600 seconds."
             )
+        if grading_queue_wait_seconds < 0 or grading_queue_wait_seconds > 20:
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_WAIT_SECONDS must be between 0 and 20 seconds."
+            )
+        if grading_queue_visibility_seconds < 60 or grading_queue_visibility_seconds > 43200:
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_VISIBILITY_SECONDS must be between 60 and 43200 seconds."
+            )
+        if (
+            grading_queue_retry_visibility_seconds < 0
+            or grading_queue_retry_visibility_seconds > grading_queue_visibility_seconds
+        ):
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_RETRY_VISIBILITY_SECONDS must be between 0 and the queue visibility timeout."
+            )
+        if grading_queue_max_receives < 1 or grading_queue_max_receives > 20:
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_MAX_RECEIVES must be between 1 and 20."
+            )
         if workspace_start_timeout < 30 or workspace_start_timeout > 600:
             raise GradingConfigurationError(
                 "SYSADMIN_WORKSPACE_START_TIMEOUT_SECONDS must be between 30 and 600 seconds."
@@ -254,6 +294,11 @@ class SysadminGradingSettings:
             s3_prefix=s3_prefix or "sysadmin-grading",
             s3_url_ttl_seconds=s3_url_ttl,
             s3_cleanup=_env_bool("SYSADMIN_GRADING_S3_CLEANUP", True),
+            grading_queue_url=grading_queue_url,
+            grading_queue_wait_seconds=grading_queue_wait_seconds,
+            grading_queue_visibility_seconds=grading_queue_visibility_seconds,
+            grading_queue_retry_visibility_seconds=grading_queue_retry_visibility_seconds,
+            grading_queue_max_receives=grading_queue_max_receives,
             workspace_enabled=workspace_enabled,
             workspace_ecs_cluster=workspace_ecs_cluster,
             workspace_task_definition=workspace_task_definition,
@@ -373,6 +418,18 @@ class SysadminGradingSettings:
             raise GradingConfigurationError(
                 "SYSADMIN_GRADING_S3_URL_TTL_SECONDS must be at least 60 seconds longer than "
                 "SYSADMIN_GRADING_ECS_TASK_TIMEOUT_SECONDS."
+            )
+
+    def assert_queue_ready(self) -> None:
+        """Validate the durable SQS transport without weakening grader checks."""
+        self.assert_ready()
+        if not self.grading_queue_url:
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_URL is required for asynchronous Sysadmin grading."
+            )
+        if not self.grading_queue_url.startswith("https://sqs."):
+            raise GradingConfigurationError(
+                "SYSADMIN_GRADING_QUEUE_URL must be an HTTPS Amazon SQS queue URL."
             )
 
     def assert_workspace_ready(self) -> None:

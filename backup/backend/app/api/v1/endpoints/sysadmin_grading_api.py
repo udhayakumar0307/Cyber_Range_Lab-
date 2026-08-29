@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, WebSocket, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -30,6 +30,7 @@ from app.services.sysadmin_grading.config import (
 )
 from app.services.sysadmin_grading.question_bank import QuestionBankError, QuestionBankRepository
 from app.services.sysadmin_grading.service import (
+    IdempotencyConflictError,
     SubmissionValidationError,
     SysadminGradingService,
 )
@@ -215,7 +216,7 @@ def submit_script(
         raise HTTPException(status_code=500, detail="Unable to grade submission.") from exc
 
     response = service.student_view(row)
-    if row.status == "ERROR":
+    if row.status in {"ERROR", "TIMED_OUT"}:
         # Persist the failed attempt, but make the operational failure explicit
         # to the CLI/API caller rather than presenting it as an academic FAIL.
         raise HTTPException(
@@ -421,11 +422,12 @@ def _workspace_bearer_token(request: Request) -> str:
 @router.post(
     "/workspace-submit",
     response_model=SysadminSubmissionResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def workspace_submit_script(
     payload: WorkspaceSubmissionRequest,
     request: Request,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=36, max_length=64),
     db: Session = Depends(get_db),
 ):
     """
@@ -446,15 +448,18 @@ def workspace_submit_script(
 
     try:
         service = SysadminGradingService()
-        row = service.grade_submission(
+        row = service.accept_submission(
             db,
             student_id=claims.user_id,
             lab_id=claims.lab_id,
             filename=payload.filename,
             content=payload.content,
+            idempotency_key=idempotency_key,
         )
     except SubmissionValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except GradingConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
@@ -464,18 +469,8 @@ def workspace_submit_script(
             claims.user_id,
             claims.lab_id,
         )
-        raise HTTPException(status_code=500, detail="Unable to grade submission.") from exc
+        raise HTTPException(status_code=500, detail="Unable to accept submission.") from exc
 
-    response = service.student_view(row)
-    if row.status == "ERROR":
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "submission_id": row.id,
-                "message": (
-                    "Grading infrastructure error. "
-                    "Contact your instructor with this submission ID."
-                ),
-            },
-        )
-    return response
+    # v0.6: return immediately after durable DB acceptance. The separate SQS
+    # dispatcher owns ECS orchestration and final PASS/FAIL persistence.
+    return service.student_view(row)

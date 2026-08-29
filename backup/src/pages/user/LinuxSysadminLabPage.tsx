@@ -28,7 +28,11 @@ import {
 } from '../../services/sysadminGradingService';
 
 const SUBMISSION_POLL_INTERVAL_MS = 2000;
-const SUBMISSION_POLL_ATTEMPTS = 25;
+// Cold-starting the trusted grader ASG can take several minutes. Polling the
+// read-only status endpoint is cheap and does not keep the submission POST open.
+const SUBMISSION_POLL_ATTEMPTS = 450;
+const ACTIVE_SUBMISSION_STATUSES = new Set(['QUEUED', 'STARTING', 'RUNNING']);
+const TERMINAL_SUBMISSION_STATUSES = new Set(['PASS', 'FAIL', 'ERROR', 'TIMED_OUT']);
 
 function formatCriterionId(value: string): string {
   return value
@@ -184,7 +188,9 @@ const ResultPanel: React.FC<{
       {waitingForResult && (
         <div className="m-4 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Submission detected. Waiting for the grading worker to finish…
+          {submission && ACTIVE_SUBMISSION_STATUSES.has(submission.status.toUpperCase())
+            ? `Submission #${submission.submission_id} is ${submission.status.toUpperCase()}. Grading continues in the background…`
+            : 'Submission detected. Waiting for the grading worker to finish…'}
         </div>
       )}
 
@@ -249,7 +255,10 @@ const ResultPanel: React.FC<{
               </div>
             ))}
           </div>
-          <div className="mt-4 text-[11px] text-slate-400">Graded {formatTimestamp(submission.graded_at || submission.submitted_at)}</div>
+          <div className="mt-4 text-[11px] text-slate-400">
+            {TERMINAL_SUBMISSION_STATUSES.has(submission.status.toUpperCase()) ? 'Completed' : 'Submitted'}{' '}
+            {formatTimestamp(submission.completed_at || submission.graded_at || submission.submitted_at)}
+          </div>
         </div>
       )}
     </section>
@@ -391,7 +400,7 @@ export const LinuxSysadminLabPage: React.FC = () => {
 
       const newest = rows[0];
       const newAttempt = Boolean(newest && newest.submission_id > previousId);
-      const finished = newAttempt && ['COMPLETED', 'ERROR'].includes(newest.status.toUpperCase());
+      const finished = newAttempt && TERMINAL_SUBMISSION_STATUSES.has(newest.status.toUpperCase());
       if (finished || attempt >= SUBMISSION_POLL_ATTEMPTS - 1) {
         setWaitingForResult(false);
         return;
@@ -405,6 +414,33 @@ export const LinuxSysadminLabPage: React.FC = () => {
   const handleTerminalCommand = useCallback((command: string) => {
     if (/^(?:sudo\s+)?submit(?:\s|$)/i.test(command.trim())) pollForSubmission();
   }, [pollForSubmission]);
+
+  // If the page is reloaded or revisited while a job is still queued/running,
+  // resume status polling from the authoritative database state.
+  useEffect(() => {
+    const newest = submissions[0];
+    if (!newest || waitingForResult) return;
+    if (!ACTIVE_SUBMISSION_STATUSES.has(newest.status.toUpperCase())) return;
+
+    const generation = ++pollGeneration.current;
+    setWaitingForResult(true);
+    const poll = async (attempt: number) => {
+      if (generation !== pollGeneration.current) return;
+      const rows = await refreshSubmissions();
+      if (generation !== pollGeneration.current) return;
+      const current = rows[0];
+      if (
+        !current ||
+        TERMINAL_SUBMISSION_STATUSES.has(current.status.toUpperCase()) ||
+        attempt >= SUBMISSION_POLL_ATTEMPTS - 1
+      ) {
+        setWaitingForResult(false);
+        return;
+      }
+      window.setTimeout(() => { void poll(attempt + 1); }, SUBMISSION_POLL_INTERVAL_MS);
+    };
+    window.setTimeout(() => { void poll(0); }, SUBMISSION_POLL_INTERVAL_MS);
+  }, [refreshSubmissions, submissions, waitingForResult]);
 
   const activeForSelected = Boolean(
     workspace &&
