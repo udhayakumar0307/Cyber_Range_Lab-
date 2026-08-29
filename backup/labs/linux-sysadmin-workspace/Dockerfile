@@ -3,7 +3,7 @@ FROM quay.io/rockylinux/rockylinux:9
 RUN dnf -y install --allowerasing \
       bash coreutils findutils grep gawk sed tar gzip \
       procps-ng shadow-utils util-linux \
-      vim-enhanced nano less man-db man-pages \
+      vim-enhanced nano less man-db man-pages ncurses \
       sudo python3 curl openssh-server openssh-clients \
     && dnf clean all \
     && rm -rf /var/cache/dnf
