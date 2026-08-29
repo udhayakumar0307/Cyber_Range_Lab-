@@ -25,6 +25,16 @@ class Settings:
             load_dotenv(root_env, override=True)
             logger.info(f"Loaded configuration from root {root_env}")
 
+        # Selected processes (currently the durable sysadmin grading dispatcher)
+        # must use the EC2 instance role even while legacy static AWS credentials
+        # remain in the shared production .env. Apply this *after* dotenv loading
+        # so a later settings.reload() cannot silently restore those credentials.
+        if os.getenv("CYBERRANGE_FORCE_INSTANCE_ROLE", "false").lower() in ("true", "1", "yes"):
+            os.environ.pop("AWS_ACCESS_KEY_ID", None)
+            os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
+            os.environ.pop("AWS_SESSION_TOKEN", None)
+            logger.info("AWS environment credentials disabled for instance-role-only process")
+
         self.ENV = os.getenv("ENV", "development")
         self.FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
         self.LABS_DIRECTORY = os.getenv("LABS_DIRECTORY", os.path.join(self.root_dir, "labs"))
