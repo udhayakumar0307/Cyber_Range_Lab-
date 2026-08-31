@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -42,6 +42,11 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
 
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const fitTerminal = useCallback(() => {
+    if (!fitAddonRef.current || !termInstanceRef.current) return;
+
+    fitAddonRef.current.fit();
+  }, []);
 
   const connectWebSocket = () => {
     // Cancel any previous socket's async events
@@ -152,6 +157,20 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
 
     termInstanceRef.current = term;
     fitAddonRef.current = fitAddon;
+    const resizeDisposable = term.onResize(({ rows, cols }) => {
+      if (
+        socketRef.current &&
+        socketRef.current.readyState === WebSocket.OPEN
+      ) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'resize',
+            rows,
+            cols,
+          }),
+        );
+      }
+    });
 
     // Auto-focus terminal on mount
     term.focus();
@@ -182,26 +201,24 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
     connectWebSocket();
 
     const handleResize = () => {
-      if (fitAddonRef.current && termInstanceRef.current) {
-        fitAddonRef.current.fit();
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-          socketRef.current.send(
-            JSON.stringify({
-              type: 'resize',
-              rows: termInstanceRef.current.rows,
-              cols: termInstanceRef.current.cols,
-            })
-          );
-        }
-      }
+      fitTerminal();
     };
 
     window.addEventListener('resize', handleResize);
+    const resizeObserver = new ResizeObserver(() => {
+      window.requestAnimationFrame(() => {
+        fitTerminal();
+      });
+    });
+
+    resizeObserver.observe(terminalRef.current);
 
     return () => {
       // Cancel the current socket's async events before closing
       cancelTokenRef.current.cancelled = true;
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      resizeDisposable.dispose();
       if (socketRef.current) {
         socketRef.current.close();
       }
@@ -210,7 +227,10 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
   }, [labId, levelNum, token, wsPath]);
 
   return (
-    <div className={`w-full flex flex-col bg-[#0B0F17] rounded-xl border border-slate-800 shadow-xl overflow-hidden ${isFullscreen ? 'fixed inset-4 z-50 h-[calc(100vh-2rem)]' : ''} ${className}`}>
+    <div
+      className={`flex w-full flex-col overflow-hidden rounded-xl border border-slate-800 bg-[#0B0F17] shadow-xl ${isFullscreen ? 'fixed inset-4 z-50' : ''
+        } ${className}`}
+    >
       {/* Terminal Header */}
       <div className="h-10 bg-[#111827] px-4 flex items-center justify-between border-b border-slate-800 select-none">
         <div className="flex items-center gap-2.5">
@@ -261,10 +281,7 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
           {/* Toggle Fullscreen */}
           <button
             onClick={() => {
-              setIsFullscreen(!isFullscreen);
-              setTimeout(() => {
-                fitAddonRef.current?.fit();
-              }, 100);
+              setIsFullscreen((current) => !current);
             }}
             className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Terminal'}
