@@ -73,7 +73,15 @@ class AuthorizationService:
 
     @staticmethod
     def _scope_sets(bindings: Sequence[UserRoleBinding]) -> tuple[bool, Set[int], Set[int]]:
-        global_access = any(binding.scope_type == "GLOBAL" for binding in bindings)
+        # Same UNSCOPED-as-GLOBAL treatment as primary_organization_id below:
+        # UNSCOPED (bootstrap/seed default, and the historical RBAC
+        # migration's blanket default for pre-existing admins) means "not
+        # restricted to one org/college," not "no access." This is the
+        # helper behind can_access_user/can_access_group/can_access_assignment
+        # — leaving it unfixed here caused e.g. group creation to succeed
+        # (via primary_organization_id) while adding members to that same
+        # group still 403'd (via this helper, through assert_group_access).
+        global_access = any(binding.scope_type in ("GLOBAL", "UNSCOPED") for binding in bindings)
         organization_ids = {
             int(binding.organization_id)
             for binding in bindings
