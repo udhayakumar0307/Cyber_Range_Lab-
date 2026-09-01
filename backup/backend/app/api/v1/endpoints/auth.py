@@ -172,7 +172,13 @@ def _execute_login(
     # Check if this request already includes the OTP verification code
     submitted_otp = getattr(login_data, "otp_code", None) or request.query_params.get("otp_code")
 
-    if is_academic_admin_user:
+    if is_academic_admin_user and not settings.ACADEMIC_ADMIN_LOGIN_MFA_ENABLED:
+        logger.warning(
+            "[AuthLog] Academic admin login MFA is DISABLED by configuration for: %s",
+            email_clean,
+        )
+
+    if is_academic_admin_user and settings.ACADEMIC_ADMIN_LOGIN_MFA_ENABLED:
         if not submitted_otp:
             # Generate new login OTP
             otp_code = "".join(secrets.choice("0123456789") for _ in range(6))
