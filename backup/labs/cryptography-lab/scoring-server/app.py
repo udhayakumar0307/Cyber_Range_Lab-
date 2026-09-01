@@ -114,8 +114,6 @@ def index():
                 "track": tid,
                 "full_id": f"{tid}_{mid}",
                 "title": mcfg["title"],
-                "phase": mcfg.get("phase"),
-                "phase_title": mcfg.get("phase_title", ""),
                 "difficulty": mcfg["difficulty"],
                 "points": mcfg["points"],
                 "story": mcfg.get("story", ""),
