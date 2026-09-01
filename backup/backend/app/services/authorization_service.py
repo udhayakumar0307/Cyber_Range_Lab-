@@ -209,7 +209,14 @@ class AuthorizationService:
     @staticmethod
     def primary_organization_id(db: Session, user: User) -> int:
         bindings = AuthorizationService.active_bindings(db, user.id)
-        global_access = any(binding.scope_type == "GLOBAL" for binding in bindings)
+        # UNSCOPED is what bootstrap/seed scripts (and the historical RBAC
+        # migration's blanket default for every pre-existing admin) assign
+        # when an admin wasn't given a specific organization at creation
+        # time. It means "not restricted to one org" — the same operational
+        # intent as GLOBAL — not "no access". Treating it as having zero
+        # scope (the previous behavior) is what made this 403 fire for
+        # nearly every admin account instead of only genuinely unscoped ones.
+        global_access = any(binding.scope_type in ("GLOBAL", "UNSCOPED") for binding in bindings)
         org_ids = {
             int(binding.organization_id)
             for binding in bindings
@@ -239,6 +246,34 @@ class AuthorizationService:
             primary_org = int(primary_aff.organization_id)
             if global_access or primary_org in org_ids:
                 return primary_org
+
+        # Still nothing: the account may only have a COLLEGE affiliation
+        # (e.g. IIT Madras) with no mirrored ORGANIZATION binding ever
+        # created for it. Resolve it the same read-only way the college-
+        # admin self-registration flow does — by matching the Organization
+        # row that mirrors that college by name — instead of refusing.
+        if global_access:
+            college_aff = (
+                db.query(UserAffiliation)
+                .filter(
+                    UserAffiliation.user_id == user.id,
+                    UserAffiliation.college_id.is_not(None),
+                )
+                .order_by(UserAffiliation.is_primary.desc())
+                .first()
+            )
+            if college_aff and college_aff.college_id is not None:
+                from app.models.college import College
+                from app.models.admin_models import Organization
+                college = db.query(College).filter(College.id == college_aff.college_id).first()
+                if college:
+                    matching_org = (
+                        db.query(Organization)
+                        .filter(Organization.name.ilike(college.name))
+                        .first()
+                    )
+                    if matching_org:
+                        return int(matching_org.id)
 
         if len(org_ids) == 1:
             return next(iter(org_ids))
