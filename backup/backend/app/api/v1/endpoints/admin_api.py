@@ -122,7 +122,16 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
             raise HTTPException(status_code=404, detail="College not found")
         college_target_id = college.id
         resolved_org_name = college.name
-        # Find or create a matching Organization to keep AdminProfile compatible
+        # Find or create a matching Organization to keep AdminProfile compatible.
+        # This Organization row is purely an internal bridge so the existing
+        # organization_id-based scoping (groups, allocations, etc.) works for
+        # college admins too — it is NOT a second identity that needs its own
+        # approval. A college admin chose "college", not "organization", so
+        # this mirror must always end up ACTIVE, even if a same-named
+        # Organization already exists and happens to be PENDING (e.g. it was
+        # created earlier via the separate company/organization signup path,
+        # which is the only path where PENDING approval is actually meant to
+        # apply).
         org = db.query(Organization).filter(Organization.name.ilike(college.name)).first()
         if not org:
             org = Organization(
@@ -135,6 +144,8 @@ def register_admin(data: AdminRegisterRequest, request: Request, db: Session = D
             )
             db.add(org)
             db.flush()
+        elif str(org.status or "").upper() not in {"ACTIVE", "APPROVED"}:
+            org.status = "ACTIVE"
         org_id = org.id
     else:
         # Organization selection
