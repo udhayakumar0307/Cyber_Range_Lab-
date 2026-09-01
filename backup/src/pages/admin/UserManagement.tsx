@@ -104,6 +104,7 @@ export const UserManagement: React.FC = () => {
   // Delete selection state
   const [selectedForDelete, setSelectedForDelete] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const getUserDbId = (u: PlatformUser) => u.db_id ?? Number(String(u.id).replace('usr-', ''));
 
@@ -259,22 +260,49 @@ export const UserManagement: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
+    if (isBulkDeleting) return;
+
+    const idsToDelete = Array.from(selectedForDelete);
+    if (idsToDelete.length === 0) return;
+
+    setIsBulkDeleting(true);
+    setBulkDeleteOpen(false);
+
     const token = localStorage.getItem('token');
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
     let successCount = 0;
-    for (const dbId of selectedForDelete) {
-      try {
-        const res = await fetch(`/api/v1/admin/users/${dbId}`, { method: 'DELETE', headers });
-        if (res.ok) successCount++;
-      } catch (err) {
-        console.error(`Error deleting user ID ${dbId}:`, err);
+
+    try {
+      for (const dbId of idsToDelete) {
+        try {
+          const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+            method: 'DELETE',
+            headers
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            console.error(
+              `Failed deleting user ID ${dbId}: HTTP ${res.status}`
+            );
+          }
+        } catch (err) {
+          console.error(`Error deleting user ID ${dbId}:`, err);
+        }
       }
-    }
-    setBulkDeleteOpen(false);
-    setSelectedForDelete(new Set());
-    await fetchUsersAndGroups();
-    if (successCount < selectedForDelete.size) {
-      alert(`Deleted ${successCount} of ${selectedForDelete.size} selected student(s). Some deletions failed.`);
+
+      setSelectedForDelete(new Set());
+      await fetchUsersAndGroups();
+
+      if (successCount < idsToDelete.length) {
+        alert(
+          `Deleted ${successCount} of ${idsToDelete.length} selected student(s). Some deletions failed.`
+        );
+      }
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -646,9 +674,10 @@ export const UserManagement: React.FC = () => {
               </button>
               <button
                 onClick={handleBulkDelete}
-                className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs"
+                disabled={isBulkDeleting}
+                className="py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-xs"
               >
-                Delete Selected
+                {isBulkDeleting ? 'Deleting...' : 'Delete Selected'}
               </button>
             </div>
           </div>
