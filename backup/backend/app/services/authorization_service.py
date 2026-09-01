@@ -249,31 +249,49 @@ class AuthorizationService:
 
         # Still nothing: the account may only have a COLLEGE affiliation
         # (e.g. IIT Madras) with no mirrored ORGANIZATION binding ever
-        # created for it. Resolve it the same read-only way the college-
-        # admin self-registration flow does — by matching the Organization
-        # row that mirrors that college by name — instead of refusing.
-        if global_access:
-            college_aff = (
-                db.query(UserAffiliation)
-                .filter(
-                    UserAffiliation.user_id == user.id,
-                    UserAffiliation.college_id.is_not(None),
-                )
-                .order_by(UserAffiliation.is_primary.desc())
-                .first()
+        # created for it — or no active role binding row at all (accounts
+        # created before RBAC bindings existed, or where the binding was
+        # never inserted). This lookup is intentionally NOT gated behind
+        # global_access: it only ever resolves to an organization this
+        # specific user already has a real UserAffiliation row pointing at
+        # (by college), read-only, so it can't grant access beyond what the
+        # account's own affiliation data already represents.
+        college_aff = (
+            db.query(UserAffiliation)
+            .filter(
+                UserAffiliation.user_id == user.id,
+                UserAffiliation.college_id.is_not(None),
             )
-            if college_aff and college_aff.college_id is not None:
-                from app.models.college import College
-                from app.models.admin_models import Organization
-                college = db.query(College).filter(College.id == college_aff.college_id).first()
-                if college:
-                    matching_org = (
-                        db.query(Organization)
-                        .filter(Organization.name.ilike(college.name))
-                        .first()
-                    )
-                    if matching_org:
-                        return int(matching_org.id)
+            .order_by(UserAffiliation.is_primary.desc())
+            .first()
+        )
+        if college_aff and college_aff.college_id is not None:
+            from app.models.college import College
+            from app.models.admin_models import Organization
+            college = db.query(College).filter(College.id == college_aff.college_id).first()
+            if college:
+                matching_org = (
+                    db.query(Organization)
+                    .filter(Organization.name.ilike(college.name))
+                    .first()
+                )
+                if matching_org:
+                    return int(matching_org.id)
+
+        # Fall back to the user's own denormalized college_id column too
+        # (some flows set User.college_id without a UserAffiliation row).
+        if getattr(user, "college_id", None) is not None:
+            from app.models.college import College
+            from app.models.admin_models import Organization
+            college = db.query(College).filter(College.id == user.college_id).first()
+            if college:
+                matching_org = (
+                    db.query(Organization)
+                    .filter(Organization.name.ilike(college.name))
+                    .first()
+                )
+                if matching_org:
+                    return int(matching_org.id)
 
         if len(org_ids) == 1:
             return next(iter(org_ids))
