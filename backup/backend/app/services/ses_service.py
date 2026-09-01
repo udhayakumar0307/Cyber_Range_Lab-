@@ -416,9 +416,14 @@ class SESService:
             logger.error(f"SES error: Unexpected error sending email: {e}")
             raise RuntimeError(f"An unexpected error occurred while sending email: {str(e)}")
 
-    def send_welcome_email(self, email: str, temp_password: str, professor_name: str):
+    def send_welcome_email(self, email: str, temp_password: str, professor_name: str) -> str:
         """
-        Sends welcome email with temporary password.
+        Send a welcome email containing the student's temporary password.
+
+        Returns the Amazon SES MessageId after SES accepts the message.
+        Raises when SES is unavailable or rejects the message.
+
+        The temporary password must never be written to application logs.
         """
         html_body = f"""<!DOCTYPE html>
 <html>
@@ -438,24 +443,56 @@ class SESService:
 </body>
 </html>
 """
-        text_body = f"Welcome to CyberRange!\nYou have been added by Professor {professor_name}.\nTemporary password: {temp_password}\nLog in and update your password immediately."
+        text_body = (
+            f"Welcome to CyberRange!\n"
+            f"You have been added by Professor {professor_name}.\n"
+            f"Temporary password: {temp_password}\n"
+            "Log in and update your password immediately."
+        )
+
+        if not self.is_enabled or not self.client:
+            raise RuntimeError(
+                "SES email service is disabled or unconfigured."
+            )
+
         try:
-            if not self.is_enabled or not self.client:
-                logger.warning(f"[SES Sandbox Mode Bypass] Welcome email bypass to {email}. Password: {temp_password}")
-                return
-            self.client.send_email(
+            response = self.client.send_email(
                 Source=settings.SES_FROM_EMAIL,
                 Destination={"ToAddresses": [email]},
                 Message={
-                    "Subject": {"Data": f"You have been added to CyberRange by Professor {professor_name}", "Charset": "UTF-8"},
+                    "Subject": {
+                        "Data": f"You have been added to CyberRange by Professor {professor_name}",
+                        "Charset": "UTF-8",
+                    },
                     "Body": {
-                        "Html": {"Data": html_body, "Charset": "UTF-8"},
-                        "Text": {"Data": text_body, "Charset": "UTF-8"}
-                    }
-                }
+                        "Html": {
+                            "Data": html_body,
+                            "Charset": "UTF-8",
+                        },
+                        "Text": {
+                            "Data": text_body,
+                            "Charset": "UTF-8",
+                        },
+                    },
+                },
             )
-        except Exception as e:
-            logger.error(f"Failed to send welcome email: {e}")
+        except Exception as exc:
+            logger.error(
+                "Welcome email SES request failed for %s: %s",
+                email,
+                exc,
+            )
+            raise
+
+        message_id = response.get("MessageId")
+
+        if not message_id:
+            raise RuntimeError(
+                f"SES accepted welcome-email request for {email} "
+                "but returned no MessageId"
+            )
+
+        return message_id
 
     def send_lab_assigned_email(
         self, email: str, lab_name: str, date: str, time: str, duration: str,

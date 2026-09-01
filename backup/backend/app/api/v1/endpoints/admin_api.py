@@ -3527,14 +3527,32 @@ def sanitize_csv_formula(val: str) -> str:
 
 
 def _send_welcome_emails(created_users: list, admin_name: str):
-    """Runs after the response is sent — a synchronous loop here would block
-    the whole bulk-import request on one SES network round trip per student."""
+    """Send new-account credentials after the import response is returned.
+
+    Each successful SES acceptance is logged with its MessageId. Failures are
+    logged explicitly without exposing temporary passwords.
+    """
     from app.services.ses_service import ses_service
+
     for email, pwd in created_users:
         try:
-            ses_service.send_welcome_email(email, pwd, admin_name)
+            message_id = ses_service.send_welcome_email(
+                email,
+                pwd,
+                admin_name,
+            )
+            logger.info(
+                "Welcome credential email accepted by SES | "
+                "email=%s | message_id=%s",
+                email,
+                message_id,
+            )
         except Exception as mail_err:
-            logger.error(f"Welcome email failed for {email}: {mail_err}")
+            logger.error(
+                "Welcome credential email FAILED | email=%s | error=%s",
+                email,
+                mail_err,
+            )
 
 
 @router.post("/users/import")
