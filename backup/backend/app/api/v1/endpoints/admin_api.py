@@ -3569,25 +3569,34 @@ async def bulk_import_users(
     if len(rows) > 1000:
         raise HTTPException(status_code=400, detail="Batch upload exceeds maximum threshold of 1000 records.")
 
-    existing_emails = {u.email.lower() for u in db.query(User.email).all()}
+    # Index existing accounts by normalized email. Existing ordinary student
+    # accounts may be adopted into this roster instead of being rejected merely
+    # because they logged in (for example through Academic SSO) before import.
+    existing_users_by_email = {
+        u.email.lower(): u
+        for u in db.query(User).all()
+        if u.email
+    }
 
     valid_rows = []
     failed_rows = []
     duplicate_rows = []
     imported_count = 0
+    created_count = 0
+    adopted_count = 0
 
     from app.models.user_affiliation import UserAffiliation as UA
 
     # Match the same affiliation-resolution logic used by the single "Add Student"
     # endpoint (create_admin_user): copy ALL of the admin's affiliation rows onto
-    # each new user, rather than relying on a single row flagged is_primary (which
-    # may not exist), so imported students remain visible in student/group listings.
+    # each new/adopted student.
     admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
     admin_primary_aff = next((a for a in admin_affs if a.is_primary), admin_affs[0] if admin_affs else None)
     admin_college_id = admin_primary_aff.college_id if admin_primary_aff else None
     admin_org_id = admin_primary_aff.organization_id if admin_primary_aff else None
 
     created_users = []
+    seen_upload_emails = set()
 
     try:
         for idx, row in enumerate(rows, start=2):
@@ -3600,12 +3609,147 @@ async def bulk_import_users(
                 failed_rows.append({"row": idx, "email": email, "reason": "Missing mandatory field (Full Name or Email)"})
                 continue
 
-            if email.lower() in existing_emails:
-                duplicate_rows.append({"row": idx, "email": email, "reason": "User email already exists in database"})
+            email_key = email.lower()
+
+            # A repeated email inside the same spreadsheet is an input conflict,
+            # not an existing-account adoption.
+            if email_key in seen_upload_emails:
+                duplicate_rows.append({
+                    "row": idx,
+                    "email": email,
+                    "reason": "Duplicate email appears more than once in the uploaded file"
+                })
                 continue
 
+            seen_upload_emails.add(email_key)
             parsed_dept, parsed_year = parse_dept_year(dept_year_raw)
 
+            existing_user = existing_users_by_email.get(email_key)
+
+            if existing_user is not None:
+                existing_role = (existing_user.role or "").strip().lower()
+
+                # Never allow roster import to repurpose privileged identities.
+                if existing_role not in {"user", "student"}:
+                    duplicate_rows.append({
+                        "row": idx,
+                        "email": email,
+                        "reason": f"Existing protected account cannot be imported as a student (role={existing_user.role})"
+                    })
+                    continue
+
+                # Resolve scope BEFORE changing any existing user metadata.
+                current_affs = (
+                    db.query(UA)
+                    .filter(UA.user_id == existing_user.id)
+                    .all()
+                )
+
+                admin_aff_keys = {
+                    (a.affiliation_type, a.college_id, a.organization_id)
+                    for a in admin_affs
+                }
+
+                existing_aff_by_key = {
+                    (a.affiliation_type, a.college_id, a.organization_id): a
+                    for a in current_affs
+                }
+                existing_aff_keys = set(existing_aff_by_key)
+
+                shared_aff_keys = existing_aff_keys.intersection(admin_aff_keys)
+
+                # If the importing admin has an academic scope, do not silently
+                # claim a student who is already scoped exclusively elsewhere.
+                # Unaffiliated accounts are allowed because Academic SSO can
+                # create them before the professor uploads the roster.
+                if admin_aff_keys and existing_aff_keys and not shared_aff_keys:
+                    duplicate_rows.append({
+                        "row": idx,
+                        "email": email,
+                        "reason": "Existing student belongs to a different academic scope"
+                    })
+                    continue
+
+                # Also protect legacy records that have only the top-level
+                # college_id populated but no UserAffiliation rows.
+                if (
+                    admin_college_id is not None
+                    and not existing_aff_keys
+                    and existing_user.college_id is not None
+                    and existing_user.college_id != admin_college_id
+                ):
+                    duplicate_rows.append({
+                        "row": idx,
+                        "email": email,
+                        "reason": "Existing student belongs to a different college"
+                    })
+                    continue
+
+                # Adopt the compatible existing student account into this roster.
+                # Authentication state is deliberately preserved: password_hash,
+                # auth_type, OAuth/SSO linkage, and existing credentials are not
+                # regenerated or replaced.
+                existing_user.name = sanitize_csv_formula(name)
+                existing_user.role = "user"
+                existing_user.account_type = "student"
+                existing_user.is_active = True
+
+                if admin_college_id is not None:
+                    existing_user.college_id = admin_college_id
+
+                if current_user.organization:
+                    existing_user.organization = current_user.organization
+
+                existing_user.department = sanitize_csv_formula(parsed_dept)
+                existing_user.year = parsed_year
+                existing_user.roll_number = sanitize_csv_formula(roll_number)
+
+                has_primary_aff = any(a.is_primary for a in current_affs)
+
+                for a in admin_affs:
+                    aff_key = (
+                        a.affiliation_type,
+                        a.college_id,
+                        a.organization_id,
+                    )
+
+                    existing_aff = existing_aff_by_key.get(aff_key)
+
+                    if existing_aff is not None:
+                        # Repair a matching non-primary affiliation when the
+                        # importing admin's corresponding affiliation is primary.
+                        if a.is_primary and not has_primary_aff:
+                            existing_aff.is_primary = True
+                            has_primary_aff = True
+                        continue
+
+                    make_primary = bool(a.is_primary and not has_primary_aff)
+
+                    new_aff = UA(
+                        user_id=existing_user.id,
+                        affiliation_type=a.affiliation_type,
+                        college_id=a.college_id,
+                        organization_id=a.organization_id,
+                        is_primary=make_primary,
+                    )
+                    db.add(new_aff)
+
+                    existing_aff_by_key[aff_key] = new_aff
+                    existing_aff_keys.add(aff_key)
+
+                    if make_primary:
+                        has_primary_aff = True
+
+                imported_count += 1
+                adopted_count += 1
+                valid_rows.append({
+                    "email": email,
+                    "name": name,
+                    "status": "adopted"
+                })
+                continue
+
+            # Brand-new student: create credentials exactly as before.
             pwd_to_use = secrets.token_urlsafe(10)
             pwd_hash = get_password_hash(pwd_to_use)
 
@@ -3624,22 +3768,25 @@ async def bulk_import_users(
             db.add(new_u)
             db.flush()
 
-            # Create User Affiliations - copy every affiliation row the admin has,
-            # same as create_admin_user, so the student shows up wherever the
-            # admin's own students/groups are scoped.
             for a in admin_affs:
-                new_aff = UA(
-                    user_id=new_u.id,
-                    affiliation_type=a.affiliation_type,
-                    college_id=a.college_id,
-                    organization_id=a.organization_id,
-                    is_primary=a.is_primary
+                db.add(
+                    UA(
+                        user_id=new_u.id,
+                        affiliation_type=a.affiliation_type,
+                        college_id=a.college_id,
+                        organization_id=a.organization_id,
+                        is_primary=a.is_primary
+                    )
                 )
-                db.add(new_aff)
 
-            existing_emails.add(email.lower())
+            existing_users_by_email[email_key] = new_u
             imported_count += 1
-            valid_rows.append({"email": email, "name": name})
+            created_count += 1
+            valid_rows.append({
+                "email": email,
+                "name": name,
+                "status": "created"
+            })
             created_users.append((email, pwd_to_use))
 
         # Rollback if any validation/import failures occurred
@@ -3674,7 +3821,11 @@ async def bulk_import_users(
         performed_by=current_user.email,
         performed_by_role=current_user.role,
         organization_id=admin_org_id,
-        new_value=f"File: {file.filename}, Imported: {imported_count}, Duplicates: {len(duplicate_rows)}, Failed: {len(failed_rows)}",
+        new_value=(
+            f"File: {file.filename}, Imported: {imported_count}, "
+            f"Created: {created_count}, Adopted: {adopted_count}, "
+            f"Conflicts: {len(duplicate_rows)}, Failed: {len(failed_rows)}"
+        ),
         request=request
     )
 
@@ -3682,6 +3833,8 @@ async def bulk_import_users(
         "status": "success",
         "total_processed": len(rows),
         "success_count": imported_count,
+        "created_count": created_count,
+        "adopted_count": adopted_count,
         "failure_count": len(duplicate_rows),
         "errors": [
             {"row_index": r["row"], "error_detail": r["reason"]} for r in duplicate_rows
