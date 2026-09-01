@@ -594,7 +594,9 @@ from typing import Union
 class UserCreateRequest(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    # Retained as an optional compatibility field for older clients.
+    # Manual student creation always generates the credential server-side.
+    password: Optional[str] = None
     role: Optional[str] = "User"
     group_id: Optional[int] = None
     year: Optional[Union[int, str]] = None
@@ -986,44 +988,75 @@ def _parse_year_int(year_val: Optional[Any]) -> Optional[int]:
 def create_admin_user(
     data: UserCreateRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     org_id = get_admin_org_id(current_user, db)
-    existing = db.query(User).filter(User.email == data.email).first()
+
+    email_clean = str(data.email).strip().lower()
+
+    existing = db.query(User).filter(User.email == email_clean).first()
     if existing:
-        raise HTTPException(status_code=400, detail="User with this email already exists.")
-
-    password_validator.validate_or_raise(data.password, email=data.email, username=data.name)
-    parsed_year = _parse_year_int(data.year)
-    new_user = User(
-        name=data.name,
-        email=data.email,
-        password_hash=get_password_hash(data.password),
-        role=data.role.lower() if data.role else "user",
-        group_id=data.group_id,
-        year=parsed_year,
-        department=data.department or "",
-        roll_number=data.roll_number,
-        is_active=True,
-        organization=current_user.organization
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
-    for a in admin_affs:
-        aff = UA(
-            user_id=new_user.id,
-            affiliation_type=a.affiliation_type,
-            college_id=a.college_id,
-            organization_id=a.organization_id,
-            is_primary=a.is_primary
+        raise HTTPException(
+            status_code=400,
+            detail="User with this email already exists."
         )
-        db.add(aff)
-    if admin_affs:
+
+    # The server is the authority for manually-created student credentials.
+    # Never trust/reuse a browser-supplied fallback password.
+    temp_password = secrets.token_urlsafe(12)
+    parsed_year = _parse_year_int(data.year)
+
+    # Resolve the same academic scope used by bulk roster import.
+    admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+    admin_primary_aff = next(
+        (a for a in admin_affs if a.is_primary),
+        admin_affs[0] if admin_affs else None
+    )
+    admin_college_id = (
+        admin_primary_aff.college_id
+        if admin_primary_aff
+        else None
+    )
+
+    try:
+        new_user = User(
+            name=data.name,
+            email=email_clean,
+            password_hash=get_password_hash(temp_password),
+            role="user",
+            account_type="student",
+            auth_type="INDIVIDUAL",
+            group_id=data.group_id,
+            college_id=admin_college_id,
+            year=parsed_year,
+            department=data.department or "",
+            roll_number=data.roll_number,
+            is_active=True,
+            email_verified=True,
+            organization=current_user.organization
+        )
+        db.add(new_user)
+        db.flush()
+
+        for a in admin_affs:
+            db.add(
+                UA(
+                    user_id=new_user.id,
+                    affiliation_type=a.affiliation_type,
+                    college_id=a.college_id,
+                    organization_id=a.organization_id,
+                    is_primary=a.is_primary
+                )
+            )
+
         db.commit()
+        db.refresh(new_user)
+
+    except Exception:
+        db.rollback()
+        raise
 
     from app.services.audit_service import log_audit_event
     log_audit_event(
@@ -1038,7 +1071,20 @@ def create_admin_user(
         request=request
     )
 
-    return {"status": "success", "user_id": new_user.id}
+    # Send credentials only after the database transaction succeeds.
+    # _send_welcome_emails logs SES MessageId on acceptance and logs failures
+    # without exposing the temporary password.
+    background_tasks.add_task(
+        _send_welcome_emails,
+        [(new_user.email, temp_password)],
+        current_user.name or current_user.email
+    )
+
+    return {
+        "status": "success",
+        "user_id": new_user.id,
+        "credential_email_queued": True
+    }
 
 @router.put("/users/{user_id}")
 def update_admin_user(

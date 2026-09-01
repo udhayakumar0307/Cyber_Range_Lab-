@@ -161,7 +161,7 @@ export const UserAddModal: React.FC<UserAddModalProps> = ({
 
           {!isEditMode && (
             <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-              A default password will be generated automatically and can be reset later from the student's profile.
+              A unique temporary password will be generated securely and emailed directly to the student.
             </p>
           )}
 

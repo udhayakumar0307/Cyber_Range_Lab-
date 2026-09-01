@@ -234,7 +234,6 @@ export const UserManagement: React.FC = () => {
           body: JSON.stringify({
             name: userData.fullName,
             email: userData.email,
-            password: userData.password || 'CyberRange#2026!',
             role: userData.role ? userData.role.toLowerCase() : 'user',
             group_id: targetGroupId,
             year: userData.year,
