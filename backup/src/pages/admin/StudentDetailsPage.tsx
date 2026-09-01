@@ -66,13 +66,18 @@ export const StudentDetailsPage: React.FC = () => {
       if (userRes.ok) {
         const data = await userRes.json();
         setStudent(data);
+        // Prefill the edit form with the REAL stored value only. A field left
+        // blank by the admin's import (or not yet filled in by the student)
+        // must stay blank here — falling back to a plausible-looking fake
+        // value would let an admin unknowingly save that fake value as if it
+        // were the student's real data.
         setEditForm({
           fullName: data.fullName || data.name || '',
           email: data.email || '',
-          rollNumber: data.rollNumber || '22BCS104',
-          department: data.department || 'Cyber Security',
-          year: data.year || 'III Year',
-          phone: data.phone || '+91 98765 43210',
+          rollNumber: data.rollNumber || '',
+          department: data.department || '',
+          year: data.year || '',
+          phone: data.phone || '',
           status: data.status || 'Active'
         });
       }
@@ -89,6 +94,20 @@ export const StudentDetailsPage: React.FC = () => {
 
   useEffect(() => {
     if (studentId) fetchStudentDetails();
+
+    // Re-fetch when the admin returns to this tab — the student may have
+    // completed their own profile (roll number/department/year) in the
+    // meantime, and this page must reflect that live data, not a stale copy.
+    const onFocus = () => { if (studentId) fetchStudentDetails(); };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && studentId) fetchStudentDetails();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [studentId]);
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -96,10 +115,23 @@ export const StudentDetailsPage: React.FC = () => {
     setActionLoading(true);
     const token = localStorage.getItem('token');
     try {
+      // The backend's UserUpdateRequest expects snake_case / its own field
+      // names (name, roll_number, is_active) — editForm uses the UI's
+      // camelCase keys, so it must be translated here, not sent as-is.
+      // (Previously this sent `fullName`/`rollNumber`/`status` verbatim,
+      // which Pydantic silently ignored as unknown fields — so Full Name,
+      // Roll Number, Phone, and Status edits were never actually saved.)
       const res = await fetch(`/api/v1/admin/users/${studentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({
+          name: editForm.fullName,
+          roll_number: editForm.rollNumber,
+          department: editForm.department,
+          year: editForm.year,
+          phone: editForm.phone,
+          is_active: editForm.status === 'Active',
+        })
       });
       if (res.ok) { setIsEditing(false); fetchStudentDetails(); }
     } catch (err) {
@@ -240,7 +272,7 @@ export const StudentDetailsPage: React.FC = () => {
                 { label: 'Roll Number', key: 'rollNumber', type: 'text' },
                 { label: 'Department', key: 'department', type: 'text' },
                 { label: 'Year', key: 'year', type: 'text' },
-                { label: 'Email Address', key: 'email', type: 'email', required: true },
+                { label: 'Email Address (login — not editable here)', key: 'email', type: 'email', required: true, readOnly: true },
                 { label: 'Phone Number', key: 'phone', type: 'text' },
               ].map(f => (
                 <div key={f.key}>
@@ -249,8 +281,9 @@ export const StudentDetailsPage: React.FC = () => {
                     type={f.type}
                     value={(editForm as any)[f.key]}
                     onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#0052CC]"
+                    className={`w-full p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#0052CC] ${f.readOnly ? 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800'}`}
                     required={f.required}
+                    readOnly={f.readOnly}
                   />
                 </div>
               ))}
@@ -271,13 +304,16 @@ export const StudentDetailsPage: React.FC = () => {
                   <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{name}</h1>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#28A745] border border-emerald-200">{student.status || 'Active'}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">{student.email} • {student.phone || '+91 98765 43210'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{student.email}{student.phone ? ` • ${student.phone}` : ''}</p>
+                {/* Fields the admin left blank at import (or the student hasn't
+                    filled in yet) show as "Not provided" — never a fabricated
+                    placeholder that could be mistaken for real student data. */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-600 dark:text-slate-400 mt-2">
-                  <span><strong>Roll:</strong> {student.rollNumber || '22BCS104'}</span>
+                  <span><strong>Roll:</strong> {student.rollNumber || <span className="italic text-slate-400 dark:text-slate-500 font-medium">Not provided</span>}</span>
                   <span>•</span>
-                  <span><strong>Dept:</strong> {student.department || 'Cyber Security'}</span>
+                  <span><strong>Dept:</strong> {student.department || <span className="italic text-slate-400 dark:text-slate-500 font-medium">Not provided</span>}</span>
                   <span>•</span>
-                  <span><strong>Year:</strong> {student.year || 'III Year'}</span>
+                  <span><strong>Year:</strong> {student.year || <span className="italic text-slate-400 dark:text-slate-500 font-medium">Not provided</span>}</span>
                   <span>•</span>
                   <span><strong>Cohort:</strong> {student.groupName || 'Unassigned'}</span>
                 </div>

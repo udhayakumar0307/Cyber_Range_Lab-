@@ -50,7 +50,10 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #94A3B8;
   }
+  .workspace-tab { color: #94A3B8; background: transparent; }
+  .workspace-tab.active { color: #60A5FA; background: #1E293B; }
 </style>
+<link rel="stylesheet" href="/api/v1/crypto/static/vendor/xterm/xterm.css" />
 </head>
 <body class="bg-[#F8FAFC] min-h-screen flex flex-col text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-700">
 
@@ -89,7 +92,7 @@
           <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
           </svg>
-          <span id="header-module-counter">Module 1 of 5</span>
+          <span id="header-module-counter">Level 1 of 5</span>
         </div>
 
         <!-- Score Badge -->
@@ -143,70 +146,63 @@
       </div>
     </section>
 
-    <!-- MODULE DETAIL VIEW: Two-Column Layout -->
-    <section id="module-detail" class="hidden">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-140px)]">
+    <!-- MODULE DETAIL VIEW: Terminal-First Layout (dark theme) -->
+    <section id="module-detail" class="hidden -m-4 sm:-m-6 p-4 sm:p-6 bg-[#0B1020] min-h-[calc(100vh-56px)]">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-100px)]">
 
-        <!-- LEFT PANEL (~45% -> lg:col-span-5): Clean Objectives List (Command Line Lab Style) -->
-        <div class="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-6 overflow-y-auto max-h-[calc(100vh-140px)]">
-          
+        <!-- RIGHT SIDEBAR (~30% -> lg:col-span-4): Challenge Sidebar -->
+        <div class="lg:col-span-4 bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-6 overflow-y-auto max-h-[calc(100vh-100px)] order-2">
+
           <div class="space-y-6">
-            
-            <!-- Module Navigation (1-5) Numbered Buttons -->
-            <div class="flex items-center justify-between pb-4 border-b border-slate-100">
-              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider" id="active-track-name">Track Modules</span>
-              <div class="flex items-center gap-2" id="module-nav-buttons">
-                <!-- Dynamically rendered buttons 1 to 5 -->
-              </div>
+
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+              <span class="text-xs font-bold text-slate-500 uppercase tracking-wider" id="active-track-name">Track Levels</span>
+              <span class="text-xs font-bold text-blue-400" id="active-level-label"></span>
             </div>
 
-            <!-- Header Badge & Title -->
+            <!-- Header Badge, Title, Learn More -->
             <div class="space-y-2">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#2563EB] border border-blue-200 uppercase tracking-wider" id="detail-badge">
-                Module 1
-              </span>
-              <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight" id="detail-title">
-                Module Title
-              </h2>
-              <p class="text-xs sm:text-sm text-slate-600 leading-relaxed" id="detail-story"></p>
-            </div>
-
-            <!-- Concept Card (the "professor explains" step) -->
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1.5 shadow-xs">
-              <div class="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                </svg>
-                Concept
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-950/50 text-blue-400 border border-blue-900 uppercase tracking-wider" id="detail-badge">
+                  Level 1
+                </span>
+                <button onclick="openLearnModal()" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-amber-300 bg-amber-950/40 border border-amber-900 hover:bg-amber-950/70 transition-all cursor-pointer">
+                  📖 Learn More
+                </button>
               </div>
-              <p class="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed" id="detail-concept"></p>
+              <h2 class="text-xl sm:text-2xl font-extrabold text-white tracking-tight" id="detail-title">
+                Level Title
+              </h2>
+              <p class="text-xs sm:text-sm text-slate-400 leading-relaxed" id="detail-story"></p>
             </div>
 
-            <!-- Mission Overview Card (the TechCorp scenario + practical objective) -->
-            <div class="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 space-y-1.5 shadow-xs">
-              <div class="flex items-center gap-2 text-xs font-bold text-[#2563EB] uppercase tracking-wider">
-                <svg class="w-4 h-4 text-[#2563EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <!-- Objective Card -->
+            <div class="bg-blue-950/30 border border-blue-900/60 rounded-xl p-4 space-y-1.5 shadow-xs">
+              <div class="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
-                Today's Objective
+                Objective
               </div>
-              <p class="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed" id="detail-mission"></p>
+              <p class="text-xs sm:text-sm font-medium text-slate-200 leading-relaxed" id="detail-mission"></p>
             </div>
 
-            <!-- Concise Objectives Section (Questions Only) -->
+            <!-- Instructions (Objectives) -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Objectives (4 Required)</h3>
-                <span class="text-xs font-semibold text-blue-600" id="objectives-count-badge">0/4 completed</span>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>&gt;_</span> Instructions
+                </h3>
+                <span class="text-xs font-semibold text-blue-400" id="objectives-count-badge">0/4 completed</span>
               </div>
-              
+
               <ul class="space-y-2.5" id="detail-objectives">
-                <!-- Dynamically populated concise objective list -->
+                <!-- Dynamically populated -->
               </ul>
             </div>
 
-            <!-- Hint System (2 Clues per module: -20 pts each) -->
-            <div class="space-y-3 pt-3 border-t border-slate-100">
+            <!-- Hint System -->
+            <div class="space-y-3 pt-3 border-t border-slate-800">
               <div class="flex items-center justify-between">
                 <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,42 +212,52 @@
                 </h3>
               </div>
 
-              <!-- Hint Card 1 -->
-              <div class="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-2" id="hint-box-1">
+              <div class="bg-amber-950/20 border border-amber-900/50 rounded-xl p-3.5 space-y-2" id="hint-box-1">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-amber-900">Hint 1 (Small Clue)</span>
-                  <button id="unlock-hint-1-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer">
+                  <span class="text-xs font-bold text-amber-300">Hint 1 (Small Clue)</span>
+                  <button id="unlock-hint-1-btn" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer">
                     Unlock Hint 1 (-20 pts)
                   </button>
                 </div>
-                <p id="hint-content-1" class="text-xs text-amber-900/90 leading-relaxed hidden pt-1 border-t border-amber-200/50"></p>
+                <p id="hint-content-1" class="text-xs text-amber-200/90 leading-relaxed hidden pt-1 border-t border-amber-900/40"></p>
               </div>
 
-              <!-- Hint Card 2 -->
-              <div class="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-2 opacity-60" id="hint-box-2">
+              <div class="bg-amber-950/20 border border-amber-900/50 rounded-xl p-3.5 space-y-2 opacity-60" id="hint-box-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-amber-900">Hint 2 (Stronger Clue)</span>
-                  <button id="unlock-hint-2-btn" disabled class="px-3 py-1 bg-slate-300 text-slate-500 font-bold text-xs rounded-lg transition-all cursor-not-allowed">
+                  <span class="text-xs font-bold text-amber-300">Hint 2 (Stronger Clue)</span>
+                  <button id="unlock-hint-2-btn" disabled class="px-3 py-1 bg-slate-700 text-slate-400 font-bold text-xs rounded-lg transition-all cursor-not-allowed">
                     Unlock Hint 1 First
                   </button>
                 </div>
-                <p id="hint-content-2" class="text-xs text-amber-900/90 leading-relaxed hidden pt-1 border-t border-amber-200/50"></p>
+                <p id="hint-content-2" class="text-xs text-amber-200/90 leading-relaxed hidden pt-1 border-t border-amber-900/40"></p>
               </div>
+            </div>
+
+            <!-- Overall Progress + Lab Phases -->
+            <div class="space-y-3 pt-3 border-t border-slate-800">
+              <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Overall Progress</h3>
+                <span class="text-xs font-bold text-slate-300" id="overall-progress-text">0 / 16 levels</span>
+              </div>
+              <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-blue-500 h-full rounded-full transition-all duration-300" id="overall-progress-bar" style="width:0%"></div>
+              </div>
+              <div class="space-y-1.5 pt-1" id="lab-phases-list"><!-- Dynamically populated --></div>
             </div>
 
           </div>
 
-          <!-- Bottom: Verify Key / Submit Flag Input -->
-          <div class="pt-4 border-t border-slate-100 space-y-3">
-            <label for="key-input" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Submit Flag / Answer
+          <!-- Bottom: Submit Answer -->
+          <div class="pt-4 border-t border-slate-800 space-y-3">
+            <label for="key-input" class="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Submit Answer
             </label>
             <div class="flex gap-2">
               <input
                 type="text"
                 id="key-input"
                 placeholder="FLAG{...} or answer"
-                class="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                class="flex-1 px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               />
               <button
                 id="verify-btn"
@@ -265,86 +271,112 @@
 
         </div>
 
-        <!-- RIGHT PANEL (~55% -> lg:col-span-7): Interactive Cryptography Suite Tools -->
-        <div class="lg:col-span-7 flex flex-col space-y-4">
-          
-          <div class="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-5 flex-1 flex flex-col justify-between">
-            
-            <div class="space-y-4">
-              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div class="flex items-center gap-2">
-                  <span class="p-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-base" id="tool-panel-icon">🛠️</span>
-                  <div>
-                    <h3 class="text-base font-extrabold text-slate-900" id="tool-panel-title">Quick-Check Calculator</h3>
-                    <p class="text-xs text-slate-500" id="tool-panel-subtitle">Double-check your terminal command's output — not required to solve</p>
-                  </div>
-                </div>
-                <span class="px-3 py-1 bg-slate-50 text-slate-500 border border-slate-200 rounded-full text-xs font-bold uppercase tracking-wider">
-                  Optional
-                </span>
-              </div>
+        <!-- LEFT: Terminal-first Workspace (~70% -> lg:col-span-8) -->
+        <div class="lg:col-span-8 flex flex-col space-y-4 order-1">
 
-              <p class="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-                📟 Each objective on the left gives you the exact terminal command to run yourself. Use this calculator only to sanity-check a result — solving objectives by running the real commands is how you actually learn the material.
-              </p>
+          <div class="bg-[#111827] border border-slate-800 rounded-2xl shadow-xs flex-1 flex flex-col overflow-hidden">
 
-              <!-- Universal Cryptography Tool -->
-              <div id="universal-tool" class="space-y-4">
-                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div class="grid grid-cols-1 gap-3">
-                    <div>
-                      <label class="block text-xs font-bold text-slate-700 mb-1">Operation:</label>
-                      <select id="uni-algo" onchange="toggleKeyField()" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold">
-                        <option value="b64_enc">Base64 Encode</option>
-                        <option value="b64_dec">Base64 Decode</option>
-                        <option value="hex_enc">Hex Encode</option>
-                        <option value="hex_dec">Hex Decode</option>
-                        <option value="bin_enc">Binary Encode</option>
-                        <option value="bin_dec">Binary Decode</option>
-                        <option value="rot13">ROT13</option>
-                        <option value="caesar_enc">Caesar Encode</option>
-                        <option value="caesar_dec">Caesar Decode</option>
-                        <option value="xor_enc">XOR Encrypt (text -> hex)</option>
-                        <option value="xor_dec">XOR Decrypt (hex -> text)</option>
-                        <option value="vig_enc">Vigenère Encrypt</option>
-                        <option value="vig_dec">Vigenère Decrypt</option>
-                        <option value="MD5">MD5</option>
-                        <option value="SHA-1">SHA1</option>
-                        <option value="SHA-224">SHA224</option>
-                        <option value="SHA-256">SHA256</option>
-                        <option value="SHA-384">SHA384</option>
-                        <option value="SHA-512">SHA512</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="block text-xs font-bold text-slate-700 mb-1">Input:</label>
-                      <input type="text" id="uni-input" placeholder="Enter text or string..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900" />
-                    </div>
-                    <div id="uni-key-wrap" class="hidden">
-                      <label class="block text-xs font-bold text-slate-700 mb-1" id="uni-key-label">Key / Shift:</label>
-                      <input type="text" id="uni-key" placeholder="e.g. 3, or a keyword..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900" />
-                    </div>
-                  </div>
-
-                  <div class="flex items-center">
-                    <button onclick="processUniversalTool()" class="w-full px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all shadow-xs">Process</button>
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <label class="block text-xs font-bold text-slate-700">Output Result:</label>
-                  <div class="p-4 bg-slate-900 rounded-xl font-mono text-sm text-[#00FF9D] break-all border border-slate-800 min-h-[60px] flex items-center" id="uni-output">
-                    <span>Result will appear here...</span>
-                  </div>
-                </div>
-              </div>
-
+            <!-- Workspace Tabs -->
+            <div class="flex items-center border-b border-slate-800 px-2 pt-2 gap-1" id="workspace-tabs">
+              <button onclick="switchWorkspaceTab('terminal')" data-tab="terminal" class="workspace-tab px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer">💻 Terminal</button>
+              <button onclick="switchWorkspaceTab('scratchpad')" data-tab="scratchpad" class="workspace-tab px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer">📝 Scratchpad</button>
+              <button onclick="switchWorkspaceTab('tools')" data-tab="tools" class="workspace-tab px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer">🛠 Tools</button>
             </div>
 
-            <!-- Interactive Guidance Footer -->
-            <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Read objective on the left &rarr; Use tool to find answer &rarr; Submit flag.</span>
-              <span class="font-semibold text-blue-600">Interactive Cipher Suite</span>
+            <!-- Scratchpad Panel -->
+            <div id="panel-scratchpad" class="workspace-panel hidden flex-1 flex flex-col p-4 space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold text-slate-300">Your working notes</label>
+                <div class="flex items-center gap-3">
+                  <span class="text-[10px] text-slate-500" id="scratchpad-saved">saved</span>
+                  <button onclick="clearScratchpad()" class="text-[10px] font-bold text-rose-400 hover:text-rose-300 cursor-pointer uppercase tracking-wide">Clear</button>
+                </div>
+              </div>
+              <textarea id="scratchpad" rows="16" placeholder="p = 61&#10;q = 53&#10;n = p * q&#10;n = 3233" class="w-full flex-1 px-3 py-2.5 bg-[#0B1020] border border-slate-800 rounded-xl text-xs font-mono text-slate-200 leading-relaxed resize-none focus:outline-none focus:border-blue-500"></textarea>
+              <p class="text-[10px] text-slate-500">Persists in this browser for the whole session — write down what you find and what you calculate.</p>
+            </div>
+
+            <!-- Terminal Panel -->
+            <div id="panel-terminal" class="workspace-panel hidden flex-1 flex flex-col">
+              <div class="flex items-center justify-between px-3 py-2 bg-[#111827] border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+                  </div>
+                  <span class="text-xs font-mono font-semibold text-slate-300">crypto-workstation</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-950/70 text-[#00FF9D] border border-emerald-700/50">
+                    <span class="w-2 h-2 rounded-full bg-slate-500" id="term-status-dot"></span>
+                    <span id="term-status-text">OFFLINE</span>
+                  </span>
+                  <button id="term-start-btn" onclick="connectTerminal()" class="px-3 py-1 bg-[#10B981] hover:bg-emerald-500 text-slate-950 font-bold text-[11px] rounded-lg cursor-pointer">Start Terminal</button>
+                  <button id="term-stop-btn" onclick="disconnectTerminal()" disabled class="px-3 py-1 bg-slate-800 text-slate-400 font-bold text-[11px] rounded-lg border border-slate-700 cursor-pointer disabled:opacity-40">Disconnect</button>
+                </div>
+              </div>
+              <div id="terminal-container" class="flex-1 p-2 bg-[#0B1020] relative flex flex-col justify-center items-center overflow-hidden min-h-[380px]">
+                <div class="text-center space-y-2 p-8" id="terminal-placeholder">
+                  <p class="text-xs font-mono text-slate-400 max-w-sm">
+                    Click <span class="text-[#00FF9D] font-bold">Start Terminal</span> to connect to your investigation workstation. Use <span class="text-[#00FF9D]">ls</span>, <span class="text-[#00FF9D]">cat</span>, <span class="text-[#00FF9D]">find</span>, <span class="text-[#00FF9D]">grep</span> to look for evidence, and <span class="text-[#00FF9D]">python3</span> / <span class="text-[#00FF9D]">openssl</span> for calculations.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tools Panel -->
+            <div id="panel-tools" class="workspace-panel hidden flex-1 flex flex-col p-4 space-y-4 overflow-y-auto">
+              <div class="bg-[#0B1020] p-4 rounded-xl border border-slate-800 space-y-3">
+                <h4 class="text-xs font-bold text-slate-300">Modular Arithmetic — a^b mod n</h4>
+                <div class="grid grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 mb-1">a (base)</label>
+                    <input type="text" id="calc-a" placeholder="e.g. 65" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-100" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 mb-1">b (exponent, optional)</label>
+                    <input type="text" id="calc-b" placeholder="e.g. 17" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-100" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-500 mb-1">n (modulus)</label>
+                    <input type="text" id="calc-n" placeholder="e.g. 3233" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-100" />
+                  </div>
+                </div>
+                <p class="text-[10px] text-slate-400">Leave b empty to just compute a mod n.</p>
+                <button onclick="runCalculator()" class="w-full px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all">Calculate</button>
+                <div class="p-3 bg-slate-900 rounded-xl font-mono text-sm text-[#00FF9D] break-all border border-slate-800 min-h-[40px] flex items-center" id="calc-output">
+                  <span class="text-slate-500">Result will appear here…</span>
+                </div>
+              </div>
+
+              <div class="bg-[#0B1020] p-4 rounded-xl border border-slate-800 space-y-3">
+                <h4 class="text-xs font-bold text-slate-300">Converter</h4>
+                <select id="conv-algo" onchange="toggleConvSecondInput()" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-slate-100">
+                  <option value="b64enc">Base64 Encode</option>
+                  <option value="b64dec">Base64 Decode</option>
+                  <option value="hexenc">Hex Encode</option>
+                  <option value="hexdec">Hex Decode</option>
+                  <option value="xor">XOR (hex A, hex B)</option>
+                  <option value="SHA-256">SHA-256</option>
+                  <option value="SHA-512">SHA-512</option>
+                </select>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 mb-1">Input</label>
+                  <input type="text" id="conv-input" placeholder="Text or hex value" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-100" />
+                </div>
+                <div id="conv-second-wrap" class="hidden">
+                  <label class="block text-[10px] font-bold text-slate-500 mb-1">Second value (hex, for XOR)</label>
+                  <input type="text" id="conv-input2" placeholder="e.g. 1f" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-100" />
+                </div>
+                <button onclick="runConverter()" class="w-full px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all">Convert</button>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 mb-1">Output</label>
+                  <div class="p-3 bg-slate-900 rounded-xl font-mono text-xs text-[#00FF9D] break-all border border-slate-800 min-h-[40px] flex items-center" id="conv-output">
+                    <span class="text-slate-500">Result will appear here…</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -356,6 +388,19 @@
 
   </main>
 
+  <!-- Learn More Modal Overlay -->
+  <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs hidden items-center justify-center z-50 p-4" id="learn-overlay" onclick="if(event.target===this) closeLearnModal()">
+    <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+      <div class="flex items-center justify-between">
+        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 bg-amber-950/40 border border-amber-900 px-2.5 py-1 rounded-full uppercase tracking-wider">📖 How This Works</span>
+        <button onclick="closeLearnModal()" class="text-slate-500 hover:text-slate-300 cursor-pointer text-lg leading-none">&times;</button>
+      </div>
+      <h3 class="text-lg font-extrabold text-white" id="learn-modal-title">Level Title</h3>
+      <p class="text-sm text-slate-300 leading-relaxed" id="learn-modal-body"></p>
+      <button onclick="closeLearnModal()" class="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer">Got it</button>
+    </div>
+  </div>
+
   <!-- Success Completion Modal Overlay -->
   <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center z-50 p-4" id="success-overlay">
     <div class="bg-white border border-[#E5E7EB] rounded-2xl p-6 sm:p-8 text-center max-w-sm w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
@@ -363,8 +408,15 @@
         &#10003;
       </div>
       <div class="space-y-1">
-        <h3 class="text-xl font-extrabold text-slate-900" id="success-title">Module Complete!</h3>
+        <h3 class="text-xl font-extrabold text-slate-900" id="success-title">Level Complete!</h3>
         <p class="text-xs text-slate-600" id="success-message"></p>
+      </div>
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#2563EB] text-xs font-extrabold" id="xp-award-badge">
+        +0 XP
+      </div>
+      <div id="learning-summary-box" class="hidden text-left bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">What You Learned</p>
+        <p class="text-xs text-slate-700 leading-relaxed" id="learning-summary-text"></p>
       </div>
       <div class="font-mono text-xs bg-slate-900 text-[#00FF9D] p-3 rounded-xl break-all border border-slate-800" id="flag-display"></div>
 
@@ -383,11 +435,13 @@
       </div>
 
       <button id="popup-close-btn" class="w-full py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer">
-        Continue to Next Module
+        Continue to Next Level
       </button>
     </div>
   </div>
 
+  <script src="/api/v1/crypto/static/vendor/xterm/xterm.js"></script>
+  <script src="/api/v1/crypto/static/vendor/xterm/xterm-addon-fit.js"></script>
   <script>
     let TRACKS_DATA = {{ tracks_json | tojson }};
 
@@ -519,7 +573,7 @@
         }
       }
 
-      document.getElementById("active-track-name").textContent = `${currentTrack.title} Modules`;
+      document.getElementById("active-track-name").textContent = `${currentTrack.title} Levels`;
       document.getElementById("app-header-title").textContent = currentTrack.title;
       document.getElementById("back-link-text").textContent = "Back to Tracks";
       
@@ -563,38 +617,87 @@
     }
 
     function renderModuleNavButtons() {
-      if (!moduleNavButtons || !currentTrack) return;
+      // The 25-level navigation lives ONCE, in the phase list below the
+      // current challenge (renderLabPhasesList). This function only updates
+      // the small "Level N" label next to the track name — no second
+      // level/lock strip is rendered here.
+      if (!currentTrack) return;
       updateTrackModuleUnlocks(currentTrack);
-      moduleNavButtons.innerHTML = "";
 
+      const idx = currentModule ? currentTrack.modules.findIndex(m => m.id === currentModule.id) : -1;
+      const labelEl = document.getElementById("active-level-label");
+      if (labelEl && idx >= 0) {
+        labelEl.textContent = `Level ${idx + 1} of ${currentTrack.modules.length}`;
+      }
+
+      renderLabPhasesList();
+    }
+
+    function renderLabPhasesList() {
+      const el = document.getElementById("lab-phases-list");
+      const progEl = document.getElementById("overall-progress-text");
+      const barEl = document.getElementById("overall-progress-bar");
+      if (!el || !currentTrack) return;
+
+      const solvedCount = currentTrack.modules.filter(m => m.solved).length;
+      const total = currentTrack.modules.length;
+      if (progEl) progEl.textContent = `${solvedCount} / ${total} levels`;
+      if (barEl) barEl.style.width = `${total ? (solvedCount / total) * 100 : 0}%`;
+
+      const hasPhases = currentTrack.modules.some(m => m.phase);
+      if (!hasPhases) {
+        el.innerHTML = currentTrack.modules.map((m, idx) => {
+          const isActive = currentModule && currentModule.id === m.id;
+          const icon = m.solved ? "✓" : (m.unlocked ? "○" : "🔒");
+          const iconClass = m.solved ? "text-emerald-400" : (m.unlocked ? "text-slate-500" : "text-slate-600");
+          const textClass = isActive ? "text-blue-400 font-bold" : m.unlocked ? "text-slate-300" : "text-slate-600";
+          const clickable = m.unlocked ? `onclick="openModule('${m.id}')"` : "";
+          return `
+            <div ${clickable} class="flex items-center gap-2 py-1 px-1.5 rounded-lg text-xs ${m.unlocked ? "cursor-pointer hover:bg-slate-800/60" : "cursor-not-allowed"} transition-colors">
+              <span class="w-4 text-center ${iconClass}">${icon}</span>
+              <span class="${textClass} truncate">Level ${idx + 1}: ${m.title}</span>
+            </div>
+          `;
+        }).join("");
+        return;
+      }
+
+      // Group modules by phase (Puzzle-Lab-style phase accordion).
+      const phaseGroups = [];
+      let curGroup = null;
       currentTrack.modules.forEach((m, idx) => {
-        const num = idx + 1;
-        const btn = document.createElement("button");
-        const isActive = currentModule && currentModule.id === m.id;
-        const isSolved = m.solved;
-        const isUnlocked = m.unlocked;
-
-        if (isUnlocked) {
-          btn.className = `w-8 h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border ${
-            isActive 
-              ? "bg-[#2563EB] text-white border-blue-600 shadow-xs" 
-              : isSolved 
-                ? "bg-emerald-50 text-[#10B981] border-emerald-200 hover:bg-emerald-100" 
-                : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
-          }`;
-          btn.textContent = num;
-          btn.title = isSolved ? `Module ${num} (Solved)` : `Module ${num}: ${m.title}`;
-          btn.addEventListener("click", () => openModule(m.id));
-        } else {
-          btn.className = "w-8 h-8 rounded-lg text-xs font-bold transition-all flex items-center justify-center border bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60";
-          btn.innerHTML = `<span class="text-[10px]">🔒</span>`;
-          btn.title = "Complete previous module to unlock";
-          btn.addEventListener("click", () => {
-            alert("Module locked! Complete the previous module first to unlock.");
-          });
+        if (!curGroup || curGroup.phase !== m.phase) {
+          curGroup = { phase: m.phase, phase_title: m.phase_title, items: [] };
+          phaseGroups.push(curGroup);
         }
-        moduleNavButtons.appendChild(btn);
+        curGroup.items.push({ m, idx });
       });
+
+      el.innerHTML = phaseGroups.map(group => {
+        const solvedInPhase = group.items.filter(({m}) => m.solved).length;
+        const rows = group.items.map(({m, idx}) => {
+          const isActive = currentModule && currentModule.id === m.id;
+          const icon = m.solved ? "✓" : (m.unlocked ? "○" : "🔒");
+          const iconClass = m.solved ? "text-emerald-400" : (m.unlocked ? "text-slate-500" : "text-slate-600");
+          const textClass = isActive ? "text-blue-400 font-bold" : m.unlocked ? "text-slate-300" : "text-slate-600";
+          const clickable = m.unlocked ? `onclick="openModule('${m.id}')"` : "";
+          return `
+            <div ${clickable} class="flex items-center gap-2 py-1 px-1.5 pl-3 rounded-lg text-xs ${m.unlocked ? "cursor-pointer hover:bg-slate-800/60" : "cursor-not-allowed"} transition-colors">
+              <span class="w-4 text-center ${iconClass}">${icon}</span>
+              <span class="${textClass} truncate">Level ${idx + 1}: ${m.title.replace(/^Level \d+:\s*/, "")}</span>
+            </div>
+          `;
+        }).join("");
+        return `
+          <div class="pt-1.5">
+            <div class="flex items-center justify-between px-1.5 pb-1">
+              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Phase ${group.phase}: ${group.phase_title}</span>
+              <span class="text-[10px] font-bold ${solvedInPhase === group.items.length ? "text-emerald-400" : "text-slate-500"}">${solvedInPhase}/${group.items.length}</span>
+            </div>
+            ${rows}
+          </div>
+        `;
+      }).join("");
     }
 
     function renderHintsUI(m) {
@@ -682,7 +785,7 @@
       const targetModule = currentTrack.modules.find(m => m.id === id);
       if (!targetModule) return;
       if (!targetModule.unlocked) {
-        alert("Module locked! Complete the previous module first.");
+        alert("Level locked! Complete the previous level first.");
         return;
       }
 
@@ -692,15 +795,14 @@
         localStorage.setItem("crypto_active_module", id);
       } catch(e) {}
 
-      const modNum = id.replace("module", "");
-      document.getElementById("detail-badge").textContent = `${currentTrack.title} — Module ${modNum}`;
+      const modNum = currentTrack.modules.findIndex(m => m.id === id) + 1;
+      document.getElementById("detail-badge").textContent = `${currentTrack.title} — Level ${modNum}`;
       document.getElementById("detail-title").textContent = currentModule.title;
       document.getElementById("detail-story").textContent = currentModule.story;
-      document.getElementById("detail-concept").textContent = currentModule.concept || "";
       document.getElementById("detail-mission").textContent = currentModule.mission;
       
       const counterEl = document.getElementById("header-module-counter");
-      if (counterEl) counterEl.textContent = `Module ${modNum} of ${currentTrack.modules.length}`;
+      if (counterEl) counterEl.textContent = `Level ${modNum} of ${currentTrack.modules.length}`;
 
       renderModuleNavButtons();
       renderStepObjectives(currentModule.objectives);
@@ -738,23 +840,34 @@
         if (o.complete) doneCount++;
         const li = document.createElement("li");
         li.className = `flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium transition-all ${
-          o.complete 
-            ? "bg-emerald-50 text-emerald-900 border border-emerald-200" 
-            : "bg-slate-50 text-slate-600 border border-slate-100"
+          o.complete
+            ? "bg-emerald-950/30 text-emerald-300 border border-emerald-900"
+            : "bg-slate-900/60 text-slate-300 border border-slate-800"
         }`;
         const cmdId = `cmd-${Math.random().toString(36).slice(2, 9)}`;
+        // Solution commands are never shown inline with the question — they
+        // sit behind an explicit, opt-in "Terminal Tip" disclosure so the
+        // student has to decide to reveal a method rather than being handed
+        // it as part of reading the task.
         const cmdBlock = o.cmd ? `
-          <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
-            <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-200 bg-white">
-              <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Terminal</span>
-              <button onclick="copyCommand('${cmdId}', this)" class="text-[9px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer uppercase tracking-wider">Copy</button>
+          <details class="mt-2 rounded-lg border border-slate-800 bg-[#0B1020] overflow-hidden group">
+            <summary class="flex items-center justify-between px-3 py-1.5 bg-slate-900 cursor-pointer select-none list-none">
+              <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider group-open:text-amber-400">Terminal Tip (optional)</span>
+              <span class="text-[9px] font-bold text-slate-500 group-open:hidden">Show ▾</span>
+              <span class="text-[9px] font-bold text-slate-500 hidden group-open:inline">Hide ▴</span>
+            </summary>
+            <div class="border-t border-slate-800">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-800">
+                <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Terminal</span>
+                <button onclick="copyCommand('${cmdId}', this)" class="text-[9px] font-bold text-blue-400 hover:text-blue-300 cursor-pointer uppercase tracking-wider">Copy</button>
+              </div>
+              <pre id="${cmdId}" class="px-3 py-2 font-mono text-[11px] leading-relaxed text-emerald-300 whitespace-pre-wrap break-all">${o.cmd.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
             </div>
-            <pre id="${cmdId}" class="px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap break-all">${o.cmd.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
-          </div>
+          </details>
         ` : '';
         li.innerHTML = `
           <span class="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] mt-0.5 ${
-            o.complete ? "bg-[#10B981] text-white" : "border-2 border-slate-300 text-transparent"
+            o.complete ? "bg-[#10B981] text-white" : "border-2 border-slate-600 text-transparent"
           }">&#10003;</span>
           <div class="flex-1 min-w-0">
             <span>${o.label}</span>
@@ -769,9 +882,7 @@
     }
 
     function switchToolPanel(moduleId) {
-      document.getElementById("tool-panel-title").textContent = "Quick-Check Calculator";
-      document.getElementById("tool-panel-subtitle").textContent = "Double-check your terminal command's output — not required to solve";
-      document.getElementById("tool-panel-icon").textContent = "🛠️";
+      // No-op: the calculator/scratchpad panel is the same for every module.
     }
 
     // A lightweight MD5 implementation for client-side hashing
@@ -870,125 +981,236 @@
       return (WordToHex(a)+WordToHex(b)+WordToHex(c)+WordToHex(d)).toLowerCase();
     }
 
-    const KEY_REQUIRED_OPS = {
-      caesar_enc: "Shift (number):",
-      caesar_dec: "Shift (number):",
-      xor_enc: "Key (text):",
-      xor_dec: "Key (text):",
-      vig_enc: "Keyword:",
-      vig_dec: "Keyword:",
-    };
-
-    function toggleKeyField() {
-      const algo = document.getElementById("uni-algo").value;
-      const wrap = document.getElementById("uni-key-wrap");
-      const label = document.getElementById("uni-key-label");
-      if (KEY_REQUIRED_OPS[algo]) {
-        wrap.classList.remove("hidden");
-        label.textContent = KEY_REQUIRED_OPS[algo];
-      } else {
-        wrap.classList.add("hidden");
+    // Modular exponentiation via BigInt square-and-multiply — exact for any
+    // size these problems use, no floating-point precision loss.
+    function modPow(base, exp, mod) {
+      base = BigInt(base); exp = BigInt(exp); mod = BigInt(mod);
+      if (mod === 1n) return 0n;
+      let result = 1n;
+      base = base % mod;
+      while (exp > 0n) {
+        if (exp % 2n === 1n) result = (result * base) % mod;
+        exp = exp / 2n;
+        base = (base * base) % mod;
       }
+      return result;
     }
 
-    function caesarShift(text, shift) {
-      shift = ((shift % 26) + 26) % 26;
-      return Array.from(text).map(ch => {
-        const code = ch.charCodeAt(0);
-        if (code >= 65 && code <= 90) return String.fromCharCode((code - 65 + shift) % 26 + 65);
-        if (code >= 97 && code <= 122) return String.fromCharCode((code - 97 + shift) % 26 + 97);
-        return ch;
-      }).join('');
-    }
+    function runCalculator() {
+      const out = document.getElementById("calc-output");
+      const aStr = document.getElementById("calc-a").value.trim();
+      const bStr = document.getElementById("calc-b").value.trim();
+      const nStr = document.getElementById("calc-n").value.trim();
 
-    function xorHexEncrypt(text, key) {
-      const data = new TextEncoder().encode(text);
-      const keyBytes = new TextEncoder().encode(key);
-      const out = Array.from(data).map((b, i) => b ^ keyBytes[i % keyBytes.length]);
-      return out.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    function xorHexDecrypt(hexStr, key) {
-      const bytes = (hexStr.match(/.{1,2}/g) || []).map(h => parseInt(h, 16));
-      const keyBytes = new TextEncoder().encode(key);
-      const out = bytes.map((b, i) => b ^ keyBytes[i % keyBytes.length]);
-      return new TextDecoder().decode(new Uint8Array(out));
-    }
-
-    function vigenere(text, key, decrypt) {
-      key = key.toUpperCase().replace(/[^A-Z]/g, '');
-      if (!key) return text;
-      let ki = 0;
-      return Array.from(text).map(ch => {
-        const code = ch.charCodeAt(0);
-        let base = null;
-        if (code >= 65 && code <= 90) base = 65;
-        else if (code >= 97 && code <= 122) base = 97;
-        if (base === null) return ch;
-        const keyShift = key.charCodeAt(ki % key.length) - 65;
-        const shift = decrypt ? -keyShift : keyShift;
-        ki++;
-        return String.fromCharCode((code - base + shift + 26) % 26 + base);
-      }).join('');
-    }
-
-    async function processUniversalTool() {
-      const algo = document.getElementById("uni-algo").value;
-      const input = document.getElementById("uni-input").value;
-      const key = document.getElementById("uni-key").value;
-      const out = document.getElementById("uni-output");
-
-      if (!input) {
-        out.innerHTML = `<span class="text-rose-400">Please enter an input string.</span>`;
+      if (!aStr || !nStr) {
+        out.innerHTML = `<span class="text-rose-400">Enter at least a and n.</span>`;
         return;
       }
-      if (KEY_REQUIRED_OPS[algo] && !key) {
-        out.innerHTML = `<span class="text-rose-400">This operation needs a ${KEY_REQUIRED_OPS[algo].toLowerCase().replace(':', '')}.</span>`;
-        return;
+      try {
+        const a = BigInt(aStr);
+        const n = BigInt(nStr);
+        let result;
+        if (bStr) {
+          result = modPow(a, BigInt(bStr), n);
+        } else {
+          result = ((a % n) + n) % n;
+        }
+        out.innerHTML = `<span><strong>${result.toString()}</strong></span>`;
+      } catch (e) {
+        out.innerHTML = `<span class="text-rose-400">Enter whole numbers only.</span>`;
       }
+    }
 
+    // Scratchpad — persists in this browser across the session.
+    (function initScratchpad() {
+      const key = "crypto_lab_scratchpad";
+      const el = document.getElementById("scratchpad");
+      if (!el) return;
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) el.value = saved;
+      } catch (e) {}
+      let saveTimer = null;
+      el.addEventListener("input", () => {
+        const badge = document.getElementById("scratchpad-saved");
+        if (badge) badge.textContent = "saving…";
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          try { localStorage.setItem(key, el.value); } catch (e) {}
+          if (badge) badge.textContent = "saved";
+        }, 400);
+      });
+    })();
+
+    function openLearnModal() {
+      if (!currentModule) return;
+      document.getElementById("learn-modal-title").textContent = currentModule.title;
+      document.getElementById("learn-modal-body").textContent = currentModule.learn || "No additional explanation for this module yet.";
+      const overlay = document.getElementById("learn-overlay");
+      overlay.classList.remove("hidden");
+      overlay.classList.add("flex");
+    }
+    function closeLearnModal() {
+      const overlay = document.getElementById("learn-overlay");
+      overlay.classList.add("hidden");
+      overlay.classList.remove("flex");
+    }
+
+    function clearScratchpad() {
+      const el = document.getElementById("scratchpad");
+      if (!el) return;
+      if (!confirm("Clear all scratchpad notes? This can't be undone.")) return;
+      el.value = "";
+      try { localStorage.setItem("crypto_lab_scratchpad", ""); } catch (e) {}
+    }
+
+    // ── Workspace tab switching ──
+    function switchWorkspaceTab(tab) {
+      document.querySelectorAll(".workspace-panel").forEach(p => p.classList.add("hidden"));
+      document.querySelectorAll(".workspace-tab").forEach(b => b.classList.remove("active"));
+      const panel = document.getElementById("panel-" + tab);
+      const btn = document.querySelector(`.workspace-tab[data-tab="${tab}"]`);
+      if (panel) panel.classList.remove("hidden");
+      if (btn) btn.classList.add("active");
+      try { localStorage.setItem("crypto_lab_active_tab", tab); } catch (e) {}
+      if (tab === "terminal" && term && fitAddon) {
+        setTimeout(() => { try { fitAddon.fit(); } catch (e) {} }, 50);
+      }
+    }
+    // ── Terminal: real SSH-backed workstation via the shared terminal WS route ──
+    let term = null, fitAddon = null, socket = null;
+
+    (function restoreWorkspaceTab() {
+      let saved = "terminal";
+      try { saved = localStorage.getItem("crypto_lab_active_tab") || "terminal"; } catch (e) {}
+      switchWorkspaceTab(saved);
+    })();
+
+    function setTermStatus(online) {
+      const dot = document.getElementById("term-status-dot");
+      const text = document.getElementById("term-status-text");
+      const startBtn = document.getElementById("term-start-btn");
+      const stopBtn = document.getElementById("term-stop-btn");
+      if (dot) dot.className = `w-2 h-2 rounded-full ${online ? "bg-[#00FF9D]" : "bg-slate-500"}`;
+      if (text) text.textContent = online ? "ONLINE" : "OFFLINE";
+      if (startBtn) startBtn.disabled = online;
+      if (stopBtn) stopBtn.disabled = !online;
+    }
+
+    function connectTerminal() {
+      const container = document.getElementById("terminal-container");
+      container.innerHTML = "";
+      term = new Terminal({
+        theme: {
+          background: "#0B1020",
+          foreground: "#00FF9D",
+          cursor: "#00FF9D",
+          cursorBlink: true,
+          selectionBackground: "#2563EB",
+        },
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 13,
+        cursorBlink: true,
+      });
+      try {
+        if (window.FitAddon && window.FitAddon.FitAddon) {
+          fitAddon = new FitAddon.FitAddon();
+          term.loadAddon(fitAddon);
+        }
+      } catch (e) {}
+      term.open(container);
+      term.focus();
+      container.addEventListener("click", () => { if (term) term.focus(); });
+      setTimeout(() => { try { if (fitAddon) fitAddon.fit(); } catch (e) {} }, 100);
+
+      term.onData((data) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "input", data }));
+        }
+      });
+      term.onResize(({ cols, rows }) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        }
+      });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const portSuffix = window.location.port && !["80", "443"].includes(window.location.port) ? `:${window.location.port}` : "";
+      const TERMINAL_WS_URL = `${wsProtocol}//${window.location.hostname}${portSuffix}/api/v1/terminal/ws/cryptography-lab?token=${encodeURIComponent(token)}`;
+
+      socket = new WebSocket(TERMINAL_WS_URL);
+      socket.binaryType = "arraybuffer";
+
+      socket.onopen = () => {
+        setTermStatus(true);
+        term.focus();
+        if (fitAddon) fitAddon.fit();
+        socket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      };
+      socket.onmessage = (event) => {
+        const data = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
+        term.write(data);
+      };
+      socket.onclose = () => setTermStatus(false);
+      socket.onerror = () => setTermStatus(false);
+
+      window.addEventListener("resize", () => { if (fitAddon) fitAddon.fit(); });
+    }
+
+    function disconnectTerminal() {
+      if (socket) { socket.close(); socket = null; }
+      setTermStatus(false);
+      const container = document.getElementById("terminal-container");
+      container.innerHTML = `
+        <div class="text-center space-y-2 p-8" id="terminal-placeholder">
+          <p class="text-xs font-mono text-slate-400 max-w-sm">
+            Click <span class="text-[#00FF9D] font-bold">Start Terminal</span> to reconnect.
+          </p>
+        </div>
+      `;
+    }
+
+    // ── Converter (Base64 / Hex / XOR / Hash — one dropdown, one in/out) ──
+    function toggleConvSecondInput() {
+      const algo = document.getElementById("conv-algo").value;
+      document.getElementById("conv-second-wrap").classList.toggle("hidden", algo !== "xor");
+    }
+
+    async function runConverter() {
+      const out = document.getElementById("conv-output");
+      const algo = document.getElementById("conv-algo").value;
+      const input = document.getElementById("conv-input").value;
+      if (!input) { out.innerHTML = `<span class="text-rose-400">Enter an input value.</span>`; return; }
       try {
         let result = "";
-        if (algo === 'b64_enc') {
+        if (algo === "b64enc") {
           result = btoa(input);
-        } else if (algo === 'b64_dec') {
-          result = atob(input);
-        } else if (algo === 'hex_enc') {
+        } else if (algo === "b64dec") {
+          result = atob(input.trim());
+        } else if (algo === "hexenc") {
           result = Array.from(input).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-        } else if (algo === 'hex_dec') {
-          const bytes = input.match(/.{1,2}/g) || [];
-          result = bytes.map(b => String.fromCharCode(parseInt(b, 16))).join('');
-        } else if (algo === 'bin_enc') {
-          result = Array.from(input).map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
-        } else if (algo === 'bin_dec') {
-          const bins = input.replace(/\s+/g, '').match(/.{1,8}/g) || [];
-          result = bins.map(b => String.fromCharCode(parseInt(b, 2))).join('');
-        } else if (algo === 'rot13') {
-          result = caesarShift(input, 13);
-        } else if (algo === 'caesar_enc') {
-          result = caesarShift(input, parseInt(key, 10) || 0);
-        } else if (algo === 'caesar_dec') {
-          result = caesarShift(input, -(parseInt(key, 10) || 0));
-        } else if (algo === 'xor_enc') {
-          result = xorHexEncrypt(input, key);
-        } else if (algo === 'xor_dec') {
-          result = xorHexDecrypt(input.replace(/\s+/g, ''), key);
-        } else if (algo === 'vig_enc') {
-          result = vigenere(input, key, false);
-        } else if (algo === 'vig_dec') {
-          result = vigenere(input, key, true);
-        } else if (algo === 'MD5') {
-          result = md5(input);
-        } else if (algo.startsWith('SHA')) {
+        } else if (algo === "hexdec") {
+          result = (input.trim().match(/.{1,2}/g) || []).map(h => String.fromCharCode(parseInt(h, 16))).join('');
+        } else if (algo === "xor") {
+          const bHex = document.getElementById("conv-input2").value.trim().replace(/\s+/g, '');
+          const aHex = input.trim().replace(/\s+/g, '');
+          if (!bHex) { out.innerHTML = `<span class="text-rose-400">Enter the second hex value too.</span>`; return; }
+          const aBytes = (aHex.match(/.{1,2}/g) || []).map(h => parseInt(h, 16));
+          const bBytes = (bHex.match(/.{1,2}/g) || []).map(h => parseInt(h, 16));
+          const len = Math.max(aBytes.length, bBytes.length);
+          const bytes = [];
+          for (let i = 0; i < len; i++) bytes.push((aBytes[i % aBytes.length] ^ bBytes[i % bBytes.length]).toString(16).padStart(2, '0'));
+          result = bytes.join('');
+        } else if (algo.startsWith("SHA")) {
           const msgUint8 = new TextEncoder().encode(input);
           const hashBuffer = await crypto.subtle.digest(algo, msgUint8);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          result = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          result = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
-
         out.innerHTML = `<span><strong>${result}</strong></span>`;
-      } catch(e) {
-        out.innerHTML = `<span class="text-rose-400">Error processing input: ${e.message}</span>`;
+      } catch (e) {
+        out.innerHTML = `<span class="text-rose-400">Could not convert — check the input format.</span>`;
       }
     }
 
@@ -1005,6 +1227,7 @@
     }
 
     async function exitSessionToLabs() {
+      if (socket) { try { socket.close(); } catch (e) {} socket = null; }
       try {
         await fetch("/api/v1/crypto/exit" + getAuthQuery(), { method: "POST", headers: getAuthHeaders() }).catch(() => {});
       } catch(e) {}
@@ -1071,26 +1294,50 @@
           currentModule.solved = true;
           nextModuleToLoad = data.next_module;
           const trackCompleted = !nextModuleToLoad;
+          const levelIdx = currentTrack.modules.findIndex(m => m.id === currentModule.id);
+          const levelNum = levelIdx + 1;
+          const cleanTitle = (currentModule.title || "").replace(/^Level \d+:\s*/, "");
 
+          // Completion copy is data-driven from the module config (mission /
+          // learn fields), not hardcoded per-level in the frontend.
+          document.getElementById("success-title").textContent = trackCompleted
+            ? "Track Completed! 🎉"
+            : `Level ${String(levelNum).padStart(2, "0")} Completed!`;
           document.getElementById("success-message").textContent =
-            `You earned ${data.points} points for ${currentModule.title}.${trackCompleted ? ' Track completed!' : ' Next module unlocked!'}`;
+            currentModule.mission || `You completed ${cleanTitle}.`;
           document.getElementById("flag-display").textContent = flag;
+
+          const xpBadge = document.getElementById("xp-award-badge");
+          xpBadge.textContent = `+${data.points} XP`;
+          xpBadge.classList.toggle("hidden", !data.points);
+
+          const learnBox = document.getElementById("learning-summary-box");
+          const learnText = document.getElementById("learning-summary-text");
+          if (currentModule.learn) {
+            learnText.textContent = currentModule.learn;
+            learnBox.classList.remove("hidden");
+          } else {
+            learnBox.classList.add("hidden");
+          }
 
           const titleEl = document.getElementById("success-title");
           const certPanel = document.getElementById("certificate-panel");
           const closeBtn = document.getElementById("popup-close-btn");
 
           if (trackCompleted) {
-            titleEl.textContent = "Track Completed! 🎉";
+            document.getElementById("success-message").textContent =
+              `25 / 25 levels completed — from encoding and classical ciphers, through symmetric ` +
+              `crypto, RSA, Diffie-Hellman, ECC, and PKI, to a full cryptographic incident investigation.`;
             certPanel.classList.remove("hidden");
             document.getElementById("certificate-total-points").textContent =
               `${data.total_points} pts`;
-            closeBtn.textContent = "Close";
+            closeBtn.textContent = "Return to Tracks";
             loadCertificateForCompletedTrack();
           } else {
-            titleEl.textContent = "Module Complete!";
             certPanel.classList.add("hidden");
-            closeBtn.textContent = "Continue to Next Module";
+            const nextIdx = currentTrack.modules.findIndex(m => m.id === nextModuleToLoad);
+            const nextLabel = nextIdx >= 0 ? String(nextIdx + 1).padStart(2, "0") : "";
+            closeBtn.textContent = nextLabel ? `Advance to Level ${nextLabel} →` : "Continue";
           }
 
           const overlay = document.getElementById("success-overlay");
@@ -1187,7 +1434,7 @@
         nextModuleToLoad = null;
         openModule(nextId);
       } else {
-        renderTracksGrid();
+        closeToTracks();
       }
     });
 

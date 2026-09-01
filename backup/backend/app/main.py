@@ -276,6 +276,12 @@ cll_static_dir = os.path.abspath(
 if os.path.exists(cll_static_dir):
     app.mount("/api/v1/cll/static", StaticFiles(directory=cll_static_dir), name="cll_static")
 
+crypto_static_dir = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "labs", "cryptography-lab", "scoring-server", "static")
+)
+if os.path.exists(crypto_static_dir):
+    app.mount("/api/v1/crypto/static", StaticFiles(directory=crypto_static_dir), name="crypto_static")
+
 
 # Backward-compatible health endpoint (supports both /api/v1/health and /api/health)
 @app.get("/api/health", include_in_schema=False)

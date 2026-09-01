@@ -79,6 +79,21 @@ export const UserManagement: React.FC = () => {
 
   useEffect(() => {
     fetchUsersAndGroups();
+
+    // Re-fetch whenever the admin comes back to this tab/page. Students can
+    // complete their profile (roll number, department, year) at any time in
+    // a separate session, and this roster must reflect that without the
+    // admin needing to remember to hit a manual refresh.
+    const onFocus = () => fetchUsersAndGroups();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchUsersAndGroups();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   // Modal visibility states
@@ -123,8 +138,13 @@ export const UserManagement: React.FC = () => {
 
     if (isSysAdmin) return false;
 
-    const matchesDept = selectedDept === 'All' || u.department === selectedDept;
-    const matchesYear = selectedYear === 'All' || u.year === selectedYear;
+    // Normalize both sides to the same short code (e.g. "Information Technology"
+    // and "it" both become "IT") so the fixed dropdown options match whatever
+    // casing/abbreviation was actually stored for the student.
+    const matchesDept =
+      selectedDept === 'All' || getDeptShortCode(u.department) === getDeptShortCode(selectedDept);
+    const matchesYear =
+      selectedYear === 'All' || (u.year || '').trim().toLowerCase() === selectedYear.trim().toLowerCase();
     return matchesDept && matchesYear;
   });
 

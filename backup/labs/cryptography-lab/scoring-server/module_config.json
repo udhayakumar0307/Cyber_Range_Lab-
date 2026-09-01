@@ -2,262 +2,786 @@
   "tracks": {
     "crypto": {
       "title": "Cryptography Track",
-      "subtitle": "TechCorp Security Engineer Practical Course",
-      "description": "You are a junior security engineer at TechCorp. Across 7 modules you handle one continuous incident: protect a customer backup with symmetric encryption, catch a tampered software release with hashing, harden the login database's password storage, set up RSA for a new partner integration, verify a digital signature, exchange a key with Diffie-Hellman, and close out a real cryptographic incident that combines everything.",
-      "difficulty": 2,
-      "total_points": 1125,
+      "subtitle": "25 Levels \u2014 A Practical Cryptography Investigation",
+      "description": "Work through 25 real cryptographic challenges across 5 phases: foundations, symmetric cryptography, public-key cryptography, key exchange & modern crypto, and a final investigation phase \u2014 culminating in a full incident that ties every technique together.",
+      "difficulty": 3,
+      "total_points": 2320,
       "modules": {
-        "module1": {
-          "title": "Symmetric Encryption",
+        "level01": {
+          "title": "Level 01: Encoding vs Encryption",
+          "phase": 1,
+          "phase_title": "Cryptography Foundations",
           "difficulty": 1,
-          "points": 150,
-          "mission": "Protect a TechCorp customer backup with AES-256-GCM",
-          "concept": "Symmetric encryption uses ONE shared secret key for both encryption and decryption. It's fast, but both parties must already have the key.",
+          "points": 40,
+          "mission": "Tell apart 'hidden' from 'actually secret'.",
+          "learn": "Encoding (like Base64) transforms data into a different, transportable format \u2014 but with NO key and NO secrecy. Anyone can reverse it instantly. Encryption requires a key, and without it the data is computationally infeasible to recover.",
           "objectives": [
             {
-              "id": "m1_obj1",
-              "label": "SCENARIO: TechCorp needs to send a customer backup to a partner system over an untrusted network. As the on-call security engineer, inspect the plaintext before protecting it.\n\ncustomer_data.txt contents:\n\"TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified\"\n\nCONCEPT: Symmetric encryption uses ONE secret key for both encryption and decryption \u2014 fast, but both sides must already share that key.\n\nTASK: How many customer records does this backup report? Submit just the number.",
-              "cmd": "cat customer_data.txt",
+              "id": "l1_obj1",
+              "label": "Given this string:\nSGVsbG8gQ3J5cHRv\n\nWhich encoding is this? Enter the name.",
+              "cmd": "",
               "type": "input_match"
             },
             {
-              "id": "m1_obj2",
-              "label": "CONCEPT: AES-256 uses a 256-bit key. In hex, each byte is 2 characters, so a 256-bit (32-byte) key is 64 hex characters long.\n\nTASK: Generate a real AES-256 key with OpenSSL, then submit how many hex characters it contains (this confirms you understand the key size \u2014 not the random value itself, since every engineer's generated key will differ).",
-              "cmd": "openssl rand -hex 32 | tr -d '\\r\\n' | wc -c",
+              "id": "l1_obj2",
+              "label": "Decode it:\nSGVsbG8gQ3J5cHRv\n\nEnter the exact decoded text.",
+              "cmd": "echo 'SGVsbG8gQ3J5cHRv' | base64 -d",
               "type": "input_match"
             },
             {
-              "id": "m1_obj3",
-              "label": "TASK: TechCorp already shares a secret key with this specific partner system (key=6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f, nonce=a1b2c3d4e5f6a7b8c9d0e1f2). Encrypt customer_data.txt with AES-256-GCM using that exact key and nonce. Submit the resulting ciphertext as lowercase hex (authentication tag excluded).",
-              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')\nnonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')\npt = open('customer_data.txt','rb').read()\nct = AESGCM(key).encrypt(nonce, pt, None)\nprint(ct[:-16].hex())\"",
-              "type": "input_match"
-            },
-            {
-              "id": "m1_obj4",
-              "label": "Final flag \u2014 the partner system sends back this ciphertext (tag=e50423ef9eb279c198b246068bc4f60c):\n4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77\n\nTASK: Decrypt it using the same key and nonce from the previous step, recovering the original plaintext. Submit the recovered plaintext exactly.",
-              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')\nnonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')\nct = bytes.fromhex('4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77') + bytes.fromhex('e50423ef9eb279c198b246068bc4f60c')\nprint(AESGCM(key).decrypt(nonce, ct, None).decode())\"",
-              "type": "flag_match"
-            }
-          ],
-          "hints": [
-            "Hint 1: openssl rand -hex 32 generates a real 256-bit key \u2014 count the characters it prints.",
-            "Hint 2: AES-256-GCM needs a key, a nonce, and the plaintext; the Python cryptography library's AESGCM class handles the authentication tag automatically."
-          ]
-        },
-        "module2": {
-          "title": "Hash Functions & Integrity",
-          "difficulty": 2,
-          "points": 150,
-          "mission": "Verify software_update.bin wasn't tampered with",
-          "concept": "A hash function is one-way and produces a fixed-length digest for any input. It's not encryption \u2014 you can't reverse a hash back into the original file.",
-          "objectives": [
-            {
-              "id": "m2_obj1",
-              "label": "SCENARIO: TechCorp just published software_update.bin for customers to download.\n\nCONCEPT: A hash function is one-way (you can't reverse a digest back into the file) and produces a fixed-length digest no matter the input size. This is NOT encryption \u2014 there's no key and no decrypting a hash back to the file.\n\nsoftware_update.bin contents:\n\"TechCorp Update Agent v4.2.0\nbuild=20260824\nchecksum-protected release binary (simulated).\"\n\nTASK: Calculate its SHA-256 hash. This becomes the value TechCorp publishes for customers to verify against.",
-              "cmd": "sha256sum software_update.bin",
-              "type": "input_match"
-            },
-            {
-              "id": "m2_obj2",
-              "label": "TASK: A tampered build (\"v4.2.1\" instead of \"v4.2.0\" \u2014 one character changed) is floating around. Its content:\n\"TechCorp Update Agent v4.2.1\nbuild=20260824\nchecksum-protected release binary (simulated).\"\n\nCalculate ITS SHA-256 hash too, and compare it by eye to the one from the previous step. Submit this new hash.",
-              "cmd": "sha256sum software_update_tampered.bin",
-              "type": "input_match"
-            },
-            {
-              "id": "m2_obj3",
-              "label": "TASK \u2014 integrity check: TechCorp's official site published this hash for software_update.bin:\na8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260\n\nA partner mirror is serving a copy of the file. Download it, hash it, and compare against the published value. Submit MATCH if the mirror's file is authentic, or MISMATCH if it's been tampered with.",
-              "cmd": "sha256sum update_from_mirror.bin  # compare its output to the published hash above",
-              "type": "input_match"
-            },
-            {
-              "id": "m2_obj4",
-              "label": "Final flag: which single security property of SHA-256 made it computationally infeasible for the attacker to tamper with the file while keeping the SAME hash? Submit the two-word term (lowercase, e.g. 'x resistance').",
+              "id": "l1_obj3",
+              "label": "Final: does Base64 provide confidentiality \u2014 i.e. does it hide the data from anyone who sees it? Enter YES or NO.",
               "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: sha256sum <file> always prints a 64-character hex digest, no matter the file's size.",
-            "Hint 2: If a mirror's hash doesn't match the vendor's published hash, the file has been altered \u2014 full stop."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         },
-        "module3": {
-          "title": "Password Hashing",
-          "difficulty": 2,
-          "points": 150,
-          "mission": "Harden TechCorp's login database against fast-hash attacks",
-          "concept": "SHA-256 is too fast for password storage \u2014 attackers can try billions of guesses per second. Password hashing needs to be deliberately slow (PBKDF2/bcrypt/Argon2) and salted.",
+        "level02": {
+          "title": "Level 02: Caesar Cipher",
+          "phase": 1,
+          "phase_title": "Cryptography Foundations",
+          "difficulty": 1,
+          "points": 40,
+          "mission": "The simplest possible cipher \u2014 and why it's broken.",
+          "learn": "A Caesar cipher shifts every letter by a fixed amount. Its entire security rests on that one shift value staying secret \u2014 but with only 25 possible shifts, brute force breaks it instantly.",
           "objectives": [
             {
-              "id": "m3_obj1",
-              "label": "SCENARIO: TechCorp's login database was found storing plain SHA-256(password) \u2014 no salt, no slowdown.\n\nCONCEPT: SHA-256 is fast by design, which is exactly wrong for passwords \u2014 attackers can hash billions of guesses per second. Password hashing needs to be deliberately SLOW (PBKDF2, bcrypt, Argon2) and use a per-user SALT so identical passwords don't produce identical hashes.\n\nTASK: What do you add to each password before hashing so two users with the same password get different stored hashes? Submit the one-word term.",
+              "id": "l2_obj1",
+              "label": "Ciphertext:\nKHOOR FUBSWR\n\nThis was encrypted with a Caesar cipher \u2014 a shift between 1 and 25. Find the shift, then enter it as a number.",
               "cmd": "",
               "type": "input_match"
             },
             {
-              "id": "m3_obj2",
-              "label": "TASK: TechCorp is migrating to PBKDF2-HMAC-SHA256 with salt=4f1a9c3e7b2d5f8a and 100000 iterations. Compute the password hash for the candidate password 'Summer2026!'. Submit the resulting hash as lowercase hex.",
-              "cmd": "python3 -c \"import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'Summer2026!', bytes.fromhex('4f1a9c3e7b2d5f8a'), 100000).hex())\"",
-              "type": "input_match"
-            },
-            {
-              "id": "m3_obj3",
-              "label": "Final flag: an account's stored hash is:\nbbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90\n(salt=4f1a9c3e7b2d5f8a, 100000 iterations, PBKDF2-HMAC-SHA256)\n\nTASK: One of these candidate passwords is the real one: Winter2025!, TechCorp123, Summer2026!, P@ssw0rd!. Compute each candidate's hash the same way and find the match. Submit the correct password.",
-              "cmd": "python3 -c \"import hashlib; candidates = ['Winter2025!', 'TechCorp123', 'Summer2026!', 'P@ssw0rd!']; target = 'bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90'; salt = bytes.fromhex('4f1a9c3e7b2d5f8a'); [print(c) for c in candidates if hashlib.pbkdf2_hmac('sha256', c.encode(), salt, 100000).hex() == target]\"",
+              "id": "l2_obj2",
+              "label": "Final: using that shift, decrypt \"KHOOR FUBSWR\" and enter the plaintext exactly.",
+              "cmd": "python3 -c \"print(''.join(chr((ord(c)-65-3)%26+65) if c.isupper() else c for c in 'KHOOR FUBSWR'))\"",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: hashlib.pbkdf2_hmac('sha256', password_bytes, salt_bytes, iterations) computes PBKDF2-HMAC-SHA256 in Python.",
-            "Hint 2: To find which candidate password is correct, hash each one with the SAME salt and iteration count and compare to the stored hash."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         },
-        "module4": {
-          "title": "Asymmetric Cryptography (RSA)",
-          "difficulty": 2,
-          "points": 150,
-          "mission": "Generate TechCorp's RSA keypair for a new partner integration",
-          "concept": "Asymmetric cryptography uses a matched key PAIR: whatever the public key encrypts, only the matching private key can decrypt. The private key never has to be shared.",
+        "level03": {
+          "title": "Level 03: Vigenere Cipher",
+          "phase": 1,
+          "phase_title": "Cryptography Foundations",
+          "difficulty": 1,
+          "points": 50,
+          "mission": "A repeating key beats a single shift \u2014 but not by enough.",
+          "learn": "Vigenere applies a DIFFERENT Caesar shift to each letter, cycling through a keyword \u2014 the bridge between classical and modern cryptography.",
           "objectives": [
             {
-              "id": "m4_obj1",
-              "label": "SCENARIO: TechCorp's partner integration needs to send a secret value without ever having shared a symmetric key.\n\nCONCEPT: Asymmetric (public-key) cryptography uses a MATCHED PAIR of keys: whatever the PUBLIC key encrypts, only the PRIVATE key can decrypt \u2014 and the private key never has to leave TechCorp's server.\n\nTASK: Generate an RSA keypair: given primes p=61 and q=53, compute the modulus n = p x q. This n is shared as part of the PUBLIC key. Submit n.",
+              "id": "l3_obj1",
+              "label": "Plaintext: ATTACKATDAWN\nKey: LEMON\n\nEncrypt using the Vigenere cipher (each letter shifts by the corresponding key letter, A=0). Enter the ciphertext in uppercase.",
+              "cmd": "python3 -c \"key='LEMON'; text='ATTACKATDAWN'; print(''.join(chr((ord(c)-65+ord(key[i%len(key)])-65)%26+65) for i,c in enumerate(text)))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l3_obj2",
+              "label": "Final: decrypt this Vigenere ciphertext using keyword 'LEMON':\nLXFOPVEFRNHR\n\nEnter the recovered plaintext.",
+              "cmd": "python3 -c \"key='LEMON'; text='LXFOPVEFRNHR'; print(''.join(chr((ord(c)-65-(ord(key[i%len(key)])-65))%26+65) for i,c in enumerate(text)))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level04": {
+          "title": "Level 04: XOR / Bitwise Crypto",
+          "phase": 1,
+          "phase_title": "Cryptography Foundations",
+          "difficulty": 1,
+          "points": 50,
+          "mission": "The building block of most modern stream ciphers.",
+          "learn": "XOR is its own inverse: (P XOR K) XOR K always gives back P. Dangerous if a key is ever reused: K = P XOR C recovers the key from any known plaintext/ciphertext pair.",
+          "objectives": [
+            {
+              "id": "l4_obj1",
+              "label": "Plaintext byte: 0x5A\nKey: 0x1F\n\nCalculate plaintext XOR key. Enter as hex (e.g. 45).",
+              "cmd": "python3 -c \"print(hex(0x5A ^ 0x1F)[2:])\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l4_obj2",
+              "label": "Now reverse it: ciphertext 0x45, key 0x1F. Recover the original byte (hex).",
+              "cmd": "python3 -c \"print(hex(0x45 ^ 0x1F)[2:])\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l4_obj3",
+              "label": "Final: you know a plaintext/ciphertext pair \u2014 plaintext 0x7A, ciphertext 0x2C \u2014 but not the key. Recover the key using K = P XOR C. Enter as hex.",
+              "cmd": "python3 -c \"print(hex(0x7A ^ 0x2C)[2:])\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level05": {
+          "title": "Level 05: Classical Cryptanalysis",
+          "phase": 1,
+          "phase_title": "Cryptography Foundations",
+          "difficulty": 1,
+          "points": 60,
+          "mission": "No hints this time \u2014 investigate first.",
+          "learn": "Real cryptanalysis starts with recognizing WHICH cipher you're facing before you can break it. This level gave no cipher name and no shift \u2014 both had to be deduced.",
+          "objectives": [
+            {
+              "id": "l5_obj1",
+              "label": "Intercepted ciphertext (mechanism unknown):\nEPNSNZCA DPNFCTEJ EPLX NZYQTCXPO\n\nInvestigate. This is a classical substitution cipher on the alphabet \u2014 identify what kind of cipher it is. Enter 'caesar' or 'vigenere'.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l5_obj2",
+              "label": "Find the shift used (try each of the 25 possibilities). Enter the shift as a number.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l5_obj3",
+              "label": "Final: decrypt the full ciphertext and enter the recovered plaintext exactly.",
+              "cmd": "python3 -c \"print(''.join(chr((ord(c)-65-11)%26+65) if c.isupper() else c for c in 'EPNSNZCA DPNFCTEJ EPLX NZYQTCXPO'))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level06": {
+          "title": "Level 06: AES Encryption",
+          "phase": 2,
+          "phase_title": "Symmetric Cryptography",
+          "difficulty": 2,
+          "points": 80,
+          "mission": "A real block cipher, not a toy.",
+          "learn": "Plaintext + Key, run through many rounds of substitution and permutation, produces ciphertext that reveals nothing about the plaintext without the key.",
+          "objectives": [
+            {
+              "id": "l6_obj1",
+              "label": "AES-128-ECB key (hex): 000102030405060708090a0b0c0d0e0f\nPlaintext: \"TECHCORPSECURE1X\" (16 bytes)\n\nEncrypt it with openssl and enter the resulting ciphertext as hex.",
+              "cmd": "printf '%s' 'TECHCORPSECURE1X' | openssl enc -aes-128-ecb -K 000102030405060708090a0b0c0d0e0f -nosalt | xxd -p -c256",
+              "type": "input_match"
+            },
+            {
+              "id": "l6_obj2",
+              "label": "Final: same key (000102030405060708090a0b0c0d0e0f), new ciphertext (hex): 93304f88a9d1db4287d83ca955bfa364954f64f2e4e86e9eee82d20216684899\n\nDecrypt it with openssl and enter the recovered plaintext exactly.",
+              "cmd": "echo '93304f88a9d1db4287d83ca955bfa364954f64f2e4e86e9eee82d20216684899' | xxd -r -p | openssl enc -d -aes-128-ecb -K 000102030405060708090a0b0c0d0e0f -nosalt",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level07": {
+          "title": "Level 07: Block Cipher Modes",
+          "phase": 2,
+          "phase_title": "Symmetric Cryptography",
+          "difficulty": 2,
+          "points": 70,
+          "mission": "Why ECB is the mode everyone warns you about.",
+          "learn": "ECB encrypts each block independently, so identical plaintext blocks always produce identical ciphertext blocks \u2014 leaking structure. CBC's chaining fixes this.",
+          "objectives": [
+            {
+              "id": "l7_obj1",
+              "label": "Same 32-byte plaintext (two identical 16-byte blocks) was encrypted twice with the same key, once per mode:\n\nECB ciphertext: b2fff73c73cae69350ffb919d10838b4b2fff73c73cae69350ffb919d10838b46d00049adfc582b051c393cb8678ad17\nCBC ciphertext:  67196a55fd101f8c4b896fc5faf2f64dfa5372a54a4a69eb6bcf0b49eb0fb0ec6b8ec4e1f14309e6f67ae47716c8d585\n\nOne of these has two identical halves (first 16 bytes == second 16 bytes). Which MODE produced that ciphertext \u2014 ECB or CBC?",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l7_obj2",
+              "label": "Final: why does this matter for real data (e.g. an encrypted image or a repeating record format)? Enter 'patterns' if ECB leaks patterns in the plaintext structure, or 'random' if it doesn't.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level08": {
+          "title": "Level 08: Hash Functions",
+          "phase": 2,
+          "phase_title": "Symmetric Cryptography",
+          "difficulty": 1,
+          "points": 60,
+          "mission": "One-way digests and the avalanche effect.",
+          "learn": "A hash function is one-way: no key, no way to reverse it. Changing even one character produces a completely different, unrelated-looking digest.",
+          "objectives": [
+            {
+              "id": "l8_obj1",
+              "label": "Message:\n\"Transfer Rs.5000 to account 1042\"\n\nCalculate its SHA-256 digest.",
+              "cmd": "echo -n \"Transfer Rs.5000 to account 1042\" | sha256sum",
+              "type": "input_match"
+            },
+            {
+              "id": "l8_obj2",
+              "label": "Modified message:\n\"Transfer Rs.9000 to account 1042\"\n\n(Only the amount changed.) Calculate ITS SHA-256 digest.",
+              "cmd": "echo -n \"Transfer Rs.9000 to account 1042\" | sha256sum",
+              "type": "input_match"
+            },
+            {
+              "id": "l8_obj3",
+              "label": "Final: comparing the two digests you just calculated, has the message been modified? Enter YES or NO.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level09": {
+          "title": "Level 09: Password Hashing",
+          "phase": 2,
+          "phase_title": "Symmetric Cryptography",
+          "difficulty": 2,
+          "points": 90,
+          "mission": "Why passwords need a slow KDF, not a fast hash.",
+          "learn": "PBKDF2/bcrypt/Argon2 deliberately slow down hashing so that an attacker with a stolen hash database can only try a limited number of guesses per second.",
+          "objectives": [
+            {
+              "id": "l9_obj1",
+              "label": "A login system stores this PBKDF2-HMAC-SHA256 hash for a user:\n6c31d00d67b45e37cbee7e016ed4d8de8ee167df117fe603f38e055f9ea82816\n\nSalt: 5b1e8f0a\nIterations: 100000\n\nCandidate passwords: Summer2024!, TechCorp#99, Winter2024!\n\nCompute PBKDF2 for each candidate and find the one that matches the stored hash. Enter the matching password.",
+              "cmd": "python3 -c \"import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'TechCorp#99', b'5b1e8f0a', 100000).hex())\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l9_obj2",
+              "label": "Final: why is a slow KDF like PBKDF2 used for passwords instead of a single fast SHA-256 call? Enter 'slow' if the deliberate slowness is the defense, or 'fast' if speed is the defense.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level10": {
+          "title": "Level 10: HMAC",
+          "phase": 2,
+          "phase_title": "Symmetric Cryptography",
+          "difficulty": 2,
+          "points": 70,
+          "mission": "Prove a message wasn't just hashed \u2014 it was hashed WITH a secret.",
+          "learn": "HMAC mixes a secret key into a hash so only someone who knows the key can produce a valid MAC for a given message \u2014 proving both integrity and authenticity.",
+          "objectives": [
+            {
+              "id": "l10_obj1",
+              "label": "Message: \"Transfer 1000 INR\"\nSecret: \"crypto-training-key\"\n\nGenerate the HMAC-SHA256 of the message using this secret.",
+              "cmd": "python3 -c \"import hmac,hashlib; print(hmac.new(b'crypto-training-key', b'Transfer 1000 INR', hashlib.sha256).hexdigest())\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l10_obj2",
+              "label": "Final: a modified message arrives: \"Transfer 9000 INR\" claiming the SAME HMAC (c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2). Compute the real HMAC of this modified message and compare \u2014 does the original HMAC still verify? Enter VALID or INVALID.",
+              "cmd": "python3 -c \"import hmac,hashlib; print(hmac.new(b'crypto-training-key', b'Transfer 9000 INR', hashlib.sha256).hexdigest())\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level11": {
+          "title": "Level 11: RSA Mathematics",
+          "phase": 3,
+          "phase_title": "Public Key Cryptography",
+          "difficulty": 2,
+          "points": 90,
+          "mission": "Construct a real RSA keypair step by step.",
+          "learn": "An RSA keypair starts with two secret primes p and q. n=pq is public; phi(n)=(p-1)(q-1) must stay secret; d is the modular inverse of e mod phi(n) \u2014 the private key.",
+          "objectives": [
+            {
+              "id": "l11_obj1",
+              "label": "The two primes for this RSA keypair aren't given directly \u2014 they were recovered from a decommissioned server's leftover files. Investigate /home/student/evidence in the terminal to find them, then calculate n = p x q. Enter n.",
               "cmd": "python3 -c \"print(61 * 53)\"",
               "type": "input_match"
             },
             {
-              "id": "m4_obj2",
-              "label": "TASK: Compute phi(n) = (p-1)(q-1) for p=61, q=53. This value is needed to derive the PRIVATE key and must never be published. Submit it.",
+              "id": "l11_obj2",
+              "label": "Using the same two primes you found:\n\nFormula:\nphi(n) = (p-1)(q-1)\n\nEnter phi(n).",
               "cmd": "python3 -c \"print((61-1) * (53-1))\"",
               "type": "input_match"
             },
             {
-              "id": "m4_obj3",
-              "label": "TASK: TechCorp's public exponent is e=17. Using phi(n)=3120, compute the PRIVATE exponent d \u2014 the modular inverse of e mod phi(n), satisfying (e x d) mod phi(n) = 1. This d, kept secret on TechCorp's server, is the private key. Submit d.",
+              "id": "l11_obj3",
+              "label": "Given:\ne = 17\nphi(n) = 3120\n\nFind d such that:\ne x d = 1 (mod phi(n))\n\nEnter d.",
               "cmd": "python3 -c \"print(pow(17, -1, 3120))\"",
               "type": "input_match"
             },
             {
-              "id": "m4_obj4",
-              "label": "Final flag: put TechCorp's PUBLIC key to work. Using n=3233 and e=17, encrypt the partner's secret value m=88 by computing c = m^e mod n. This is exactly what the partner does with TechCorp's public key \u2014 they never need the private key to send a message only TechCorp can read. Submit c as FLAG{{c}}.",
-              "cmd": "python3 -c \"print(pow(88, 17, 3233))\"",
+              "id": "l11_obj4",
+              "label": "Your RSA keypair is now:\nPublic key (n, e) = (3233, 17)\nPrivate key (n, d) = (3233, 2753)\n\nWhich one must never be shared \u2014 n, e, or d? Enter one letter/value.",
+              "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: n = p*q and phi(n) = (p-1)*(q-1) are simple arithmetic once you have the primes.",
-            "Hint 2: Python's pow(e, -1, phi_n) computes the modular inverse directly \u2014 that's your private exponent d."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         },
-        "module5": {
-          "title": "Digital Signatures",
-          "difficulty": 3,
-          "points": 175,
-          "mission": "Confirm update.bin really came from TechCorp, unmodified",
-          "concept": "A signature is created with the PRIVATE key and checked with the PUBLIC key \u2014 proving both who signed something and that it hasn't changed since.",
+        "level12": {
+          "title": "Level 12: RSA Encryption",
+          "phase": 3,
+          "phase_title": "Public Key Cryptography",
+          "difficulty": 2,
+          "points": 70,
+          "mission": "Encrypt a message with a public key.",
+          "learn": "RSA encryption is one formula: c = m^e mod n, using the PUBLIC key. Anyone can do this step.",
           "objectives": [
             {
-              "id": "m5_obj1",
-              "label": "SCENARIO: TechCorp's release team published update.bin along with a digital signature and their public key. Your job is to confirm the update really came from TechCorp and wasn't altered.\n\nCONCEPT: A digital signature flips RSA around: you sign with your PRIVATE key so ANYONE can verify with your PUBLIC key. It proves both authenticity (who signed it) and integrity (it hasn't changed since).\n\nTASK: Using TechCorp's private key (d=2753, n=3233 from Module 4), sign the release's hash-digest stand-in h=15 by computing s = h^d mod n. Submit s \u2014 this is the signature TechCorp attaches to update.bin.",
+              "id": "l12_obj1",
+              "label": "Public key:\nn = 3233\ne = 17\n\nPlaintext:\nm = 65\n\nFormula:\nc = m^e mod n\n\nEnter the ciphertext c.",
+              "cmd": "python3 -c \"print(pow(65, 17, 3233))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level13": {
+          "title": "Level 13: RSA Decryption",
+          "phase": 3,
+          "phase_title": "Public Key Cryptography",
+          "difficulty": 2,
+          "points": 70,
+          "mission": "Recover the plaintext with the private key.",
+          "learn": "RSA decryption mirrors encryption exactly: m = c^d mod n, using the PRIVATE key.",
+          "objectives": [
+            {
+              "id": "l13_obj1",
+              "label": "Ciphertext:\nc = 2790\n\nPrivate key:\nn = 3233\nd = 2753\n\nFormula:\nm = c^d mod n\n\nEnter the recovered plaintext m.",
+              "cmd": "python3 -c \"print(pow(2790, 2753, 3233))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level14": {
+          "title": "Level 14: RSA Key Recovery",
+          "phase": 3,
+          "phase_title": "Public Key Cryptography",
+          "difficulty": 3,
+          "points": 140,
+          "mission": "Given only n, e, and a ciphertext \u2014 break it yourself.",
+          "learn": "If an attacker can factor n back into p and q, they can rebuild phi(n) and then d \u2014 fully breaking the encryption. This is why real RSA uses enormous primes.",
+          "objectives": [
+            {
+              "id": "l14_obj1",
+              "label": "You are given only:\nn = 3233\ne = 17\nciphertext = 538\n\nNo p or q this time \u2014 but a decommissioned server's evidence files are mounted at /home/student/evidence. Search them (ls, find, cat, grep, strings) to recover the two prime factors. Enter them as p,q in ascending order, e.g. 5,11.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l14_obj2",
+              "label": "Using p=61, q=53: calculate phi(n) = (p-1)(q-1). Enter it.",
+              "cmd": "python3 -c \"print((61-1)*(53-1))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l14_obj3",
+              "label": "Using e=17, phi(n)=3120: find d such that e x d = 1 (mod phi(n)). Enter d.",
+              "cmd": "python3 -c \"print(pow(17, -1, 3120))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l14_obj4",
+              "label": "Final: decrypt the ciphertext from the start of this level.\nc = 538, n = 3233, d = 2753\n\nm = c^d mod n\n\nEnter m.",
+              "cmd": "python3 -c \"print(pow(538, 2753, 3233))\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level15": {
+          "title": "Level 15: RSA Signatures",
+          "phase": 3,
+          "phase_title": "Public Key Cryptography",
+          "difficulty": 2,
+          "points": 90,
+          "mission": "Sign with a private key, verify with a public key.",
+          "learn": "A signature is RSA run in reverse: sign with your PRIVATE key, verify with your PUBLIC key. Tampering with the signed data breaks verification.",
+          "objectives": [
+            {
+              "id": "l15_obj1",
+              "label": "Using the keypair from Level 11 (n=3233, d=2753), sign a message's hash-digest stand-in h=15:\n\nsignature = h^d mod n\n\nEnter the signature.",
               "cmd": "python3 -c \"print(pow(15, 2753, 3233))\"",
               "type": "input_match"
             },
             {
-              "id": "m5_obj2",
-              "label": "TASK: Verify the signature the way any customer could, using only TechCorp's PUBLIC key: compute h' = s^e mod n with e=17, n=3233, and signature s=452. If h' equals update.bin's real hash-digest (15), the signature is valid. Submit h'.",
+              "id": "l15_obj2",
+              "label": "Verify it with the PUBLIC key (n=3233, e=17):\n\ncheck = signature^e mod n\nsignature = 452\n\nEnter 'check'. It should match the original digest h=15.",
               "cmd": "python3 -c \"print(pow(452, 17, 3233))\"",
               "type": "input_match"
             },
             {
-              "id": "m5_obj3",
-              "label": "TASK: An attacker now modifies update.bin after it was signed. The modified file's hash-digest is now 22 instead of 15 \u2014 but the attacker kept the ORIGINAL signature (452), since they don't have TechCorp's private key to forge a new one.\n\nVerify the SAME signature against the NEW (tampered) hash-digest. Does it still check out? Submit VALID or INVALID.",
-              "cmd": "",
-              "type": "input_match"
-            },
-            {
-              "id": "m5_obj4",
-              "label": "Final flag: which single property did this whole exercise demonstrate \u2014 the one guaranteeing a signed file can't be silently modified without breaking verification? Submit one word: 'integrity', 'confidentiality', or 'availability'.",
+              "id": "l15_obj3",
+              "label": "The file is now modified. Its digest is 22 instead of 15, but the attacker kept the SAME signature (452).\n\nVerify the same signature again. Does it still check out against the NEW digest? Enter VALID or INVALID.",
               "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Signing and decrypting use the identical formula: value^d mod n. Verifying and encrypting both use value^e mod n.",
-            "Hint 2: If the file changes after signing, its hash-digest changes too \u2014 but the OLD signature only verifies against the OLD digest."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         },
-        "module6": {
-          "title": "Key Exchange (Diffie-Hellman)",
+        "level16": {
+          "title": "Level 16: Diffie-Hellman Key Exchange",
+          "phase": 4,
+          "phase_title": "Key Exchange & Modern Crypto",
           "difficulty": 3,
-          "points": 175,
-          "mission": "Agree on a shared secret with a brand-new partner system",
-          "concept": "Diffie-Hellman lets two sides who've never met derive the same shared secret over a public channel, without ever transmitting the secret itself.",
+          "points": 130,
+          "mission": "Two sides derive one shared secret, in public.",
+          "learn": "Each side publishes g^private mod p, then combines the OTHER side's public value with their OWN private value. Both land on the identical shared secret without ever transmitting it.",
           "objectives": [
             {
-              "id": "m6_obj1",
-              "label": "SCENARIO: TechCorp is integrating with a brand-new partner system. Neither side has ever shared a secret key, and there's no secure channel yet to send one over.\n\nCONCEPT: Diffie-Hellman lets two sides agree on a shared secret over a channel an attacker can freely watch, without ever transmitting the secret itself.\n\nTASK: Both sides publicly agree on prime p=23 and generator g=5. TechCorp picks private value a=6 and computes its public value A = g^a mod p. Submit A (safe to publish \u2014 this is the 'public value' side of the exchange).",
+              "id": "l16_obj1",
+              "label": "Public values (agreed openly):\np = 23\ng = 5\n\nAlice's private value: a = 6\n\nFormula:\nA = g^a mod p\n\nEnter Alice's public value A.",
               "cmd": "python3 -c \"print(pow(5, 6, 23))\"",
               "type": "input_match"
             },
             {
-              "id": "m6_obj2",
-              "label": "TASK: The partner system picks its own private value b=15 and computes its public value B = g^b mod p. Submit B.",
+              "id": "l16_obj2",
+              "label": "Bob's private value: b = 15\n\nFormula:\nB = g^b mod p\n\nEnter Bob's public value B.",
               "cmd": "python3 -c \"print(pow(5, 15, 23))\"",
               "type": "input_match"
             },
             {
-              "id": "m6_obj3",
-              "label": "TASK: TechCorp now combines the PARTNER's public value (B=19) with its OWN private value (a=6): shared = B^a mod p. Submit the shared secret TechCorp derives.",
+              "id": "l16_obj3",
+              "label": "Alice computes the shared secret from Bob's public value:\nS = B^a mod p\nB=19, a=6, p=23\n\nEnter S.",
               "cmd": "python3 -c \"print(pow(19, 6, 23))\"",
               "type": "input_match"
             },
             {
-              "id": "m6_obj4",
-              "label": "Final flag: now compute it from the PARTNER's side: combine TechCorp's public value (A=8) with the partner's own private value (b=15): shared = A^b mod p. Submit this value \u2014 it should exactly match what TechCorp derived, proving both sides landed on the same shared secret without ever transmitting it.",
+              "id": "l16_obj4",
+              "label": "Final: Bob computes the shared secret from Alice's public value:\nS = A^b mod p\nA=8, b=15, p=23\n\nEnter S \u2014 it should match Alice's result.",
               "cmd": "python3 -c \"print(pow(8, 15, 23))\"",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Both public values are computed the same way: pow(g, private_value, p).",
-            "Hint 2: The shared secret is pow(their_public_value, your_private_value, p) \u2014 both sides land on the identical number."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         },
-        "module7": {
-          "title": "Final Incident: Verify & Recover",
-          "difficulty": 3,
-          "points": 175,
-          "mission": "Investigate and close a real cryptographic incident end-to-end",
-          "concept": "Real incident response always verifies BEFORE trusting: check integrity (hash), check authenticity (signature), and only then decrypt and act on the data.",
+        "level17": {
+          "title": "Level 17: Diffie-Hellman MITM",
+          "phase": 4,
+          "phase_title": "Key Exchange & Modern Crypto",
+          "difficulty": 2,
+          "points": 100,
+          "mission": "Why unauthenticated key exchange isn't enough.",
+          "learn": "Standard DH authenticates nothing about who sent a public value \u2014 an active attacker can substitute their own values and establish separate shared secrets with each victim.",
           "objectives": [
             {
-              "id": "m7_obj1",
-              "label": "FINAL INCIDENT: TechCorp received an encrypted customer backup (backup.enc) from a partner server, along with a published hash and a claim it was properly signed. Your job as the security engineer on call: verify it, then recover the data.\n\nTASK \u2014 Step 1, verify integrity: the partner published this hash out-of-band for the backup's plaintext:\n1692b4ee2bd6bf14cc1f52759ed7efd6cdfe274677004f4f881bcf8b0889ff05\n\nThe backup's actual plaintext (once decrypted) is provided below for this hash check:\n\"INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully\"\n\nHash it and confirm it matches. Submit MATCH or MISMATCH.",
-              "cmd": "echo -n \"INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully\" | sha256sum",
+              "id": "l17_obj1",
+              "label": "TechCorp's network log captured a Diffie-Hellman exchange between Alice and Bob (p=23, g=5):\n\nAlice sent public value: 8\nBob received public value: 4\nBob sent public value: 19\nAlice received public value: 4\n\nAlice and Bob each received the SAME public value instead of each other's. What is that shared attacker value?",
+              "cmd": "",
               "type": "input_match"
             },
             {
-              "id": "m7_obj2",
-              "label": "TASK \u2014 Step 2, verify the sender: the partner claims this backup's hash-digest (15) was signed with their private key, producing signature 452 (reusing the keypair from Modules 4-5: n=3233, e=17). Verify it the same way as Module 5: compute h' = s^e mod n and confirm it matches. Submit VALID or INVALID.",
-              "cmd": "python3 -c \"print(pow(452, 17, 3233))\"  # compare to 15",
-              "type": "input_match"
-            },
-            {
-              "id": "m7_obj3",
-              "label": "TASK \u2014 Step 3, decrypt the backup: now that it's verified, decrypt backup.enc using AES-256-GCM with key=1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a, nonce=f0e1d2c3b4a5968778695a4b, ciphertext=f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c, tag=d61e4da10998b899f2c9c6945ff15415. Submit the recovered plaintext exactly.",
-              "cmd": "python3 -c \"\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\nkey = bytes.fromhex('1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a')\nnonce = bytes.fromhex('f0e1d2c3b4a5968778695a4b')\nct = bytes.fromhex('f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c') + bytes.fromhex('d61e4da10998b899f2c9c6945ff15415')\nprint(AESGCM(key).decrypt(nonce, ct, None).decode())\"",
-              "type": "input_match"
-            },
-            {
-              "id": "m7_obj4",
-              "label": "FINAL FLAG: you've now completed the full incident \u2014 integrity check, signature verification, and decryption. Submit the case status exactly as it should be logged, wrapped as FLAG{...} (see the recovered plaintext above for the exact case ID and status).",
+              "id": "l17_obj2",
+              "label": "Final: standard Diffie-Hellman authenticates nothing about WHO sent a public value \u2014 only that it's a valid number mod p. Does unauthenticated DH prevent this man-in-the-middle attack? Enter YES or NO.",
               "cmd": "",
               "type": "flag_match"
             }
           ],
           "hints": [
-            "Hint 1: Work the steps in order \u2014 hash check, then signature check, then decrypt. Don't decrypt first.",
-            "Hint 2: Reuse the exact AES-256-GCM and RSA-verification approach from Modules 1 and 5 \u2014 the mechanics are identical, only the values differ."
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level18": {
+          "title": "Level 18: Elliptic Curve Cryptography",
+          "phase": 4,
+          "phase_title": "Key Exchange & Modern Crypto",
+          "difficulty": 2,
+          "points": 110,
+          "mission": "Point addition, doubling, and scalar multiplication.",
+          "learn": "Elliptic curve points form a group under a geometric addition rule. Scalar multiplication is easy forward, and hard to reverse \u2014 the elliptic-curve discrete log problem.",
+          "objectives": [
+            {
+              "id": "l18_obj1",
+              "label": "Curve: y^2 = x^3 + 2x + 2 (mod 17)\n\nIs the point (5, 2) on this curve? Check both sides of the equation. Enter YES or NO.",
+              "cmd": "python3 -c \"x,y=(5, 2); print((y*y - (x**3+2*x+2)) % 17 == 0)\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l18_obj2",
+              "label": "Base point G = (5, 1) IS on the curve. Compute point doubling: 2G = G + G, using the elliptic-curve group law. Enter the result as 'x,y'.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l18_obj3",
+              "label": "Final: compute scalar multiplication 6G (i.e. G added to itself 6 times) using double-and-add. Enter the result as 'x,y'.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level19": {
+          "title": "Level 19: ECDH",
+          "phase": 4,
+          "phase_title": "Key Exchange & Modern Crypto",
+          "difficulty": 2,
+          "points": 110,
+          "mission": "Diffie-Hellman, but on an elliptic curve.",
+          "learn": "Same idea as classic DH, but public values are curve points and the combining operation is scalar multiplication instead of modular exponentiation.",
+          "objectives": [
+            {
+              "id": "l19_obj1",
+              "label": "Same curve, base point G = (5, 1).\n\nAlice's private scalar: a = 4\n\nCompute Alice's public point: A = a*G. Enter as 'x,y'.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l19_obj2",
+              "label": "Bob's private scalar: b = 3\n\nCompute Bob's public point: B = b*G. Enter as 'x,y'.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l19_obj3",
+              "label": "Alice computes the shared point: S = a*B, using B=(10, 6) and a=4. Enter as 'x,y'.",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l19_obj4",
+              "label": "Final: Bob computes the shared point: S = b*A, using A=(3, 1) and b=3. Enter as 'x,y' \u2014 it should match Alice's result.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level20": {
+          "title": "Level 20: Digital Signatures \u2014 Software Update",
+          "phase": 4,
+          "phase_title": "Key Exchange & Modern Crypto",
+          "difficulty": 2,
+          "points": 100,
+          "mission": "Detect a tampered update before installing it.",
+          "learn": "Verifying a software update's signature before installing it is exactly how systems catch backdoored or corrupted updates before they run.",
+          "objectives": [
+            {
+              "id": "l20_obj1",
+              "label": "TechCorp published update.bin (contents: \"techcorp-agent-v4.2.1-release-build\") with a digital signature (1199), using the Level 11 keypair (n=3233, e=17, d=2753).\n\nThe signature was produced over a digest stand-in derived from the file's SHA-256 hash.\n\nVerify it: check = signature^e mod n, signature = 1199. Enter 'check'.",
+              "cmd": "python3 -c \"print(pow(1199, 17, 3233))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l20_obj2",
+              "label": "A second copy of update.bin arrives, contents now:\n\"techcorp-agent-v4.2.1-release-build-BACKDOORED\"\n\nclaiming the SAME signature (1199). Its digest stand-in is now 250 instead of 581.\n\nFinal: does the original signature still authenticate this file? Enter VALID or INVALID.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level21": {
+          "title": "Level 21: PKI & Certificates",
+          "phase": 5,
+          "phase_title": "Cryptographic Investigation",
+          "difficulty": 2,
+          "points": 100,
+          "mission": "Is this certificate actually trustworthy?",
+          "learn": "A certificate's Subject and Issuer fields reveal whether it was vouched for by a trusted third party, or only by itself.",
+          "objectives": [
+            {
+              "id": "l21_obj1",
+              "label": "A certificate for an internal TechCorp service is available for inspection at /home/student/evidence/certificate.pem. Investigate it and enter its Subject Common Name (CN) \u2014 the hostname it claims to represent.",
+              "cmd": "openssl x509 -in /home/student/evidence/certificate.pem -noout -subject -issuer -dates",
+              "type": "input_match"
+            },
+            {
+              "id": "l21_obj2",
+              "label": "Now check who signed (vouched for) this certificate \u2014 its Issuer CN. Enter it.",
+              "cmd": "openssl x509 -in /home/student/evidence/certificate.pem -noout -issuer",
+              "type": "input_match"
+            },
+            {
+              "id": "l21_obj3",
+              "label": "Final: the Subject CN and Issuer CN are identical \u2014 this certificate signed itself, rather than being signed by a trusted Certificate Authority. Is this certificate trustworthy for a production service that other companies connect to? Enter YES or NO.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level22": {
+          "title": "Level 22: Key Derivation Functions",
+          "phase": 5,
+          "phase_title": "Cryptographic Investigation",
+          "difficulty": 2,
+          "points": 100,
+          "mission": "Turn a password into a usable encryption key.",
+          "learn": "A KDF (like PBKDF2) turns a low-entropy password into a fixed-length key suitable for use in a symmetric cipher.",
+          "objectives": [
+            {
+              "id": "l22_obj1",
+              "label": "Password: \"R3set-2026-kdf\"\nSalt: 9c3fa61d\nAlgorithm: PBKDF2-HMAC-SHA256\nIterations: 50000\nKey length: 16 bytes\n\nDerive the key and enter it as hex.",
+              "cmd": "python3 -c \"import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'R3set-2026-kdf', b'9c3fa61d', 50000, dklen=16).hex())\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l22_obj2",
+              "label": "Final: use the derived key (as raw bytes) to XOR-encrypt the message \"PIVOT-OK\" (repeating-key XOR against the key bytes). Enter the result as hex.",
+              "cmd": "python3 -c \"import hashlib; k=hashlib.pbkdf2_hmac('sha256', b'R3set-2026-kdf', b'9c3fa61d', 50000, dklen=16); m=b'PIVOT-OK'; print(bytes(b^k[i%len(k)] for i,b in enumerate(m)).hex())\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level23": {
+          "title": "Level 23: CSPRNG vs Predictable Randomness",
+          "phase": 5,
+          "phase_title": "Cryptographic Investigation",
+          "difficulty": 2,
+          "points": 90,
+          "mission": "Predictable randomness = weak keys.",
+          "learn": "A cryptographic key is only as strong as the randomness that generated it. An LCG's output is fully predictable from its formula; a real CSPRNG's is not.",
+          "objectives": [
+            {
+              "id": "l23_obj1",
+              "label": "Two random-number generators produced these 5-value sequences:\n\nGenerator A: [27, 264, 753, 806, 735]\nGenerator B: [812, 47, 963, 205, 588]\n\nGenerator A uses this known formula: x_next = (1103515245 * x_prev + 12345) mod 2^31, output = x_next mod 1000, seeded with x_0=42.\n\nUsing that formula, predict the NEXT value Generator A will produce.",
+              "cmd": "python3 -c \"x=42\nfor _ in range(6): x=(1103515245*x+12345)%(2**31)\nprint(x%1000)\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l23_obj2",
+              "label": "Final: which generator is UNSAFE for producing cryptographic keys or nonces \u2014 'A' or 'B'?",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level24": {
+          "title": "Level 24: Cryptanalysis Investigation",
+          "phase": 5,
+          "phase_title": "Cryptographic Investigation",
+          "difficulty": 3,
+          "points": 150,
+          "mission": "Unlabeled ciphertext \u2014 you decide the approach.",
+          "learn": "No cipher name given. Recognizing single-byte XOR from its structure, then brute-forcing all 256 keys, is the entire challenge.",
+          "objectives": [
+            {
+              "id": "l24_obj1",
+              "label": "Evidence file /home/student/evidence/ciphertext.bin contains this hex-encoded data:\n7662737e631a6365767e7b1a747b7276791a00070305\n\nYou are NOT told which cryptographic mechanism produced it. Investigate: what is the shortest possible key length that could produce readable English when XORed against this data? Enter the length in bytes (a number).",
+              "cmd": "",
+              "type": "input_match"
+            },
+            {
+              "id": "l24_obj2",
+              "label": "Brute-force all 256 possible single-byte keys against the ciphertext and find the one key that produces readable, all-uppercase text (letters, digits, hyphens only). Enter the key as a two-digit hex value (e.g. 1f).",
+              "cmd": "python3 -c \"import string\nallowed=set(string.ascii_uppercase+string.digits+'-')\nc=bytes.fromhex('7662737e631a6365767e7b1a747b7276791a00070305')\nfor k in range(256):\n d=bytes(b^k for b in c)\n if all(32<=x<127 for x in d) and set(d.decode()) <= allowed: print(f'{k:02x}')\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l24_obj3",
+              "label": "Final: using that key, recover and enter the full plaintext exactly.",
+              "cmd": "python3 -c \"c=bytes.fromhex('7662737e631a6365767e7b1a747b7276791a00070305'); print(bytes(b^55 for b in c).decode())\"",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
+          ]
+        },
+        "level25": {
+          "title": "Level 25: Final Cryptographic Incident",
+          "phase": 5,
+          "phase_title": "Cryptographic Investigation",
+          "difficulty": 3,
+          "points": 260,
+          "mission": "Verify, decrypt, and close a real case.",
+          "learn": "Real incident response verifies authenticity and integrity BEFORE trusting decrypted data enough to act on it. This case chains encoding, XOR, hashing, and RSA signatures together.",
+          "objectives": [
+            {
+              "id": "l25_obj1",
+              "label": "TechCorp's security team received an encrypted communication from an unverified server. The evidence bundle is at /home/student/evidence/crypto-incident/. Start by reading README.txt, then inspect encrypted_message.bin (hex) and server_config.txt (which contains the XOR key used, hidden among other config lines).\n\nencrypted_message.bin (hex): 797f1f6e797f786c7e467b5e7f417c7e7e1a527d787f7b5e657e4150677b1717\n\nXOR-decode it using the key from server_config.txt. Enter the recovered string exactly (it will look like Base64).",
+              "cmd": "python3 -c \"c=bytes.fromhex('797f1f6e797f786c7e467b5e7f417c7e7e1a527d787f7b5e657e4150677b1717'); print(bytes(b^42 for b in c).decode())\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l25_obj2",
+              "label": "Base64-decode that string:\nSU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==\n\nEnter the plaintext case record.",
+              "cmd": "echo 'SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==' | base64 -d",
+              "type": "input_match"
+            },
+            {
+              "id": "l25_obj3",
+              "label": "Verify integrity: hash.txt in the evidence bundle contains a SHA-256 digest. Compute the SHA-256 of the case record you just recovered and confirm it matches. Enter the hash.",
+              "cmd": "echo -n \"INCIDENT-RESOLVED-9931\" | sha256sum",
+              "type": "input_match"
+            },
+            {
+              "id": "l25_obj4",
+              "label": "Verify authenticity: signature.sig contains an RSA signature (1705) over this record's digest, using the Level 11 keypair (n=3233, e=17). Compute check = signature^e mod n and confirm it matches the digest stand-in (2449) derived from the hash. Enter 'check'.",
+              "cmd": "python3 -c \"print(pow(1705, 17, 3233))\"",
+              "type": "input_match"
+            },
+            {
+              "id": "l25_obj5",
+              "label": "Final: the incident is fully verified. Submit the recovered case record, wrapped as FLAG{...}.",
+              "cmd": "",
+              "type": "flag_match"
+            }
+          ],
+          "hints": [
+            "Hint 1: Work through the formula/steps given, using the exact values provided.",
+            "Hint 2: Use the terminal as a calculator (python3, sha256sum, openssl, xxd) \u2014 don't try to do large modular exponentiation by hand."
           ]
         }
       }

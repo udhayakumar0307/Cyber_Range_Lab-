@@ -1,245 +1,457 @@
 ================================================================================
-MODULE 1
+LEVEL 01 (Phase 1: Cryptography Foundations)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m1_obj1
-Question     : SCENARIO: TechCorp needs to send a customer backup to a partner system over an untrusted network. As the on-call security engineer, inspect the plaintext before protecting it.
+Objective ID : l1_obj1
+Question     : Given this string:
+SGVsbG8gQ3J5cHRv
 
-customer_data.txt contents:
-"TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified"
-
-CONCEPT: Symmetric encryption uses ONE secret key for both encryption and decryption — fast, but both sides must already share that key.
-
-TASK: How many customer records does this backup report? Submit just the number.
-Terminal Cmd : cat customer_data.txt
-Correct Ans  : 4821
-Flag         : FLAG{4821}
+Which encoding is this? Enter the name.
+Correct Ans  : Base64
+Flag         : FLAG{Base64}
 
 Explanation:
-Before encrypting anything, always know exactly what you're protecting — this backup covers 4821 EU-WEST customer records.
+Base64 strings use A-Z, a-z, 0-9, +, /, and often end with '=' padding — that pattern is the giveaway.
 
 Why the Answer is Correct:
-The file explicitly states "4821 records".
+The string's alphabet and padding are characteristic of Base64.
 
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m1_obj2
-Question     : CONCEPT: AES-256 uses a 256-bit key. In hex, each byte is 2 characters, so a 256-bit (32-byte) key is 64 hex characters long.
+Objective ID : l1_obj2
+Question     : Decode it:
+SGVsbG8gQ3J5cHRv
 
-TASK: Generate a real AES-256 key with OpenSSL, then submit how many hex characters it contains (this confirms you understand the key size — not the random value itself, since every engineer's generated key will differ).
-Terminal Cmd : openssl rand -hex 32 | tr -d '\r\n' | wc -c
-Correct Ans  : 64
-Flag         : FLAG{64}
+Enter the exact decoded text.
+Terminal Cmd : echo 'SGVsbG8gQ3J5cHRv' | base64 -d
+Correct Ans  : Hello Crypto
+Flag         : FLAG{Hello Crypto}
 
 Explanation:
-openssl rand -hex 32 prints 32 random bytes as hex — 32 bytes × 2 hex chars/byte = 64 characters.
+Base64 decoding reverses the encoding back to the original bytes.
 
 Why the Answer is Correct:
-A 256-bit key is 32 bytes, and hex-encoding always doubles byte count.
+Base64-decoding "SGVsbG8gQ3J5cHRv" yields "Hello Crypto".
 
 --------------------------------------------------------------------------------
 Objective 3
 --------------------------------------------------------------------------------
-Objective ID : m1_obj3
-Question     : TASK: TechCorp already shares a secret key with this specific partner system (key=6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f, nonce=a1b2c3d4e5f6a7b8c9d0e1f2). Encrypt customer_data.txt with AES-256-GCM using that exact key and nonce. Submit the resulting ciphertext as lowercase hex (authentication tag excluded).
-Terminal Cmd : python3 -c "
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-key = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')
-nonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')
-pt = open('customer_data.txt','rb').read()
-ct = AESGCM(key).encrypt(nonce, pt, None)
-print(ct[:-16].hex())"
-Correct Ans  : 4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77
-Flag         : FLAG{4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77}
+Objective ID : l1_obj3
+Question     : Final: does Base64 provide confidentiality — i.e. does it hide the data from anyone who sees it? Enter YES or NO.
+Correct Ans  : FLAG{NO}
+Flag         : FLAG{NO}
 
 Explanation:
-AES-256-GCM is authenticated encryption: it produces ciphertext plus a 16-byte authentication tag proving the data wasn't tampered with.
+Encoding is NOT encryption. Base64 has no key and no secret — anyone can decode it instantly.
 
 Why the Answer is Correct:
-Encrypting with this exact key+nonce always deterministically produces 4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77.
-
---------------------------------------------------------------------------------
-Objective 4
---------------------------------------------------------------------------------
-Objective ID : m1_obj4
-Question     : Final flag — the partner system sends back this ciphertext (tag=e50423ef9eb279c198b246068bc4f60c):
-4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77
-
-TASK: Decrypt it using the same key and nonce from the previous step, recovering the original plaintext. Submit the recovered plaintext exactly.
-Terminal Cmd : python3 -c "
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-key = bytes.fromhex('6f8a3c1e9d4b7f2a5c8e1d4b7a3f6c9e2d5b8a1f4c7e9b2d5a8f1c4e7b9d2a5f')
-nonce = bytes.fromhex('a1b2c3d4e5f6a7b8c9d0e1f2')
-ct = bytes.fromhex('4e01a7f0af357de45e7da4f2e8cad31e6f141138599822b7d815c52bb11e8d472999da22c9acfe2c9ef0e69e259e1499f1947b715d64af3c1fb63b2bf17c2d98e0c23cb0272921356427b04d656e77') + bytes.fromhex('e50423ef9eb279c198b246068bc4f60c')
-print(AESGCM(key).decrypt(nonce, ct, None).decode())"
-Correct Ans  : TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified
-Flag         : FLAG{TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified}
-
-Explanation:
-This closes the loop: Ciphertext + Key + Nonce -> Decryption -> Plaintext. If the tag doesn't verify (tampered ciphertext), decryption fails outright — that's the authentication guarantee GCM adds over plain AES.
-
-Why the Answer is Correct:
-Decrypting with the matching key/nonce/tag always recovers exactly: "TechCorp customer backup Q3 2026: 4821 records, region=EU-WEST, status=verified".
+Base64 provides no confidentiality: the answer is NO.
 
 ================================================================================
-MODULE 2
+LEVEL 02 (Phase 1: Cryptography Foundations)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m2_obj1
-Question     : SCENARIO: TechCorp just published software_update.bin for customers to download.
+Objective ID : l2_obj1
+Question     : Ciphertext:
+KHOOR FUBSWR
 
-CONCEPT: A hash function is one-way (you can't reverse a digest back into the file) and produces a fixed-length digest no matter the input size. This is NOT encryption — there's no key and no decrypting a hash back to the file.
-
-software_update.bin contents:
-"TechCorp Update Agent v4.2.0
-build=20260824
-checksum-protected release binary (simulated)."
-
-TASK: Calculate its SHA-256 hash. This becomes the value TechCorp publishes for customers to verify against.
-Terminal Cmd : sha256sum software_update.bin
-Correct Ans  : a8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260
-Flag         : FLAG{a8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260}
+This was encrypted with a Caesar cipher — a shift between 1 and 25. Find the shift, then enter it as a number.
+Correct Ans  : 3
+Flag         : FLAG{3}
 
 Explanation:
-SHA-256 always produces exactly 64 hex characters (256 bits), regardless of the input file's size.
+A Caesar cipher only has 25 possible shifts, so trying each one (brute force) always works.
 
 Why the Answer is Correct:
-SHA256 of the exact file contents is a8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260.
+Shift 3 decrypts "KHOOR FUBSWR" to "HELLO CRYPTO".
 
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m2_obj2
-Question     : TASK: A tampered build ("v4.2.1" instead of "v4.2.0" — one character changed) is floating around. Its content:
-"TechCorp Update Agent v4.2.1
-build=20260824
-checksum-protected release binary (simulated)."
-
-Calculate ITS SHA-256 hash too, and compare it by eye to the one from the previous step. Submit this new hash.
-Terminal Cmd : sha256sum software_update_tampered.bin
-Correct Ans  : fd877ad765dadbac6714b1ed5eded212c0ba5ff269cebb30f94abbb72747a849
-Flag         : FLAG{fd877ad765dadbac6714b1ed5eded212c0ba5ff269cebb30f94abbb72747a849}
+Objective ID : l2_obj2
+Question     : Final: using that shift, decrypt "KHOOR FUBSWR" and enter the plaintext exactly.
+Terminal Cmd : python3 -c "print(''.join(chr((ord(c)-65-3)%26+65) if c.isupper() else c for c in 'KHOOR FUBSWR'))"
+Correct Ans  : FLAG{HELLO CRYPTO}
+Flag         : FLAG{HELLO CRYPTO}
 
 Explanation:
-This is the avalanche effect: one changed character produced a completely different, unrelated-looking 64-character digest — exactly what makes hashes useful for tamper detection.
+Plaintext -> shift -> ciphertext, and ciphertext -> reverse shift -> plaintext.
 
 Why the Answer is Correct:
-SHA256 of the one-character-different file is fd877ad765dadbac6714b1ed5eded212c0ba5ff269cebb30f94abbb72747a849, sharing no visible pattern with the original hash.
-
---------------------------------------------------------------------------------
-Objective 3
---------------------------------------------------------------------------------
-Objective ID : m2_obj3
-Question     : TASK — integrity check: TechCorp's official site published this hash for software_update.bin:
-a8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260
-
-A partner mirror is serving a copy of the file. Download it, hash it, and compare against the published value. Submit MATCH if the mirror's file is authentic, or MISMATCH if it's been tampered with.
-Terminal Cmd : sha256sum update_from_mirror.bin  # compare its output to the published hash above
-Correct Ans  : MISMATCH
-Flag         : FLAG{MISMATCH}
-
-Explanation:
-The mirror was serving the tampered v4.2.1 build, not the authentic v4.2.0 release TechCorp published — the hash mismatch caught it before it reached customers.
-
-Why the Answer is Correct:
-The mirror's hash (fd877ad765dadbac6714b1ed5eded212c0ba5ff269cebb30f94abbb72747a849) does not equal the published hash (a8d85585abd45c7ecbfb01516195ce5ae05984d95d94a98723de3a49868eb260), so it's a MISMATCH.
-
---------------------------------------------------------------------------------
-Objective 4
---------------------------------------------------------------------------------
-Objective ID : m2_obj4
-Question     : Final flag: which single security property of SHA-256 made it computationally infeasible for the attacker to tamper with the file while keeping the SAME hash? Submit the two-word term (lowercase, e.g. 'x resistance').
-Correct Ans  : collision resistance
-Flag         : FLAG{collision_resistance}
-
-Explanation:
-Collision resistance means it's practically impossible to find two different inputs that hash to the same digest — the property that makes hash-based integrity checks trustworthy.
-
-Why the Answer is Correct:
-The property is collision resistance.
+Decrypting with shift 3 recovers "HELLO CRYPTO".
 
 ================================================================================
-MODULE 3
+LEVEL 03 (Phase 1: Cryptography Foundations)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m3_obj1
-Question     : SCENARIO: TechCorp's login database was found storing plain SHA-256(password) — no salt, no slowdown.
+Objective ID : l3_obj1
+Question     : Plaintext: ATTACKATDAWN
+Key: LEMON
 
-CONCEPT: SHA-256 is fast by design, which is exactly wrong for passwords — attackers can hash billions of guesses per second. Password hashing needs to be deliberately SLOW (PBKDF2, bcrypt, Argon2) and use a per-user SALT so identical passwords don't produce identical hashes.
-
-TASK: What do you add to each password before hashing so two users with the same password get different stored hashes? Submit the one-word term.
-Correct Ans  : salt
-Flag         : FLAG{salt}
+Encrypt using the Vigenere cipher (each letter shifts by the corresponding key letter, A=0). Enter the ciphertext in uppercase.
+Terminal Cmd : python3 -c "key='LEMON'; text='ATTACKATDAWN'; print(''.join(chr((ord(c)-65+ord(key[i%len(key)])-65)%26+65) for i,c in enumerate(text)))"
+Correct Ans  : LXFOPVEFRNHR
+Flag         : FLAG{LXFOPVEFRNHR}
 
 Explanation:
-A salt is random data unique per user, mixed in before hashing. It defeats precomputed rainbow-table attacks and hides identical passwords.
+Vigenere applies a different Caesar shift to each letter, taken from the repeating keyword.
 
 Why the Answer is Correct:
-The term is 'salt'.
+ATTACKATDAWN encrypted with keyword "LEMON" is LXFOPVEFRNHR.
 
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m3_obj2
-Question     : TASK: TechCorp is migrating to PBKDF2-HMAC-SHA256 with salt=4f1a9c3e7b2d5f8a and 100000 iterations. Compute the password hash for the candidate password 'Summer2026!'. Submit the resulting hash as lowercase hex.
-Terminal Cmd : python3 -c "import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'Summer2026!', bytes.fromhex('4f1a9c3e7b2d5f8a'), 100000).hex())"
-Correct Ans  : bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90
-Flag         : FLAG{bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90}
+Objective ID : l3_obj2
+Question     : Final: decrypt this Vigenere ciphertext using keyword 'LEMON':
+LXFOPVEFRNHR
+
+Enter the recovered plaintext.
+Terminal Cmd : python3 -c "key='LEMON'; text='LXFOPVEFRNHR'; print(''.join(chr((ord(c)-65-(ord(key[i%len(key)])-65))%26+65) for i,c in enumerate(text)))"
+Correct Ans  : FLAG{ATTACKATDAWN}
+Flag         : FLAG{ATTACKATDAWN}
 
 Explanation:
-PBKDF2 deliberately repeats the hash function thousands of times (here 100,000), making each guess far more expensive for an attacker than a single SHA-256 call.
+A repeating key means the same letter can map to different ciphertext letters depending on position.
 
 Why the Answer is Correct:
-PBKDF2-HMAC-SHA256 of "Summer2026!" with this salt/iteration count is bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90.
-
---------------------------------------------------------------------------------
-Objective 3
---------------------------------------------------------------------------------
-Objective ID : m3_obj3
-Question     : Final flag: an account's stored hash is:
-bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90
-(salt=4f1a9c3e7b2d5f8a, 100000 iterations, PBKDF2-HMAC-SHA256)
-
-TASK: One of these candidate passwords is the real one: Winter2025!, TechCorp123, Summer2026!, P@ssw0rd!. Compute each candidate's hash the same way and find the match. Submit the correct password.
-Terminal Cmd : python3 -c "import hashlib; candidates = ['Winter2025!', 'TechCorp123', 'Summer2026!', 'P@ssw0rd!']; target = 'bbd266be903683b128202b7e6906980df9ce61a5a4c0316b1ee6b50879fe6e90'; salt = bytes.fromhex('4f1a9c3e7b2d5f8a'); [print(c) for c in candidates if hashlib.pbkdf2_hmac('sha256', c.encode(), salt, 100000).hex() == target]"
-Correct Ans  : FLAG{Summer2026!}
-Flag         : FLAG{Summer2026!}
-
-Explanation:
-This is exactly how a real login checks a password: hash the candidate with the stored salt/iterations and compare — never decrypt a stored hash, because hashing isn't reversible.
-
-Why the Answer is Correct:
-Only "Summer2026!" produces the stored hash; the others produce completely different digests.
+Decrypting LXFOPVEFRNHR with keyword "LEMON" recovers "ATTACKATDAWN".
 
 ================================================================================
-MODULE 4
+LEVEL 04 (Phase 1: Cryptography Foundations)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m4_obj1
-Question     : SCENARIO: TechCorp's partner integration needs to send a secret value without ever having shared a symmetric key.
+Objective ID : l4_obj1
+Question     : Plaintext byte: 0x5A
+Key: 0x1F
 
-CONCEPT: Asymmetric (public-key) cryptography uses a MATCHED PAIR of keys: whatever the PUBLIC key encrypts, only the PRIVATE key can decrypt — and the private key never has to leave TechCorp's server.
+Calculate plaintext XOR key. Enter as hex (e.g. 45).
+Terminal Cmd : python3 -c "print(hex(0x5A ^ 0x1F)[2:])"
+Correct Ans  : 45
+Flag         : FLAG{45}
 
-TASK: Generate an RSA keypair: given primes p=61 and q=53, compute the modulus n = p x q. This n is shared as part of the PUBLIC key. Submit n.
+Explanation:
+XOR combines each bit: 0^0=0, 1^1=0, 0^1=1, 1^0=1.
+
+Why the Answer is Correct:
+0x5A XOR 0x1F = 0x45.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l4_obj2
+Question     : Now reverse it: ciphertext 0x45, key 0x1F. Recover the original byte (hex).
+Terminal Cmd : python3 -c "print(hex(0x45 ^ 0x1F)[2:])"
+Correct Ans  : 5a
+Flag         : FLAG{5a}
+
+Explanation:
+XOR is its own inverse — applying the same key a second time undoes the first XOR.
+
+Why the Answer is Correct:
+0x45 XOR 0x1F = 0x5A, the original byte.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l4_obj3
+Question     : Final: you know a plaintext/ciphertext pair — plaintext 0x7A, ciphertext 0x2C — but not the key. Recover the key using K = P XOR C. Enter as hex.
+Terminal Cmd : python3 -c "print(hex(0x7A ^ 0x2C)[2:])"
+Correct Ans  : FLAG{56}
+Flag         : FLAG{56}
+
+Explanation:
+If you know both the plaintext and ciphertext, you can always recover the key with K = P XOR C.
+
+Why the Answer is Correct:
+0x7A XOR 0x2C = 0x56.
+
+================================================================================
+LEVEL 05 (Phase 1: Cryptography Foundations)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l5_obj1
+Question     : Intercepted ciphertext (mechanism unknown):
+EPNSNZCA DPNFCTEJ EPLX NZYQTCXPO
+
+Investigate. This is a classical substitution cipher on the alphabet — identify what kind of cipher it is. Enter 'caesar' or 'vigenere'.
+Correct Ans  : caesar
+Flag         : FLAG{caesar}
+
+Explanation:
+Every letter shifts by the SAME fixed amount throughout the message — that's the signature of a Caesar cipher, not a polyalphabetic one.
+
+Why the Answer is Correct:
+The ciphertext is a single fixed-shift Caesar cipher.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l5_obj2
+Question     : Find the shift used (try each of the 25 possibilities). Enter the shift as a number.
+Correct Ans  : 11
+Flag         : FLAG{11}
+
+Explanation:
+Brute-forcing all 25 shifts is always feasible against a Caesar cipher.
+
+Why the Answer is Correct:
+Shift 11 decrypts the ciphertext to readable English.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l5_obj3
+Question     : Final: decrypt the full ciphertext and enter the recovered plaintext exactly.
+Terminal Cmd : python3 -c "print(''.join(chr((ord(c)-65-11)%26+65) if c.isupper() else c for c in 'EPNSNZCA DPNFCTEJ EPLX NZYQTCXPO'))"
+Correct Ans  : FLAG{TECHCORP SECURITY TEAM CONFIRMED}
+Flag         : FLAG{TECHCORP SECURITY TEAM CONFIRMED}
+
+Explanation:
+No shift or cipher name was given up front here — this level required reasoning, not just formula plug-in.
+
+Why the Answer is Correct:
+Decrypting with shift 11 recovers "TECHCORP SECURITY TEAM CONFIRMED".
+
+================================================================================
+LEVEL 06 (Phase 2: Symmetric Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l6_obj1
+Question     : AES-128-ECB key (hex): 000102030405060708090a0b0c0d0e0f
+Plaintext: "TECHCORPSECURE1X" (16 bytes)
+
+Encrypt it with openssl and enter the resulting ciphertext as hex.
+Terminal Cmd : printf '%s' 'TECHCORPSECURE1X' | openssl enc -aes-128-ecb -K 000102030405060708090a0b0c0d0e0f -nosalt | xxd -p -c256
+Correct Ans  : d1afab1224c8102d88613daa78d590a2954f64f2e4e86e9eee82d20216684899
+Flag         : FLAG{d1afab1224c8102d88613daa78d590a2954f64f2e4e86e9eee82d20216684899}
+
+Explanation:
+AES combines the plaintext block and key through many rounds of substitution/permutation — openssl performs this for you when you supply the raw key.
+
+Why the Answer is Correct:
+Running the given openssl command against this key/plaintext produces this ciphertext deterministically.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l6_obj2
+Question     : Final: same key (000102030405060708090a0b0c0d0e0f), new ciphertext (hex): 93304f88a9d1db4287d83ca955bfa364954f64f2e4e86e9eee82d20216684899
+
+Decrypt it with openssl and enter the recovered plaintext exactly.
+Terminal Cmd : echo '93304f88a9d1db4287d83ca955bfa364954f64f2e4e86e9eee82d20216684899' | xxd -r -p | openssl enc -d -aes-128-ecb -K 000102030405060708090a0b0c0d0e0f -nosalt
+Correct Ans  : FLAG{AUDITLOGSECURE2X}
+Flag         : FLAG{AUDITLOGSECURE2X}
+
+Explanation:
+AES decryption reverses the exact same round structure using the same key.
+
+Why the Answer is Correct:
+Decrypting the given ciphertext with this key recovers the plaintext.
+
+================================================================================
+LEVEL 07 (Phase 2: Symmetric Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l7_obj1
+Question     : Same 32-byte plaintext (two identical 16-byte blocks) was encrypted twice with the same key, once per mode:
+
+ECB ciphertext: b2fff73c73cae69350ffb919d10838b4b2fff73c73cae69350ffb919d10838b46d00049adfc582b051c393cb8678ad17
+CBC ciphertext:  67196a55fd101f8c4b896fc5faf2f64dfa5372a54a4a69eb6bcf0b49eb0fb0ec6b8ec4e1f14309e6f67ae47716c8d585
+
+One of these has two identical halves (first 16 bytes == second 16 bytes). Which MODE produced that ciphertext — ECB or CBC?
+Correct Ans  : ECB
+Flag         : FLAG{ECB}
+
+Explanation:
+ECB encrypts each block completely independently, so identical plaintext blocks always produce identical ciphertext blocks.
+
+Why the Answer is Correct:
+The ECB ciphertext's two 16-byte halves are identical; the CBC ciphertext's are not.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l7_obj2
+Question     : Final: why does this matter for real data (e.g. an encrypted image or a repeating record format)? Enter 'patterns' if ECB leaks patterns in the plaintext structure, or 'random' if it doesn't.
+Correct Ans  : FLAG{patterns}
+Flag         : FLAG{patterns}
+
+Explanation:
+Because identical plaintext blocks always encrypt identically under ECB, repeating structure in the plaintext (like flat color regions in an image) remains visible in the ciphertext. CBC's chaining (XOR with the previous ciphertext block) destroys this pattern.
+
+Why the Answer is Correct:
+ECB leaks plaintext structure through repeated ciphertext blocks.
+
+================================================================================
+LEVEL 08 (Phase 2: Symmetric Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l8_obj1
+Question     : Message:
+"Transfer Rs.5000 to account 1042"
+
+Calculate its SHA-256 digest.
+Terminal Cmd : echo -n "Transfer Rs.5000 to account 1042" | sha256sum
+Correct Ans  : 3b329668c9f2569c4200ba243a0923e4f4f8fb13199b208f184678f0772848fb
+Flag         : FLAG{3b329668c9f2569c4200ba243a0923e4f4f8fb13199b208f184678f0772848fb}
+
+Explanation:
+SHA-256 always produces a fixed 64-character digest, regardless of message length.
+
+Why the Answer is Correct:
+SHA256 of the message is 3b329668c9f2569c4200ba243a0923e4f4f8fb13199b208f184678f0772848fb.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l8_obj2
+Question     : Modified message:
+"Transfer Rs.9000 to account 1042"
+
+(Only the amount changed.) Calculate ITS SHA-256 digest.
+Terminal Cmd : echo -n "Transfer Rs.9000 to account 1042" | sha256sum
+Correct Ans  : 94a1e101324f5f6d11dd2d954888e57e1ceafc6d513646fb3725cad872ed89a1
+Flag         : FLAG{94a1e101324f5f6d11dd2d954888e57e1ceafc6d513646fb3725cad872ed89a1}
+
+Explanation:
+One digit changed the amount, and the entire digest changed completely — the avalanche effect.
+
+Why the Answer is Correct:
+SHA256 of the modified message is 94a1e101324f5f6d11dd2d954888e57e1ceafc6d513646fb3725cad872ed89a1.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l8_obj3
+Question     : Final: comparing the two digests you just calculated, has the message been modified? Enter YES or NO.
+Correct Ans  : FLAG{YES}
+Flag         : FLAG{YES}
+
+Explanation:
+The two digests share no resemblance — that mismatch is exactly how integrity checks catch tampering.
+
+Why the Answer is Correct:
+The digests differ completely, so the message was modified.
+
+================================================================================
+LEVEL 09 (Phase 2: Symmetric Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l9_obj1
+Question     : A login system stores this PBKDF2-HMAC-SHA256 hash for a user:
+6c31d00d67b45e37cbee7e016ed4d8de8ee167df117fe603f38e055f9ea82816
+
+Salt: 5b1e8f0a
+Iterations: 100000
+
+Candidate passwords: Summer2024!, TechCorp#99, Winter2024!
+
+Compute PBKDF2 for each candidate and find the one that matches the stored hash. Enter the matching password.
+Terminal Cmd : python3 -c "import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'TechCorp#99', b'5b1e8f0a', 100000).hex())"
+Correct Ans  : TechCorp#99
+Flag         : FLAG{TechCorp#99}
+
+Explanation:
+PBKDF2 deliberately makes each guess expensive (100,000 rounds here) — that's what makes offline password cracking slow, unlike a single fast hash.
+
+Why the Answer is Correct:
+PBKDF2-HMAC-SHA256("TechCorp#99", salt="5b1e8f0a", 100000 rounds) matches the stored hash.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l9_obj2
+Question     : Final: why is a slow KDF like PBKDF2 used for passwords instead of a single fast SHA-256 call? Enter 'slow' if the deliberate slowness is the defense, or 'fast' if speed is the defense.
+Correct Ans  : FLAG{slow}
+Flag         : FLAG{slow}
+
+Explanation:
+A fast hash lets an attacker with a stolen hash database try billions of guesses per second. A slow KDF with a high iteration count makes each guess costly, directly limiting how many passwords an attacker can try per second.
+
+Why the Answer is Correct:
+PBKDF2's deliberate slowness (iteration count) is the defense against offline cracking.
+
+================================================================================
+LEVEL 10 (Phase 2: Symmetric Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l10_obj1
+Question     : Message: "Transfer 1000 INR"
+Secret: "crypto-training-key"
+
+Generate the HMAC-SHA256 of the message using this secret.
+Terminal Cmd : python3 -c "import hmac,hashlib; print(hmac.new(b'crypto-training-key', b'Transfer 1000 INR', hashlib.sha256).hexdigest())"
+Correct Ans  : c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2
+Flag         : FLAG{c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2}
+
+Explanation:
+HMAC combines a secret key with the message before hashing — unlike a plain hash, you can't compute it without the key.
+
+Why the Answer is Correct:
+HMAC-SHA256("Transfer 1000 INR", key="crypto-training-key") = c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l10_obj2
+Question     : Final: a modified message arrives: "Transfer 9000 INR" claiming the SAME HMAC (c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2). Compute the real HMAC of this modified message and compare — does the original HMAC still verify? Enter VALID or INVALID.
+Terminal Cmd : python3 -c "import hmac,hashlib; print(hmac.new(b'crypto-training-key', b'Transfer 9000 INR', hashlib.sha256).hexdigest())"
+Correct Ans  : FLAG{INVALID}
+Flag         : FLAG{INVALID}
+
+Explanation:
+The tampered message's real HMAC (1e09573a03cb8a19e865ed9873daf2b50334b184d5fd0d02bb0cc32775d1b484) doesn't match the original (c7227054a756159571052c6e9bf5341684657affa03ac0d14a284396383768a2) — only someone with the secret key could produce a valid HMAC for the new amount.
+
+Why the Answer is Correct:
+The HMACs differ, so the modified message's claimed HMAC is INVALID.
+
+================================================================================
+LEVEL 11 (Phase 3: Public Key Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l11_obj1
+Question     : The two primes for this RSA keypair aren't given directly — they were recovered from a decommissioned server's leftover files. Investigate /home/student/evidence in the terminal to find them, then calculate n = p x q. Enter n.
 Terminal Cmd : python3 -c "print(61 * 53)"
 Correct Ans  : 3233
 Flag         : FLAG{3233}
 
 Explanation:
-n is published freely as (n, e) — the public key. The primes p and q that produced it must stay secret forever.
+n is published as part of the RSA public key. Real systems often leak old cryptographic parameters through backups and logs exactly like this.
 
 Why the Answer is Correct:
 61 x 53 = 3233.
@@ -247,14 +459,19 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m4_obj2
-Question     : TASK: Compute phi(n) = (p-1)(q-1) for p=61, q=53. This value is needed to derive the PRIVATE key and must never be published. Submit it.
+Objective ID : l11_obj2
+Question     : Using the same two primes you found:
+
+Formula:
+phi(n) = (p-1)(q-1)
+
+Enter phi(n).
 Terminal Cmd : python3 -c "print((61-1) * (53-1))"
 Correct Ans  : 3120
 Flag         : FLAG{3120}
 
 Explanation:
-Only someone who knows the original primes p and q can compute phi(n) — that's the one-way trapdoor RSA's security rests on.
+phi(n) must stay secret — only whoever knows p and q can compute it.
 
 Why the Answer is Correct:
 (61-1) x (53-1) = 3120.
@@ -262,14 +479,21 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 3
 --------------------------------------------------------------------------------
-Objective ID : m4_obj3
-Question     : TASK: TechCorp's public exponent is e=17. Using phi(n)=3120, compute the PRIVATE exponent d — the modular inverse of e mod phi(n), satisfying (e x d) mod phi(n) = 1. This d, kept secret on TechCorp's server, is the private key. Submit d.
+Objective ID : l11_obj3
+Question     : Given:
+e = 17
+phi(n) = 3120
+
+Find d such that:
+e x d = 1 (mod phi(n))
+
+Enter d.
 Terminal Cmd : python3 -c "print(pow(17, -1, 3120))"
 Correct Ans  : 2753
 Flag         : FLAG{2753}
 
 Explanation:
-(n, e) is the public key anyone can encrypt with. (n, d) is the private key — only TechCorp's server holds it, and only it can decrypt.
+d is the private exponent — it must never be shared.
 
 Why the Answer is Correct:
 17 x 2753 mod 3120 = 1, so d = 2753.
@@ -277,37 +501,171 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 4
 --------------------------------------------------------------------------------
-Objective ID : m4_obj4
-Question     : Final flag: put TechCorp's PUBLIC key to work. Using n=3233 and e=17, encrypt the partner's secret value m=88 by computing c = m^e mod n. This is exactly what the partner does with TechCorp's public key — they never need the private key to send a message only TechCorp can read. Submit c as FLAG{{c}}.
-Terminal Cmd : python3 -c "print(pow(88, 17, 3233))"
-Correct Ans  : FLAG{1345}
-Flag         : FLAG{1345}
+Objective ID : l11_obj4
+Question     : Your RSA keypair is now:
+Public key (n, e) = (3233, 17)
+Private key (n, d) = (3233, 2753)
+
+Which one must never be shared — n, e, or d? Enter one letter/value.
+Correct Ans  : FLAG{d}
+Flag         : FLAG{d}
 
 Explanation:
-Anyone with the public key (n, e) can encrypt. Only the holder of the private key d can reverse it — that asymmetry is the entire point.
+n and e are published freely as the public key. d is the private key and must stay secret.
 
 Why the Answer is Correct:
-88^17 mod 3233 = 1345.
+d is the private exponent.
 
 ================================================================================
-MODULE 5
+LEVEL 12 (Phase 3: Public Key Cryptography)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m5_obj1
-Question     : SCENARIO: TechCorp's release team published update.bin along with a digital signature and their public key. Your job is to confirm the update really came from TechCorp and wasn't altered.
+Objective ID : l12_obj1
+Question     : Public key:
+n = 3233
+e = 17
 
-CONCEPT: A digital signature flips RSA around: you sign with your PRIVATE key so ANYONE can verify with your PUBLIC key. It proves both authenticity (who signed it) and integrity (it hasn't changed since).
+Plaintext:
+m = 65
 
-TASK: Using TechCorp's private key (d=2753, n=3233 from Module 4), sign the release's hash-digest stand-in h=15 by computing s = h^d mod n. Submit s — this is the signature TechCorp attaches to update.bin.
+Formula:
+c = m^e mod n
+
+Enter the ciphertext c.
+Terminal Cmd : python3 -c "print(pow(65, 17, 3233))"
+Correct Ans  : FLAG{2790}
+Flag         : FLAG{2790}
+
+Explanation:
+Encryption uses the PUBLIC key — anyone can do this step.
+
+Why the Answer is Correct:
+65^17 mod 3233 = 2790.
+
+================================================================================
+LEVEL 13 (Phase 3: Public Key Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l13_obj1
+Question     : Ciphertext:
+c = 2790
+
+Private key:
+n = 3233
+d = 2753
+
+Formula:
+m = c^d mod n
+
+Enter the recovered plaintext m.
+Terminal Cmd : python3 -c "print(pow(2790, 2753, 3233))"
+Correct Ans  : FLAG{65}
+Flag         : FLAG{65}
+
+Explanation:
+Decryption uses the PRIVATE key — only its holder can reverse the ciphertext.
+
+Why the Answer is Correct:
+2790^2753 mod 3233 = 65.
+
+================================================================================
+LEVEL 14 (Phase 3: Public Key Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l14_obj1
+Question     : You are given only:
+n = 3233
+e = 17
+ciphertext = 538
+
+No p or q this time — but a decommissioned server's evidence files are mounted at /home/student/evidence. Search them (ls, find, cat, grep, strings) to recover the two prime factors. Enter them as p,q in ascending order, e.g. 5,11.
+Correct Ans  : 53,61
+Flag         : FLAG{53_61}
+
+Explanation:
+This mirrors how real incidents unfold: cryptographic parameters that should never be exposed often leak through old backups, rotated logs, and config archives left on decommissioned hosts.
+
+Why the Answer is Correct:
+61 x 53 = 3233.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l14_obj2
+Question     : Using p=61, q=53: calculate phi(n) = (p-1)(q-1). Enter it.
+Terminal Cmd : python3 -c "print((61-1)*(53-1))"
+Correct Ans  : 3120
+Flag         : FLAG{3120}
+
+Explanation:
+Same formula as before — now derived from evidence instead of being handed the primes.
+
+Why the Answer is Correct:
+(61-1) x (53-1) = 3120.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l14_obj3
+Question     : Using e=17, phi(n)=3120: find d such that e x d = 1 (mod phi(n)). Enter d.
+Terminal Cmd : python3 -c "print(pow(17, -1, 3120))"
+Correct Ans  : 2753
+Flag         : FLAG{2753}
+
+Explanation:
+You've now reconstructed the entire private key from nothing but n, e, and an investigation.
+
+Why the Answer is Correct:
+17 x 2753 mod 3120 = 1, so d = 2753.
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : l14_obj4
+Question     : Final: decrypt the ciphertext from the start of this level.
+c = 538, n = 3233, d = 2753
+
+m = c^d mod n
+
+Enter m.
+Terminal Cmd : python3 -c "print(pow(538, 2753, 3233))"
+Correct Ans  : FLAG{50}
+Flag         : FLAG{50}
+
+Explanation:
+You went from a bare ciphertext and public key to full plaintext recovery — the entire RSA break, worked from evidence you found yourself.
+
+Why the Answer is Correct:
+538^2753 mod 3233 = 50.
+
+================================================================================
+LEVEL 15 (Phase 3: Public Key Cryptography)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l15_obj1
+Question     : Using the keypair from Level 11 (n=3233, d=2753), sign a message's hash-digest stand-in h=15:
+
+signature = h^d mod n
+
+Enter the signature.
 Terminal Cmd : python3 -c "print(pow(15, 2753, 3233))"
 Correct Ans  : 452
 Flag         : FLAG{452}
 
 Explanation:
-Signing uses the same modular exponentiation as decryption — but with the PRIVATE key, the opposite of encryption's PUBLIC key.
+Signing uses the PRIVATE key — the opposite of encryption.
 
 Why the Answer is Correct:
 15^2753 mod 3233 = 452.
@@ -315,67 +673,63 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m5_obj2
-Question     : TASK: Verify the signature the way any customer could, using only TechCorp's PUBLIC key: compute h' = s^e mod n with e=17, n=3233, and signature s=452. If h' equals update.bin's real hash-digest (15), the signature is valid. Submit h'.
+Objective ID : l15_obj2
+Question     : Verify it with the PUBLIC key (n=3233, e=17):
+
+check = signature^e mod n
+signature = 452
+
+Enter 'check'. It should match the original digest h=15.
 Terminal Cmd : python3 -c "print(pow(452, 17, 3233))"
 Correct Ans  : 15
 Flag         : FLAG{15}
 
 Explanation:
-Verification only needs the PUBLIC key — anyone can check a signature without ever touching the private key, which is exactly why signatures are trustworthy.
+Verification only needs the PUBLIC key — no secret required to check a signature.
 
 Why the Answer is Correct:
-452^17 mod 3233 = 15, matching update.bin's real digest.
+452^17 mod 3233 = 15, matching the original digest.
 
 --------------------------------------------------------------------------------
 Objective 3
 --------------------------------------------------------------------------------
-Objective ID : m5_obj3
-Question     : TASK: An attacker now modifies update.bin after it was signed. The modified file's hash-digest is now 22 instead of 15 — but the attacker kept the ORIGINAL signature (452), since they don't have TechCorp's private key to forge a new one.
+Objective ID : l15_obj3
+Question     : The file is now modified. Its digest is 22 instead of 15, but the attacker kept the SAME signature (452).
 
-Verify the SAME signature against the NEW (tampered) hash-digest. Does it still check out? Submit VALID or INVALID.
-Correct Ans  : INVALID
+Verify the same signature again. Does it still check out against the NEW digest? Enter VALID or INVALID.
+Correct Ans  : FLAG{INVALID}
 Flag         : FLAG{INVALID}
 
 Explanation:
-Verifying gives s^e mod n = 15 again (the signature itself never changes) — but that no longer equals the tampered file's real digest (22). The mismatch is exactly what exposes the tampering: the attacker can't produce a new signature without the private key.
+Verifying gives 15 again (the signature itself never changes) — but that no longer matches the tampered file's digest of 22.
 
 Why the Answer is Correct:
-The signature still verifies to 15, which does not match the tampered file's digest 22, so the signature is INVALID for this file.
-
---------------------------------------------------------------------------------
-Objective 4
---------------------------------------------------------------------------------
-Objective ID : m5_obj4
-Question     : Final flag: which single property did this whole exercise demonstrate — the one guaranteeing a signed file can't be silently modified without breaking verification? Submit one word: 'integrity', 'confidentiality', or 'availability'.
-Correct Ans  : integrity
-Flag         : FLAG{integrity}
-
-Explanation:
-Digital signatures primarily guarantee integrity (and authenticity) — not confidentiality. The file content itself isn't secret here, but any tampering is detectable.
-
-Why the Answer is Correct:
-The property demonstrated is integrity.
+15 != 22, so the signature is INVALID for the modified file.
 
 ================================================================================
-MODULE 6
+LEVEL 16 (Phase 4: Key Exchange & Modern Crypto)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m6_obj1
-Question     : SCENARIO: TechCorp is integrating with a brand-new partner system. Neither side has ever shared a secret key, and there's no secure channel yet to send one over.
+Objective ID : l16_obj1
+Question     : Public values (agreed openly):
+p = 23
+g = 5
 
-CONCEPT: Diffie-Hellman lets two sides agree on a shared secret over a channel an attacker can freely watch, without ever transmitting the secret itself.
+Alice's private value: a = 6
 
-TASK: Both sides publicly agree on prime p=23 and generator g=5. TechCorp picks private value a=6 and computes its public value A = g^a mod p. Submit A (safe to publish — this is the 'public value' side of the exchange).
+Formula:
+A = g^a mod p
+
+Enter Alice's public value A.
 Terminal Cmd : python3 -c "print(pow(5, 6, 23))"
 Correct Ans  : 8
 Flag         : FLAG{8}
 
 Explanation:
-A is safe to send over an open channel — recovering the private exponent a from A is the (computationally hard) discrete logarithm problem.
+A is safe to send over an open channel.
 
 Why the Answer is Correct:
 5^6 mod 23 = 8.
@@ -383,14 +737,19 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m6_obj2
-Question     : TASK: The partner system picks its own private value b=15 and computes its public value B = g^b mod p. Submit B.
+Objective ID : l16_obj2
+Question     : Bob's private value: b = 15
+
+Formula:
+B = g^b mod p
+
+Enter Bob's public value B.
 Terminal Cmd : python3 -c "print(pow(5, 15, 23))"
 Correct Ans  : 19
 Flag         : FLAG{19}
 
 Explanation:
-Both public values (A and B) get exchanged openly — an eavesdropper sees both, but that alone isn't enough to derive the shared secret.
+B is also safe to send openly.
 
 Why the Answer is Correct:
 5^15 mod 23 = 19.
@@ -398,14 +757,18 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 3
 --------------------------------------------------------------------------------
-Objective ID : m6_obj3
-Question     : TASK: TechCorp now combines the PARTNER's public value (B=19) with its OWN private value (a=6): shared = B^a mod p. Submit the shared secret TechCorp derives.
+Objective ID : l16_obj3
+Question     : Alice computes the shared secret from Bob's public value:
+S = B^a mod p
+B=19, a=6, p=23
+
+Enter S.
 Terminal Cmd : python3 -c "print(pow(19, 6, 23))"
 Correct Ans  : 2
 Flag         : FLAG{2}
 
 Explanation:
-TechCorp never needed the partner's private value b — only their public value B, combined with TechCorp's own secret a.
+Alice never needed Bob's private value b — only his public value B.
 
 Why the Answer is Correct:
 19^6 mod 23 = 2.
@@ -413,91 +776,486 @@ Why the Answer is Correct:
 --------------------------------------------------------------------------------
 Objective 4
 --------------------------------------------------------------------------------
-Objective ID : m6_obj4
-Question     : Final flag: now compute it from the PARTNER's side: combine TechCorp's public value (A=8) with the partner's own private value (b=15): shared = A^b mod p. Submit this value — it should exactly match what TechCorp derived, proving both sides landed on the same shared secret without ever transmitting it.
+Objective ID : l16_obj4
+Question     : Final: Bob computes the shared secret from Alice's public value:
+S = A^b mod p
+A=8, b=15, p=23
+
+Enter S — it should match Alice's result.
 Terminal Cmd : python3 -c "print(pow(8, 15, 23))"
 Correct Ans  : FLAG{2}
 Flag         : FLAG{2}
 
 Explanation:
-Both sides independently arrive at the identical shared secret using only their own private value plus the other side's public value — this is the mathematical heart of Diffie-Hellman.
+Both sides land on the identical shared secret without ever transmitting it — that's Diffie-Hellman.
 
 Why the Answer is Correct:
-8^15 mod 23 = 2, matching TechCorp's derivation of 2.
+8^15 mod 23 = 2, matching Alice's 2.
 
 ================================================================================
-MODULE 7
+LEVEL 17 (Phase 4: Key Exchange & Modern Crypto)
 ================================================================================
 
 --------------------------------------------------------------------------------
 Objective 1
 --------------------------------------------------------------------------------
-Objective ID : m7_obj1
-Question     : FINAL INCIDENT: TechCorp received an encrypted customer backup (backup.enc) from a partner server, along with a published hash and a claim it was properly signed. Your job as the security engineer on call: verify it, then recover the data.
+Objective ID : l17_obj1
+Question     : TechCorp's network log captured a Diffie-Hellman exchange between Alice and Bob (p=23, g=5):
 
-TASK — Step 1, verify integrity: the partner published this hash out-of-band for the backup's plaintext:
-1692b4ee2bd6bf14cc1f52759ed7efd6cdfe274677004f4f881bcf8b0889ff05
+Alice sent public value: 8
+Bob received public value: 4
+Bob sent public value: 19
+Alice received public value: 4
 
-The backup's actual plaintext (once decrypted) is provided below for this hash check:
-"INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully"
-
-Hash it and confirm it matches. Submit MATCH or MISMATCH.
-Terminal Cmd : echo -n "INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully" | sha256sum
-Correct Ans  : MATCH
-Flag         : FLAG{MATCH}
+Alice and Bob each received the SAME public value instead of each other's. What is that shared attacker value?
+Correct Ans  : 4
+Flag         : FLAG{4}
 
 Explanation:
-Before trusting decrypted data, always confirm its hash against a value published through a separate, trusted channel — exactly what real incident response does before acting on recovered data.
+Eve substituted her own public value in both directions of the exchange, so both Alice and Bob unknowingly established a Diffie-Hellman session with Eve instead of with each other.
 
 Why the Answer is Correct:
-SHA256 of the plaintext is 1692b4ee2bd6bf14cc1f52759ed7efd6cdfe274677004f4f881bcf8b0889ff05, matching the published hash.
+Both Alice and Bob's log entries show 4 as the value received, instead of each other's real public value.
 
 --------------------------------------------------------------------------------
 Objective 2
 --------------------------------------------------------------------------------
-Objective ID : m7_obj2
-Question     : TASK — Step 2, verify the sender: the partner claims this backup's hash-digest (15) was signed with their private key, producing signature 452 (reusing the keypair from Modules 4-5: n=3233, e=17). Verify it the same way as Module 5: compute h' = s^e mod n and confirm it matches. Submit VALID or INVALID.
-Terminal Cmd : python3 -c "print(pow(452, 17, 3233))"  # compare to 15
-Correct Ans  : VALID
-Flag         : FLAG{VALID}
+Objective ID : l17_obj2
+Question     : Final: standard Diffie-Hellman authenticates nothing about WHO sent a public value — only that it's a valid number mod p. Does unauthenticated DH prevent this man-in-the-middle attack? Enter YES or NO.
+Correct Ans  : FLAG{NO}
+Flag         : FLAG{NO}
 
 Explanation:
-Only after confirming BOTH integrity (hash matches) and authenticity (signature verifies) should a security engineer trust incoming data enough to act on it.
+Since neither side can verify the other's public value actually came from them, an active attacker on the network path can substitute their own values and establish two separate shared secrets — one with each victim — without either victim noticing. This is why real protocols (e.g. TLS) combine DH with a signature or certificate to authenticate the exchange.
 
 Why the Answer is Correct:
-452^17 mod 3233 = 15, matching the claimed digest 15 — the signature is VALID.
+Plain DH has no authentication, so it cannot prevent MITM on its own.
+
+================================================================================
+LEVEL 18 (Phase 4: Key Exchange & Modern Crypto)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l18_obj1
+Question     : Curve: y^2 = x^3 + 2x + 2 (mod 17)
+
+Is the point (5, 2) on this curve? Check both sides of the equation. Enter YES or NO.
+Terminal Cmd : python3 -c "x,y=(5, 2); print((y*y - (x**3+2*x+2)) % 17 == 0)"
+Correct Ans  : NO
+Flag         : FLAG{NO}
+
+Explanation:
+A point is only on the curve if y^2 mod p exactly equals x^3+ax+b mod p.
+
+Why the Answer is Correct:
+(5,2) fails the curve equation mod 17.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l18_obj2
+Question     : Base point G = (5, 1) IS on the curve. Compute point doubling: 2G = G + G, using the elliptic-curve group law. Enter the result as 'x,y'.
+Correct Ans  : 6,3
+Flag         : FLAG{6_3}
+
+Explanation:
+Doubling a point uses the tangent line at that point: slope = (3x^2+a) / 2y (mod p), then x3 = slope^2 - 2x, y3 = slope(x - x3) - y.
+
+Why the Answer is Correct:
+2*(5, 1) = (6, 3) on this curve.
 
 --------------------------------------------------------------------------------
 Objective 3
 --------------------------------------------------------------------------------
-Objective ID : m7_obj3
-Question     : TASK — Step 3, decrypt the backup: now that it's verified, decrypt backup.enc using AES-256-GCM with key=1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a, nonce=f0e1d2c3b4a5968778695a4b, ciphertext=f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c, tag=d61e4da10998b899f2c9c6945ff15415. Submit the recovered plaintext exactly.
-Terminal Cmd : python3 -c "
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-key = bytes.fromhex('1c9e4a7f2b8d5e3c6a9f4b7d2e8c5a1f9b4e7d2a8c5f1b9e4d7a2c8f5b1e9d4a')
-nonce = bytes.fromhex('f0e1d2c3b4a5968778695a4b')
-ct = bytes.fromhex('f74deaf7d1605abe57847ccc1f9a53ce2d3f9c3c2eaea72207569592a5a71d6867cec1010c6f46c9abb88ee4b861a0496e268d5b06cc84511d30b5e1d2623db593564c45aca6b64ef1402c') + bytes.fromhex('d61e4da10998b899f2c9c6945ff15415')
-print(AESGCM(key).decrypt(nonce, ct, None).decode())"
-Correct Ans  : INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully
-Flag         : FLAG{INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully}
+Objective ID : l18_obj3
+Question     : Final: compute scalar multiplication 6G (i.e. G added to itself 6 times) using double-and-add. Enter the result as 'x,y'.
+Correct Ans  : FLAG{16_13}
+Flag         : FLAG{16_13}
 
 Explanation:
-This is the full pipeline in one incident: verify integrity, verify authenticity, THEN decrypt — never the other way around, or you might decrypt (and act on) data you can't actually trust.
+Scalar multiplication (repeated point addition) is the elliptic-curve equivalent of modular exponentiation — fast to compute, infeasible to reverse (the elliptic-curve discrete log problem). This is what makes ECC-based key exchange and signatures secure.
 
 Why the Answer is Correct:
-Decrypting with the correct key/nonce/tag recovers exactly: "INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully".
+6*(5, 1) = (16, 13) via repeated point addition.
+
+================================================================================
+LEVEL 19 (Phase 4: Key Exchange & Modern Crypto)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l19_obj1
+Question     : Same curve, base point G = (5, 1).
+
+Alice's private scalar: a = 4
+
+Compute Alice's public point: A = a*G. Enter as 'x,y'.
+Correct Ans  : 3,1
+Flag         : FLAG{3_1}
+
+Explanation:
+Just like standard DH, ECDH publishes a value derived from a private scalar and the shared base point.
+
+Why the Answer is Correct:
+4*(5, 1) = (3, 1).
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l19_obj2
+Question     : Bob's private scalar: b = 3
+
+Compute Bob's public point: B = b*G. Enter as 'x,y'.
+Correct Ans  : 10,6
+Flag         : FLAG{10_6}
+
+Explanation:
+Bob's public point is computed the same way, with his own private scalar.
+
+Why the Answer is Correct:
+3*(5, 1) = (10, 6).
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l19_obj3
+Question     : Alice computes the shared point: S = a*B, using B=(10, 6) and a=4. Enter as 'x,y'.
+Correct Ans  : 0,11
+Flag         : FLAG{0_11}
+
+Explanation:
+Alice combines Bob's public point with her own private scalar.
+
+Why the Answer is Correct:
+4*(10, 6) = (0, 11).
 
 --------------------------------------------------------------------------------
 Objective 4
 --------------------------------------------------------------------------------
-Objective ID : m7_obj4
-Question     : FINAL FLAG: you've now completed the full incident — integrity check, signature verification, and decryption. Submit the case status exactly as it should be logged, wrapped as FLAG{...} (see the recovered plaintext above for the exact case ID and status).
-Correct Ans  : FLAG{INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully}
-Flag         : FLAG{INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully}
+Objective ID : l19_obj4
+Question     : Final: Bob computes the shared point: S = b*A, using A=(3, 1) and b=3. Enter as 'x,y' — it should match Alice's result.
+Correct Ans  : FLAG{0_11}
+Flag         : FLAG{0_11}
 
 Explanation:
-Symmetric encryption protected the data in transit, hashing proved it wasn't corrupted, RSA signatures proved who sent it, and Diffie-Hellman showed how two sides agree on a key with no prior shared secret. That's the full toolkit a real security engineer reaches for — chosen for the problem at hand, not memorized commands.
+Both sides land on the identical shared point without ever transmitting their private scalars — the elliptic-curve analog of Diffie-Hellman, using much smaller keys for equivalent security at real-world curve sizes.
 
 Why the Answer is Correct:
-The recovered plaintext IS the case status: "INCIDENT-CLOSED: partner backup TC-9471 verified and recovered successfully".
+3*(3, 1) = (0, 11), matching Alice's (0, 11).
+
+================================================================================
+LEVEL 20 (Phase 4: Key Exchange & Modern Crypto)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l20_obj1
+Question     : TechCorp published update.bin (contents: "techcorp-agent-v4.2.1-release-build") with a digital signature (1199), using the Level 11 keypair (n=3233, e=17, d=2753).
+
+The signature was produced over a digest stand-in derived from the file's SHA-256 hash.
+
+Verify it: check = signature^e mod n, signature = 1199. Enter 'check'.
+Terminal Cmd : python3 -c "print(pow(1199, 17, 3233))"
+Correct Ans  : 581
+Flag         : FLAG{581}
+
+Explanation:
+Verifying a software update's signature before installing it is exactly how systems like package managers and OS updaters detect tampering.
+
+Why the Answer is Correct:
+1199^17 mod 3233 = 581, matching the digest stand-in for the genuine file.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l20_obj2
+Question     : A second copy of update.bin arrives, contents now:
+"techcorp-agent-v4.2.1-release-build-BACKDOORED"
+
+claiming the SAME signature (1199). Its digest stand-in is now 250 instead of 581.
+
+Final: does the original signature still authenticate this file? Enter VALID or INVALID.
+Correct Ans  : FLAG{INVALID}
+Flag         : FLAG{INVALID}
+
+Explanation:
+The signature verifies to the ORIGINAL digest, which no longer matches the tampered file's new hash — this is exactly how a compromised or backdoored update gets caught before installation.
+
+Why the Answer is Correct:
+581 != 250, so the signature is INVALID for the modified update.
+
+================================================================================
+LEVEL 21 (Phase 5: Cryptographic Investigation)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l21_obj1
+Question     : A certificate for an internal TechCorp service is available for inspection at /home/student/evidence/certificate.pem. Investigate it and enter its Subject Common Name (CN) — the hostname it claims to represent.
+Terminal Cmd : openssl x509 -in /home/student/evidence/certificate.pem -noout -subject -issuer -dates
+Correct Ans  : internal-api.techcorp.local
+Flag         : FLAG{internal-api.techcorp.local}
+
+Explanation:
+The Subject CN identifies who the certificate claims to represent.
+
+Why the Answer is Correct:
+The certificate's subject CN is internal-api.techcorp.local.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l21_obj2
+Question     : Now check who signed (vouched for) this certificate — its Issuer CN. Enter it.
+Terminal Cmd : openssl x509 -in /home/student/evidence/certificate.pem -noout -issuer
+Correct Ans  : internal-api.techcorp.local
+Flag         : FLAG{internal-api.techcorp.local}
+
+Explanation:
+The Issuer identifies who signed (vouched for) the certificate.
+
+Why the Answer is Correct:
+The certificate's issuer CN is internal-api.techcorp.local, identical to its subject.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l21_obj3
+Question     : Final: the Subject CN and Issuer CN are identical — this certificate signed itself, rather than being signed by a trusted Certificate Authority. Is this certificate trustworthy for a production service that other companies connect to? Enter YES or NO.
+Correct Ans  : FLAG{NO}
+Flag         : FLAG{NO}
+
+Explanation:
+A self-signed certificate provides encryption, but no independent identity verification — anyone can generate one claiming to be any hostname. Production services need a certificate chain rooted in a CA that clients already trust.
+
+Why the Answer is Correct:
+Self-signed certificates are not trustworthy for identity verification, regardless of their validity dates.
+
+================================================================================
+LEVEL 22 (Phase 5: Cryptographic Investigation)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l22_obj1
+Question     : Password: "R3set-2026-kdf"
+Salt: 9c3fa61d
+Algorithm: PBKDF2-HMAC-SHA256
+Iterations: 50000
+Key length: 16 bytes
+
+Derive the key and enter it as hex.
+Terminal Cmd : python3 -c "import hashlib; print(hashlib.pbkdf2_hmac('sha256', b'R3set-2026-kdf', b'9c3fa61d', 50000, dklen=16).hex())"
+Correct Ans  : 625dd5dd42513c99ae54e33cc2d4ea6c
+Flag         : FLAG{625dd5dd42513c99ae54e33cc2d4ea6c}
+
+Explanation:
+A KDF turns a low-entropy password into a fixed-length key suitable for use in a symmetric cipher.
+
+Why the Answer is Correct:
+PBKDF2-HMAC-SHA256 with these parameters produces 625dd5dd42513c99ae54e33cc2d4ea6c.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l22_obj2
+Question     : Final: use the derived key (as raw bytes) to XOR-encrypt the message "PIVOT-OK" (repeating-key XOR against the key bytes). Enter the result as hex.
+Terminal Cmd : python3 -c "import hashlib; k=hashlib.pbkdf2_hmac('sha256', b'R3set-2026-kdf', b'9c3fa61d', 50000, dklen=16); m=b'PIVOT-OK'; print(bytes(b^k[i%len(k)] for i,b in enumerate(m)).hex())"
+Correct Ans  : FLAG{32148392167c73d2}
+Flag         : FLAG{32148392167c73d2}
+
+Explanation:
+This is exactly how a password-based encryption scheme turns a human-memorable password into an actual encryption key before it ever touches the cipher.
+
+Why the Answer is Correct:
+XOR-ing "PIVOT-OK" against the derived key bytes gives 32148392167c73d2.
+
+================================================================================
+LEVEL 23 (Phase 5: Cryptographic Investigation)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l23_obj1
+Question     : Two random-number generators produced these 5-value sequences:
+
+Generator A: [27, 264, 753, 806, 735]
+Generator B: [812, 47, 963, 205, 588]
+
+Generator A uses this known formula: x_next = (1103515245 * x_prev + 12345) mod 2^31, output = x_next mod 1000, seeded with x_0=42.
+
+Using that formula, predict the NEXT value Generator A will produce.
+Terminal Cmd : python3 -c "x=42
+for _ in range(6): x=(1103515245*x+12345)%(2**31)
+print(x%1000)"
+Correct Ans  : 532
+Flag         : FLAG{532}
+
+Explanation:
+A linear congruential generator (LCG) is fully deterministic — knowing the formula and one output lets you predict every future output.
+
+Why the Answer is Correct:
+Applying the LCG formula 6 times from seed 42 gives 532.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l23_obj2
+Question     : Final: which generator is UNSAFE for producing cryptographic keys or nonces — 'A' or 'B'?
+Correct Ans  : FLAG{A}
+Flag         : FLAG{A}
+
+Explanation:
+Generator A's output is fully predictable from its formula and a single observed value — using it to generate a key means an attacker who guesses (or is told) the algorithm can predict every key it ever produces. A real CSPRNG (like os.urandom) exposes no such formula and cannot be predicted from its outputs.
+
+Why the Answer is Correct:
+Generator A (the LCG) is predictable and therefore unsafe for cryptographic use.
+
+================================================================================
+LEVEL 24 (Phase 5: Cryptographic Investigation)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l24_obj1
+Question     : Evidence file /home/student/evidence/ciphertext.bin contains this hex-encoded data:
+7662737e631a6365767e7b1a747b7276791a00070305
+
+You are NOT told which cryptographic mechanism produced it. Investigate: what is the shortest possible key length that could produce readable English when XORed against this data? Enter the length in bytes (a number).
+Correct Ans  : 1
+Flag         : FLAG{1}
+
+Explanation:
+If a single repeating byte, XORed against the whole ciphertext, produces fully printable English text, that's strong evidence of single-byte XOR — the weakest possible stream cipher, with only 256 possible keys to brute-force.
+
+Why the Answer is Correct:
+The ciphertext was produced with a single repeating XOR byte.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l24_obj2
+Question     : Brute-force all 256 possible single-byte keys against the ciphertext and find the one key that produces readable, all-uppercase text (letters, digits, hyphens only). Enter the key as a two-digit hex value (e.g. 1f).
+Terminal Cmd : python3 -c "import string
+allowed=set(string.ascii_uppercase+string.digits+'-')
+c=bytes.fromhex('7662737e631a6365767e7b1a747b7276791a00070305')
+for k in range(256):
+ d=bytes(b^k for b in c)
+ if all(32<=x<127 for x in d) and set(d.decode()) <= allowed: print(f'{k:02x}')"
+Correct Ans  : 37
+Flag         : FLAG{37}
+
+Explanation:
+Only one byte value produces a result restricted to that charset for this ciphertext — that's the key.
+
+Why the Answer is Correct:
+XORing every byte with 0x37 produces fully printable text; no other key value does.
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l24_obj3
+Question     : Final: using that key, recover and enter the full plaintext exactly.
+Terminal Cmd : python3 -c "c=bytes.fromhex('7662737e631a6365767e7b1a747b7276791a00070305'); print(bytes(b^55 for b in c).decode())"
+Correct Ans  : FLAG{AUDIT-TRAIL-CLEAN-7042}
+Flag         : FLAG{AUDIT-TRAIL-CLEAN-7042}
+
+Explanation:
+No cipher name, key, or hint was given anywhere in this level — recovering the plaintext required recognizing the weakness and brute-forcing it yourself.
+
+Why the Answer is Correct:
+XORing the ciphertext with 0x37 recovers "AUDIT-TRAIL-CLEAN-7042".
+
+================================================================================
+LEVEL 25 (Phase 5: Cryptographic Investigation)
+================================================================================
+
+--------------------------------------------------------------------------------
+Objective 1
+--------------------------------------------------------------------------------
+Objective ID : l25_obj1
+Question     : TechCorp's security team received an encrypted communication from an unverified server. The evidence bundle is at /home/student/evidence/crypto-incident/. Start by reading README.txt, then inspect encrypted_message.bin (hex) and server_config.txt (which contains the XOR key used, hidden among other config lines).
+
+encrypted_message.bin (hex): 797f1f6e797f786c7e467b5e7f417c7e7e1a527d787f7b5e657e4150677b1717
+
+XOR-decode it using the key from server_config.txt. Enter the recovered string exactly (it will look like Base64).
+Terminal Cmd : python3 -c "c=bytes.fromhex('797f1f6e797f786c7e467b5e7f417c7e7e1a527d787f7b5e657e4150677b1717'); print(bytes(b^42 for b in c).decode())"
+Correct Ans  : SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==
+Flag         : FLAG{SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==}
+
+Explanation:
+The message was layered: XOR-obfuscated on top of Base64-encoded data — a common way real attackers try to defeat casual inspection of a payload.
+
+Why the Answer is Correct:
+XOR-decoding the ciphertext with the key from server_config.txt (0x2a) recovers the Base64 string.
+
+--------------------------------------------------------------------------------
+Objective 2
+--------------------------------------------------------------------------------
+Objective ID : l25_obj2
+Question     : Base64-decode that string:
+SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==
+
+Enter the plaintext case record.
+Terminal Cmd : echo 'SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==' | base64 -d
+Correct Ans  : INCIDENT-RESOLVED-9931
+Flag         : FLAG{INCIDENT-RESOLVED-9931}
+
+Explanation:
+This is the raw case-record payload the attacker tried to hide under two layers of obfuscation.
+
+Why the Answer is Correct:
+Base64-decoding "SU5DSURFTlQtUkVTT0xWRUQtOTkzMQ==" gives "INCIDENT-RESOLVED-9931".
+
+--------------------------------------------------------------------------------
+Objective 3
+--------------------------------------------------------------------------------
+Objective ID : l25_obj3
+Question     : Verify integrity: hash.txt in the evidence bundle contains a SHA-256 digest. Compute the SHA-256 of the case record you just recovered and confirm it matches. Enter the hash.
+Terminal Cmd : echo -n "INCIDENT-RESOLVED-9931" | sha256sum
+Correct Ans  : 48b66730ea5bc6051dab4dfebb94273cde49fa7a1c44c241af425436520cc6f7
+Flag         : FLAG{48b66730ea5bc6051dab4dfebb94273cde49fa7a1c44c241af425436520cc6f7}
+
+Explanation:
+Confirming the hash matches proves the record you decoded matches the one that was logged — no corruption or substitution occurred in transit.
+
+Why the Answer is Correct:
+SHA-256 of "INCIDENT-RESOLVED-9931" is 48b66730ea5bc6051dab4dfebb94273cde49fa7a1c44c241af425436520cc6f7, matching hash.txt.
+
+--------------------------------------------------------------------------------
+Objective 4
+--------------------------------------------------------------------------------
+Objective ID : l25_obj4
+Question     : Verify authenticity: signature.sig contains an RSA signature (1705) over this record's digest, using the Level 11 keypair (n=3233, e=17). Compute check = signature^e mod n and confirm it matches the digest stand-in (2449) derived from the hash. Enter 'check'.
+Terminal Cmd : python3 -c "print(pow(1705, 17, 3233))"
+Correct Ans  : 2449
+Flag         : FLAG{2449}
+
+Explanation:
+Only after verifying BOTH integrity (hash match) and authenticity (signature match) should this record be trusted enough to act on.
+
+Why the Answer is Correct:
+1705^17 mod 3233 = 2449, matching the expected digest stand-in.
+
+--------------------------------------------------------------------------------
+Objective 5
+--------------------------------------------------------------------------------
+Objective ID : l25_obj5
+Question     : Final: the incident is fully verified. Submit the recovered case record, wrapped as FLAG{...}.
+Correct Ans  : FLAG{INCIDENT-RESOLVED-9931}
+Flag         : FLAG{INCIDENT-RESOLVED-9931}
+
+Explanation:
+You worked through encoding, XOR obfuscation, hashing, and RSA signatures together — exactly the layered investigation a real cryptography analyst performs when closing an incident.
+
+Why the Answer is Correct:
+The verified case record is "INCIDENT-RESOLVED-9931".
 

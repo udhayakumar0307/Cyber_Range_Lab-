@@ -598,6 +598,7 @@ class UserUpdateRequest(BaseModel):
     year: Optional[Union[int, str]] = None
     department: Optional[str] = None
     roll_number: Optional[str] = None
+    phone: Optional[str] = None
 
 @router.get("/users")
 def get_admin_users(
@@ -734,10 +735,10 @@ def get_admin_users(
             "lastActive": u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "Never",
             "score": u.total_score or 0,
             "completedLabsCount": completed_labs_cnt,
-            "rollNumber": u.roll_number or f"22BCS{u.id:03d}",
-            "department": u.department or ("Cyber Security" if u.id % 2 == 0 else "Computer Science"),
-            "year": _format_year_display(u.year, u.id),
-            "phone": u.phone or "+91 98765 43210"
+            "rollNumber": u.roll_number or "",
+            "department": u.department or "",
+            "year": _format_year_display(u.year),
+            "phone": u.phone or ""
         })
     return result
 
@@ -746,17 +747,20 @@ def parse_dept_year(dept_year_str: str):
     if not dept_year_str:
         return "", None
     year = None
+    import re
+    # Match roman numerals / ordinals only as standalone words (with optional
+    # trailing "year"/"yr") so a department name that merely contains the
+    # letter "i" (e.g. "IT", "Civil") never gets misread as a year.
     lower_str = dept_year_str.lower()
-    if "iv" in lower_str or "4th" in lower_str or "fourth" in lower_str or "year 4" in lower_str:
+    if re.search(r'\biv\b\s*(year|yr)?|4th|fourth|year\s*4', lower_str):
         year = 4
-    elif "iii" in lower_str or "3rd" in lower_str or "third" in lower_str or "year 3" in lower_str:
+    elif re.search(r'\biii\b\s*(year|yr)?|3rd|third|year\s*3', lower_str):
         year = 3
-    elif "ii" in lower_str or "2nd" in lower_str or "second" in lower_str or "year 2" in lower_str:
+    elif re.search(r'\bii\b\s*(year|yr)?|2nd|second|year\s*2', lower_str):
         year = 2
-    elif "i" in lower_str or "1st" in lower_str or "first" in lower_str or "year 1" in lower_str:
+    elif re.search(r'\bi\b\s*(year|yr)?|1st|first|year\s*1', lower_str):
         year = 1
 
-    import re
     clean_dept = re.sub(
         r'(?i)\b(i{1,4}|1st|2nd|3rd|4th|first|second|third|fourth|year\s*\d)\s*(year|yr)?\b',
         '',
@@ -828,20 +832,25 @@ def get_single_student_details(
 
     group_name = u.group.name if u.group else "Unassigned"
 
+    # No fabricated fallback values here — a field the admin left blank at
+    # import time (or the student hasn't filled in yet) must come through as
+    # empty/zero, not as a plausible-looking fake value an admin could
+    # mistake for real data (and could even overwrite real data with, if
+    # the edit form re-submits an unexamined "placeholder").
     return {
         "id": u.id,
         "fullName": u.name or u.email.split("@")[0],
         "email": u.email,
-        "phone": u.phone or "+91 98765 43210",
-        "rollNumber": f"22BCS{u.id:03d}",
-        "department": "Cyber Security" if u.id % 2 == 0 else "Computer Science",
-        "year": "III Year" if u.id % 2 == 0 else "II Year",
+        "phone": u.phone or "",
+        "rollNumber": u.roll_number or "",
+        "department": u.department or "",
+        "year": _format_year_display(u.year),
         "status": "Active" if u.is_active else "Inactive",
-        "joinedDate": u.created_at.strftime("%Y-%m-%d") if u.created_at else "2026-01-15",
-        "lastActive": u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "Today 10:30 AM",
+        "joinedDate": u.created_at.strftime("%Y-%m-%d") if u.created_at else "",
+        "lastActive": u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "Never",
         "groupName": group_name,
-        "score": u.total_score or 850,
-        "completedLabsCount": completed_labs_cnt or 8
+        "score": u.total_score or 0,
+        "completedLabsCount": completed_labs_cnt
     }
 
 @router.get("/users/{user_id}/analytics")
@@ -919,23 +928,28 @@ def get_student_realtime_analytics(
     ).count()
 
     return {
-        "overallScore": u.total_score or 850,
-        "completedLabs": completed_labs or 8,
+        "overallScore": u.total_score or 0,
+        "completedLabs": completed_labs,
         "totalTimeSpent": "18h 45m",
         "certificatesCount": 3,
         "domainProgress": domain_progress,
         "recentActivity": activity_timeline
     }
 
-def _format_year_display(year_val: Optional[Any], user_id: int) -> str:
-    if year_val is not None and str(year_val).strip() != "":
-        s = str(year_val).strip()
-        if s in ("1", "I", "I Year"): return "I Year"
-        if s in ("2", "II", "II Year"): return "II Year"
-        if s in ("3", "III", "III Year"): return "III Year"
-        if s in ("4", "IV", "IV Year"): return "IV Year"
-        return f"{s} Year" if not s.lower().endswith("year") else s
-    return "III Year" if user_id % 2 == 0 else "II Year"
+def _format_year_display(year_val: Optional[Any], user_id: int = 0) -> str:
+    """
+    Formats a stored year value for display. Returns "" (not a guessed value)
+    when the admin/CSV import never supplied one — the student's own profile
+    update later fills this in, and the admin list must reflect only real data.
+    """
+    if year_val is None or str(year_val).strip() == "":
+        return ""
+    s = str(year_val).strip()
+    if s in ("1", "I", "I Year", "1st Year"): return "1st Year"
+    if s in ("2", "II", "II Year", "2nd Year"): return "2nd Year"
+    if s in ("3", "III", "III Year", "3rd Year"): return "3rd Year"
+    if s in ("4", "IV", "IV Year", "4th Year"): return "4th Year"
+    return s
 
 def _parse_year_int(year_val: Optional[Any]) -> Optional[int]:
     if year_val is None or str(year_val).strip() == "":
@@ -945,14 +959,15 @@ def _parse_year_int(year_val: Optional[Any]) -> Optional[int]:
     s = str(year_val).strip()
     if s.isdigit():
         return int(s)
-    s_upper = s.upper()
-    if "IV" in s_upper or "4" in s_upper:
+    import re
+    s_lower = s.lower()
+    if re.search(r'\biv\b|4th|fourth', s_lower):
         return 4
-    if "III" in s_upper or "3" in s_upper:
+    if re.search(r'\biii\b|3rd|third', s_lower):
         return 3
-    if "II" in s_upper or "2" in s_upper:
+    if re.search(r'\bii\b|2nd|second', s_lower):
         return 2
-    if "I" in s_upper or "1" in s_upper:
+    if re.search(r'\bi\b|1st|first', s_lower):
         return 1
     return None
 
@@ -976,8 +991,8 @@ def create_admin_user(
         password_hash=get_password_hash(data.password),
         role=data.role.lower() if data.role else "user",
         group_id=data.group_id,
-        year=parsed_year if parsed_year is not None else 3,
-        department=data.department or "Cyber Security",
+        year=parsed_year,
+        department=data.department or "",
         roll_number=data.roll_number,
         is_active=True,
         organization=current_user.organization
@@ -1035,6 +1050,7 @@ def update_admin_user(
     if data.year is not None: u.year = _parse_year_int(data.year)
     if data.department is not None: u.department = data.department
     if data.roll_number is not None: u.roll_number = data.roll_number
+    if data.phone is not None: u.phone = data.phone
 
     db.commit()
 
@@ -1480,9 +1496,9 @@ def get_group_detail(
                 "id": u.id,
                 "fullName": u.name or u.email.split("@")[0],
                 "email": u.email,
-                "rollNumber": u.roll_number or f"22BCS{u.id:03d}",
-                "department": u.department or ("Cyber Security" if u.id % 2 == 0 else "Computer Science"),
-                "year": _format_year_display(u.year, u.id),
+                "rollNumber": u.roll_number or "",
+                "department": u.department or "",
+                "year": _format_year_display(u.year),
             }
             for u in members
         ]
@@ -2079,7 +2095,7 @@ def get_student_lab_report(
             "name": student.name or student.email.split("@")[0],
             "email": student.email,
             "department": student.department or "",
-            "year": _format_year_display(student.year, student.id),
+            "year": _format_year_display(student.year),
             "roll_number": student.roll_number or "",
         },
         "lab_name": lab.name if lab else assignment.lab_id,
@@ -2960,8 +2976,8 @@ def get_assignment_analytics(
             {
                 "id": student.id,
                 "fullName": student.name or student.email.split("@")[0],
-                "department": student.department or "Cyber Security",
-                "year": student.year or "III Year",
+                "department": student.department or "",
+                "year": _format_year_display(student.year),
                 "status": status,
                 "started_time": started_time,
                 "completed_time": completed_time,
