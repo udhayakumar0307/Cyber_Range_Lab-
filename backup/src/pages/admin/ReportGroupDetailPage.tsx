@@ -37,10 +37,15 @@ interface LabStatus {
 
 function formatDuration(totalSeconds: number): string {
   if (!totalSeconds) return '0m';
+
   const mins = Math.floor(totalSeconds / 60);
   const hrs = Math.floor(mins / 60);
   const remMins = mins % 60;
-  return hrs > 0 ? `${hrs}h ${remMins}m` : `${remMins}m`;
+  const secs = Math.floor(totalSeconds % 60);
+
+  if (hrs > 0) return `${hrs}h ${remMins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
 }
 
 export const ReportGroupDetailPage: React.FC = () => {

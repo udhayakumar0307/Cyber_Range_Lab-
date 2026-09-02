@@ -1896,6 +1896,9 @@ def get_group_lab_status(
     leaderboard = []
     students = []
 
+    from app.core.assignment_time import utc_now_naive, utc_iso
+    now = utc_now_naive()
+
     for m in members:
         progress_rows = db.query(UserLabProgress).filter(
             UserLabProgress.assignment_id == assignment.id,
@@ -1904,7 +1907,15 @@ def get_group_lab_status(
 
         total_score = sum(r.score or 0 for r in progress_rows)
         completed_count = sum(1 for r in progress_rows if r.status == "COMPLETED" or r.completed_at is not None)
-        time_taken_seconds = sum(r.time_taken_seconds or 0 for r in progress_rows)
+        time_taken_seconds = sum(
+            max(
+                int(r.time_taken_seconds or 0),
+                int((now - r.started_at).total_seconds()),
+            )
+            if r.status == "STARTED" and r.started_at is not None
+            else int(r.time_taken_seconds or 0)
+            for r in progress_rows
+        )
 
         if not progress_rows:
             not_started += 1
@@ -1934,8 +1945,6 @@ def get_group_lab_status(
 
     leaderboard.sort(key=lambda x: x["score"], reverse=True)
 
-    from app.core.assignment_time import utc_now_naive, utc_iso
-    now = utc_now_naive()
     seconds_until_start = (assignment.start_datetime - now).total_seconds()
 
     return {

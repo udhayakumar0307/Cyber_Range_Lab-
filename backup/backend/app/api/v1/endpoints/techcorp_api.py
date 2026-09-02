@@ -177,6 +177,74 @@ def _assignment_scoped_progress_query(
     return query
 
 
+def _ensure_level_started(
+    db: Session,
+    user_id: int,
+    lab_id: str,
+    assignment_id: Optional[int],
+    level: int,
+    started_at: Optional[datetime] = None,
+) -> UserLabProgress:
+    """Create the durable STARTED row for a Puzzle Lab level if missing."""
+
+    if level < 0 or level > 33:
+        raise ValueError(f"Puzzle Lab level out of range: {level}")
+
+    module_id = f"techcorp_level{level}"
+
+    progress = (
+        _assignment_scoped_progress_query(
+            db=db,
+            user_id=user_id,
+            lab_id=lab_id,
+            assignment_id=assignment_id,
+        )
+        .filter(UserLabProgress.module_id == module_id)
+        .first()
+    )
+
+    # Re-provisioning/reconnecting must never reset the original start time.
+    if progress is not None:
+        return progress
+
+    effective_started_at = started_at
+
+    if effective_started_at is None and level > 0:
+        previous = (
+            _assignment_scoped_progress_query(
+                db=db,
+                user_id=user_id,
+                lab_id=lab_id,
+                assignment_id=assignment_id,
+            )
+            .filter(UserLabProgress.module_id == f"techcorp_level{level - 1}")
+            .first()
+        )
+
+        if previous is not None and previous.completed_at is not None:
+            effective_started_at = previous.completed_at
+
+    progress = UserLabProgress(
+        assignment_id=assignment_id,
+        user_id=user_id,
+        lab_id=lab_id,
+        module_id=module_id,
+        status="STARTED",
+        score=0,
+        attempts=0,
+        started_at=effective_started_at or datetime.utcnow(),
+        completed_at=None,
+        time_taken_seconds=0,
+        last_submission=None,
+        flag_correct=False,
+    )
+
+    db.add(progress)
+    db.flush()
+
+    return progress
+
+
 def _completed_level_numbers(
     db: Session,
     user_id: int,
@@ -359,6 +427,15 @@ def provision_container(
             sess.started_at = now
             sess.last_active_at = now
             sess.is_active = True
+
+        _ensure_level_started(
+            db=db,
+            user_id=current_user.id,
+            lab_id=progress_lab_id,
+            assignment_id=resolved_assignment_id,
+            level=required_level,
+            started_at=now,
+        )
 
         db.commit()
         db.refresh(sess)
@@ -657,6 +734,14 @@ def advance_level(
         mod_id = "techcorp_level33"
         pts = get_points_for_level(33)
 
+        _ensure_level_started(
+            db=db,
+            user_id=current_user.id,
+            lab_id=progress_lab_id,
+            assignment_id=resolved_assignment_id,
+            level=33,
+        )
+
         result = CompletionService.complete_lab_module(
             db=db,
             user=current_user,
@@ -869,6 +954,15 @@ def advance_level(
     mod_id = f"techcorp_level{current_lvl}"
     pts = get_points_for_level(current_lvl)
 
+    _ensure_level_started(
+        db=db,
+        user_id=current_user.id,
+        lab_id=progress_lab_id,
+        assignment_id=resolved_assignment_id,
+        level=current_lvl,
+        started_at=sess.started_at if current_lvl == 0 else None,
+    )
+
     result = CompletionService.complete_lab_module(
         db=db,
         user=current_user,
@@ -880,8 +974,19 @@ def advance_level(
         assignment_id=resolved_assignment_id,
     )
 
+    transitioned_at = datetime.utcnow()
+
+    _ensure_level_started(
+        db=db,
+        user_id=current_user.id,
+        lab_id=progress_lab_id,
+        assignment_id=resolved_assignment_id,
+        level=next_lvl,
+        started_at=transitioned_at,
+    )
+
     sess.current_level = next_lvl
-    sess.last_active_at = datetime.utcnow()
+    sess.last_active_at = transitioned_at
     sess.is_active = True
 
     db.commit()

@@ -146,6 +146,7 @@ class CompletionService:
             progress.status = "COMPLETED"
             progress.completed_at = now
             progress.time_taken_seconds = duration
+            progress.attempts = max(progress.attempts or 0, 1)
             progress.last_submission = submitted_flag
             progress.flag_correct = True
 
