@@ -652,9 +652,9 @@ def advance_level(
 
     current_lvl = sess.current_level
 
-    # Level 33 is the final playable level; module34 records its completion.
+    # Level 33 is the final playable level; record its canonical catalog module.
     if current_lvl >= 33:
-        mod_id = "puzzle-lab_module34"
+        mod_id = "techcorp_level33"
         pts = get_points_for_level(33)
 
         result = CompletionService.complete_lab_module(
@@ -865,8 +865,8 @@ def advance_level(
                 detail=f"Failed to read next level key: {exc}",
             )
 
-    # Record completion of the level the student just solved.
-    mod_id = f"puzzle-lab_module{current_lvl + 1}"
+    # Record completion using the canonical lab_modules ID for the solved level.
+    mod_id = f"techcorp_level{current_lvl}"
     pts = get_points_for_level(current_lvl)
 
     result = CompletionService.complete_lab_module(
