@@ -39,7 +39,7 @@ def _confirmation_page(message: str, success: bool = True) -> str:
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#f8fafc; margin:0; padding:60px 20px; text-align:center; color:#1e293b;">
     <div style="max-width:420px; margin:0 auto; background:#fff; border-radius:16px; border:1px solid #e2e8f0; padding:36px 28px;">
         <h2 style="color:{color}; margin:0 0 12px 0;">{message}</h2>
-        <a href="https://cyberrange.dev/system?tab=orgs" style="display:inline-block; margin-top:12px; background:#0052CC; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px;">Open SysAdmin Dashboard</a>
+        <a href="https://academy.deeptrustxai.com/system?tab=orgs" style="display:inline-block; margin-top:12px; background:#0052CC; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px;">Open SysAdmin Dashboard</a>
     </div>
 </body>
 </html>"""
@@ -49,8 +49,8 @@ def send_admin_verification_email(org_id: int, org_name: str, admin_email: str, 
     subject = f"Verify New Organization Request: {org_name}"
     approve_token = _sign_org_action(org_id, "approve")
     reject_token = _sign_org_action(org_id, "reject")
-    approve_url = f"https://cyberrange.dev/api/v1/organizations/{org_id}/approve-link?token={approve_token}"
-    reject_url = f"https://cyberrange.dev/api/v1/organizations/{org_id}/reject-link?token={reject_token}"
+    approve_url = f"https://academy.deeptrustxai.com/api/v1/organizations/{org_id}/approve-link?token={approve_token}"
+    reject_url = f"https://academy.deeptrustxai.com/api/v1/organizations/{org_id}/reject-link?token={reject_token}"
 
     body = (
         f"A new organization has requested verification on CyberRange.<br><br>"

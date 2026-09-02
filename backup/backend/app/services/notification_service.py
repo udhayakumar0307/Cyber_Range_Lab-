@@ -109,7 +109,7 @@ class NotificationService:
 
         action_btn_html = ""
         if action_url:
-            full_url = action_url if action_url.startswith("http") else f"https://cyberrange.dev{action_url}"
+            full_url = action_url if action_url.startswith("http") else f"https://academy.deeptrustxai.com{action_url}"
             action_btn_html = f"""
             <div style="margin-top: 25px; text-align: center;">
                 <a href="{full_url}" style="background-color: #0052CC; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 14px;">{action_label}</a>

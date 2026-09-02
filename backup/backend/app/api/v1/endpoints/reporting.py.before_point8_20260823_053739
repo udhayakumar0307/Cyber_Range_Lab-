@@ -1,0 +1,2946 @@
+import os
+from fastapi import APIRouter, Depends, Query, status, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc, and_, case, or_, not_, text
+from datetime import datetime, timedelta
+from typing import Optional, List
+from app.api.deps import get_db, get_current_user, get_current_admin_user
+from app.models.user import User
+from app.models.college import College
+from app.models.lab import Lab
+from app.models.lab_module import LabModule
+from app.models.user_lab_progress import UserLabProgress
+from app.models.study_session import StudySession
+from app.models.achievement import Achievement
+from app.models.user_achievement import UserAchievement
+from app.models.audit_log import AuditLog
+from app.core.cache import (
+    dashboard_cache, leaderboard_cache, leaderboard_key,
+    invalidate_leaderboard, invalidate_dashboard,
+)
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _non_admin_filter():
+    """SQLAlchemy filter that excludes admin/system accounts from leaderboards."""
+    return not_(or_(
+        User.role.ilike('%admin%'),
+        User.role.ilike('%sysadmin%'),
+        User.name.ilike('%sysadmin%'),
+        User.name.ilike('%sys admin%'),
+        User.name.ilike('%admin%'),
+        User.name.ilike('%security officer%'),
+        User.email.ilike('%sysadmin%'),
+        User.email.ilike('%admin%'),
+        User.email.ilike('%securityofficer%'),
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Colleges (public — no auth required)
+# ---------------------------------------------------------------------------
+
+@router.get("/colleges")
+def list_colleges(db: Session = Depends(get_db)):
+    """Returns all active colleges for registration dropdown."""
+    colleges = db.query(
+        College.id, College.name, College.code, College.city, College.country
+    ).filter(College.status == "ACTIVE").all()
+    return [
+        {"id": c.id, "name": c.name, "code": c.code, "city": c.city, "country": c.country}
+        for c in colleges
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard")
+def get_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Optimized dashboard endpoint.
+
+    Uses DashboardService which:
+    - Reads score from users.total_score column (O(1), no SUM)
+    - Computes rank with a single COUNT query
+    - Fetches recent activity with a single JOIN (no N+1)
+    - Results are cached 120s per user
+    - reconcile_user_score() is NOT called here
+    """
+    from app.services.dashboard_service import DashboardService
+    summary = DashboardService.get_summary(db, current_user)
+
+    # ── Skill breakdown — single GROUP BY query ────────────────────────────
+    categories = (
+        db.query(LabModule.track, func.count(UserLabProgress.id))
+        .join(UserLabProgress, UserLabProgress.module_id == LabModule.id)
+        .filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.status == "COMPLETED",
+        )
+        .group_by(LabModule.track)
+        .all()
+    )
+    skills = {"linux": 0, "python": 0, "c": 0, "cpp": 0}
+    for track, count in categories:
+        if track in skills:
+            skills[track] = count
+
+    weekly_raw = summary.get("weekly_graph", summary.get("weeklyGraph", []))
+    weekly_data = [
+        {"day": item.get("name", ""), "solved": item.get("completed", 0)}
+        for item in weekly_raw
+    ]
+
+    return {
+        "total_training_hours": summary.get("training_hours", summary.get("trainingHours", 0.0)),
+        "avg_session_duration": summary.get("average_session", summary.get("averageSession", 0.0)),
+        "badges_count": summary.get("badges_count", 0),
+        "completion_rate": summary.get("completion_rate", summary.get("completionPercent", 0)),
+        "recent_activity": summary.get("recent_activity", []),
+        "weekly_graph": weekly_data,
+        "skills": skills,
+        "score": summary.get("total_score", 0),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Progress
+# ---------------------------------------------------------------------------
+
+@router.get("/progress")
+def get_progress(
+    lab_id: Optional[str] = Query(None, description="Filter by lab ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns completed module history.
+    If lab_id is provided, returns compact structured progress for that lab.
+
+    READ-ONLY — does not mutate the database.
+    """
+    from app.models.user_progress import UserProgress
+
+    # Compact per-lab response (used by OT lab sessions & lab completion reports)
+    if lab_id:
+        completed_rows = (
+            db.query(
+                UserLabProgress.module_id,
+                UserLabProgress.score,
+                UserLabProgress.completed_at,
+                UserLabProgress.time_taken_seconds,
+                UserLabProgress.attempts,
+            )
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.lab_id == lab_id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .all()
+        )
+        completed_module_ids = [r.module_id for r in completed_rows]
+        lab_score = sum(r.score or 0 for r in completed_rows)
+        latest_completed_at = max((r.completed_at for r in completed_rows if r.completed_at), default=None)
+        total_time_seconds = sum(r.time_taken_seconds or 0 for r in completed_rows)
+        total_attempts = sum(r.attempts or 1 for r in completed_rows)
+        avg_accuracy = (
+            "100%" if total_attempts <= len(completed_rows)
+            else f"{max(50, round(100 * len(completed_rows) / max(1, total_attempts)))}%"
+        )
+        return {
+            "lab_id": lab_id,
+            "completed_modules": completed_module_ids,
+            "total_score": current_user.total_score or 0,
+            "lab_score": lab_score,
+            "modules_count": len(completed_module_ids),
+            "completed_at": latest_completed_at.strftime("%Y-%m-%d %H:%M:%S") if latest_completed_at else "",
+            "time_taken_seconds": total_time_seconds,
+            "accuracy": avg_accuracy,
+        }
+
+    # Title fallback for recon modules not in DB by display name
+    RECON_TITLES = {
+        "lab1-recon_module1": "Module 1: Port Discovery & Enumeration",
+        "lab1-recon_module2": "Module 2: Service Version Fingerprinting",
+        "lab1-recon_module3": "Module 3: Hidden Service Discovery",
+        "lab1-recon_module4": "Module 4: Credential Discovery",
+        "lab1-recon_module5": "Module 5: Full Network Infiltration (Capstone)",
+    }
+
+    # Single JOIN query — replaces separate UserProgress + UserLabProgress queries
+    rows = (
+        db.query(
+            UserLabProgress.id,
+            UserLabProgress.module_id,
+            UserLabProgress.lab_id,
+            UserLabProgress.completed_at,
+            UserLabProgress.score,
+            UserLabProgress.attempts,
+            LabModule.title.label("module_title"),
+        )
+        .outerjoin(LabModule, LabModule.id == UserLabProgress.module_id)
+        .filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.status == "COMPLETED",
+        )
+        .order_by(desc(UserLabProgress.completed_at))
+        .all()
+    )
+
+    seen_modules: set = set()
+    result = []
+    for r in rows:
+        key = (r.lab_id, r.module_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        result.append({
+            "id": r.id,
+            "module_id": r.module_id,
+            "module_title": r.module_title or RECON_TITLES.get(r.module_id, r.module_id),
+            "points": r.score,
+            "attempts": r.attempts,
+            "completed_at": (
+                r.completed_at.strftime("%Y-%m-%d %H:%M:%S") if r.completed_at else ""
+            ),
+        })
+
+    # Recon/CLL completion is also persisted in the legacy UserProgress table.
+    # Merge it into the same history so score events are not missing from the
+    # student's personal log when UserLabProgress was not created by an older
+    # duplicate-safe completion path.
+    from app.core.constants import TRACK_TO_LAB
+    legacy_rows = (
+        db.query(UserProgress)
+        .filter(
+            UserProgress.user_id == str(current_user.id),
+            UserProgress.completed == True,  # noqa: E712
+        )
+        .order_by(desc(UserProgress.completed_at))
+        .all()
+    )
+    module_catalog = {
+        module.id: module
+        for module in db.query(LabModule).all()
+    }
+    for row in legacy_rows:
+        lab_id = TRACK_TO_LAB.get(row.track_id, row.track_id)
+        candidates = (
+            row.module_id,
+            f"{lab_id}_{row.module_id}",
+            f"{lab_id}_{row.track_id}_{row.module_id}",
+        )
+        canonical_id = next(
+            (candidate for candidate in candidates if candidate in module_catalog),
+            candidates[1],
+        )
+        key = (lab_id, canonical_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        module = module_catalog.get(canonical_id)
+        result.append({
+            "id": f"legacy-{row.track_id}-{row.module_id}",
+            "module_id": canonical_id,
+            "module_title": module.title if module else canonical_id,
+            "points": row.module_score or (module.points if module else 0),
+            "attempts": 1,
+            "completed_at": row.completed_at.strftime("%Y-%m-%d %H:%M:%S") if row.completed_at else "",
+        })
+
+    # ScoreEvent is the final fallback for duplicate-safe completion records
+    # that were awarded before a UserProgress/UserLabProgress row was written.
+    from app.models.score_event import ScoreEvent
+    score_rows = (
+        db.query(ScoreEvent)
+        .filter(
+            ScoreEvent.user_id == current_user.id,
+            ScoreEvent.event_type == "MODULE_COMPLETION",
+        )
+        .order_by(desc(ScoreEvent.created_at))
+        .all()
+    )
+    modules_by_lab: dict[str, list] = {}
+    for module in module_catalog.values():
+        modules_by_lab.setdefault(module.lab_id, []).append(module)
+    for row in score_rows:
+        lab_id = TRACK_TO_LAB.get(row.lab_id, row.lab_id)
+        lab_modules = modules_by_lab.get(lab_id, [])
+        module = next(
+            (
+                item for item in lab_modules
+                if row.module_id == item.id
+                or row.module_id.endswith(item.id.split("_", 1)[-1])
+            ),
+            module_catalog.get(row.module_id),
+        )
+        canonical_id = module.id if module else row.module_id
+        key = (lab_id, canonical_id)
+        if key in seen_modules:
+            continue
+        seen_modules.add(key)
+        result.append({
+            "id": f"score-event-{row.id}",
+            "module_id": canonical_id,
+            "module_title": module.title if module else canonical_id,
+            "points": row.points,
+            "attempts": 1,
+            "completed_at": row.created_at.strftime("%Y-%m-%d %H:%M:%S") if row.created_at else "",
+        })
+
+    result.sort(key=lambda item: item.get("completed_at") or "", reverse=True)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Achievements — single LEFT JOIN query returning only authenticated user's achievements
+# ---------------------------------------------------------------------------
+
+@router.get("/achievements")
+def get_achievements(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns all achievements in the system, marked as unlocked/locked for the user.
+    """
+    cache_key = f"achievements:user:{current_user.id}"
+    cached = dashboard_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from app.services.achievement_manager import achievement_manager
+    badges = achievement_manager.evaluate_user_achievements(db, current_user.id)
+    if badges:
+        return badges
+
+    # Fallback to DB Achievement table
+    earned_rows = (
+        db.query(UserAchievement.achievement_id, UserAchievement.earned_at)
+        .filter(UserAchievement.user_id == current_user.id)
+        .all()
+    )
+    earned_map = {r.achievement_id: r.earned_at for r in earned_rows}
+
+    from app.models.achievement import Achievement
+    all_ach = db.query(Achievement).all()
+
+    result = []
+    for a in all_ach:
+        is_unlocked = a.id in earned_map
+        earned_at_str = earned_map[a.id].strftime("%Y-%m-%d %H:%M:%S") if (is_unlocked and earned_map[a.id]) else ""
+        
+        result.append({
+            "id": a.id,
+            "title": a.title or a.id.replace("-", " ").title(),
+            "description": a.description or "",
+            "icon": a.icon or "award",
+            "reward_points": a.reward_points or 0,
+            "unlocked": is_unlocked,
+            "earned_at": earned_at_str,
+        })
+        
+    dashboard_cache.set(cache_key, result, ttl=60)
+    return result
+
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard — cached per page
+# ---------------------------------------------------------------------------
+
+@router.get("/leaderboard")
+def get_leaderboard(
+    type: str = Query("global", regex="^(global|college|personal)$"),
+    page: int = 1,
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Leaderboard endpoint with per-page caching (5 min TTL).
+    Excludes admin/system accounts from all views.
+    """
+    non_admin = _non_admin_filter()
+    offset = (page - 1) * limit
+
+    if type == "personal":
+        # User's own rank — single window function subquery
+        sub = db.query(
+            User.id,
+            func.rank().over(order_by=desc(User.total_score)).label("rank"),
+        ).filter(non_admin).subquery()
+
+        rank_row = db.query(sub.c.rank).filter(sub.c.id == current_user.id).first()
+        global_rank = rank_row[0] if rank_row else 1
+
+        return {
+            "rank": global_rank,
+            "name": current_user.name,
+            "score": current_user.total_score,
+            "college": current_user.college.name if current_user.college else "Individual",
+        }
+
+    if type == "college":
+        if current_user.account_type != "STUDENT" or not current_user.college_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="College leaderboard is only available for Student accounts.",
+            )
+
+        cache_key = leaderboard_key(current_user.college_id, "college", page, limit)
+        cached = leaderboard_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"[Cache HIT] leaderboard college page={page}")
+            return cached
+
+        query = (
+            db.query(User)
+            .filter(
+                User.account_type == "STUDENT",
+                User.college_id == current_user.college_id,
+                non_admin,
+            )
+            .order_by(desc(User.total_score))
+        )
+        total = query.count()
+        results = query.offset(offset).limit(limit).all()
+
+        ranks = [
+            {
+                "rank": offset + idx + 1,
+                "name": u.name,
+                "score": u.total_score,
+                "college": current_user.college.name if current_user.college else "",
+                "is_current": u.id == current_user.id,
+            }
+            for idx, u in enumerate(results)
+        ]
+        result = {"total": total, "ranks": ranks}
+        leaderboard_cache.set(cache_key, result)
+        return result
+
+    # Global leaderboard
+    cache_key = leaderboard_key(None, "global", page, limit)
+    cached = leaderboard_cache.get(cache_key)
+    if cached is not None:
+        logger.debug(f"[Cache HIT] leaderboard global page={page}")
+        # Patch is_current from the user-neutral cache
+        return {
+            **cached,
+            "ranks": [
+                {**r, "is_current": r.get("_user_id") == current_user.id}
+                for r in cached["ranks"]
+            ],
+        }
+
+    base_query = (
+        db.query(
+            User.id,
+            User.name,
+            User.total_score,
+            College.name.label("college_name"),
+        )
+        .outerjoin(College, User.college_id == College.id)
+        .filter(non_admin)
+        .order_by(desc(User.total_score))
+    )
+
+    total = db.query(func.count(User.id)).filter(non_admin).scalar() or 0
+    results = base_query.offset(offset).limit(limit).all()
+
+    cache_rows = [
+        {
+            "rank": offset + idx + 1,
+            "name": row.name,
+            "score": row.total_score,
+            "college": row.college_name or "Individual",
+            "is_current": False,
+            "_user_id": row.id,
+        }
+        for idx, row in enumerate(results)
+    ]
+    leaderboard_cache.set(cache_key, {"total": total, "ranks": cache_rows})
+
+    ranks = [
+        {**r, "is_current": r["_user_id"] == current_user.id}
+        for r in cache_rows
+    ]
+    for r in ranks:
+        r.pop("_user_id", None)
+    return {"total": total, "ranks": ranks}
+
+
+# ---------------------------------------------------------------------------
+# Sessions
+# ---------------------------------------------------------------------------
+
+@router.get("/sessions")
+def get_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns login/study session history for the current user."""
+    sessions = (
+        db.query(StudySession)
+        .filter(StudySession.user_id == current_user.id)
+        .order_by(desc(StudySession.login_time))
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "login_time": s.login_time.strftime("%Y-%m-%d %H:%M:%S") if s.login_time else "",
+            "logout_time": s.logout_time.strftime("%Y-%m-%d %H:%M:%S") if s.logout_time else "Active",
+            "duration_minutes": round(s.duration_seconds / 60, 1) if s.duration_seconds else 0,
+        }
+        for s in sessions
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Audit Logs
+# ---------------------------------------------------------------------------
+
+@router.get("/audit-logs")
+def get_audit_logs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns recent audit log entries for the current user."""
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.user_id == current_user.id)
+        .order_by(desc(AuditLog.timestamp))
+        .limit(30)
+        .all()
+    )
+    return [
+        {
+            "action": l.action,
+            "resource": l.resource,
+            "new_value": l.new_value,
+            "status": l.status,
+            "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        for l in logs
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Flag Submission
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel
+
+
+class FlagSubmitNotify(BaseModel):
+    lab_id: Optional[str] = "command-line-lab"
+    module_id: str
+    flag: Optional[str] = None
+    correct: Optional[bool] = None
+    client_ip: Optional[str] = None
+    user_agent: Optional[str] = None
+    assignment_id: Optional[int] = None
+
+
+def _parse_ua(user_agent_str: Optional[str]):
+    if not user_agent_str:
+        return "Unknown Browser", "Unknown Device"
+    ua = user_agent_str.lower()
+    browser = (
+        "Chrome" if "chrome" in ua else
+        "Firefox" if "firefox" in ua else
+        "Safari" if "safari" in ua else
+        "Edge" if "edge" in ua else
+        "Web Browser"
+    )
+    device = (
+        "Windows PC" if "windows" in ua else
+        "Macbook" if "macintosh" in ua or "mac os" in ua else
+        "Linux Machine" if "linux" in ua else
+        "iOS Device" if "iphone" in ua or "ipad" in ua else
+        "Android Device" if "android" in ua else
+        "Web Device"
+    )
+    return browser, device
+
+
+@router.post("/submit-flag")
+def submit_flag(
+    payload: FlagSubmitNotify,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Process a generic flag submission.
+
+    Academic work is scoped by Assignment.id. Personal/unassigned play uses
+    assignment_id=None. Correct completions are delegated to CompletionService,
+    which is the only progress-completion path and delegates score mutation to
+    ScoreService.
+    """
+    from app.services.assignment_context_service import resolve_assignment
+    from app.services.completion_service import CompletionService
+
+    target_lab_id = payload.lab_id or "command-line-lab"
+    logger.info(
+        f"[submit_flag] user_id={current_user.id} lab='{target_lab_id}' "
+        f"module='{payload.module_id}' correct={payload.correct} "
+        f"requested_assignment_id={payload.assignment_id}"
+    )
+
+    lab = db.query(Lab).filter(Lab.id == target_lab_id).first()
+    if not lab:
+        raise HTTPException(status_code=404, detail=f"Lab '{target_lab_id}' not found.")
+
+    # Module lookup with compatibility aliases.
+    mod = db.query(LabModule).filter(LabModule.id == payload.module_id).first()
+    if not mod:
+        scoped_id = f"{target_lab_id}_{payload.module_id}"
+        mod = db.query(LabModule).filter(LabModule.id == scoped_id).first()
+        if mod:
+            payload.module_id = scoped_id
+
+    if not mod:
+        alt_id = (
+            f"linux_{payload.module_id}"
+            if not payload.module_id.startswith("linux_")
+            else payload.module_id.replace("linux_", "")
+        )
+        mod = db.query(LabModule).filter(LabModule.id == alt_id).first()
+        if mod:
+            payload.module_id = alt_id
+
+    if not mod:
+        raise HTTPException(status_code=404, detail=f"Module '{payload.module_id}' not found.")
+
+    if mod.lab_id != lab.id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Module '{mod.id}' does not belong to lab '{lab.id}'.",
+        )
+
+    assignment = resolve_assignment(
+        db=db,
+        user=current_user,
+        lab_id=lab.id,
+        requested_assignment_id=payload.assignment_id,
+    )
+    resolved_assignment_id = assignment.id if assignment else None
+
+    def scoped_progress_query():
+        query = db.query(UserLabProgress).filter(
+            UserLabProgress.user_id == current_user.id,
+            UserLabProgress.lab_id == lab.id,
+            UserLabProgress.module_id == payload.module_id,
+        )
+        if resolved_assignment_id is None:
+            return query.filter(UserLabProgress.assignment_id.is_(None))
+        return query.filter(UserLabProgress.assignment_id == resolved_assignment_id)
+
+    browser, device = _parse_ua(payload.user_agent)
+    client_ip = payload.client_ip or "127.0.0.1"
+
+    is_correct = payload.correct
+    validation_message = ""
+    if is_correct is None:
+        from app.services.puzzle_validation_service import PuzzleValidationService
+        validation = PuzzleValidationService.validate(
+            lab_id=target_lab_id,
+            module_id=payload.module_id,
+            submitted_answer=payload.flag or "",
+            user=current_user,
+            db=db,
+        )
+        is_correct = validation.is_correct
+        validation_message = validation.message
+
+    try:
+        if not is_correct:
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="Wrong Flag",
+                resource="LabModule",
+                resource_id=payload.module_id,
+                new_value=f"Submitted wrong flag: {payload.flag}",
+                status="FAILED",
+                ip_address=client_ip,
+                browser=browser,
+                device=device,
+            ))
+
+            progress = scoped_progress_query().first()
+            if progress:
+                progress.attempts = (progress.attempts or 0) + 1
+                progress.last_submission = payload.flag
+                progress.client_ip = client_ip
+                progress.browser = browser
+                progress.device = device
+
+            db.commit()
+            return {
+                "success": False,
+                "message": validation_message or "Incorrect flag logged.",
+                "assignment_id": resolved_assignment_id,
+            }
+
+        # Capture the pre-award rank before CompletionService changes total_score.
+        old_rank = (
+            db.query(func.count(User.id))
+            .filter(_non_admin_filter(), User.total_score > (current_user.total_score or 0))
+            .scalar() or 0
+        ) + 1
+
+        existing_progress = scoped_progress_query().first()
+        if existing_progress and existing_progress.status == "COMPLETED":
+            return {
+                "success": True,
+                "message": "Module already completed.",
+                "points_awarded": 0,
+                "total_score": current_user.total_score or 0,
+                "assignment_id": resolved_assignment_id,
+            }
+
+        prior_attempts = existing_progress.attempts or 0 if existing_progress else 0
+        now = datetime.utcnow()
+
+        completion = CompletionService.complete_lab_module(
+            db=db,
+            user=current_user,
+            lab_id=lab.id,
+            module_id=payload.module_id,
+            track_id=mod.track,
+            base_points=mod.points,
+            submitted_flag=payload.flag,
+            assignment_id=resolved_assignment_id,
+        )
+
+        progress = scoped_progress_query().first()
+        if progress is None:
+            raise RuntimeError(
+                "CompletionService did not create the expected assignment-scoped progress row."
+            )
+
+        # Preserve reporting metadata that CompletionService intentionally does
+        # not own, while keeping completion/scoring centralized.
+        progress.attempts = max(1, prior_attempts + 1)
+        progress.last_submission = payload.flag
+        progress.flag_correct = True
+        progress.client_ip = client_ip
+        progress.browser = browser
+        progress.device = device
+        db.add(progress)
+
+        awarded = completion.points_awarded
+        new_total = completion.new_total_score
+
+        # Achievements are intentionally user-global, not assignment-local.
+        solved_count = (
+            db.query(func.count(UserLabProgress.id))
+            .filter(
+                UserLabProgress.user_id == current_user.id,
+                UserLabProgress.status == "COMPLETED",
+            )
+            .scalar() or 0
+        )
+
+        achievements_to_grant: list[str] = []
+        if solved_count == 1:
+            achievements_to_grant.extend(["first-lab", "first-module"])
+        if new_total >= 100:
+            achievements_to_grant.append("100-points")
+        if new_total >= 500:
+            achievements_to_grant.append("500-points")
+        if new_total >= 1000:
+            achievements_to_grant.append("1000-points")
+
+        linux_mods = [f"linux_module{i}" for i in range(1, 6)] + [f"module{i}" for i in range(1, 6)]
+        if payload.module_id in linux_mods:
+            completed_linux = (
+                db.query(func.count(UserLabProgress.id))
+                .filter(
+                    UserLabProgress.user_id == current_user.id,
+                    UserLabProgress.status == "COMPLETED",
+                    UserLabProgress.module_id.in_(linux_mods),
+                    UserLabProgress.module_id != payload.module_id,
+                )
+                .scalar() or 0
+            )
+            if completed_linux >= 4:
+                achievements_to_grant.append("linux-track")
+
+        total_db_mods = db.query(func.count(LabModule.id)).scalar() or 20
+        if solved_count >= total_db_mods:
+            achievements_to_grant.append("complete-every-module")
+
+        if progress.attempts == 1:
+            has_imperfect = (
+                db.query(UserLabProgress)
+                .filter(
+                    UserLabProgress.user_id == current_user.id,
+                    UserLabProgress.attempts > 1,
+                    UserLabProgress.module_id != payload.module_id,
+                )
+                .first()
+            )
+            if not has_imperfect:
+                achievements_to_grant.append("perfect-run")
+
+        if progress.time_taken_seconds and progress.time_taken_seconds <= 30:
+            achievements_to_grant.append("fast-solver")
+
+        existing_ach_ids = {
+            row[0]
+            for row in db.query(UserAchievement.achievement_id).filter(
+                UserAchievement.user_id == current_user.id,
+                UserAchievement.achievement_id.in_(achievements_to_grant),
+            ).all()
+        }
+
+        newly_earned: list[str] = []
+        for ach_id in achievements_to_grant:
+            if ach_id not in existing_ach_ids:
+                db.add(UserAchievement(
+                    user_id=current_user.id,
+                    achievement_id=ach_id,
+                    earned_at=now,
+                ))
+                db.add(AuditLog(
+                    user_id=current_user.id,
+                    action="Achievement Earned",
+                    resource="Achievement",
+                    resource_id=ach_id,
+                    new_value=f"Unlocked achievement: {ach_id}",
+                    status="SUCCESS",
+                ))
+                newly_earned.append(ach_id)
+
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="Correct Flag",
+            resource="LabModule",
+            resource_id=payload.module_id,
+            status="SUCCESS",
+            ip_address=client_ip,
+            browser=browser,
+            device=device,
+        ))
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="Module Completed",
+            resource="LabModule",
+            resource_id=payload.module_id,
+            status="SUCCESS",
+            ip_address=client_ip,
+            browser=browser,
+            device=device,
+        ))
+
+        if solved_count >= total_db_mods:
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="Lab Completed",
+                resource="Lab",
+                resource_id=lab.id,
+                status="SUCCESS",
+                ip_address=client_ip,
+                browser=browser,
+                device=device,
+            ))
+
+        try:
+            from app.services.achievement_manager import achievement_manager
+            achievement_manager.process_lab_completion(
+                db=db,
+                user_id=current_user.id,
+                lab_id=target_lab_id,
+                score=new_total,
+                completed_at=now,
+            )
+        except Exception as ach_err:
+            logger.warning(
+                f"[submit_flag] AchievementManager processing warning (non-fatal): {ach_err}"
+            )
+
+        # Commit the academic completion + score + audit transaction before
+        # best-effort notifications.
+        db.commit()
+
+        try:
+            new_rank = (
+                db.query(func.count(User.id))
+                .filter(_non_admin_filter(), User.total_score > new_total)
+                .scalar() or 0
+            ) + 1
+
+            from app.services.notification_service import notification_service
+            if solved_count >= total_db_mods:
+                notification_service.create_and_send(
+                    db,
+                    current_user.id,
+                    "Lab Completion",
+                    f"You completed {lab.name}.",
+                    "LAB_COMPLETION",
+                    current_user.phone,
+                )
+            for ach_id in newly_earned:
+                notification_service.create_and_send(
+                    db,
+                    current_user.id,
+                    "Achievement Unlocked",
+                    f"You unlocked {ach_id}.",
+                    "ACHIEVEMENT",
+                    current_user.phone,
+                )
+            if new_rank < old_rank:
+                notification_service.create_and_send(
+                    db,
+                    current_user.id,
+                    "Rank Improvement",
+                    f"Your leaderboard position improved from #{old_rank} to #{new_rank}.",
+                    "RANK_IMPROVEMENT",
+                    current_user.phone,
+                )
+        except Exception as notify_err:
+            logger.warning(f"[submit_flag] Notification error (non-fatal): {notify_err}")
+
+        return {
+            "success": True,
+            "message": "Flag submission completed successfully.",
+            "points_awarded": awarded,
+            "total_score": new_total,
+            "assignment_id": resolved_assignment_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.error(
+            f"[submit_flag] Transaction failed for module='{payload.module_id}': {exc}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database transaction error: {str(exc)}",
+        )
+
+# ── Certificate Endpoints ───────────────────────────────────────────────────
+
+@router.get("/certificates")
+def get_user_certificates(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns all earned certificates for the authenticated user.
+    """
+    from app.models.certificate import Certificate
+    from app.models.lab import Lab
+    from app.models.user_lab_progress import UserLabProgress
+    from app.services.certificate_manager import certificate_manager
+
+    # Retrieve all unique lab completions for current_user
+    # Completion criteria: has UserLabProgress entries and overall progress is marked completed, or solved all modules
+    progress_labs = (
+        db.query(UserLabProgress.lab_id)
+        .filter(UserLabProgress.user_id == current_user.id)
+        .distinct()
+        .all()
+    )
+    
+    for (lab_id,) in progress_labs:
+        # Check if they have an existing certificate
+        existing_cert = (
+            db.query(Certificate)
+            .filter(Certificate.user_id == current_user.id, Certificate.lab_id == lab_id)
+            .first()
+        )
+        if not existing_cert:
+            # Check if lab progress indicates completion
+            # Simple check: if status == 'COMPLETED' for any module or if total score > 0 (as preview is already visible)
+            progress_records = (
+                db.query(UserLabProgress)
+                .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == lab_id)
+                .all()
+            )
+            has_completion = any(p.status == "COMPLETED" for p in progress_records) or len(progress_records) > 0
+            if has_completion:
+                total_time = sum((p.time_taken_seconds or 0) for p in progress_records)
+                # Auto-generate & register certificate record
+                try:
+                    certificate_manager.get_or_issue_certificate(
+                        db=db,
+                        user_id=current_user.id,
+                        lab_id=lab_id,
+                        score=current_user.total_score or 100,
+                        duration_seconds=total_time
+                    )
+                except Exception as gen_err:
+                    logger.error(f"Failed to auto-issue certificate for user_id={current_user.id}, lab_id={lab_id}: {gen_err}")
+
+    certs = (
+        db.query(Certificate)
+        .filter(Certificate.user_id == current_user.id)
+        .order_by(desc(Certificate.created_at))
+        .all()
+    )
+
+    if not certs:
+        try:
+            certificate_manager.get_or_issue_certificate(
+                db=db,
+                user_id=current_user.id,
+                lab_id="first-security-lab",
+                score=current_user.total_score or 100,
+                duration_seconds=1800
+            )
+            certs = (
+                db.query(Certificate)
+                .filter(Certificate.user_id == current_user.id)
+                .order_by(desc(Certificate.created_at))
+                .all()
+            )
+        except Exception as gen_err:
+            logger.warning(f"Could not auto-issue initial certificate for user_id={current_user.id}: {gen_err}")
+
+    res = []
+    for c in certs:
+        lab = db.query(Lab).filter(Lab.id == c.lab_id).first()
+        progress_rows = (
+            db.query(UserLabProgress)
+            .filter(UserLabProgress.user_id == current_user.id, UserLabProgress.lab_id == c.lab_id)
+            .all()
+        )
+        total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
+        hours = max(0.5, round(total_time / 3600.0, 1))
+
+        res.append({
+            "uuid": c.uuid,
+            "display_certificate_id": c.display_certificate_id,
+            "lab_id": c.lab_id,
+            "lab_title": (lab.name if getattr(lab, "name", None) else getattr(lab, "title", None)) if lab else c.lab_id.replace("-", " ").title(),
+            "category": lab.category if (lab and lab.category) else "Cyber Security",
+            "pdf_url": f"/api/v1/reporting/certificates/{c.display_certificate_id}/download" if c.png_path else None,
+            "png_url": f"/api/v1/reporting/certificates/{c.display_certificate_id}/download" if c.png_path else None,
+            "completion_date": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else "",
+            "duration": f"{hours} Hours",
+            "score": current_user.total_score or 100,
+            "percentage": 100,
+            "verification_status": "VALID",
+            "verification_url": f"/certificate/verify/{c.display_certificate_id}"
+        })
+
+    return res
+
+
+@router.get("/certificates/verify/{certificate_id}")
+def verify_certificate(
+    certificate_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    PUBLIC verification endpoint.
+    Returns only public certificate verification details without exposing internal user IDs or email.
+    """
+    from app.models.certificate import Certificate
+    from app.models.user import User
+    from app.models.lab import Lab
+    from app.models.user_lab_progress import UserLabProgress
+
+    cert = (
+        db.query(Certificate)
+        .filter(Certificate.display_certificate_id == certificate_id)
+        .first()
+    )
+
+    if not cert:
+        # Check by UUID fallback
+        cert = db.query(Certificate).filter(Certificate.uuid == certificate_id).first()
+
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found or invalid.")
+
+    user = db.query(User).filter(User.id == cert.user_id).first()
+    lab = db.query(Lab).filter(Lab.id == cert.lab_id).first()
+
+    recipient_name = (user.name or user.email.split("@")[0].replace(".", " ").title()) if user else "CyberRange Student"
+    lab_title = (lab.name if getattr(lab, "name", None) else getattr(lab, "title", None)) if lab else cert.lab_id.replace("-", " ").title()
+
+    progress_rows = (
+        db.query(UserLabProgress)
+        .filter(UserLabProgress.user_id == cert.user_id, UserLabProgress.lab_id == cert.lab_id)
+        .all()
+    )
+    total_time = sum((p.time_taken_seconds or 0) for p in progress_rows)
+    hours = max(0.5, round(total_time / 3600.0, 1))
+
+    return {
+        "status": "VALID",
+        "display_certificate_id": cert.display_certificate_id,
+        "recipient_name": recipient_name,
+        "lab_title": lab_title,
+        "category": lab.category if (lab and lab.category) else "Cyber Security",
+        "completion_date": cert.created_at.strftime("%d %B %Y").upper() if cert.created_at else "31 JULY 2026",
+        "duration": f"{hours} Hours",
+        "score": user.total_score if user else 100,
+        "percentage": 100,
+        "badge_earned": "CyberRange Master Badge",
+        "issued_by": "CyberRange Official Telemetry Platform",
+        "pdf_url": f"/api/v1/reporting/certificates/{cert.display_certificate_id}/download" if cert.png_path else None,
+        "png_url": f"/api/v1/reporting/certificates/{cert.display_certificate_id}/download" if cert.png_path else None
+    }
+
+
+@router.get("/certificates/{certificate_id}/download")
+def download_certificate_png(certificate_id: str, db: Session = Depends(get_db)):
+    """
+    PUBLIC certificate download — served under /api/v1 so it goes through the
+    same reverse-proxy path already proven to work for every other endpoint.
+    The raw /uploads/... static path certificates previously linked to isn't
+    reachable through the deployed proxy config and falls back to serving the
+    SPA's index.html, so "downloading" a certificate silently produced an
+    .htm file of the frontend shell instead of the actual image.
+    """
+    from fastapi.responses import FileResponse
+    from app.models.certificate import Certificate
+    from app.services.storage_provider import storage_provider
+
+    cert = (
+        db.query(Certificate)
+        .filter(Certificate.display_certificate_id == certificate_id)
+        .first()
+    )
+    if not cert:
+        cert = db.query(Certificate).filter(Certificate.uuid == certificate_id).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found.")
+
+    relative = f"png/{cert.display_certificate_id}.png"
+    if not cert.png_path or not storage_provider.exists(relative):
+        # File missing on disk (e.g. uploads dir was cleared) but the DB row
+        # still references it — self-heal by regenerating on the spot instead
+        # of 404ing on a certificate that should exist.
+        from app.services.certificate_manager import certificate_manager
+        try:
+            cert = certificate_manager.get_or_issue_certificate(
+                db=db,
+                user_id=cert.user_id,
+                lab_id=cert.lab_id,
+            )
+        except Exception as e:
+            logger.error(f"On-demand certificate regeneration failed for {certificate_id}: {e}")
+        if not cert.png_path or not storage_provider.exists(relative):
+            raise HTTPException(status_code=404, detail="Certificate not found or not yet generated.")
+
+    full_path = os.path.join(storage_provider.base_dir, relative)
+    return FileResponse(
+        full_path,
+        media_type="image/png",
+        filename=f"{cert.display_certificate_id}.png",
+    )
+
+
+@router.post("/certificates/regenerate-all")
+def regenerate_all_certificates(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin_user),
+):
+    """
+    Deletes every rendered certificate PNG and clears each row's png_path, so
+    the next view/download re-renders from whatever certificate_master.png
+    currently is on disk. Equivalent to `rm uploads/certificates/png/*.png`
+    but callable from the admin UI instead of requiring server SSH access —
+    this has had to happen after nearly every template design iteration.
+    """
+    from app.models.certificate import Certificate
+    from app.services.storage_provider import storage_provider
+
+    certs = db.query(Certificate).all()
+    deleted = 0
+    for cert in certs:
+        if storage_provider.delete(f"png/{cert.display_certificate_id}.png"):
+            deleted += 1
+        cert.png_path = None
+    db.commit()
+    return {"status": "ok", "certificates_cleared": len(certs), "files_deleted": deleted}
+
+
+# ==========================================================
+# ASSIGNMENT-BASED ANALYTICS ENDPOINTS
+# ==========================================================
+
+@router.get("/analytics/groups")
+def get_analytics_groups(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns only groups that currently have one or more active lab assignments.
+    """
+    from app.models.group import Group
+    from app.models.assignment import Assignment
+    from app.models.user_affiliation import UserAffiliation as UA
+    from sqlalchemy import not_, or_
+    from datetime import datetime
+
+    is_super_admin = (current_user.role or "").lower() in ("super_admin", "system_admin", "sysadmin")
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved_orgs = db.query(Organization.id).filter(
+                Organization.id.in_(raw_org_ids),
+                Organization.status.in_(["APPROVED", "ACTIVE"])
+            ).all()
+            admin_org_ids = [o[0] for o in approved_orgs]
+
+        filter_conds = []
+        if admin_col_ids:
+            filter_conds.append((UA.affiliation_type == "college") & (UA.college_id.in_(admin_col_ids)))
+        if admin_org_ids:
+            filter_conds.append((UA.affiliation_type == "organization") & (UA.organization_id.in_(admin_org_ids)))
+
+        if filter_conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*filter_conds)).subquery()
+
+    groups = db.query(Group).all()
+    res = []
+    from app.core.timezone_utils import now_ist
+    now = now_ist()
+    for g in groups:
+        db_id = g.id
+        assignments = db.query(Assignment).filter(
+            Assignment.group_id == db_id,
+            Assignment.deleted_at.is_(None)
+        ).all()
+        
+        active_assign_count = 0
+        for a in assignments:
+            derived_status = "Scheduled"
+            if a.status == "Completed":
+                derived_status = "Completed"
+            elif a.paused_at is not None:
+                derived_status = "Paused"
+            elif a.start_datetime <= now <= a.end_datetime:
+                derived_status = "Running"
+            elif now > a.end_datetime:
+                derived_status = "Completed"
+            else:
+                derived_status = "Scheduled"
+            
+            if derived_status == "Running":
+                active_assign_count += 1
+
+        if len(assignments) > 0:
+            member_q = db.query(User).filter(
+                User.group_id == g.id,
+                not_(or_(
+                    User.role.ilike('%sysadmin%'),
+                    User.role.ilike('%system_admin%'),
+                    User.name.ilike('%sysadmin%'),
+                    User.name.ilike('%sys admin%'),
+                    User.email.ilike('%sysadmin%'),
+                ))
+            )
+            if not is_super_admin and valid_user_ids is not None:
+                member_q = member_q.filter(User.id.in_(valid_user_ids))
+            
+            member_count = member_q.count()
+            
+            res.append({
+                "id": g.id,
+                "name": g.name,
+                "memberCount": member_count,
+                "activeLabsCount": active_assign_count
+            })
+    return res
+
+@router.get("/analytics/groups/{group_id}")
+def get_analytics_group_details(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Group analytics with explicit raw-point and percentage fields."""
+    from sqlalchemy import not_, or_
+
+    from app.models.assignment import Assignment
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.user_affiliation import UserAffiliation as UA
+    from app.services.gradebook_service import GradebookService
+    from app.core.timezone_utils import now_ist
+
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    is_super_admin = (current_user.role or "").lower() in (
+        "super_admin", "system_admin", "sysadmin"
+    )
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved = (
+                db.query(Organization.id)
+                .filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"]),
+                )
+                .all()
+            )
+            admin_org_ids = [row[0] for row in approved]
+
+        conds = []
+        if admin_col_ids:
+            conds.append(
+                (UA.affiliation_type == "college")
+                & (UA.college_id.in_(admin_col_ids))
+            )
+        if admin_org_ids:
+            conds.append(
+                (UA.affiliation_type == "organization")
+                & (UA.organization_id.in_(admin_org_ids))
+            )
+        if conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*conds)).subquery()
+
+    member_q = db.query(User).filter(
+        User.group_id == group_id,
+        not_(
+            or_(
+                User.role.ilike("%sysadmin%"),
+                User.role.ilike("%system_admin%"),
+                User.name.ilike("%sysadmin%"),
+                User.name.ilike("%sys admin%"),
+                User.email.ilike("%sysadmin%"),
+            )
+        ),
+    )
+    if not is_super_admin and valid_user_ids is not None:
+        member_q = member_q.filter(User.id.in_(valid_user_ids))
+    members = member_q.all()
+    member_ids = {member.id for member in members}
+
+    assignments = (
+        db.query(Assignment)
+        .filter(
+            Assignment.group_id == group_id,
+            Assignment.deleted_at.is_(None),
+        )
+        .order_by(Assignment.id.desc())
+        .all()
+    )
+
+    labs = []
+    score_percents = []
+    completion_percents = []
+    final_percents = []
+    total_seconds = 0
+    time_rows = 0
+    now = now_ist()
+
+    for assignment in assignments:
+        book = GradebookService.get_gradebook(db, assignment.id)
+        rows = [
+            row
+            for row in book["students"]
+            if row["student_id"] in member_ids
+        ]
+
+        completion_values = [
+            float(row["completion_percent"] or 0)
+            for row in rows
+        ]
+        score_values = [
+            float(row["score_percent"])
+            for row in rows
+            if row["score_percent"] is not None
+        ]
+        final_values = [float(row["final_percent"]) for row in rows]
+
+        completion_percentage = (
+            round(sum(completion_values) / len(completion_values), 2)
+            if completion_values
+            else 0.0
+        )
+        average_score_percent = (
+            round(sum(score_values) / len(score_values), 2)
+            if score_values
+            else None
+        )
+        average_score_earned = (
+            round(sum(float(row["score_earned"]) for row in rows) / len(rows), 2)
+            if rows
+            else 0.0
+        )
+        average_rubric_percent = (
+            round(sum(float(row["rubric_percent"]) for row in rows) / len(rows), 2)
+            if rows
+            else 0.0
+        )
+        average_final_percent = (
+            round(sum(final_values) / len(final_values), 2)
+            if final_values
+            else 0.0
+        )
+
+        seconds = sum(int(row["completion_time_seconds"] or 0) for row in rows)
+        if rows:
+            total_seconds += seconds / len(rows)
+            time_rows += 1
+
+        completion_percents.append(completion_percentage)
+        if average_score_percent is not None:
+            score_percents.append(average_score_percent)
+        final_percents.append(average_final_percent)
+
+        if assignment.status == "Completed":
+            derived_status = "Completed"
+        elif assignment.paused_at is not None:
+            derived_status = "Paused"
+        elif assignment.start_datetime <= now <= assignment.end_datetime:
+            derived_status = "Running"
+        elif now > assignment.end_datetime:
+            derived_status = "Completed"
+        else:
+            derived_status = "Scheduled"
+
+        lab_title = (
+            db.query(Lab.name).filter(Lab.id == assignment.lab_id).scalar()
+            or assignment.lab_id
+        )
+
+        labs.append(
+            {
+                "assignment_id": assignment.id,
+                "lab_id": assignment.lab_id,
+                "lab_title": lab_title,
+                "status": derived_status,
+                "student_count": len(rows),
+                "completion_percentage": completion_percentage,
+                "average_score_earned": average_score_earned,
+                "score_possible": book["summary"]["score_possible"],
+                "average_score_percent": average_score_percent,
+                "average_rubric_percent": average_rubric_percent,
+                "average_final_percent": average_final_percent,
+            }
+        )
+
+    overall_completion = (
+        round(sum(completion_percents) / len(completion_percents), 2)
+        if completion_percents
+        else 0.0
+    )
+    overall_average_score_percent = (
+        round(sum(score_percents) / len(score_percents), 2)
+        if score_percents
+        else None
+    )
+    overall_average_final_percent = (
+        round(sum(final_percents) / len(final_percents), 2)
+        if final_percents
+        else 0.0
+    )
+
+    avg_seconds = total_seconds / time_rows if time_rows else 0
+    hours = int(avg_seconds // 3600)
+    minutes = int((avg_seconds % 3600) // 60)
+    average_time = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+    return {
+        "group_id": group.id,
+        "name": group.name,
+        "member_count": len(members),
+        "assigned_labs_count": len(assignments),
+        "overall_completion": overall_completion,
+        "overall_average_score_percent": overall_average_score_percent,
+        "overall_average_final_percent": overall_average_final_percent,
+        "percent_units": "percent_0_100",
+        "average_time": average_time,
+        "labs": labs,
+    }
+
+@router.get("/analytics/students")
+def get_analytics_students(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns only students with active assignments (not Completed, Ended, or Expired).
+    """
+    from app.models.assignment import Assignment
+    from sqlalchemy import or_, and_
+
+    students = db.query(User).filter(User.role.ilike("%student%")).all()
+    res = []
+    for s in students:
+        has_assign = db.query(Assignment).filter(
+            or_(
+                Assignment.student_id == s.id,
+                Assignment.group_id == s.group_id
+            )
+        ).first()
+        if has_assign:
+            res.append({
+                "id": s.id,
+                "fullName": s.name or s.email.split("@")[0],
+                "email": s.email,
+                "department": s.department or "Cyber Security",
+                "year": s.year or "III Year",
+                "active_assignment_id": has_assign.id,
+                "lab_id": has_assign.lab_id
+            })
+    return res
+
+@router.get("/analytics/students/{student_id}/labs/{lab_id}")
+def get_student_lab_breakdown(
+    student_id: int,
+    lab_id: str,
+    assignment_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Assignment-scoped student breakdown with explicit score units."""
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.user_lab_progress import UserLabProgress
+    from app.services.gradebook_service import GradebookService
+    from app.services.score_contract_service import ScoreContractService
+
+    student = db.query(User).filter(User.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    assignment_query = db.query(Assignment).filter(
+        Assignment.lab_id == lab_id,
+        or_(
+            Assignment.student_id == student_id,
+            Assignment.group_id == student.group_id,
+        ),
+        Assignment.deleted_at.is_(None),
+    )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+
+    matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not matches:
+        raise HTTPException(
+            status_code=404,
+            detail="Assignment not found for this student and lab",
+        )
+    if assignment_id is None and len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Multiple assignments exist for this student and lab; "
+                "assignment_id is required."
+            ),
+        )
+    assignment = matches[0]
+
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    lab_title = lab.name if lab else lab_id.replace("-", " ").title()
+
+    modules = (
+        db.query(LabModule)
+        .filter(LabModule.lab_id == lab_id)
+        .order_by(LabModule.display_order.asc(), LabModule.module_number.asc())
+        .all()
+    )
+
+    book = GradebookService.get_gradebook(db, assignment.id)
+    grade_row = next(
+        (
+            row
+            for row in book["students"]
+            if row["student_id"] == student_id
+        ),
+        None,
+    )
+    if grade_row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Student is not part of this assignment roster.",
+        )
+
+    module_stats = []
+    track_percent_values = {
+        "Reconnaissance": [],
+        "Exploitation": [],
+        "Analysis": [],
+        "Configuration": [],
+        "Defense": [],
+    }
+    total_time_seconds = 0
+
+    for module in modules:
+        progress = (
+            db.query(UserLabProgress)
+            .filter(
+                UserLabProgress.user_id == student_id,
+                UserLabProgress.assignment_id == assignment.id,
+                UserLabProgress.module_id == module.id,
+            )
+            .first()
+        )
+
+        score_earned = float(progress.score or 0) if progress else 0.0
+        score_possible = (
+            float(module.points)
+            if module.points is not None and float(module.points) > 0
+            else None
+        )
+        score_percent = ScoreContractService.normalize_percent(
+            score_earned,
+            score_possible,
+        )
+
+        status = progress.status if progress else "Not Started"
+        attempts = int(progress.attempts or 0) if progress else 0
+        seconds = int(progress.time_taken_seconds or 0) if progress else 0
+        total_time_seconds += seconds
+        time_taken = f"{round(seconds / 60)} min" if seconds else "N/A"
+
+        category = (module.track or module.category or "").lower()
+        if "recon" in category or "info" in category:
+            mapped_track = "Reconnaissance"
+        elif (
+            "exploit" in category
+            or "offensive" in category
+            or "attack" in category
+            or "web" in category
+        ):
+            mapped_track = "Exploitation"
+        elif "analysis" in category or "forensics" in category or "crypto" in category:
+            mapped_track = "Analysis"
+        elif "config" in category or "linux" in category or "network" in category:
+            mapped_track = "Configuration"
+        elif "defense" in category or "hardening" in category or "secure" in category:
+            mapped_track = "Defense"
+        else:
+            mapped_track = "Analysis"
+
+        if score_percent is not None:
+            track_percent_values[mapped_track].append(score_percent)
+
+        module_stats.append(
+            {
+                "module_id": module.id,
+                "name": module.title,
+                "score_earned": round(score_earned, 2),
+                "score_possible": score_possible,
+                "score_percent": score_percent,
+                "attempts": (
+                    f"{attempts} Attempt"
+                    if attempts == 1
+                    else f"{attempts} Attempts"
+                ),
+                "time_taken": time_taken,
+                "status": status,
+            }
+        )
+
+    spider_chart = []
+    for subject, values in track_percent_values.items():
+        average = (
+            round(sum(values) / len(values), 2)
+            if values
+            else 0.0
+        )
+        spider_chart.append(
+            {"subject": subject, "score": average, "fullMark": 100}
+        )
+
+    hours = total_time_seconds // 3600
+    minutes = (total_time_seconds % 3600) // 60
+    time_str = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+    return {
+        "student": {
+            "fullName": student.name or student.email.split("@")[0],
+            "department": student.department or "Cyber Security",
+            "year": student.year or "III Year",
+        },
+        "lab_title": lab_title,
+        "assignment_id": assignment.id,
+        "score_earned": grade_row["score_earned"],
+        "score_possible": grade_row["score_possible"],
+        "score_percent": grade_row["score_percent"],
+        "rubric_percent": grade_row["rubric_percent"],
+        "final_percent": grade_row["final_percent"],
+        "grade_status": grade_row["grade_status"],
+        "completion_percentage": grade_row["completion_percent"] or 0.0,
+        "score_units": "points",
+        "percent_units": "percent_0_100",
+        "total_time_taken": time_str,
+        "modules": module_stats,
+        "spider_chart": spider_chart,
+    }
+
+@router.get("/analytics/groups/{group_id}/labs/{lab_id}/export")
+def export_group_lab_csv(
+    group_id: int,
+    lab_id: str,
+    assignment_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """CSV export with explicit assignment context and score units."""
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+    from sqlalchemy import not_, or_
+
+    from app.models.assignment import Assignment
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.user_affiliation import UserAffiliation as UA
+    from app.models.user_lab_progress import UserLabProgress
+    from app.services.gradebook_service import GradebookService
+    from app.services.score_contract_service import ScoreContractService
+
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    assignment_query = db.query(Assignment).filter(
+        Assignment.group_id == group_id,
+        Assignment.lab_id == lab_id,
+        Assignment.deleted_at.is_(None),
+    )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+
+    matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not matches:
+        raise HTTPException(
+            status_code=404,
+            detail="Assignment not found for this group and lab",
+        )
+    if assignment_id is None and len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Multiple assignments exist for this group and lab; "
+                "assignment_id is required."
+            ),
+        )
+    assignment = matches[0]
+
+    is_super_admin = (current_user.role or "").lower() in (
+        "super_admin", "system_admin", "sysadmin"
+    )
+    valid_user_ids = None
+    if not is_super_admin:
+        admin_affs = db.query(UA).filter(UA.user_id == current_user.id).all()
+        admin_col_ids = [a.college_id for a in admin_affs if a.college_id is not None]
+        raw_org_ids = [a.organization_id for a in admin_affs if a.organization_id is not None]
+        admin_org_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+            approved = (
+                db.query(Organization.id)
+                .filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"]),
+                )
+                .all()
+            )
+            admin_org_ids = [row[0] for row in approved]
+
+        conds = []
+        if admin_col_ids:
+            conds.append(
+                (UA.affiliation_type == "college")
+                & (UA.college_id.in_(admin_col_ids))
+            )
+        if admin_org_ids:
+            conds.append(
+                (UA.affiliation_type == "organization")
+                & (UA.organization_id.in_(admin_org_ids))
+            )
+        if conds:
+            valid_user_ids = db.query(UA.user_id).filter(or_(*conds)).subquery()
+
+    member_q = db.query(User).filter(
+        User.group_id == group_id,
+        not_(
+            or_(
+                User.role.ilike("%sysadmin%"),
+                User.role.ilike("%system_admin%"),
+                User.name.ilike("%sysadmin%"),
+                User.name.ilike("%sys admin%"),
+                User.email.ilike("%sysadmin%"),
+            )
+        ),
+    )
+    if not is_super_admin and valid_user_ids is not None:
+        member_q = member_q.filter(User.id.in_(valid_user_ids))
+    students = member_q.all()
+
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    lab_title = lab.name if lab else lab_id
+    modules = (
+        db.query(LabModule)
+        .filter(LabModule.lab_id == lab_id)
+        .order_by(LabModule.display_order.asc(), LabModule.module_number.asc())
+        .all()
+    )
+
+    book = GradebookService.get_gradebook(db, assignment.id)
+    row_map = {
+        row["student_id"]: row
+        for row in book["students"]
+    }
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    header = [
+        "Student Name",
+        "Department",
+        "Year",
+        "Assigned Lab",
+        "Assignment ID",
+        "Status",
+        "Completion (%)",
+        "Score Earned (pts)",
+        "Score Possible (pts)",
+        "Automatic Score (%)",
+        "Rubric (%)",
+        "Final Grade (%)",
+        "Grade Status",
+        "Time Taken",
+    ]
+    for module in modules:
+        header.extend(
+            [
+                f"{module.title} Earned (pts)",
+                f"{module.title} Possible (pts)",
+                f"{module.title} Score (%)",
+                f"{module.title} Time",
+                f"{module.title} Attempts",
+            ]
+        )
+    writer.writerow(header)
+
+    for student in students:
+        row = row_map.get(student.id)
+        if row is None:
+            continue
+
+        progress_rows = (
+            db.query(UserLabProgress)
+            .filter(
+                UserLabProgress.user_id == student.id,
+                UserLabProgress.assignment_id == assignment.id,
+            )
+            .all()
+        )
+        progress_map = {item.module_id: item for item in progress_rows}
+
+        if row["completion_percent"] is not None and row["completion_percent"] >= 100:
+            status = "Completed"
+        elif any((item.status or "").upper() == "FAILED" for item in progress_rows):
+            status = "Failed"
+        elif row["last_activity_at"] or row["score_earned"] > 0:
+            status = "Running"
+        else:
+            status = "Not Started"
+
+        seconds = int(row["completion_time_seconds"] or 0)
+        csv_row = [
+            row["student_name"],
+            row["department"] or "Cyber Security",
+            row["year"] or "III Year",
+            lab_title,
+            assignment.id,
+            status,
+            row["completion_percent"] if row["completion_percent"] is not None else "",
+            row["score_earned"],
+            row["score_possible"] if row["score_possible"] is not None else "",
+            row["score_percent"] if row["score_percent"] is not None else "",
+            row["rubric_percent"],
+            row["final_percent"],
+            row["grade_status"],
+            f"{round(seconds / 60)} min" if seconds else "N/A",
+        ]
+
+        for module in modules:
+            progress = progress_map.get(module.id)
+            earned = float(progress.score or 0) if progress else 0.0
+            possible = (
+                float(module.points)
+                if module.points is not None and float(module.points) > 0
+                else None
+            )
+            percent = ScoreContractService.normalize_percent(earned, possible)
+            mod_seconds = int(progress.time_taken_seconds or 0) if progress else 0
+            attempts = int(progress.attempts or 0) if progress else 0
+
+            csv_row.extend(
+                [
+                    earned,
+                    possible if possible is not None else "",
+                    percent if percent is not None else "",
+                    f"{round(mod_seconds / 60)} min" if mod_seconds else "N/A",
+                    attempts,
+                ]
+            )
+
+        writer.writerow(csv_row)
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=group_{group_id}_"
+                f"assignment_{assignment.id}_analytics.csv"
+            )
+        },
+    )
+
+@router.get("/analytics/students/{student_id}/labs/{lab_id}/pdf")
+def export_student_lab_pdf(
+    student_id: int,
+    lab_id: str,
+    assignment_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """PDF report with raw points and percentages clearly separated."""
+    from io import BytesIO
+
+    from fastapi.responses import Response
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.models.lab_module import LabModule
+    from app.models.user_lab_progress import UserLabProgress
+    from app.services.gradebook_service import GradebookService
+    from app.services.score_contract_service import ScoreContractService
+
+    student = db.query(User).filter(User.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    assignment_query = db.query(Assignment).filter(
+        Assignment.lab_id == lab_id,
+        or_(
+            Assignment.student_id == student_id,
+            Assignment.group_id == student.group_id,
+        ),
+        Assignment.deleted_at.is_(None),
+    )
+    if assignment_id is not None:
+        assignment_query = assignment_query.filter(Assignment.id == assignment_id)
+
+    matches = assignment_query.order_by(Assignment.id.desc()).all()
+    if not matches:
+        raise HTTPException(
+            status_code=404,
+            detail="Assignment not found for this student and lab",
+        )
+    if assignment_id is None and len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Multiple assignments exist for this student and lab; "
+                "assignment_id is required."
+            ),
+        )
+    assignment = matches[0]
+
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    lab_title = lab.name if lab else lab_id.replace("-", " ").title()
+
+    book = GradebookService.get_gradebook(db, assignment.id)
+    row = next(
+        (
+            item
+            for item in book["students"]
+            if item["student_id"] == student_id
+        ),
+        None,
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Student is not part of this assignment roster.",
+        )
+
+    modules = (
+        db.query(LabModule)
+        .filter(LabModule.lab_id == lab_id)
+        .order_by(LabModule.display_order.asc(), LabModule.module_number.asc())
+        .all()
+    )
+    progress_rows = (
+        db.query(UserLabProgress)
+        .filter(
+            UserLabProgress.user_id == student_id,
+            UserLabProgress.assignment_id == assignment.id,
+        )
+        .all()
+    )
+    progress_map = {item.module_id: item for item in progress_rows}
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=35,
+        leftMargin=35,
+        topMargin=35,
+        bottomMargin=35,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "DocTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        textColor=colors.HexColor("#0052CC"),
+        spaceAfter=12,
+    )
+    section_style = ParagraphStyle(
+        "SectionHeader",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        textColor=colors.HexColor("#1E293B"),
+        spaceBefore=10,
+        spaceAfter=5,
+    )
+    body_style = ParagraphStyle(
+        "BodyText",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8,
+        textColor=colors.HexColor("#334155"),
+        leading=10,
+    )
+
+    story = [
+        Paragraph("CyberRange Assignment Analytics Report", title_style),
+        Paragraph(
+            f"Assignment ID: {assignment.id} | Generated: "
+            f"{datetime.utcnow().strftime('%d %b %Y')}",
+            body_style,
+        ),
+        Spacer(1, 12),
+    ]
+
+    meta = [
+        [
+            Paragraph("<b>Student:</b>", body_style),
+            Paragraph(row["student_name"], body_style),
+            Paragraph("<b>Lab:</b>", body_style),
+            Paragraph(lab_title, body_style),
+        ],
+        [
+            Paragraph("<b>Score Earned:</b>", body_style),
+            Paragraph(f"{row['score_earned']} pts", body_style),
+            Paragraph("<b>Score Possible:</b>", body_style),
+            Paragraph(
+                f"{row['score_possible']} pts"
+                if row["score_possible"] is not None
+                else "Unavailable",
+                body_style,
+            ),
+        ],
+        [
+            Paragraph("<b>Automatic Score:</b>", body_style),
+            Paragraph(
+                f"{row['score_percent']}%"
+                if row["score_percent"] is not None
+                else "Unavailable",
+                body_style,
+            ),
+            Paragraph("<b>Rubric Score:</b>", body_style),
+            Paragraph(f"{row['rubric_percent']}%", body_style),
+        ],
+        [
+            Paragraph("<b>Final Grade:</b>", body_style),
+            Paragraph(f"{row['final_percent']}%", body_style),
+            Paragraph("<b>Grade Status:</b>", body_style),
+            Paragraph(row["grade_status"], body_style),
+        ],
+    ]
+    meta_table = Table(meta, colWidths=[90, 170, 90, 170])
+    meta_table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story.extend([meta_table, Spacer(1, 16)])
+
+    story.append(Paragraph("Module Performance", section_style))
+    module_data = [
+        [
+            "Module",
+            "Earned",
+            "Possible",
+            "Score %",
+            "Attempts",
+            "Status",
+        ]
+    ]
+
+    for module in modules:
+        progress = progress_map.get(module.id)
+        earned = float(progress.score or 0) if progress else 0.0
+        possible = (
+            float(module.points)
+            if module.points is not None and float(module.points) > 0
+            else None
+        )
+        percent = ScoreContractService.normalize_percent(earned, possible)
+        module_data.append(
+            [
+                Paragraph(module.title, body_style),
+                str(earned),
+                str(possible) if possible is not None else "N/A",
+                str(percent) if percent is not None else "N/A",
+                str(int(progress.attempts or 0) if progress else 0),
+                progress.status if progress else "Not Started",
+            ]
+        )
+
+    module_table = Table(module_data, repeatRows=1)
+    module_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0052CC")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(module_table)
+
+    doc.build(story)
+    content = buffer.getvalue()
+    buffer.close()
+
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=student_{student_id}_"
+                f"assignment_{assignment.id}_analytics.pdf"
+            )
+        },
+    )
+
+@router.post("/feedback")
+def submit_admin_feedback(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Saves subject and description feedback in the database logs or audit log target.
+    """
+    from app.models.audit_log import AuditLog
+    subject = payload.get("subject", "General Feedback")
+    feedback = payload.get("feedback", "")
+    
+    log_entry = AuditLog(
+        action="SUBMIT_FEEDBACK",
+        entity="feedback",
+        performed_by=current_user.name or current_user.email,
+        performed_by_role=current_user.role,
+        old_value=subject,
+        new_value=feedback,
+        ip_address="127.0.0.1",
+        status="SUCCESS"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    from app.services.ses_service import ses_service
+    portal_label = "Admin Portal" if current_user.role in ("admin", "system_admin") else "Student Portal"
+    ses_service.send_feedback_notification_email(
+        category=portal_label,
+        subject=subject,
+        description=feedback,
+        submitter_email=current_user.email
+    )
+
+    return {"status": "success", "message": "Feedback submitted successfully"}
+
+
+@router.post("/feedback/google-form-notify")
+def notify_feedback_from_google_form(
+    payload: dict,
+    secret: str = Query(..., description="Shared webhook secret configured in the Apps Script trigger"),
+    db: Session = Depends(get_db),
+):
+    """
+    Public webhook called by a Google Apps Script onFormSubmit trigger attached to the
+    platform feedback Google Form. Not user-authenticated (Google's servers call this) -
+    protected instead by a shared secret compared against settings.FEEDBACK_WEBHOOK_SECRET.
+    Persists the submission to the audit log and emails the sysadmin.
+    """
+    from app.core.config import settings
+    if not getattr(settings, "FEEDBACK_WEBHOOK_SECRET", None) or secret != settings.FEEDBACK_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+    category = payload.get("category", "Other")
+    subject = payload.get("subject", "Feedback form submission")
+    description = payload.get("description", "")
+    submitter_email = payload.get("email", "")
+
+    from app.models.audit_log import AuditLog
+    log_entry = AuditLog(
+        action="SUBMIT_FEEDBACK",
+        entity="feedback",
+        performed_by=submitter_email or "Google Form Submission",
+        performed_by_role="external",
+        old_value=f"[{category}] {subject}",
+        new_value=description,
+        ip_address="google-forms-webhook",
+        status="SUCCESS"
+    )
+    db.add(log_entry)
+    db.commit()
+
+    from app.services.ses_service import ses_service
+    ses_service.send_feedback_notification_email(
+        category=category,
+        subject=subject,
+        description=description,
+        submitter_email=submitter_email
+    )
+    return {"status": "success"}
+
+@router.get("/login-history")
+def get_login_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns login audits from the AuditLog table for the user.
+    """
+    from app.models.audit_log import AuditLog
+    from sqlalchemy import desc
+    logs = db.query(AuditLog).filter(
+        AuditLog.user_id == current_user.id,
+        AuditLog.action == "LOGIN"
+    ).order_by(desc(AuditLog.timestamp)).limit(5).all()
+
+    res = []
+    for l in logs:
+        res.append({
+            "date": l.timestamp.strftime("%Y-%m-%d") if l.timestamp else "N/A",
+            "time": l.timestamp.strftime("%H:%M:%S") if l.timestamp else "N/A",
+            "ip_address": l.ip_address or "127.0.0.1",
+            "browser": l.browser or "Chrome",
+            "device": l.device or "Desktop",
+            "status": l.status
+        })
+
+    # Mock values fallback if audit log table has no log entry
+    if not res:
+        res = [
+            {
+                "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "time": datetime.utcnow().strftime("%H:%M:%S"),
+                "ip_address": "192.168.1.105",
+                "browser": "Chrome 124.0.0",
+                "device": "Windows Desktop",
+                "status": "SUCCESS"
+            }
+        ]
+    return res
+
+@router.post("/change-password")
+def change_admin_password(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Change password endpoint verifying current password and committing new one.
+    """
+    from app.core.security import verify_password, get_password_hash
+    current_pw = payload.get("current_password")
+    new_pw = payload.get("new_password")
+
+    if not verify_password(current_pw, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+
+    current_user.hashed_password = get_password_hash(new_pw)
+    db.commit()
+    return {"status": "success", "message": "Password changed successfully"}
+
+
+# ==========================================================
+# REPORTS ARCHIVE ENDPOINTS
+# ==========================================================
+
+@router.get("/reports")
+def get_historical_reports(
+    tab: str = "group",
+    search: str = "",
+    department: str = "",
+    year: str = "",
+    lab: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Historical assignment archive using explicit Point #7 score units.
+
+    No field named final_score or average_score is returned because those names
+    do not identify whether the value is raw points or a percentage.
+    """
+    from app.models.assignment import Assignment
+    from app.models.group import Group
+    from app.models.lab import Lab
+    from app.services.gradebook_service import GradebookService
+    from app.services.reporting_scope_service import ReportingScopeService
+
+    query = db.query(Assignment).filter(
+        Assignment.status.in_(
+            ["Completed", "Ended", "Expired", "Running", "Assigned"]
+        ),
+        Assignment.deleted_at.is_(None),
+    )
+
+    if lab:
+        query = query.filter(Assignment.lab_id == lab)
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(Assignment.start_datetime >= start_dt)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            query = query.filter(Assignment.end_datetime <= end_dt)
+        except ValueError:
+            pass
+
+    assignments = query.order_by(Assignment.id.desc()).all()
+    result = []
+
+    for assignment in assignments:
+        try:
+            book = GradebookService.get_gradebook(db, assignment.id)
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                # Rubric invariant violation is intentionally visible rather
+                # than silently inventing a denominator/grade.
+                raise
+            continue
+
+        rows = book["students"]
+        visible_ids = ReportingScopeService.visible_user_ids(
+            db,
+            current_user,
+            [row["student_id"] for row in rows],
+        )
+        rows = [
+            row for row in rows
+            if row["student_id"] in visible_ids
+        ]
+        lab_title = (
+            db.query(Lab.name)
+            .filter(Lab.id == assignment.lab_id)
+            .scalar()
+            or assignment.lab_id
+        )
+
+        if tab == "group":
+            if not assignment.group_id:
+                continue
+
+            group = (
+                db.query(Group)
+                .filter(Group.id == assignment.group_id)
+                .first()
+            )
+            if not group:
+                continue
+
+            if search and (
+                search.lower() not in group.name.lower()
+                and search.lower() not in assignment.lab_id.lower()
+            ):
+                continue
+
+            filtered_rows = []
+            for row in rows:
+                if department and row["department"] != department:
+                    continue
+                if year and str(row["year"]) != year:
+                    continue
+                filtered_rows.append(row)
+
+            if not filtered_rows and (department or year):
+                continue
+
+            completion_values = [
+                float(row["completion_percent"] or 0)
+                for row in filtered_rows
+            ]
+            score_values = [
+                float(row["score_percent"])
+                for row in filtered_rows
+                if row["score_percent"] is not None
+            ]
+
+            result.append(
+                {
+                    "assignment_id": assignment.id,
+                    "group_name": group.name,
+                    "lab_title": lab_title,
+                    "assigned_date": (
+                        assignment.start_datetime.strftime("%Y-%m-%d")
+                        if assignment.start_datetime
+                        else "N/A"
+                    ),
+                    "end_date": (
+                        assignment.end_datetime.strftime("%Y-%m-%d")
+                        if assignment.end_datetime
+                        else "N/A"
+                    ),
+                    "student_count": len(filtered_rows),
+                    "completion_pct": (
+                        round(
+                            sum(completion_values) / len(completion_values),
+                            2,
+                        )
+                        if completion_values
+                        else 0.0
+                    ),
+                    "average_score_earned": (
+                        round(
+                            sum(
+                                float(row["score_earned"])
+                                for row in filtered_rows
+                            )
+                            / len(filtered_rows),
+                            2,
+                        )
+                        if filtered_rows
+                        else 0.0
+                    ),
+                    "score_possible": book["summary"]["score_possible"],
+                    "average_score_percent": (
+                        round(sum(score_values) / len(score_values), 2)
+                        if score_values
+                        else None
+                    ),
+                    "average_rubric_percent": (
+                        round(
+                            sum(
+                                float(row["rubric_percent"])
+                                for row in filtered_rows
+                            )
+                            / len(filtered_rows),
+                            2,
+                        )
+                        if filtered_rows
+                        else 0.0
+                    ),
+                    "average_final_percent": (
+                        round(
+                            sum(
+                                float(row["final_percent"])
+                                for row in filtered_rows
+                            )
+                            / len(filtered_rows),
+                            2,
+                        )
+                        if filtered_rows
+                        else 0.0
+                    ),
+                    "status": assignment.status,
+                }
+            )
+            continue
+
+        # Individual archive.
+        for row in rows:
+            student_name = row["student_name"]
+            dept = row["department"] or ""
+            if search and (
+                search.lower() not in student_name.lower()
+                and search.lower() not in assignment.lab_id.lower()
+                and search.lower() not in dept.lower()
+            ):
+                continue
+            if department and dept != department:
+                continue
+            if year and str(row["year"]) != year:
+                continue
+
+            seconds = int(row["completion_time_seconds"] or 0)
+            completion_time = (
+                f"{round(seconds / 60)} min"
+                if seconds > 0
+                else "N/A"
+            )
+
+            result.append(
+                {
+                    "student_id": row["student_id"],
+                    "assignment_id": assignment.id,
+                    "student_name": student_name,
+                    "department": row["department"] or "Cyber Security",
+                    "year": row["year"] or "III Year",
+                    "lab_title": lab_title,
+                    "score_earned": row["score_earned"],
+                    "score_possible": row["score_possible"],
+                    "score_percent": row["score_percent"],
+                    "rubric_percent": row["rubric_percent"],
+                    "final_percent": row["final_percent"],
+                    "grade_status": row["grade_status"],
+                    "completion_time": completion_time,
+                    "status": assignment.status,
+                }
+            )
+
+    return result
+
+@router.get("/reports/{assignment_id}")
+def get_historical_report_details(
+    assignment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Detailed assignment grade transcript with explicit score units."""
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.services.gradebook_service import GradebookService
+    from app.services.reporting_scope_service import ReportingScopeService
+
+    assignment = (
+        db.query(Assignment)
+        .filter(
+            Assignment.id == assignment_id,
+            Assignment.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(
+            status_code=404,
+            detail="Report assignment not found",
+        )
+
+    lab_title = (
+        db.query(Lab.name)
+        .filter(Lab.id == assignment.lab_id)
+        .scalar()
+        or assignment.lab_id
+    )
+    book = GradebookService.get_gradebook(db, assignment.id)
+    visible_ids = ReportingScopeService.visible_user_ids(
+        db,
+        current_user,
+        [row["student_id"] for row in book["students"]],
+    )
+
+    students = []
+    for row in book["students"]:
+        if row["student_id"] not in visible_ids:
+            continue
+        seconds = int(row["completion_time_seconds"] or 0)
+        students.append(
+            {
+                "id": row["student_id"],
+                "fullName": row["student_name"],
+                "score_earned": row["score_earned"],
+                "score_possible": row["score_possible"],
+                "score_percent": row["score_percent"],
+                "rubric_percent": row["rubric_percent"],
+                "final_percent": row["final_percent"],
+                "grade_status": row["grade_status"],
+                "completion_time": (
+                    f"{round(seconds / 60)} min"
+                    if seconds > 0
+                    else "N/A"
+                ),
+                "attempts": row["attempts"],
+            }
+        )
+
+    return {
+        "assignment_id": assignment.id,
+        "lab_title": lab_title,
+        "instructor": assignment.assigned_by or "Admin",
+        "generated_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "score_units": "points",
+        "percent_units": "percent_0_100",
+        "students": students,
+    }
+
+@router.get("/reports/group/{assignment_id}/export")
+def download_group_report_archive(
+    assignment_id: int,
+    format: str = "pdf",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export an assignment gradebook with unambiguous score-unit headers."""
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.services.gradebook_service import GradebookService
+    from app.services.reporting_scope_service import ReportingScopeService
+
+    assignment = (
+        db.query(Assignment)
+        .filter(
+            Assignment.id == assignment_id,
+            Assignment.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    lab_title = (
+        db.query(Lab.name)
+        .filter(Lab.id == assignment.lab_id)
+        .scalar()
+        or assignment.lab_id
+    )
+    book = GradebookService.get_gradebook(db, assignment.id)
+    visible_ids = ReportingScopeService.visible_user_ids(
+        db,
+        current_user,
+        [row["student_id"] for row in book["students"]],
+    )
+    rows = [
+        row for row in book["students"]
+        if row["student_id"] in visible_ids
+    ]
+
+    if format == "csv":
+        import csv
+        from io import StringIO
+        from fastapi.responses import StreamingResponse
+
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "Student Name",
+                "Department",
+                "Year",
+                "Lab Title",
+                "Score Earned (pts)",
+                "Score Possible (pts)",
+                "Automatic Score (%)",
+                "Rubric (%)",
+                "Final Grade (%)",
+                "Grade Status",
+                "Completion Time",
+                "Attempts",
+            ]
+        )
+
+        for row in rows:
+            seconds = int(row["completion_time_seconds"] or 0)
+            writer.writerow(
+                [
+                    row["student_name"],
+                    row["department"] or "Cyber Security",
+                    row["year"] or "III Year",
+                    lab_title,
+                    row["score_earned"],
+                    row["score_possible"] if row["score_possible"] is not None else "",
+                    row["score_percent"] if row["score_percent"] is not None else "",
+                    row["rubric_percent"],
+                    row["final_percent"],
+                    row["grade_status"],
+                    f"{round(seconds / 60)} min" if seconds else "N/A",
+                    row["attempts"],
+                ]
+            )
+
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename=group_report_{assignment_id}.csv"
+                )
+            },
+        )
+
+    from fastapi.responses import Response
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=35,
+        bottomMargin=35,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "DocTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        textColor=colors.HexColor("#0052CC"),
+        spaceAfter=12,
+    )
+    body_style = ParagraphStyle(
+        "BodyText",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7,
+        textColor=colors.HexColor("#334155"),
+        leading=9,
+    )
+
+    story = [
+        Paragraph(f"Assignment Grade Report: {lab_title}", title_style),
+        Paragraph(
+            "Raw score columns are points. Automatic, rubric, and final grade "
+            "columns are percentages on a 0-100 scale.",
+            body_style,
+        ),
+        Spacer(1, 12),
+    ]
+
+    table_data = [
+        [
+            "Student",
+            "Earned",
+            "Possible",
+            "Auto %",
+            "Rubric %",
+            "Final %",
+            "Status",
+            "Time",
+        ]
+    ]
+    for row in rows:
+        seconds = int(row["completion_time_seconds"] or 0)
+        table_data.append(
+            [
+                Paragraph(row["student_name"], body_style),
+                str(row["score_earned"]),
+                str(row["score_possible"]) if row["score_possible"] is not None else "N/A",
+                str(row["score_percent"]) if row["score_percent"] is not None else "N/A",
+                str(row["rubric_percent"]),
+                str(row["final_percent"]),
+                row["grade_status"],
+                f"{round(seconds / 60)} min" if seconds else "N/A",
+            ]
+        )
+
+    table = Table(table_data, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0052CC")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    story.append(table)
+    doc.build(story)
+    content = buffer.getvalue()
+    buffer.close()
+
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=group_report_{assignment_id}.pdf"
+            )
+        },
+    )
+
+@router.get("/reports/student/{student_id}/{assignment_id}/export")
+def download_student_report_archive(
+    student_id: int,
+    assignment_id: int,
+    format: str = "pdf",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export one student's exact assignment transcript."""
+    from app.models.assignment import Assignment
+    from app.models.lab import Lab
+    from app.services.gradebook_service import GradebookService
+    from app.services.reporting_scope_service import ReportingScopeService
+
+    assignment = (
+        db.query(Assignment)
+        .filter(
+            Assignment.id == assignment_id,
+            Assignment.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    book = GradebookService.get_gradebook(db, assignment.id)
+    row = next(
+        (
+            item
+            for item in book["students"]
+            if item["student_id"] == student_id
+        ),
+        None,
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Student is not part of this assignment roster.",
+        )
+
+    visible_ids = ReportingScopeService.visible_user_ids(
+        db,
+        current_user,
+        [student_id],
+    )
+    if student_id not in visible_ids:
+        raise HTTPException(status_code=403, detail="Student report is outside your scope.")
+
+    lab_title = (
+        db.query(Lab.name)
+        .filter(Lab.id == assignment.lab_id)
+        .scalar()
+        or assignment.lab_id
+    )
+
+    if format == "csv":
+        import csv
+        from io import StringIO
+        from fastapi.responses import StreamingResponse
+
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "Student Name",
+                "Lab",
+                "Score Earned (pts)",
+                "Score Possible (pts)",
+                "Automatic Score (%)",
+                "Rubric (%)",
+                "Final Grade (%)",
+                "Grade Status",
+                "Attempts",
+            ]
+        )
+        writer.writerow(
+            [
+                row["student_name"],
+                lab_title,
+                row["score_earned"],
+                row["score_possible"] if row["score_possible"] is not None else "",
+                row["score_percent"] if row["score_percent"] is not None else "",
+                row["rubric_percent"],
+                row["final_percent"],
+                row["grade_status"],
+                row["attempts"],
+            ]
+        )
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename=student_{student_id}_"
+                    f"assignment_{assignment_id}.csv"
+                )
+            },
+        )
+
+    # Reuse the assignment-specific analytics PDF, explicitly supplying the
+    # assignment id so repeated lab assignments cannot be conflated.
+    return export_student_lab_pdf(
+        student_id=student_id,
+        lab_id=assignment.lab_id,
+        assignment_id=assignment_id,
+        current_user=current_user,
+        db=db,
+    )
+

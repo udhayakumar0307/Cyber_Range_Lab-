@@ -1,0 +1,92 @@
+"""Compatibility visibility helper for reporting endpoints.
+
+Point #8 will replace this with capability-based RBAC. Until then, Point #7
+must preserve the platform's existing college/organization report scoping.
+"""
+
+from __future__ import annotations
+
+from typing import Iterable, Set
+
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from app.models.user_affiliation import UserAffiliation
+
+
+class ReportingScopeService:
+    @staticmethod
+    def visible_user_ids(
+        db: Session,
+        current_user,
+        candidate_user_ids: Iterable[int],
+    ) -> Set[int]:
+        candidates = {int(user_id) for user_id in candidate_user_ids}
+        if not candidates:
+            return set()
+
+        if (current_user.role or "").lower() in (
+            "super_admin",
+            "system_admin",
+            "sysadmin",
+        ):
+            return candidates
+
+        admin_affs = (
+            db.query(UserAffiliation)
+            .filter(UserAffiliation.user_id == current_user.id)
+            .all()
+        )
+        college_ids = [
+            aff.college_id
+            for aff in admin_affs
+            if aff.college_id is not None
+        ]
+        raw_org_ids = [
+            aff.organization_id
+            for aff in admin_affs
+            if aff.organization_id is not None
+        ]
+
+        organization_ids = []
+        if raw_org_ids:
+            from app.models.admin_models import Organization
+
+            rows = (
+                db.query(Organization.id)
+                .filter(
+                    Organization.id.in_(raw_org_ids),
+                    Organization.status.in_(["APPROVED", "ACTIVE"]),
+                )
+                .all()
+            )
+            organization_ids = [row[0] for row in rows]
+
+        conditions = []
+        if college_ids:
+            conditions.append(
+                (UserAffiliation.affiliation_type == "college")
+                & (UserAffiliation.college_id.in_(college_ids))
+            )
+        if organization_ids:
+            conditions.append(
+                (UserAffiliation.affiliation_type == "organization")
+                & (UserAffiliation.organization_id.in_(organization_ids))
+            )
+
+        # Preserve current behavior: admins without a scoped affiliation are
+        # not unexpectedly denied data by this compatibility layer. Point #8
+        # will formalize default-deny capability scopes.
+        if not conditions:
+            return candidates
+
+        visible = (
+            db.query(UserAffiliation.user_id)
+            .filter(
+                UserAffiliation.user_id.in_(candidates),
+                or_(*conditions),
+            )
+            .distinct()
+            .all()
+        )
+        return {row[0] for row in visible}

@@ -1,0 +1,1 @@
+var e=`https://docs.google.com/forms/d/e/1FAIpQLSf_TldQy7zcvlnEgE4B6edk_MlTYOszzSUh9ThQWjnS89W9Og/viewform`,t=e.trim().length>0;export{e as n,t};

@@ -1,0 +1,1 @@
+import"./rolldown-runtime-QTnfLwEv.js";import{bn as e}from"./icons-vendor-DqrVYuiU.js";import{t}from"./react-vendor-DiSZn6pt.js";import{TechCorpLabSession as n}from"./TechCorpLabSession-DQgdCjl6.js";e();var r=t(),i=()=>(0,r.jsx)(n,{});export{i as PuzzleLabPage,i as default};
