@@ -216,6 +216,98 @@ class AdminIsolationTests(unittest.TestCase):
         self.assertTrue(is_student_like(self.student_a))
         self.assertFalse(is_student_like(self.admin_a))
 
+        legacy_admin = self._user(
+            "legacy-admin@example.edu",
+            "admin",
+            "student",
+        )
+        academic_user = self._user(
+            "academic-user@example.edu",
+            "user",
+            "academic",
+        )
+        legacy_user = self._user(
+            "legacy-user@example.edu",
+            "user",
+            "",
+        )
+        self.db.flush()
+
+        # Production regression: privileged role wins over stale
+        # account_type="student".
+        self.assertFalse(is_student_like(legacy_admin))
+
+        # Production regression: explicit account_type="academic" wins over
+        # generic legacy role="user".
+        self.assertFalse(is_student_like(academic_user))
+
+        # Old rows with no meaningful account_type retain role fallback.
+        self.assertTrue(is_student_like(legacy_user))
+
+    def test_runtime_user_resource_classifier_rejects_legacy_privileged_and_academic_accounts(self):
+        legacy_admin = self._user(
+            "runtime-legacy-admin@example.edu",
+            "admin",
+            "student",
+        )
+        academic_user = self._user(
+            "runtime-academic-user@example.edu",
+            "user",
+            "academic",
+        )
+        self.db.flush()
+
+        # Deliberately make both targets satisfy every ownership condition
+        # other than being legitimate student resources.
+        for target in (legacy_admin, academic_user):
+            self.db.add(
+                UserAffiliation(
+                    user_id=target.id,
+                    affiliation_type="organization",
+                    organization_id=self.org.id,
+                    is_primary=True,
+                )
+            )
+            self.db.add(
+                AdminStudentRoster(
+                    manager_user_id=self.admin_a.id,
+                    student_user_id=target.id,
+                )
+            )
+
+        self.db.commit()
+
+        # Production regression:
+        # role=admin + account_type=student must remain privileged.
+        self.assertFalse(
+            AuthorizationService.can_access_user(
+                self.db,
+                self.admin_a,
+                legacy_admin,
+                Capability.ROSTER_VIEW,
+            )
+        )
+
+        # Explicit academic account_type must override generic role=user.
+        self.assertFalse(
+            AuthorizationService.can_access_user(
+                self.db,
+                self.admin_a,
+                academic_user,
+                Capability.ROSTER_VIEW,
+            )
+        )
+
+        # GLOBAL remains an intentional platform-wide bypass.
+        self.assertTrue(
+            AuthorizationService.can_access_user(
+                self.db,
+                self.global_admin,
+                legacy_admin,
+                Capability.ROSTER_VIEW,
+            )
+        )
+
     def test_backfill_deduplicates_manual_and_group_roster_evidence(self):
         # Reproduce production SessionLocal behavior where pending inserts are
         # not visible to the next database query before the final flush.

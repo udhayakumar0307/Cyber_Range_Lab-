@@ -148,7 +148,25 @@ class AuthorizationService:
 
         target_role = str(target.role or "").strip().lower()
         target_account_type = str(getattr(target, "account_type", "") or "").strip().lower()
-        is_student = target_role in {"user", "student"} or target_account_type == "student"
+
+        privileged_roles = {
+            "admin",
+            "super_admin",
+            "system_admin",
+            "sysadmin",
+            "professor",
+            "ta",
+        }
+
+        # Privileged role wins over stale legacy account_type metadata.
+        if target_role in privileged_roles:
+            is_student = False
+        # When account_type is populated, it is the stronger identity signal.
+        elif target_account_type:
+            is_student = target_account_type == "student"
+        # Legacy rows without account_type retain role fallback.
+        else:
+            is_student = target_role in {"user", "student"}
 
         # Resource-scoped user authorization is student-facing. Sharing a
         # tenant -- or targeting one's own admin account -- must never turn an

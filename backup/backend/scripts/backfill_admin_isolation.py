@@ -38,7 +38,20 @@ def normalize_role(value) -> str:
 def is_student_like(user: User) -> bool:
     role = normalize_role(user.role)
     account_type = normalize_role(getattr(user, "account_type", None))
-    return role in {"user", "student"} or account_type == "student"
+
+    # Privileged identities must never become roster resources merely because
+    # stale legacy metadata says account_type="student".
+    if role in MANAGER_ROLES:
+        return False
+
+    # When account_type is populated, treat it as the stronger identity signal.
+    # This prevents academic/operator accounts with role="user" from being
+    # mistaken for student roster resources.
+    if account_type:
+        return account_type == "student"
+
+    # Legacy rows without account_type fall back to the historical role field.
+    return role in {"user", "student"}
 
 
 def is_manager_identity(user: User | None, audit_role=None) -> bool:
@@ -212,11 +225,10 @@ def main():
         db.flush()
         linked_ids = {row[0] for row in db.query(AdminStudentRoster.student_user_id).distinct().all()}
         unresolved_students = []
-        candidates = db.query(User).filter(
-            (func.lower(User.role).in_(["user", "student"]))
-            | (func.lower(User.account_type) == "student")
-        ).order_by(User.id).all()
+        candidates = db.query(User).order_by(User.id).all()
         for student in candidates:
+            if not is_student_like(student):
+                continue
             if student.id in linked_ids:
                 continue
             if student.group_id is not None:
