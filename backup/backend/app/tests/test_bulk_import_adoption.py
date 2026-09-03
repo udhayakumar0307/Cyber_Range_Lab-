@@ -18,6 +18,8 @@ from app.database.manager import db_manager
 from app.models.user import User
 from app.models.user_affiliation import UserAffiliation
 from app.models.college import College
+from app.models.admin_student_roster import AdminStudentRoster  # noqa: F401
+from app.models.rbac import UserRoleBinding
 from app.api.v1.endpoints.admin_api import bulk_import_users
 
 
@@ -67,6 +69,18 @@ class TestBulkImportStudentAdoption(unittest.TestCase):
         db_manager.init_db(force=True)
 
         db = db_manager.get_session()
+
+        # db_manager.init_db() currently encounters an unrelated legacy CTF
+        # duplicate-index definition while creating the isolated SQLite schema.
+        # Ensure the new ownership table required by these tests exists.
+        AdminStudentRoster.__table__.create(
+            bind=db.get_bind(),
+            checkfirst=True,
+        )
+        UserRoleBinding.__table__.create(
+            bind=db.get_bind(),
+            checkfirst=True,
+        )
 
         try:
             # UserAffiliation.college_id is a real foreign key, so the
@@ -165,7 +179,7 @@ class TestBulkImportStudentAdoption(unittest.TestCase):
     def _admin(self, db):
         return db.query(User).filter(User.id == self.admin_id).one()
 
-    async def _import(self, db, rows):
+    async def _import(self, db, rows, current_user=None):
         background_tasks = BackgroundTasks()
 
         upload = UploadFile(
@@ -181,7 +195,7 @@ class TestBulkImportStudentAdoption(unittest.TestCase):
                 background_tasks=background_tasks,
                 file=upload,
                 request=None,
-                current_user=self._admin(db),
+                current_user=current_user or self._admin(db),
                 db=db,
             )
 
@@ -456,6 +470,134 @@ class TestBulkImportStudentAdoption(unittest.TestCase):
             self.assertEqual(len(users), 1)
             self.assertEqual(users[0].name, "First Version")
             self.assertEqual(users[0].roll_number, "dup001")
+
+        finally:
+            db.close()
+
+    def test_same_scope_peer_admin_cannot_take_over_managed_student(self):
+        """
+        Security regression: knowing another professor's student email must
+        not allow an admin in the same college to acquire that roster entry.
+        """
+        import asyncio
+
+        db = db_manager.get_session()
+
+        try:
+            owner = self._admin(db)
+
+            peer_admin = User(
+                name="Second IITM Professor",
+                email="second-professor@iitm.ac.in",
+                password_hash="peer-admin-hash",
+                role="admin",
+                is_active=True,
+                account_type="academic",
+                organization="Indian Institute of Technology Madras",
+                email_verified=True,
+            )
+            db.add(peer_admin)
+            db.flush()
+
+            db.add(
+                UserAffiliation(
+                    user_id=peer_admin.id,
+                    affiliation_type="college",
+                    college_id=1,
+                    organization_id=None,
+                    is_primary=True,
+                )
+            )
+
+            student = User(
+                name="Original Student",
+                email="managed-student@smail.iitm.ac.in",
+                password_hash="existing-student-hash",
+                role="user",
+                is_active=True,
+                account_type="student",
+                auth_type="SSO",
+                college_id=1,
+                organization="Indian Institute of Technology Madras",
+                email_verified=True,
+            )
+            db.add(student)
+            db.flush()
+
+            db.add(
+                UserAffiliation(
+                    user_id=student.id,
+                    affiliation_type="college",
+                    college_id=1,
+                    organization_id=None,
+                    is_primary=True,
+                )
+            )
+            db.add(
+                AdminStudentRoster(
+                    manager_user_id=owner.id,
+                    student_user_id=student.id,
+                )
+            )
+            db.commit()
+
+            result, _ = asyncio.run(
+                self._import(
+                    db,
+                    [{
+                        "name": "Attempted Takeover Name",
+                        "email": student.email,
+                        "department_year": "B. Cyber - IV",
+                        "roll_number": "TAKEOVER001",
+                    }],
+                    current_user=peer_admin,
+                )
+            )
+
+            self.assertEqual(result["created_count"], 0)
+            self.assertEqual(result["adopted_count"], 0)
+            self.assertEqual(result["failure_count"], 1)
+
+            self.assertIn(
+                "already managed by another roster",
+                result["errors"][0]["error_detail"],
+            )
+
+            db.expire_all()
+
+            unchanged = (
+                db.query(User)
+                .filter(User.id == student.id)
+                .one()
+            )
+
+            # The rejected import must not mutate the existing account.
+            self.assertEqual(unchanged.name, "Original Student")
+            self.assertEqual(unchanged.roll_number, None)
+            self.assertEqual(
+                unchanged.password_hash,
+                "existing-student-hash",
+            )
+
+            owner_link_count = (
+                db.query(AdminStudentRoster)
+                .filter(
+                    AdminStudentRoster.manager_user_id == owner.id,
+                    AdminStudentRoster.student_user_id == student.id,
+                )
+                .count()
+            )
+            peer_link_count = (
+                db.query(AdminStudentRoster)
+                .filter(
+                    AdminStudentRoster.manager_user_id == peer_admin.id,
+                    AdminStudentRoster.student_user_id == student.id,
+                )
+                .count()
+            )
+
+            self.assertEqual(owner_link_count, 1)
+            self.assertEqual(peer_link_count, 0)
 
         finally:
             db.close()

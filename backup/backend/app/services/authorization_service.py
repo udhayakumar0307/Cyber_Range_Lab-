@@ -13,6 +13,7 @@ from app.models.group import Group
 from app.models.rbac import UserRoleBinding
 from app.models.user import User
 from app.models.user_affiliation import UserAffiliation
+from app.models.admin_student_roster import AdminStudentRoster
 
 
 class AuthorizationService:
@@ -116,15 +117,73 @@ class AuthorizationService:
         return organization_ids, college_ids
 
     @staticmethod
+    def _has_explicit_global_binding(bindings) -> bool:
+        """Only an explicit GLOBAL RBAC binding bypasses resource ownership."""
+        return any(
+            str(binding.scope_type or "").strip().upper() == "GLOBAL"
+            for binding in bindings
+        )
+
+    @staticmethod
+    def has_global_access(
+        db: Session,
+        actor: User,
+        capability: Capability | str,
+    ) -> bool:
+        bindings = AuthorizationService.bindings_for_capability(
+            db, actor.id, capability
+        )
+        return AuthorizationService._has_explicit_global_binding(bindings)
+
+    @staticmethod
     def can_access_user(db: Session, actor: User, target: User, capability: Capability | str) -> bool:
         bindings = AuthorizationService.bindings_for_capability(db, actor.id, capability)
         if not bindings:
             return False
-        global_access, organization_ids, college_ids = AuthorizationService._scope_sets(bindings)
-        if global_access:
+
+        if AuthorizationService._has_explicit_global_binding(bindings):
             return True
+
+        _, organization_ids, college_ids = AuthorizationService._scope_sets(bindings)
+
+        target_role = str(target.role or "").strip().lower()
+        target_account_type = str(getattr(target, "account_type", "") or "").strip().lower()
+        is_student = target_role in {"user", "student"} or target_account_type == "student"
+
+        # Resource-scoped user authorization is student-facing. Sharing a
+        # tenant -- or targeting one's own admin account -- must never turn an
+        # admin/professor identity into a roster-manageable resource.
+        if not is_student:
+            return False
+
+        if actor.id == target.id:
+            return True
+
         target_orgs, target_colleges = AuthorizationService.user_scope_ids(db, target)
-        return bool(organization_ids.intersection(target_orgs) or college_ids.intersection(target_colleges))
+        tenant_match = bool(
+            organization_ids.intersection(target_orgs)
+            or college_ids.intersection(target_colleges)
+        )
+        if not tenant_match:
+            return False
+
+        roster_link = (
+            db.query(AdminStudentRoster)
+            .filter(
+                AdminStudentRoster.manager_user_id == actor.id,
+                AdminStudentRoster.student_user_id == target.id,
+            )
+            .first()
+        )
+        if roster_link is not None:
+            return True
+
+        if target.group_id is not None:
+            group = db.query(Group).filter(Group.id == target.group_id).first()
+            if group and group.owner_user_id == actor.id:
+                return True
+
+        return False
 
     @staticmethod
     def assert_user_access(db: Session, actor: User, target_user_id: int, capability: Capability | str) -> User:
@@ -136,14 +195,44 @@ class AuthorizationService:
         return target
 
     @staticmethod
+    def can_claim_student_roster(db: Session, actor: User, student_id: int) -> bool:
+        """
+        Existing managed students cannot be silently claimed by another admin.
+
+        An unmanaged account (for example, one pre-created by Academic SSO)
+        may be adopted. Re-import by an existing manager remains idempotent.
+        Explicit GLOBAL system administrators retain platform-wide management.
+        """
+        if AuthorizationService.has_global_access(
+            db, actor, Capability.ROSTER_MANAGE
+        ):
+            return True
+
+        manager_ids = {
+            int(row[0])
+            for row in (
+                db.query(AdminStudentRoster.manager_user_id)
+                .filter(AdminStudentRoster.student_user_id == student_id)
+                .all()
+            )
+        }
+        return not manager_ids or actor.id in manager_ids
+
+    @staticmethod
     def can_access_group(db: Session, actor: User, group: Group, capability: Capability | str) -> bool:
         bindings = AuthorizationService.bindings_for_capability(db, actor.id, capability)
         if not bindings:
             return False
-        global_access, organization_ids, _ = AuthorizationService._scope_sets(bindings)
-        if global_access:
+
+        if AuthorizationService._has_explicit_global_binding(bindings):
             return True
-        return group.organization_id is not None and int(group.organization_id) in organization_ids
+
+        _, organization_ids, _ = AuthorizationService._scope_sets(bindings)
+
+        if group.organization_id is None or int(group.organization_id) not in organization_ids:
+            return False
+
+        return group.owner_user_id == actor.id
 
     @staticmethod
     def assert_group_access(db: Session, actor: User, group_id: int, capability: Capability | str) -> Group:
@@ -159,8 +248,7 @@ class AuthorizationService:
         bindings = AuthorizationService.bindings_for_capability(db, actor.id, capability)
         if not bindings:
             return False
-        global_access, _, _ = AuthorizationService._scope_sets(bindings)
-        if global_access:
+        if AuthorizationService._has_explicit_global_binding(bindings):
             return True
 
         if assignment.student_id is not None:

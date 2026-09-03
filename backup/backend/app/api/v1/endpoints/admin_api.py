@@ -460,7 +460,7 @@ def get_admin_dashboard_summary(
     Unified dashboard summary endpoint aggregating purchased labs, students, groups,
     assignments, academic organization summary, database status, and recent audit activity.
     """
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
     from app.models.group import Group
     from app.models.assignment import Assignment
     from app.models.lab import Lab
@@ -469,7 +469,7 @@ def get_admin_dashboard_summary(
     from app.database.manager import db_manager
 
     org_id = get_admin_org_id(current_user, db)
-    cache_key = f"admin_dashboard_summary:{org_id}"
+    cache_key = f"admin_dashboard_summary:{org_id}:user:{current_user.id}"
     from app.core.cache import dashboard_cache
     cached_summary = dashboard_cache.get(cache_key)
     if cached_summary is not None:
@@ -500,32 +500,67 @@ def get_admin_dashboard_summary(
     hours_used = float(seats_res[3] or 0.0)
     hours_remaining = float(seats_res[4] or 0.0)
 
-    # 3. Student details counts (Combined query to avoid N+1 / multiple scans)
-    from sqlalchemy import case
-    student_res = db.query(
-        func.count(User.id),
-        func.sum(case((User.is_active == True, 1), else_=0))
-    ).filter(User.role.ilike("%student%")).first()
+    # 3. Student counts are actor-scoped.
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
 
-    total_students = student_res[0] or 0
-    active_students = int(student_res[1] or 0)
-    inactive_students = total_students - active_students
-
-    # 4. Group details counts
-    total_groups = db.query(func.count(Group.id)).filter(Group.organization_id == org_id).scalar() or 0
-    groups_with_active = db.query(func.count(Group.id.distinct())).join(Assignment, Assignment.group_id == Group.id).filter(
-        Group.organization_id == org_id,
-        Assignment.status.notin_(["Completed", "Ended", "Expired"])
-    ).scalar() or 0
-    empty_groups = total_groups - groups_with_active
-
-    # 5. Assignments details counts (optimized by group by status)
-    status_counts = dict(
-        db.query(Assignment.status, func.count(Assignment.id))
-        .group_by(Assignment.status)
+    student_candidates = (
+        db.query(User)
+        .filter(or_(
+            User.account_type.ilike("student"),
+            User.role.ilike("student"),
+            User.role.ilike("user"),
+        ))
         .all()
     )
-    total_assignments = sum(status_counts.values())
+    visible_students = [
+        student for student in student_candidates
+        if AuthorizationService.can_access_user(
+            db, current_user, student, Capability.DASHBOARD_VIEW
+        )
+    ]
+    total_students = len(visible_students)
+    active_students = sum(1 for student in visible_students if student.is_active)
+    inactive_students = total_students - active_students
+
+    # 4. Group counts are owner-scoped for ordinary admins.
+    group_candidates = db.query(Group).filter(Group.organization_id == org_id).all()
+    visible_groups = [
+        group for group in group_candidates
+        if AuthorizationService.can_access_group(
+            db, current_user, group, Capability.DASHBOARD_VIEW
+        )
+    ]
+    visible_group_ids = [group.id for group in visible_groups]
+    total_groups = len(visible_groups)
+    groups_with_active = 0
+    if visible_group_ids:
+        groups_with_active = (
+            db.query(func.count(Group.id.distinct()))
+            .join(Assignment, Assignment.group_id == Group.id)
+            .filter(
+                Group.id.in_(visible_group_ids),
+                Assignment.deleted_at.is_(None),
+                Assignment.status.notin_(["Completed", "Ended", "Expired"]),
+            )
+            .scalar()
+            or 0
+        )
+    empty_groups = total_groups - groups_with_active
+
+    # 5. Assignment counts inherit target ownership.
+    assignment_candidates = (
+        db.query(Assignment)
+        .filter(Assignment.deleted_at.is_(None))
+        .all()
+    )
+    visible_assignments = AuthorizationService.filter_accessible_assignments(
+        db, current_user, assignment_candidates, Capability.DASHBOARD_VIEW
+    )
+    status_counts = {}
+    for assignment in visible_assignments:
+        status_counts[assignment.status] = status_counts.get(assignment.status, 0) + 1
+    total_assignments = len(visible_assignments)
     running_assignments = status_counts.get("Running", 0)
     scheduled_assignments = status_counts.get("Scheduled", 0)
     completed_assignments = status_counts.get("Completed", 0)
@@ -535,8 +570,13 @@ def get_admin_dashboard_summary(
     active_labs = db.query(func.count(Lab.id)).filter(Lab.status == "ACTIVE").scalar() or 0
     available_labs = db.query(func.count(Lab.id)).scalar() or 0
 
-    # 7. Recent activity stream logs
-    logs = db.query(AuditLog.action, AuditLog.performed_by, AuditLog.timestamp).order_by(AuditLog.timestamp.desc()).limit(10).all()
+    # 7. Do not leak another ordinary admin's activity stream.
+    logs_query = db.query(AuditLog.action, AuditLog.performed_by, AuditLog.timestamp)
+    if not AuthorizationService.has_global_access(
+        db, current_user, Capability.DASHBOARD_VIEW
+    ):
+        logs_query = logs_query.filter(AuditLog.performed_by == current_user.email)
+    logs = logs_query.order_by(AuditLog.timestamp.desc()).limit(10).all()
     recent_activity = []
     for l in logs:
         recent_activity.append({
@@ -994,6 +1034,13 @@ def create_admin_user(
 ):
     org_id = get_admin_org_id(current_user, db)
 
+    if data.group_id is not None:
+        from app.core.capabilities import Capability
+        from app.services.authorization_service import AuthorizationService
+        AuthorizationService.assert_group_access(
+            db, current_user, data.group_id, Capability.ROSTER_MANAGE
+        )
+
     email_clean = str(data.email).strip().lower()
 
     existing = db.query(User).filter(User.email == email_clean).first()
@@ -1039,6 +1086,12 @@ def create_admin_user(
         )
         db.add(new_user)
         db.flush()
+
+        from app.models.admin_student_roster import AdminStudentRoster
+        db.add(AdminStudentRoster(
+            manager_user_id=current_user.id,
+            student_user_id=new_user.id,
+        ))
 
         for a in admin_affs:
             db.add(
@@ -1095,13 +1148,34 @@ def update_admin_user(
     db: Session = Depends(get_db)
 ):
     org_id = get_admin_org_id(current_user, db)
-    u = db.query(User).filter(User.id == user_id).first()
-    if not u:
-        raise HTTPException(status_code=404, detail="User not found")
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    u = AuthorizationService.assert_user_access(
+        db, current_user, user_id, Capability.ROSTER_MANAGE
+    )
+
+    requested_role = None
+    if data.role is not None:
+        requested_role = str(data.role).strip().lower()
+        if (
+            requested_role not in {"user", "student"}
+            and not AuthorizationService.has_global_access(
+                db, current_user, Capability.ROSTER_MANAGE
+            )
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only a global administrator may assign privileged user roles.",
+            )
+
+    if data.group_id is not None:
+        AuthorizationService.assert_group_access(
+            db, current_user, data.group_id, Capability.ROSTER_MANAGE
+        )
 
     old_val = f"Name: {u.name}, Role: {u.role}, Active: {u.is_active}, Group: {u.group_id}"
     if data.name is not None: u.name = data.name
-    if data.role is not None: u.role = data.role.lower()
+    if requested_role is not None: u.role = requested_role
     if data.is_active is not None: u.is_active = data.is_active
     if data.group_id is not None: u.group_id = data.group_id
     if data.year is not None: u.year = _parse_year_int(data.year)
@@ -1135,9 +1209,11 @@ def delete_admin_user(
     db: Session = Depends(get_db)
 ):
     org_id = get_admin_org_id(current_user, db)
-    u = db.query(User).filter(User.id == user_id).first()
-    if not u:
-        raise HTTPException(status_code=404, detail="User not found")
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    u = AuthorizationService.assert_user_access(
+        db, current_user, user_id, Capability.ROSTER_MANAGE
+    )
 
     u_email = u.email
     db.delete(u)
@@ -1266,7 +1342,12 @@ def create_admin_group(
     if existing:
         raise HTTPException(status_code=400, detail="A group with this name already exists in your organization.")
 
-    g = Group(name=data.name, description=data.description, organization_id=org_id)
+    g = Group(
+        name=data.name,
+        description=data.description,
+        organization_id=org_id,
+        owner_user_id=current_user.id,
+    )
     db.add(g)
     db.commit()
     db.refresh(g)
@@ -1296,9 +1377,11 @@ def update_admin_group(
 ):
     from app.models.group import Group
     org_id = get_admin_org_id(current_user, db)
-    g = db.query(Group).filter(Group.id == group_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Group not found")
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    g = AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
+    )
 
     g.name = data.name
     if data.description: g.description = data.description
@@ -1328,9 +1411,11 @@ def delete_admin_group(
 ):
     from app.models.group import Group
     org_id = get_admin_org_id(current_user, db)
-    g = db.query(Group).filter(Group.id == group_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Group not found")
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+    g = AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
+    )
 
     g_name = g.name
     db.delete(g)
@@ -1361,18 +1446,20 @@ def add_group_member(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.group import Group
-    g = db.query(Group).filter(Group.id == group_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+
+    g = AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
+    )
+
     u = db.query(User).filter(User.id == data.user_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
 
-    from app.core.capabilities import Capability
-    from app.services.authorization_service import AuthorizationService
-    AuthorizationService.assert_user_access(db, current_user, u.id, Capability.ROSTER_MANAGE)
+    AuthorizationService.assert_user_access(
+        db, current_user, u.id, Capability.ROSTER_MANAGE
+    )
 
     # Enforce maximum 40 students per group
     member_count = db.query(User).filter(User.group_id == group_id).count()
@@ -1425,10 +1512,21 @@ def remove_group_member(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+
+    AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
+    )
+
     u = db.query(User).filter(User.id == user_id, User.group_id == group_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="User is not a member of this group")
-        
+
+    AuthorizationService.assert_user_access(
+        db, current_user, u.id, Capability.ROSTER_MANAGE
+    )
+
     u.group_id = None
     db.commit()
     return {"status": "success"}
@@ -1444,13 +1542,30 @@ def bulk_remove_group_members(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    updated = (
-        db.query(User)
-        .filter(User.group_id == group_id, User.id.in_(data.user_ids))
-        .update({User.group_id: None}, synchronize_session=False)
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+
+    AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
     )
+
+    requested_ids = list(dict.fromkeys(data.user_ids))
+    users = (
+        db.query(User)
+        .filter(User.group_id == group_id, User.id.in_(requested_ids))
+        .all()
+    )
+
+    for user in users:
+        AuthorizationService.assert_user_access(
+            db, current_user, user.id, Capability.ROSTER_MANAGE
+        )
+
+    for user in users:
+        user.group_id = None
+
     db.commit()
-    return {"status": "success", "removed_count": updated}
+    return {"status": "success", "removed_count": len(users)}
 
 
 class BulkAddGroupMembersRequest(BaseModel):
@@ -1481,24 +1596,34 @@ def bulk_add_group_members(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.group import Group
-    g = db.query(Group).filter(Group.id == group_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Group not found")
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
+
+    g = AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_MANAGE
+    )
+
+    requested_ids = list(dict.fromkeys(data.user_ids))  # de-dupe, preserve order
+    users = db.query(User).filter(User.id.in_(requested_ids)).all()
+
+    found_ids = {u.id for u in users}
+    missing_ids = [uid for uid in requested_ids if uid not in found_ids]
+
+    # Request-body IDs are not visible to the generic path-parameter RBAC
+    # wrapper, so every resolved student must be checked explicitly.
+    for u in users:
+        AuthorizationService.assert_user_access(
+            db, current_user, u.id, Capability.ROSTER_MANAGE
+        )
 
     max_size = g.max_size or 40
     current_count = db.query(User).filter(User.group_id == group_id).count()
-    requested_ids = list(dict.fromkeys(data.user_ids))  # de-dupe, preserve order
 
-    if current_count + len(requested_ids) > max_size:
+    if current_count + len(users) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"Adding {len(requested_ids)} students would exceed the group's max size of {max_size} (currently {current_count})."
+            detail=f"Adding {len(users)} students would exceed the group's max size of {max_size} (currently {current_count})."
         )
-
-    users = db.query(User).filter(User.id.in_(requested_ids)).all()
-    found_ids = {u.id for u in users}
-    missing_ids = [uid for uid in requested_ids if uid not in found_ids]
 
     for u in users:
         u.group_id = g.id
@@ -1524,12 +1649,13 @@ def get_group_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.group import Group
     from sqlalchemy import not_, or_
+    from app.core.capabilities import Capability
+    from app.services.authorization_service import AuthorizationService
 
-    g = db.query(Group).filter(Group.id == group_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Group not found")
+    g = AuthorizationService.assert_group_access(
+        db, current_user, group_id, Capability.ROSTER_VIEW
+    )
 
     members = db.query(User).filter(
         User.group_id == g.id,
@@ -3659,6 +3785,7 @@ async def bulk_import_users(
     adopted_count = 0
 
     from app.models.user_affiliation import UserAffiliation as UA
+    from app.models.admin_student_roster import AdminStudentRoster
 
     # Match the same affiliation-resolution logic used by the single "Add Student"
     # endpoint (create_admin_user): copy ALL of the admin's affiliation rows onto
@@ -3670,6 +3797,21 @@ async def bulk_import_users(
 
     created_users = []
     seen_upload_emails = set()
+
+    def ensure_roster_membership(student_id: int) -> None:
+        existing_link = (
+            db.query(AdminStudentRoster)
+            .filter(
+                AdminStudentRoster.manager_user_id == current_user.id,
+                AdminStudentRoster.student_user_id == student_id,
+            )
+            .first()
+        )
+        if existing_link is None:
+            db.add(AdminStudentRoster(
+                manager_user_id=current_user.id,
+                student_user_id=student_id,
+            ))
 
     try:
         for idx, row in enumerate(rows, start=2):
@@ -3708,6 +3850,20 @@ async def bulk_import_users(
                         "row": idx,
                         "email": email,
                         "reason": f"Existing protected account cannot be imported as a student (role={existing_user.role})"
+                    })
+                    continue
+
+                # Same institution membership is not ownership. An existing
+                # student already managed by another roster cannot be silently
+                # claimed merely by importing their known email address.
+                from app.services.authorization_service import AuthorizationService
+                if not AuthorizationService.can_claim_student_roster(
+                    db, current_user, existing_user.id
+                ):
+                    duplicate_rows.append({
+                        "row": idx,
+                        "email": email,
+                        "reason": "Existing student is already managed by another roster",
                     })
                     continue
 
@@ -3813,6 +3969,8 @@ async def bulk_import_users(
                     if make_primary:
                         has_primary_aff = True
 
+                ensure_roster_membership(existing_user.id)
+
                 imported_count += 1
                 adopted_count += 1
                 valid_rows.append({
@@ -3840,6 +3998,7 @@ async def bulk_import_users(
             )
             db.add(new_u)
             db.flush()
+            ensure_roster_membership(new_u.id)
 
             for a in admin_affs:
                 db.add(

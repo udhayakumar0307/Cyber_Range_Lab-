@@ -493,8 +493,57 @@ def run_postgres_column_migrations(engine):
 
 
 
+
+def ensure_admin_isolation_schema(engine):
+    """Create additive admin-isolation schema for existing databases."""
+    from sqlalchemy import inspect, text
+
+    tables = set(inspect(engine).get_table_names())
+
+    with engine.begin() as conn:
+        if "groups" in tables:
+            group_columns = {column["name"] for column in inspect(engine).get_columns("groups")}
+            if "owner_user_id" not in group_columns:
+                if engine.dialect.name == "postgresql":
+                    conn.execute(text(
+                        "ALTER TABLE groups "
+                        "ADD COLUMN owner_user_id INTEGER NULL "
+                        "REFERENCES users(id) ON DELETE SET NULL"
+                    ))
+                else:
+                    conn.execute(text("ALTER TABLE groups ADD COLUMN owner_user_id INTEGER NULL"))
+
+        if "admin_student_roster" not in tables:
+            if engine.dialect.name == "postgresql":
+                conn.execute(text("""
+                    CREATE TABLE admin_student_roster (
+                        manager_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        student_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (manager_user_id, student_user_id)
+                    )
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE admin_student_roster (
+                        manager_user_id INTEGER NOT NULL,
+                        student_user_id INTEGER NOT NULL,
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (manager_user_id, student_user_id),
+                        FOREIGN KEY(manager_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY(student_user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """))
+
+        if "groups" in tables:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_groups_owner_user_id ON groups(owner_user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_student_roster_manager ON admin_student_roster(manager_user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_student_roster_student ON admin_student_roster(student_user_id)"))
+
+
 def apply_indexes(engine):
     """Create performance indexes if they don't already exist."""
+    ensure_admin_isolation_schema(engine)
     dialect = engine.dialect.name
     indexes = [
         # users

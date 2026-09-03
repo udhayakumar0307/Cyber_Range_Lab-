@@ -85,3 +85,4 @@ __all__ = [
 ]
 
 from app.models.rbac import UserRoleBinding
+from app.models.admin_student_roster import AdminStudentRoster

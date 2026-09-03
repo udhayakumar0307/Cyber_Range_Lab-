@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.security import verify_password
 from app.database.manager import db_manager
 from app.models.college import College
+from app.models.admin_student_roster import AdminStudentRoster  # noqa: F401
 from app.models.user import User
 from app.models.user_affiliation import UserAffiliation
 from app.api.v1.endpoints.admin_api import (
@@ -52,6 +53,14 @@ class TestManualStudentCreation(unittest.TestCase):
         db_manager.init_db(force=True)
 
         db = db_manager.get_session()
+
+        # db_manager.init_db() currently encounters an unrelated legacy CTF
+        # duplicate-index definition while creating the isolated SQLite schema.
+        # Ensure the new ownership table required by these tests exists.
+        AdminStudentRoster.__table__.create(
+            bind=db.get_bind(),
+            checkfirst=True,
+        )
 
         try:
             if db.query(College).filter(College.id == 1).first() is None:

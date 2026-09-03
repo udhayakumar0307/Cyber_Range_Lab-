@@ -17,7 +17,7 @@ class User(Base):
     
     # Relationships
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
-    group = relationship("Group", back_populates="users")
+    group = relationship("Group", back_populates="users", foreign_keys=[group_id])
     
     college_id = Column(Integer, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     college = relationship("College", back_populates="users")
