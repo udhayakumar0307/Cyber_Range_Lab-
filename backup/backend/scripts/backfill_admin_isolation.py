@@ -61,14 +61,42 @@ def resolve_user_by_email(db, email):
     return db.query(User).filter(func.lower(User.email) == str(email).strip().lower()).first()
 
 
-def add_roster_link(db, manager_id: int, student_id: int) -> bool:
+def add_roster_link(
+    db,
+    manager_id: int,
+    student_id: int,
+    seen_links: set[tuple[int, int]] | None = None,
+) -> bool:
+    key = (int(manager_id), int(student_id))
+
+    # SessionLocal may have autoflush disabled. In that case a database query
+    # cannot see another identical AdminStudentRoster row already pending in
+    # this transaction. Track inferred pairs in memory so independent evidence
+    # paths (for example User Creation + owned-group membership) reinforce one
+    # ownership link instead of queueing duplicate primary-key inserts.
+    if seen_links is not None and key in seen_links:
+        return False
+
     existing = db.query(AdminStudentRoster).filter(
         AdminStudentRoster.manager_user_id == manager_id,
         AdminStudentRoster.student_user_id == student_id,
     ).first()
+
     if existing is not None:
+        if seen_links is not None:
+            seen_links.add(key)
         return False
-    db.add(AdminStudentRoster(manager_user_id=manager_id, student_user_id=student_id))
+
+    db.add(
+        AdminStudentRoster(
+            manager_user_id=manager_id,
+            student_user_id=student_id,
+        )
+    )
+
+    if seen_links is not None:
+        seen_links.add(key)
+
     return True
 
 
@@ -105,6 +133,7 @@ def main():
     roster_adds = 0
     unresolved_groups = []
     ambiguous_groups = []
+    seen_roster_links: set[tuple[int, int]] = set()
 
     try:
         print("=" * 72)
@@ -158,7 +187,12 @@ def main():
             if not is_student_like(student):
                 continue
 
-            if add_roster_link(db, manager.id, student.id):
+            if add_roster_link(
+                db,
+                manager.id,
+                student.id,
+                seen_roster_links,
+            ):
                 roster_adds += 1
                 print(f"ROSTER manual manager={manager.email} student_id={student.id} student={student.email}")
 
@@ -166,7 +200,12 @@ def main():
             for student in db.query(User).filter(User.group_id == group.id).order_by(User.id).all():
                 if not is_student_like(student):
                     continue
-                if add_roster_link(db, group.owner_user_id, student.id):
+                if add_roster_link(
+                    db,
+                    group.owner_user_id,
+                    student.id,
+                    seen_roster_links,
+                ):
                     roster_adds += 1
                     print(f"ROSTER group owner_id={group.owner_user_id} group_id={group.id} student_id={student.id} student={student.email}")
 

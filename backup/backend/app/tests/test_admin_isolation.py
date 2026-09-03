@@ -22,6 +22,7 @@ from app.api.v1.endpoints.admin_api import (
     update_admin_user,
 )
 from scripts.backfill_admin_isolation import (
+    add_roster_link,
     is_manager_identity,
     is_student_like,
 )
@@ -214,6 +215,49 @@ class AdminIsolationTests(unittest.TestCase):
     def test_backfill_student_target_filter(self):
         self.assertTrue(is_student_like(self.student_a))
         self.assertFalse(is_student_like(self.admin_a))
+
+    def test_backfill_deduplicates_manual_and_group_roster_evidence(self):
+        # Reproduce production SessionLocal behavior where pending inserts are
+        # not visible to the next database query before the final flush.
+        original_autoflush = self.db.autoflush
+        self.db.autoflush = False
+        try:
+            seen_links = set()
+
+            # First evidence path: historical User Creation audit.
+            self.assertTrue(
+                add_roster_link(
+                    self.db,
+                    self.admin_a.id,
+                    self.student_b.id,
+                    seen_links,
+                )
+            )
+
+            # Second evidence path: the same student belongs to a group owned
+            # by the same manager. This must reinforce, not duplicate, the row.
+            self.assertFalse(
+                add_roster_link(
+                    self.db,
+                    self.admin_a.id,
+                    self.student_b.id,
+                    seen_links,
+                )
+            )
+
+            self.db.flush()
+
+            rows = (
+                self.db.query(AdminStudentRoster)
+                .filter(
+                    AdminStudentRoster.manager_user_id == self.admin_a.id,
+                    AdminStudentRoster.student_user_id == self.student_b.id,
+                )
+                .all()
+            )
+            self.assertEqual(len(rows), 1)
+        finally:
+            self.db.autoflush = original_autoflush
 
     def test_peer_admin_is_not_user_resource_accessible(self):
         self.assertFalse(
