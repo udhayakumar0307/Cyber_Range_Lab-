@@ -24,6 +24,10 @@ from app.schemas.sysadmin_grading import (
     WorkspaceTokenRequest,
     WorkspaceTokenResponse,
 )
+from app.services.sysadmin_grading.assignment_lifecycle import (
+    assert_workspace_assignment_context,
+    resolve_current_sysadmin_assignment_id,
+)
 from app.services.sysadmin_grading.config import (
     GradingConfigurationError,
     SysadminGradingSettings,
@@ -108,44 +112,11 @@ def _resolve_current_sysadmin_assignment_id(
     current_user: User,
     db: Session,
 ) -> int | None:
-    """
-    Resolve the currently active academic Assignment for this Sysadmin user.
-
-    Assignment provenance is captured when the workspace is created rather than
-    inferred later from grading timestamps. Personal/unassigned use returns None.
-    """
-    from app.core.assignment_time import utc_now_naive
-    from app.models.assignment import Assignment
-
-    now = utc_now_naive()
-
-    base = db.query(Assignment).filter(
-        Assignment.lab_id == settings.marketplace_lab_id,
-        Assignment.deleted_at.is_(None),
-        Assignment.start_datetime <= now,
-        Assignment.end_datetime >= now,
+    return resolve_current_sysadmin_assignment_id(
+        db,
+        user=current_user,
+        marketplace_lab_id=settings.marketplace_lab_id,
     )
-
-    # Explicit student assignment takes precedence over a group assignment.
-    assignment = (
-        base.filter(Assignment.student_id == int(current_user.id))
-        .order_by(Assignment.created_at.desc(), Assignment.id.desc())
-        .first()
-    )
-    if assignment is not None:
-        return int(assignment.id)
-
-    group_id = getattr(current_user, "group_id", None)
-    if group_id is None:
-        return None
-
-    assignment = (
-        base.filter(Assignment.group_id == int(group_id))
-        .order_by(Assignment.created_at.desc(), Assignment.id.desc())
-        .first()
-    )
-
-    return int(assignment.id) if assignment is not None else None
 
 
 @router.get("/status", response_model=SysadminGradingStatusResponse)
@@ -346,7 +317,25 @@ def get_workspace_session(
     try:
         service = SysadminWorkspaceService(settings)
         session = service.current(user_id=int(current_user.id))
-        return service.student_view(session) if session else None
+
+        if not session:
+            return None
+
+        try:
+            assert_workspace_assignment_context(
+                db,
+                user=current_user,
+                marketplace_lab_id=settings.marketplace_lab_id,
+                workspace_assignment_id=session.get("assignment_id"),
+            )
+        except HTTPException:
+            service.stop(
+                user_id=int(current_user.id),
+                reason="Linux Sysadmin assignment is no longer active",
+            )
+            return None
+
+        return service.student_view(session)
     except WorkspaceExecutionError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -407,6 +396,56 @@ async def workspace_terminal(
         await websocket.close(code=1008, reason="Workspace not running")
         return
 
+    # Revalidate academic lifecycle immediately before attaching SSH. A killed
+    # assignment must not be able to reconnect to an existing Fargate task.
+    from app.database.session import SessionLocal
+
+    lifecycle_db = SessionLocal()
+    try:
+        user = (
+            lifecycle_db.query(User)
+            .filter(User.id == user_id)
+            .first()
+        )
+
+        if not user or not getattr(user, "is_active", True):
+            raise HTTPException(
+                status_code=403,
+                detail="Workspace owner is no longer active.",
+            )
+
+        settings = SysadminGradingSettings.from_env()
+        _assert_marketplace_access(
+            settings,
+            user,
+            lifecycle_db,
+        )
+
+        assert_workspace_assignment_context(
+            lifecycle_db,
+            user=user,
+            marketplace_lab_id=settings.marketplace_lab_id,
+            workspace_assignment_id=session.get("assignment_id"),
+        )
+
+    except HTTPException as exc:
+        await asyncio.to_thread(
+            service.stop,
+            user_id=user_id,
+            reason="Linux Sysadmin assignment is no longer active",
+        )
+        await websocket.send_text(
+            f"\r\n[ERROR] {exc.detail}\r\n"
+        )
+        await websocket.close(
+            code=1008,
+            reason="Assignment inactive",
+        )
+        return
+
+    finally:
+        lifecycle_db.close()
+
     from app.api.v1.endpoints.terminal_api import _bridge_ssh_to_websocket
 
     await _bridge_ssh_to_websocket(
@@ -424,6 +463,7 @@ async def workspace_terminal(
 def create_workspace_token(
     payload: WorkspaceTokenRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Development bridge for provisioning a terminal-only workspace credential.
@@ -443,6 +483,16 @@ def create_workspace_token(
         )
     try:
         settings.assert_ready()
+        _assert_marketplace_access(
+            settings,
+            current_user,
+            db,
+        )
+        assignment_id = _resolve_current_sysadmin_assignment_id(
+            settings,
+            current_user,
+            db,
+        )
         repository = QuestionBankRepository(settings.question_bank_root)
         repository.resolve_lab(payload.lab_id)
         workspace_id = f"ws-{uuid.uuid4().hex[:20]}"
@@ -451,6 +501,7 @@ def create_workspace_token(
             lab_id=payload.lab_id,
             workspace_id=workspace_id,
             ttl_minutes=settings.workspace_token_ttl_minutes,
+            assignment_id=assignment_id,
         )
     except (GradingConfigurationError, QuestionBankError, WorkspaceTokenError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -500,8 +551,21 @@ def workspace_submit_script(
     if not user or not getattr(user, "is_active", True):
         raise HTTPException(status_code=403, detail="Workspace owner is no longer active.")
 
+    settings = SysadminGradingSettings.from_env()
+    _assert_marketplace_access(
+        settings,
+        user,
+        db,
+    )
+    assert_workspace_assignment_context(
+        db,
+        user=user,
+        marketplace_lab_id=settings.marketplace_lab_id,
+        workspace_assignment_id=claims.assignment_id,
+    )
+
     try:
-        service = SysadminGradingService()
+        service = SysadminGradingService(settings)
         row = service.accept_submission(
             db,
             student_id=claims.user_id,

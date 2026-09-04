@@ -1978,7 +1978,29 @@ def kill_group_lab(
     assignment.status = "Completed"
     db.commit()
 
-    return {"status": "success", "assignment_id": assignment.id, "message": "Lab ended."}
+    workspaces_stopped = 0
+    try:
+        from app.services.sysadmin_grading.assignment_lifecycle import (
+            stop_sysadmin_assignment_workspaces,
+        )
+
+        workspaces_stopped = stop_sysadmin_assignment_workspaces(
+            db,
+            assignment=assignment,
+            reason=f"Assignment {assignment.id} ended by administrator",
+        )
+    except Exception:
+        logger.exception(
+            "Assignment %s ended, but Sysadmin workspace cleanup failed",
+            assignment.id,
+        )
+
+    return {
+        "status": "success",
+        "assignment_id": assignment.id,
+        "message": "Lab ended.",
+        "workspaces_stopped": workspaces_stopped,
+    }
 
 
 @router.get("/groups/{group_id}/lab-status")
@@ -3305,7 +3327,31 @@ def delete_scheduled_assignment(
         pass
 
     db.commit()
-    return {"status": "success", "id": a.id}
+
+    workspaces_stopped = 0
+    try:
+        from app.services.sysadmin_grading.assignment_lifecycle import (
+            stop_sysadmin_assignment_workspaces,
+        )
+
+        workspaces_stopped = stop_sysadmin_assignment_workspaces(
+            db,
+            assignment=a,
+            reason=f"Assignment {a.id} ended by administrator",
+        )
+    except Exception:
+        logger.exception(
+            "Assignment %s ended, but Sysadmin workspace cleanup failed",
+            a.id,
+        )
+
+    return {
+        "status": "success",
+        "id": a.id,
+        "workspaces_stopped": workspaces_stopped,
+    }
+
+
 @router.post("/allocations", status_code=status.HTTP_201_CREATED)
 def create_admin_allocation(
     data: AllocationCreateRequest,
