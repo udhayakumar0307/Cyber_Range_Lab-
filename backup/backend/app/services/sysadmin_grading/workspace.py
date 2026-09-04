@@ -202,7 +202,13 @@ class SysadminWorkspaceService:
             f"{self.settings.workspace_start_timeout_seconds} seconds."
         )
 
-    def start(self, *, user_id: int, lab_id: str) -> dict[str, Any]:
+    def start(
+        self,
+        *,
+        user_id: int,
+        lab_id: str,
+        assignment_id: int | None = None,
+    ) -> dict[str, Any]:
         if user_id <= 0:
             raise WorkspaceExecutionError("Workspace requires a persisted CyberRange user.")
         self.settings.assert_workspace_ready()
@@ -212,8 +218,14 @@ class SysadminWorkspaceService:
         if existing:
             existing_task = str(existing.get("task_arn") or "")
             existing_lab = str(existing.get("lab_id") or "")
+            existing_assignment_id = existing.get("assignment_id")
             try:
-                if existing_task and existing_lab == lab_id and self._task_is_active(existing_task):
+                if (
+                    existing_task
+                    and existing_lab == lab_id
+                    and existing_assignment_id == assignment_id
+                    and self._task_is_active(existing_task)
+                ):
                     return existing
             except WorkspaceExecutionError:
                 # A stale/broken session should not prevent a clean reprovision.
@@ -226,6 +238,7 @@ class SysadminWorkspaceService:
             lab_id=lab_id,
             workspace_id=workspace_id,
             ttl_minutes=self.settings.workspace_token_ttl_minutes,
+            assignment_id=assignment_id,
         )
         ssh_password = secrets.token_urlsafe(24)
         ttl_seconds = self.settings.workspace_token_ttl_minutes * 60
@@ -293,6 +306,7 @@ class SysadminWorkspaceService:
                 "workspace_id": workspace_id,
                 "task_arn": task_arn,
                 "lab_id": lab_id,
+                "assignment_id": assignment_id,
                 "status": "RUNNING",
                 "student_host": student_host,
                 "student_port": 22,

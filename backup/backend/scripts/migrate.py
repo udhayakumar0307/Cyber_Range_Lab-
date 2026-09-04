@@ -193,6 +193,7 @@ def run_sqlite_column_migrations(engine):
             ("completed_at", "TIMESTAMP NULL"),
             ("ecs_task_arn", "VARCHAR(500) NULL"),
             ("worker_exit_code", "INTEGER NULL"),
+            ("assignment_id", "INTEGER NULL"),
         ]
         for col, definition in sysadmin_submission_cols:
             add_col_if_missing("sysadmin_submissions", col, definition)
@@ -213,6 +214,10 @@ def run_sqlite_column_migrations(engine):
             conn.execute(text("""
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_sysadmin_submissions_student_id_idempotency_key
                 ON sysadmin_submissions (student_id, idempotency_key);
+            """))
+            conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_sysadmin_submissions_assignment_id
+                ON sysadmin_submissions (assignment_id);
             """))
 
 
@@ -469,7 +474,9 @@ def run_postgres_column_migrations(engine):
                 ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NULL,
                 ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL,
                 ADD COLUMN IF NOT EXISTS ecs_task_arn VARCHAR(500) NULL,
-                ADD COLUMN IF NOT EXISTS worker_exit_code INTEGER NULL;
+                ADD COLUMN IF NOT EXISTS worker_exit_code INTEGER NULL,
+                ADD COLUMN IF NOT EXISTS assignment_id INTEGER NULL
+                    REFERENCES assignments(id) ON DELETE SET NULL;
             """))
             conn.execute(text("""
                 UPDATE sysadmin_submissions
@@ -487,6 +494,10 @@ def run_postgres_column_migrations(engine):
             conn.execute(text("""
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_sysadmin_submissions_student_id_idempotency_key
                 ON sysadmin_submissions (student_id, idempotency_key);
+            """))
+            conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_sysadmin_submissions_assignment_id
+                ON sysadmin_submissions (assignment_id);
             """))
             logger.info("  sysadmin_submissions: async grading columns applied")
 

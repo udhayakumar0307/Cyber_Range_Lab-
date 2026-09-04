@@ -41,6 +41,7 @@ class WorkspaceSubmissionClaims:
     workspace_id: str
     jti: str
     expires_at: datetime
+    assignment_id: int | None = None
 
 
 def create_workspace_submission_token(
@@ -49,6 +50,7 @@ def create_workspace_submission_token(
     lab_id: str,
     workspace_id: str,
     ttl_minutes: int,
+    assignment_id: int | None = None,
 ) -> tuple[str, datetime]:
     if user_id <= 0:
         raise WorkspaceTokenError("Workspace token requires a persisted user ID.")
@@ -56,6 +58,8 @@ def create_workspace_submission_token(
         raise WorkspaceTokenError("Workspace token requires a lab ID.")
     if not workspace_id:
         raise WorkspaceTokenError("Workspace token requires a workspace ID.")
+    if assignment_id is not None and assignment_id <= 0:
+        raise WorkspaceTokenError("Workspace token assignment ID must be positive.")
     if ttl_minutes < 5 or ttl_minutes > 240:
         raise WorkspaceTokenError("Workspace token TTL must be between 5 and 240 minutes.")
 
@@ -74,6 +78,9 @@ def create_workspace_submission_token(
         "exp": expires_at,
         "jti": str(uuid.uuid4()),
     }
+    if assignment_id is not None:
+        payload["assignment_id"] = assignment_id
+
     token = jwt.encode(payload, _workspace_secret(), algorithm=app_settings.ALGORITHM)
     return token, expires_at
 
@@ -103,11 +110,21 @@ def decode_workspace_submission_token(token: str) -> WorkspaceSubmissionClaims:
         workspace_id = str(payload["workspace_id"])
         jti = str(payload["jti"])
         exp = datetime.fromtimestamp(float(payload["exp"]), tz=timezone.utc)
+        raw_assignment_id = payload.get("assignment_id")
+        assignment_id = (
+            int(raw_assignment_id)
+            if raw_assignment_id is not None
+            else None
+        )
     except (KeyError, TypeError, ValueError) as exc:
         raise WorkspaceTokenError("Workspace submission token is missing required claims.") from exc
 
     if user_id <= 0 or not lab_id or not workspace_id or not jti:
         raise WorkspaceTokenError("Workspace submission token contains invalid claims.")
+    if assignment_id is not None and assignment_id <= 0:
+        raise WorkspaceTokenError(
+            "Workspace submission token contains invalid assignment ID."
+        )
 
     return WorkspaceSubmissionClaims(
         user_id=user_id,
@@ -115,4 +132,5 @@ def decode_workspace_submission_token(token: str) -> WorkspaceSubmissionClaims:
         workspace_id=workspace_id,
         jti=jti,
         expires_at=exp,
+        assignment_id=assignment_id,
     )

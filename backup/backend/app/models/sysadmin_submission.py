@@ -26,6 +26,16 @@ class SysadminSubmission(Base):
         nullable=False,
         index=True,
     )
+
+    # Academic assignment that owned the workspace when this submission was
+    # accepted. NULL preserves historical and personal/unassigned submissions.
+    assignment_id = Column(
+        Integer,
+        ForeignKey("assignments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # RHSA question-bank ID, e.g. RHSA-USERS-001. It deliberately does not
     # reference labs.id because question-bank exercises are finer-grained than
     # marketplace lab products.

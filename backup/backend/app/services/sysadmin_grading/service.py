@@ -123,9 +123,11 @@ class SysadminGradingService:
         filename: str,
         content: str,
         submission_hash: str,
+        assignment_id: int | None = None,
     ) -> bool:
         return (
             row.lab_id == lab_id
+            and row.assignment_id == assignment_id
             and row.filename == filename
             and row.submission_sha256 == submission_hash
             and row.submission_content == content
@@ -140,9 +142,11 @@ class SysadminGradingService:
         content: str,
         status: str,
         idempotency_key: str | None = None,
+        assignment_id: int | None = None,
     ) -> SysadminSubmission:
         return SysadminSubmission(
             student_id=student_id,
+            assignment_id=assignment_id,
             lab_id=lab_id,
             filename=filename,
             submission_content=content,
@@ -319,6 +323,7 @@ class SysadminGradingService:
         filename: str,
         content: str,
         idempotency_key: str,
+        assignment_id: int | None = None,
         queue: SQSGradingQueue | None = None,
     ) -> SysadminSubmission:
         self.settings.assert_queue_ready()
@@ -341,6 +346,7 @@ class SysadminGradingService:
                 filename=filename,
                 content=content,
                 submission_hash=submission_hash,
+                assignment_id=assignment_id,
             ):
                 raise IdempotencyConflictError(
                     "Idempotency-Key was already used for a different submission."
@@ -356,6 +362,7 @@ class SysadminGradingService:
             content=content,
             status="QUEUED",
             idempotency_key=normalized_key,
+            assignment_id=assignment_id,
         )
         db.add(row)
         try:
@@ -380,6 +387,7 @@ class SysadminGradingService:
                 filename=filename,
                 content=content,
                 submission_hash=submission_hash,
+                assignment_id=assignment_id,
             ):
                 raise IdempotencyConflictError(
                     "Idempotency-Key was already used for a different submission."

@@ -103,6 +103,51 @@ def _assert_marketplace_access(
         )
 
 
+def _resolve_current_sysadmin_assignment_id(
+    settings: SysadminGradingSettings,
+    current_user: User,
+    db: Session,
+) -> int | None:
+    """
+    Resolve the currently active academic Assignment for this Sysadmin user.
+
+    Assignment provenance is captured when the workspace is created rather than
+    inferred later from grading timestamps. Personal/unassigned use returns None.
+    """
+    from app.core.assignment_time import utc_now_naive
+    from app.models.assignment import Assignment
+
+    now = utc_now_naive()
+
+    base = db.query(Assignment).filter(
+        Assignment.lab_id == settings.marketplace_lab_id,
+        Assignment.deleted_at.is_(None),
+        Assignment.start_datetime <= now,
+        Assignment.end_datetime >= now,
+    )
+
+    # Explicit student assignment takes precedence over a group assignment.
+    assignment = (
+        base.filter(Assignment.student_id == int(current_user.id))
+        .order_by(Assignment.created_at.desc(), Assignment.id.desc())
+        .first()
+    )
+    if assignment is not None:
+        return int(assignment.id)
+
+    group_id = getattr(current_user, "group_id", None)
+    if group_id is None:
+        return None
+
+    assignment = (
+        base.filter(Assignment.group_id == int(group_id))
+        .order_by(Assignment.created_at.desc(), Assignment.id.desc())
+        .first()
+    )
+
+    return int(assignment.id) if assignment is not None else None
+
+
 @router.get("/status", response_model=SysadminGradingStatusResponse)
 def grading_status(current_user: User = Depends(get_current_user)):
     try:
@@ -269,8 +314,17 @@ def start_workspace(
     settings = SysadminGradingSettings.from_env()
     _assert_marketplace_access(settings, current_user, db)
     try:
+        assignment_id = _resolve_current_sysadmin_assignment_id(
+            settings,
+            current_user,
+            db,
+        )
         service = SysadminWorkspaceService(settings)
-        session = service.start(user_id=int(current_user.id), lab_id=payload.lab_id)
+        session = service.start(
+            user_id=int(current_user.id),
+            lab_id=payload.lab_id,
+            assignment_id=assignment_id,
+        )
         return service.student_view(session)
     except QuestionBankError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -455,6 +509,7 @@ def workspace_submit_script(
             filename=payload.filename,
             content=payload.content,
             idempotency_key=idempotency_key,
+            assignment_id=claims.assignment_id,
         )
     except SubmissionValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
