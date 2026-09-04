@@ -72,7 +72,55 @@ async def lifespan(app: FastAPI):
             logger.info("Auto-migration complete.")
         except Exception as exc:
             logger.error(f"Failed to auto-run database migrations: {exc}", exc_info=True)
-        
+
+        # Synchronize the external Linux Sysadmin question-bank catalog into
+        # LabModule so existing reporting/gradebook APIs have a canonical
+        # module denominator and metadata. Failure is isolated from API startup.
+        try:
+            from app.services.sysadmin_grading.catalog_sync import (
+                sync_sysadmin_lab_modules,
+            )
+            from app.services.sysadmin_grading.config import (
+                SysadminGradingSettings,
+            )
+            from app.services.sysadmin_grading.question_bank import (
+                QuestionBankRepository,
+            )
+
+            sysadmin_settings = SysadminGradingSettings.from_env()
+            if sysadmin_settings.enabled:
+                sysadmin_db = db_manager.get_session()
+                try:
+                    result = sync_sysadmin_lab_modules(
+                        sysadmin_db,
+                        settings=sysadmin_settings,
+                        repository=QuestionBankRepository(
+                            sysadmin_settings.question_bank_root
+                        ),
+                    )
+                    sysadmin_db.commit()
+                    logger.info(
+                        "Sysadmin catalog synchronized: "
+                        "lab=%s modules=%s total_points=%s "
+                        "created=%s updated=%s",
+                        result.marketplace_lab_id,
+                        result.module_count,
+                        result.total_points,
+                        result.created,
+                        result.updated,
+                    )
+                except Exception:
+                    sysadmin_db.rollback()
+                    raise
+                finally:
+                    sysadmin_db.close()
+        except Exception as exc:
+            logger.error(
+                "Failed to synchronize Sysadmin question-bank catalog: %s",
+                exc,
+                exc_info=True,
+            )
+
         # Seed initial study materials if database table is empty
         try:
             from app.models.study_material import StudyMaterial
