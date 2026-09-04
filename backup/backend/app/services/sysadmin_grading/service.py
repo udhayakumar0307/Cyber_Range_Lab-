@@ -17,6 +17,7 @@ from app.models.sysadmin_submission import SysadminSubmission
 
 from .config import GradingConfigurationError, SysadminGradingSettings
 from .executor import GradingExecution, GradingExecutionError, build_grading_executor
+from .progress_projection import project_sysadmin_assignment_progress
 from .question_bank import QuestionBankError, QuestionBankRepository
 from .queue import GradingQueueError, SQSGradingQueue
 
@@ -187,6 +188,53 @@ class SysadminGradingService:
         row.lease_expires_at = None
         row.mark_graded()
 
+    def _project_assignment_progress(
+        self,
+        db: Session,
+        row: SysadminSubmission,
+    ) -> None:
+        """
+        Best-effort academic reporting projection.
+
+        A nested transaction protects the authoritative grading result from a
+        reporting/catalog failure. The projection itself is recomputational, so
+        replay/reconciliation is safe.
+        """
+        if row.assignment_id is None:
+            return
+
+        try:
+            with db.begin_nested():
+                result = project_sysadmin_assignment_progress(
+                    db,
+                    submission=row,
+                    marketplace_lab_id=self.settings.marketplace_lab_id,
+                )
+                if result is not None:
+                    logger.info(
+                        "Projected Sysadmin progress: "
+                        "submission_id=%s assignment_id=%s user_id=%s "
+                        "module_id=%s status=%s score=%s attempts=%s",
+                        row.id,
+                        result.assignment_id,
+                        result.user_id,
+                        result.module_id,
+                        result.status,
+                        result.score,
+                        result.attempts,
+                    )
+        except Exception:
+            # Grading evidence is authoritative and must not be converted into
+            # an infrastructure ERROR merely because reporting projection fails.
+            logger.exception(
+                "Unable to project Sysadmin assignment progress: "
+                "submission_id=%s assignment_id=%s user_id=%s lab_id=%s",
+                row.id,
+                row.assignment_id,
+                row.student_id,
+                row.lab_id,
+            )
+
     def _mark_running(
         self,
         db: Session,
@@ -279,6 +327,7 @@ class SysadminGradingService:
             )
             db.refresh(row)
             self._apply_execution_result(row, execution)
+            self._project_assignment_progress(db, row)
             db.commit()
             db.refresh(row)
             return row
@@ -582,6 +631,7 @@ class SysadminGradingService:
             )
 
         self._apply_execution_result(row, execution)
+        self._project_assignment_progress(db, row)
         db.commit()
         db.refresh(row)
         self._cleanup_async_transport(row)
