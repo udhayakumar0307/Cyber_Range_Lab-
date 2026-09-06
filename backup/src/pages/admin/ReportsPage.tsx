@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search, Download, FileText } from 'lucide-react';
 
 interface LabAssignmentReport {
+  assignment_id: number;
   group_id: number;
   group_name: string;
   lab_name: string;
@@ -41,9 +42,13 @@ export const ReportsPage: React.FC = () => {
     fetchReports();
   }, []);
 
-  const handleExport = (groupId: number, format: 'csv' | 'pdf') => {
+  const handleExport = (
+    groupId: number,
+    assignmentId: number,
+    format: 'csv' | 'pdf'
+  ) => {
     const token = localStorage.getItem('token');
-    const url = `/api/v1/admin/groups/${groupId}/lab-report/export?format=${format}`;
+    const url = `/api/v1/admin/groups/${groupId}/lab-report/export?format=${format}&assignment_id=${assignmentId}`;
     fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.blob())
       .then((blob) => {
@@ -72,7 +77,7 @@ export const ReportsPage: React.FC = () => {
       <div>
         <h1 className="text-lg font-black text-slate-900 dark:text-slate-100">Lab Assignment Reports</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          The most recent lab assigned to each training group, with participation and downloadable reports.
+          Historical lab assignments for each training group, with participation and downloadable reports.
         </p>
       </div>
 
@@ -115,7 +120,7 @@ export const ReportsPage: React.FC = () => {
                   </tr>
                 ) : (
                   filteredReports.map((r) => (
-                    <tr key={r.group_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                    <tr key={r.assignment_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                       <td className="p-4 font-extrabold text-slate-900 dark:text-slate-100">{r.group_name}</td>
                       <td className="p-4 font-bold text-slate-700 dark:text-slate-200">{r.lab_name}</td>
                       <td className="p-4 text-center text-slate-500">{r.assigned_date}</td>
@@ -132,20 +137,20 @@ export const ReportsPage: React.FC = () => {
                       </td>
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
                         <Link
-                          to={`/admin/reports/groups/${r.group_id}`}
+                          to={`/admin/reports/groups/${r.group_id}?assignment_id=${r.assignment_id}`}
                           className="px-2.5 py-1 border rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 cursor-pointer inline-block"
                         >
                           View Detail
                         </Link>
                         <button
-                          onClick={() => handleExport(r.group_id, 'csv')}
+                          onClick={() => handleExport(r.group_id, r.assignment_id, 'csv')}
                           title="Download CSV"
                           className="px-2 py-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5 inline" />
                         </button>
                         <button
-                          onClick={() => handleExport(r.group_id, 'pdf')}
+                          onClick={() => handleExport(r.group_id, r.assignment_id, 'pdf')}
                           title="Download PDF"
                           className="px-2 py-1.5 rounded-lg text-slate-500 hover:text-[#0052CC] hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
                         >

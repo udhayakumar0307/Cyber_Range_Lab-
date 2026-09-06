@@ -1693,72 +1693,116 @@ def get_lab_assignment_reports(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Lists each group's most recent lab assignment, for the unified Reports page."""
+    """List every historical group lab assignment visible to the current admin."""
     from app.models.group import Group
     from app.models.lab import Lab
     from app.models.assignment import Assignment
     from app.models.user_lab_progress import UserLabProgress
     from app.models.lab_module import LabModule
     from app.core.timezone_utils import now_ist
-    from sqlalchemy import not_, or_
+    from sqlalchemy import not_
 
     org_id = get_admin_org_id(current_user, db)
-    groups = db.query(Group).filter((Group.organization_id == org_id) | (Group.organization_id.is_(None))).all()
+    groups = db.query(Group).filter(
+        (Group.organization_id == org_id)
+        | (Group.organization_id.is_(None))
+    ).all()
 
     now = now_ist()
     result = []
-    for g in groups:
-        assignment = (
-            db.query(Assignment)
-            .filter(Assignment.group_id == g.id, Assignment.deleted_at.is_(None))
-            .order_by(Assignment.created_at.desc())
-            .first()
-        )
-        if not assignment:
-            continue
 
-        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
-        total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+    for g in groups:
+        assignments = (
+            db.query(Assignment)
+            .filter(
+                Assignment.group_id == g.id,
+                Assignment.deleted_at.is_(None),
+            )
+            .order_by(
+                Assignment.created_at.desc(),
+                Assignment.id.desc(),
+            )
+            .all()
+        )
+
+        if not assignments:
+            continue
 
         members = db.query(User).filter(
             User.group_id == g.id,
             not_(User.role.ilike('%admin%'))
         ).all()
 
-        participated = 0
-        total_score = 0
-        for m in members:
-            progress_rows = db.query(UserLabProgress).filter(
-                UserLabProgress.assignment_id == assignment.id,
-                UserLabProgress.user_id == m.id,
-            ).all()
-            if progress_rows:
-                participated += 1
-            total_score += sum(r.score or 0 for r in progress_rows)
+        for assignment in assignments:
+            lab = db.query(Lab).filter(
+                Lab.id == assignment.lab_id
+            ).first()
 
-        avg_score = round(total_score / len(members), 1) if members else 0
+            total_modules = db.query(LabModule).filter(
+                LabModule.lab_id == assignment.lab_id
+            ).count()
 
-        if now < assignment.start_datetime:
-            status = "Scheduled"
-        elif now > assignment.end_datetime:
-            status = "Completed"
-        else:
-            status = "Running"
+            participated = 0
+            total_score = 0
 
-        result.append({
-            "group_id": g.id,
-            "group_name": g.name,
-            "lab_name": lab.name if lab else assignment.lab_id,
-            "assigned_date": assignment.start_datetime.strftime("%Y-%m-%d %H:%M") if assignment.start_datetime else "",
-            "end_date": assignment.end_datetime.strftime("%Y-%m-%d %H:%M") if assignment.end_datetime else "",
-            "total_students": len(members),
-            "participated": participated,
-            "total_modules": total_modules,
-            "avg_score": avg_score,
-            "status": status,
-        })
+            for m in members:
+                progress_rows = db.query(UserLabProgress).filter(
+                    UserLabProgress.assignment_id == assignment.id,
+                    UserLabProgress.user_id == m.id,
+                ).all()
 
-    result.sort(key=lambda r: r["assigned_date"], reverse=True)
+                if progress_rows:
+                    participated += 1
+
+                total_score += sum(
+                    r.score or 0
+                    for r in progress_rows
+                )
+
+            avg_score = (
+                round(total_score / len(members), 1)
+                if members
+                else 0
+            )
+
+            if now < assignment.start_datetime:
+                report_status = "Scheduled"
+            elif now > assignment.end_datetime:
+                report_status = "Completed"
+            else:
+                report_status = "Running"
+
+            result.append({
+                "assignment_id": assignment.id,
+                "group_id": g.id,
+                "group_name": g.name,
+                "lab_id": assignment.lab_id,
+                "lab_name": lab.name if lab else assignment.lab_id,
+                "assigned_date": (
+                    assignment.start_datetime.strftime("%Y-%m-%d %H:%M")
+                    if assignment.start_datetime
+                    else ""
+                ),
+                "end_date": (
+                    assignment.end_datetime.strftime("%Y-%m-%d %H:%M")
+                    if assignment.end_datetime
+                    else ""
+                ),
+                "total_students": len(members),
+                "participated": participated,
+                "total_modules": total_modules,
+                "avg_score": avg_score,
+                "status": report_status,
+            })
+
+    result.sort(
+        key=lambda r: (
+            r["assigned_date"],
+            r["assignment_id"],
+        ),
+        reverse=True,
+    )
+
     return result
 
 
@@ -2003,9 +2047,52 @@ def kill_group_lab(
     }
 
 
+def _resolve_group_report_assignment(
+    db: Session,
+    *,
+    group_id: int,
+    assignment_id: Optional[int] = None,
+):
+    """
+    Resolve an assignment for reporting.
+
+    Without assignment_id, preserve existing behavior and return the newest
+    assignment. With assignment_id, select that historical assignment exactly.
+    """
+    from app.models.assignment import Assignment
+
+    query = db.query(Assignment).filter(
+        Assignment.group_id == group_id,
+        Assignment.deleted_at.is_(None),
+    )
+
+    if assignment_id is not None:
+        assignment = query.filter(
+            Assignment.id == assignment_id,
+        ).first()
+
+        if not assignment:
+            raise HTTPException(
+                status_code=404,
+                detail="Assignment not found for this group.",
+            )
+
+        return assignment
+
+    return (
+        query
+        .order_by(
+            Assignment.created_at.desc(),
+            Assignment.id.desc(),
+        )
+        .first()
+    )
+
+
 @router.get("/groups/{group_id}/lab-status")
 def get_group_lab_status(
     group_id: int,
+    assignment_id: Optional[int] = Query(default=None, ge=1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2021,11 +2108,10 @@ def get_group_lab_status(
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    assignment = (
-        db.query(Assignment)
-        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
-        .order_by(Assignment.created_at.desc())
-        .first()
+    assignment = _resolve_group_report_assignment(
+        db,
+        group_id=group_id,
+        assignment_id=assignment_id,
     )
     if not assignment:
         return {"assigned": False}
@@ -2118,10 +2204,11 @@ def get_group_lab_status(
 def export_group_lab_report(
     group_id: int,
     format: str = "csv",
+    assignment_id: Optional[int] = Query(default=None, ge=1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Exports the group's most recent lab assignment report as CSV or PDF."""
+    """Export an exact historical assignment, or the newest when omitted."""
     from app.models.group import Group
     from app.models.lab import Lab
     from app.models.lab_module import LabModule
@@ -2134,14 +2221,16 @@ def export_group_lab_report(
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    assignment = (
-        db.query(Assignment)
-        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
-        .order_by(Assignment.created_at.desc())
-        .first()
+    assignment = _resolve_group_report_assignment(
+        db,
+        group_id=group_id,
+        assignment_id=assignment_id,
     )
     if not assignment:
-        raise HTTPException(status_code=404, detail="No lab assignment found for this group")
+        raise HTTPException(
+            status_code=404,
+            detail="No lab assignment found for this group",
+        )
 
     lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
     total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
@@ -2233,10 +2322,11 @@ def export_group_lab_report(
 def get_student_lab_report(
     group_id: int,
     user_id: int,
+    assignment_id: Optional[int] = Query(default=None, ge=1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Per-student detailed lab performance report for a group's active/last assignment."""
+    """Per-student report for an exact historical assignment when requested."""
     from app.models.group import Group
     from app.models.lab import Lab
     from app.models.lab_module import LabModule
@@ -2251,14 +2341,16 @@ def get_student_lab_report(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    assignment = (
-        db.query(Assignment)
-        .filter(Assignment.group_id == group_id, Assignment.deleted_at.is_(None))
-        .order_by(Assignment.created_at.desc())
-        .first()
+    assignment = _resolve_group_report_assignment(
+        db,
+        group_id=group_id,
+        assignment_id=assignment_id,
     )
     if not assignment:
-        raise HTTPException(status_code=404, detail="No lab assignment found for this group")
+        raise HTTPException(
+            status_code=404,
+            detail="No lab assignment found for this group",
+        )
 
     lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
     modules = (

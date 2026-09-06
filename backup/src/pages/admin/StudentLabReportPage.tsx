@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { getDeptShortCode } from '../../utils/deptMapping';
 import {
   ArrowLeft,
@@ -116,6 +116,11 @@ const RadarChart: React.FC<{ labels: string[]; values: number[] }> = ({ labels, 
 
 export const StudentLabReportPage: React.FC = () => {
   const { groupId, userId } = useParams<{ groupId: string; userId: string }>();
+  const [searchParams] = useSearchParams();
+  const assignmentId = searchParams.get('assignment_id');
+  const reportGroupUrl = assignmentId
+    ? `/admin/reports/groups/${groupId}?assignment_id=${encodeURIComponent(assignmentId)}`
+    : `/admin/reports/groups/${groupId}`;
   const [report, setReport] = useState<StudentReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,9 +130,16 @@ export const StudentLabReportPage: React.FC = () => {
       const dbGroupId = (groupId || '').replace('grp-', '');
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch(`/api/v1/admin/groups/${dbGroupId}/students/${userId}/report`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
+        const assignmentQuery = assignmentId
+          ? `?assignment_id=${encodeURIComponent(assignmentId)}`
+          : '';
+
+        const res = await fetch(
+          `/api/v1/admin/groups/${dbGroupId}/students/${userId}/report${assignmentQuery}`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          }
+        );
         if (res.ok) {
           setReport(await res.json());
         } else {
@@ -142,7 +154,7 @@ export const StudentLabReportPage: React.FC = () => {
       }
     };
     fetchReport();
-  }, [groupId, userId]);
+  }, [groupId, userId, assignmentId]);
 
   if (loading) {
     return <div className="p-6 text-sm text-slate-500">Loading report...</div>;
@@ -152,7 +164,7 @@ export const StudentLabReportPage: React.FC = () => {
     return (
       <div className="p-10 text-center">
         <p className="text-slate-500 text-sm">{error || 'Report not found.'}</p>
-        <Link to={`/admin/groups/${groupId}`} className="mt-3 text-[#0052CC] font-bold text-xs hover:underline inline-block">
+        <Link to={reportGroupUrl} className="mt-3 text-[#0052CC] font-bold text-xs hover:underline inline-block">
           Back to Group
         </Link>
       </div>
@@ -162,7 +174,7 @@ export const StudentLabReportPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <Link
-        to={`/admin/groups/${groupId}`}
+        to={reportGroupUrl}
         className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Back to Group

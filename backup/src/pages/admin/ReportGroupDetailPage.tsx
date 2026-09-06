@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   UsersRound,
@@ -50,6 +50,11 @@ function formatDuration(totalSeconds: number): string {
 
 export const ReportGroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
+  const [searchParams] = useSearchParams();
+  const assignmentId = searchParams.get('assignment_id');
+  const assignmentQuery = assignmentId
+    ? `?assignment_id=${encodeURIComponent(assignmentId)}`
+    : '';
   const [groupName, setGroupName] = useState('');
   const [labStatus, setLabStatus] = useState<LabStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +68,7 @@ export const ReportGroupDetailPage: React.FC = () => {
       try {
         const [gRes, sRes] = await Promise.all([
           fetch(`/api/v1/admin/groups/${dbId}`, { headers }),
-          fetch(`/api/v1/admin/groups/${dbId}/lab-status`, { headers }),
+          fetch(`/api/v1/admin/groups/${dbId}/lab-status${assignmentQuery}`, { headers }),
         ]);
         if (gRes.ok) {
           const g = await gRes.json();
@@ -77,11 +82,14 @@ export const ReportGroupDetailPage: React.FC = () => {
       }
     };
     fetchData();
-  }, [groupId]);
+  }, [groupId, assignmentId]);
 
   const handleExport = (format: 'csv' | 'pdf') => {
     const token = localStorage.getItem('token');
-    const url = `/api/v1/admin/groups/${dbId}/lab-report/export?format=${format}`;
+    const assignmentSuffix = assignmentId
+      ? `&assignment_id=${encodeURIComponent(assignmentId)}`
+      : '';
+    const url = `/api/v1/admin/groups/${dbId}/lab-report/export?format=${format}${assignmentSuffix}`;
     fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.blob())
       .then((blob) => {
@@ -246,7 +254,7 @@ export const ReportGroupDetailPage: React.FC = () => {
                   <td className="p-3 text-slate-600 dark:text-slate-300">{formatDuration(s.time_taken_seconds)}</td>
                   <td className="p-3 text-right">
                     <Link
-                      to={`/admin/groups/${dbId}/students/${s.user_id}/report`}
+                      to={`/admin/groups/${dbId}/students/${s.user_id}/report${assignmentQuery}`}
                       className="px-2.5 py-1 rounded-lg bg-[#0052CC] hover:bg-blue-600 text-white font-bold text-[11px] shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                     >
                       View Detail
