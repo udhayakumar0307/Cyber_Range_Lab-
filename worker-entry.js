@@ -2,8 +2,13 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Forward all /api/ and /health requests directly to the EC2 backend
-    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/health')) {
+    // Forward /api/, /health, and self-contained web-app labs (each served by
+    // its own container behind nginx on the EC2) straight to the backend.
+    if (
+      url.pathname.startsWith('/api/') ||
+      url.pathname.startsWith('/health') ||
+      url.pathname.startsWith('/compliance-lab/')
+    ) {
       const backendUrl = new URL(request.url);
       backendUrl.hostname = 'api-academy.deeptrustxai.com';
       backendUrl.protocol = 'https:';
