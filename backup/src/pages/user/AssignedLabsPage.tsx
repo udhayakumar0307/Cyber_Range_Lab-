@@ -158,6 +158,8 @@ export const AssignedLabsPage: React.FC = () => {
             navigate('/labs/command-line-lab/session/sess-cll-01');
           } else if (isCrypto) {
             navigate('/labs/cryptography-lab/session/sess-crypto-01');
+          } else if (targetLabId === 'compliance-portal' || normalizedLabId === 'complianceportal') {
+            navigate('/labs/compliance-portal/session/sess-compliance-01');
           } else if (isCloud) {
             navigate('/labs/cloud-security-lab/session/sess-cloud-01');
           } else if (targetLabId === 'lab1-recon' || targetLabId === 'recon-lab') {

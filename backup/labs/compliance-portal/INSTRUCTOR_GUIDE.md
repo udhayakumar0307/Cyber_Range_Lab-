@@ -116,20 +116,43 @@ The demo-mode entrypoint block is skipped automatically when either is present.
    The lab then appears in **System Admin Portal → Labs** (catalog) and, thanks
    to the global assignment, under **Assigned Labs**. Use **Allocate Lab** there
    to hand hours to a specific org/college/student, exactly like the other labs.
-3. **Build / publish the image** referenced by `metadata.json`
-   (`cyberrange/compliance-portal:latest`):
+3. **Student launch page** — `src/pages/user/CompliancePortalLabPage.tsx` +
+   routes in `src/App.tsx` are already committed. Launching the lab now opens
+   this page (an `<iframe>` of the portal) instead of falling through to the
+   generic terminal session. The iframe URL comes from
+   `VITE_COMPLIANCE_PORTAL_URL` at **frontend build time**; with it unset the
+   page shows a "not configured" notice (never another lab's content).
+
+4. **Run + expose the portal container**, then point the frontend at it.
+
+   **Option A — dedicated sub-domain (simplest):**
    ```bash
-   cd backup/labs/compliance-portal
-   docker build -t cyberrange/compliance-portal:latest ./app
-   # (or push to the ECR repo the EC2/ECS orchestrator pulls from)
+   docker run -d --name compliance-portal --restart unless-stopped \
+     -p 8095:4000 cyberrange/compliance-portal:latest
+   # nginx: server_name compliance-portal.academy.deeptrustxai.com;
+   #        location / { proxy_pass http://127.0.0.1:8095; }
    ```
-4. **Expose it to students.** The portal is a normal web app on container port
-   `4000`. Surface it the way the platform surfaces its other web-app labs
-   (e.g. `ot-security-lab`) — an iframe/tab pointed at the lab's origin, or a
-   reverse-proxy route. Because the SPA is built with a relative API base
-   (`/api`), it works behind any origin or proxy prefix that forwards `/api`
-   and `/assets` to the same container. This is the only remaining step that
-   still needs a per-lab frontend/route wire-up.
+   Build the range frontend with:
+   ```bash
+   VITE_COMPLIANCE_PORTAL_URL=https://compliance-portal.academy.deeptrustxai.com \
+     npm run build
+   ```
+
+   **Option B — sub-path on the existing host:**
+   ```bash
+   # build the lab image for the sub-path:
+   docker build -t cyberrange/compliance-portal:latest \
+     --build-arg VITE_BASE_PATH=/compliance-lab/ \
+     --build-arg VITE_API_BASE_URL=/compliance-lab/api ./app
+   docker run -d --name compliance-portal --restart unless-stopped -p 8095:4000 \
+     cyberrange/compliance-portal:latest
+   # nginx on the range host:
+   #   location /compliance-lab/ { proxy_pass http://127.0.0.1:8095/; }
+   ```
+   Build the range frontend with `VITE_COMPLIANCE_PORTAL_URL=/compliance-lab/`.
+
+   Either way: rebuild + redeploy the range frontend (`dist/`) so the new
+   route and the URL take effect.
 
 ### Rollback
 

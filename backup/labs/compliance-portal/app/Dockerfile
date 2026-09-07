@@ -12,7 +12,15 @@ COPY . .
 # URL is relative and nothing host-specific is baked into the bundle. Anything
 # environment-specific (keys, source URLs, sectors) is read by the server at
 # runtime from CONSENT_SOURCES, never at build time.
-ENV VITE_API_BASE_URL=/api
+#
+# Defaults suit a dedicated origin / sub-domain. To serve the lab under a
+# reverse-proxy sub-path instead, build with:
+#   --build-arg VITE_BASE_PATH=/compliance-lab/
+#   --build-arg VITE_API_BASE_URL=/compliance-lab/api
+ARG VITE_API_BASE_URL=/api
+ARG VITE_BASE_PATH=/
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN npm run build
 
 FROM node:20-alpine AS runtime

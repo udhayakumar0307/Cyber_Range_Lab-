@@ -251,6 +251,7 @@ export const AvailableLabs: React.FC = () => {
     if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
     else if (id === 'command-line-lab') navigate('/labs/command-line-lab/session/sess-cll-01');
     else if (id === 'cryptography-lab') navigate('/labs/cryptography-lab/session/sess-crypto-01');
+    else if (id === 'compliance-portal') navigate('/labs/compliance-portal/session/sess-compliance-01');
     else if (id === 'cloud-security-lab' || id === 'cloudcorp-aws-lab' || id.includes('cloud')) navigate('/labs/cloud-security-lab/session/sess-cloud-01');
     else if (id.includes('puzzle')) navigate('/puzzle');
     else navigate(`/labs/${lab.id}/session/sess-123`);
@@ -593,6 +594,7 @@ export const AvailableLabs: React.FC = () => {
                         onClick={() => {
                           const id = lab.lab_id.toLowerCase().replace(/[\s_-]+/g, '-');
                           if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
+                          else if (id === 'compliance-portal') navigate('/labs/compliance-portal/session/sess-compliance-01');
                           else navigate(`/labs/${lab.lab_id}/session/sess-123`);
                         }}
                         className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-xl transition-colors inline-flex items-center justify-center gap-1.5"

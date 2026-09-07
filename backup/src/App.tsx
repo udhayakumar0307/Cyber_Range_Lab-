@@ -72,6 +72,7 @@ const CartPage             = lazy(() => import('./pages/user/CartPage').then(m =
 const ChallengeSession     = lazy(() => import('./pages/user/ChallengeSession').then(m => ({ default: m.ChallengeSession })));
 const CommandLineLabPage    = lazy(() => import('./pages/user/CommandLineLabPage').then(m => ({ default: m.CommandLineLabPage })));
 const CryptographyLabPage   = lazy(() => import('./pages/user/CryptographyLabPage').then(m => ({ default: m.CryptographyLabPage })));
+const CompliancePortalLabPage = lazy(() => import('./pages/user/CompliancePortalLabPage').then(m => ({ default: m.CompliancePortalLabPage })));
 const CloudSecurityLabPage  = lazy(() => import('./pages/user/CloudSecurityLabPage').then(m => ({ default: m.CloudSecurityLabPage })));
 const PuzzleLabPage         = lazy(() => import('./pages/user/PuzzleLabPage').then(m => ({ default: m.PuzzleLabPage })));
 const TechCorpLabSession    = lazy(() => import('./pages/user/TechCorpLabSession').then(m => ({ default: m.TechCorpLabSession })));
@@ -293,6 +294,32 @@ export function App() {
                 element={
                   <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <CryptographyLabPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* DPDP Compliance Portal — self-contained web-app lab */}
+              <Route
+                path="/labs/compliance-portal"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CompliancePortalLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/compliance-portal/session"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CompliancePortalLabPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/labs/compliance-portal/session/:sessionId"
+                element={
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                    <CompliancePortalLabPage />
                   </ProtectedRoute>
                 }
               />
