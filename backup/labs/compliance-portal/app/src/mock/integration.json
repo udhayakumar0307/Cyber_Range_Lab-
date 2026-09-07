@@ -1,0 +1,19 @@
+{
+  "storeName": "EverShop Demo Store",
+  "storeUrl": "http://localhost:8088",
+  "platform": "EverShop",
+  "connectionStatus": "Connected",
+  "lastSync": "2 minutes ago",
+  "webhookStatus": "Active (Healthy)",
+  "apiKeyMasked": "••••••••••••••••••••••••••••••••",
+  "apiVersion": "v2.1.2",
+  "recordsSynced": "12,450",
+  "syncStatus": "Success",
+  "history": [
+    { "time": "10:42 AM", "event": "Customer consent synced", "status": "Success" },
+    { "time": "10:30 AM", "event": "Webhook received (consent.revoked)", "status": "Success" },
+    { "time": "10:15 AM", "event": "Consent updated in registry", "status": "Success" },
+    { "time": "Yesterday, 06:00 PM", "event": "Full store synchronization completed", "status": "Success" },
+    { "time": "2 days ago", "event": "Initial schema mapping established", "status": "Success" }
+  ]
+}

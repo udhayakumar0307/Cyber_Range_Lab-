@@ -1,0 +1,26 @@
+{
+  "sector": "finance",
+  "label": "Banking & Payments",
+  "regulator": "RBI",
+  "localisation": "Payment system data must be stored only in India (RBI circular, April 2018)",
+  "weights": {
+    "Financial Data": 1.35,
+    "National Identifier": 1.3,
+    "Credentials": 1.2,
+    "Identity Information": 1.1,
+    "Contact Information": 1.0,
+    "Behavioural": 0.9
+  },
+  "retention": {
+    "postRevocationDays": 0,
+    "kycRecordYears": 8
+  },
+  "expectedPurposes": [
+    "KYC",
+    "Transaction Processing",
+    "Regulatory Reporting",
+    "Fraud Prevention"
+  ],
+  "notes": "RBI requires KYC records for eight years after the relationship ends, so erasure on revocation is bounded by a statutory retention duty rather than being unconditional.",
+  "benchmarkRisk": 55
+}

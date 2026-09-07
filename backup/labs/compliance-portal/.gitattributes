@@ -1,0 +1,33 @@
+# Keep line endings deterministic regardless of the host's git autocrlf setting.
+# The shell entrypoint MUST stay LF or `#!/bin/sh` breaks inside the container.
+*.sh            text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Container / build files — LF only.
+Dockerfile      text eol=lf
+*.dockerignore  text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# App source — LF for reproducible builds.
+*.js            text eol=lf
+*.jsx           text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.json          text eol=lf
+*.css           text eol=lf
+*.html          text eol=lf
+*.md            text eol=lf
+*.py            text eol=lf
+
+# Binary assets — never touch.
+*.pdf           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.woff          binary
+*.woff2         binary

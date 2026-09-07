@@ -1,0 +1,23 @@
+{
+  "sector": "insurance",
+  "label": "Insurance",
+  "regulator": "IRDAI",
+  "localisation": "Policyholder data must be held in India (IRDAI)",
+  "weights": {
+    "Health Data": 1.3,
+    "Financial Data": 1.2,
+    "National Identifier": 1.2,
+    "Identity Information": 1.1
+  },
+  "retention": {
+    "postRevocationDays": 0,
+    "policyRecordYears": 10
+  },
+  "expectedPurposes": [
+    "Underwriting",
+    "Claim Settlement",
+    "Regulatory Reporting"
+  ],
+  "notes": "Nominee and health-declaration fields make third-party personal data routine in this sector.",
+  "benchmarkRisk": 52
+}

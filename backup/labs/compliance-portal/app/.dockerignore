@@ -1,0 +1,30 @@
+node_modules
+dist
+.git
+.gitignore
+
+# Secrets only — keep .env.example and .env.production (build config, no secrets)
+.env
+.env.local
+.env.development
+
+# Python cruft (app/backend is an unused alternative backend kept for parity)
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+
+# Logs / runtime state
+npm-debug.log*
+*.log
+*.db
+*.sqlite
+data/integration_config.json
+docs/clients
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode
+.idea

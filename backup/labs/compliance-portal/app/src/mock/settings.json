@@ -1,0 +1,37 @@
+{
+  "organization": {
+    "name": "Acme Corporation Pvt Ltd",
+    "industry": "E-Commerce",
+    "country": "India",
+    "officer": "Privacy Officer (officer@acme.com)"
+  },
+  "api": {
+    "mode": "Single Tenant Integration",
+    "timeout": 30,
+    "retry": 3
+  },
+  "security": {
+    "mfa": "Enabled",
+    "encryption": "AES-256-GCM",
+    "keyRotation": "90 Days"
+  },
+  "users": [
+    { "name": "Admin User", "role": "Administrator", "email": "admin@acme.com", "status": "Active" },
+    { "name": "Privacy Officer", "role": "DPO", "email": "officer@acme.com", "status": "Active" },
+    { "name": "Security Auditor", "role": "Auditor", "email": "auditor@acme.com", "status": "Active" }
+  ],
+  "notifications": {
+    "emailAlerts": "Immediate for critical",
+    "slackChannel": "#privacy-alerts",
+    "dailyDigest": "Enabled"
+  },
+  "retention": {
+    "defaultDuration": "3 Years",
+    "expiredDeletion": "Automated purging",
+    "backupPeriod": "30 Days"
+  },
+  "webhooks": [
+    { "url": "https://api.acme.com/v1/consent-sync", "event": "consent.updated", "status": "Active" },
+    { "url": "https://api.acme.com/v1/pii-alert", "event": "pii.detected", "status": "Active" }
+  ]
+}

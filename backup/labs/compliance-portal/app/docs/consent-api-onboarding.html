@@ -1,0 +1,198 @@
+<title>Consent API Onboarding</title>
+<style>
+  :root {
+    --paper:#F6F7F9; --surface:#FFFFFF; --surface-2:#ECEEF2;
+    --ink:#12141A; --ink-2:#4C5361; --ink-3:#737B8A; --rule:#D9DDE4;
+    --accent:#1B4ED1; --accent-soft:#E5EBFB;
+    --ok:#146B44; --err:#A82D1E; --err-soft:#F7E4E1; --warn:#855408; --warn-soft:#F7EBD9;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0B0D12; --surface:#14171F; --surface-2:#1C212B;
+      --ink:#E8EBF1; --ink-2:#A6AEBC; --ink-3:#7B8391; --rule:#262C38;
+      --accent:#7098FF; --accent-soft:#132244;
+      --ok:#5DBA8C; --err:#E5765F; --err-soft:#36201C; --warn:#D69C40; --warn-soft:#33280F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0B0D12; --surface:#14171F; --surface-2:#1C212B;
+    --ink:#E8EBF1; --ink-2:#A6AEBC; --ink-3:#7B8391; --rule:#262C38;
+    --accent:#7098FF; --accent-soft:#132244;
+    --ok:#5DBA8C; --err:#E5765F; --err-soft:#36201C; --warn:#D69C40; --warn-soft:#33280F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    font-size: 15.5px; line-height: 1.55; margin: 0; padding: 0 24px 90px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .col { max-width: 78ch; margin-inline: auto; }
+  header { padding: 56px 0 22px; border-bottom: 2px solid var(--ink); margin-bottom: 34px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 12px;
+  }
+  h1 { font-size: clamp(1.8rem,4.4vw,2.5rem); line-height:1.08; letter-spacing:-.025em;
+       font-weight:660; margin:0 0 12px; }
+  .lede { color: var(--ink-2); margin: 0; font-size: 1.04rem; }
+  h2 { font-size: 1.22rem; font-weight: 640; letter-spacing:-.012em; margin: 40px 0 4px; }
+  h2 .num {
+    font-family: var(--mono); font-size: .72em; color: var(--accent);
+    margin-right: 10px; font-weight: 500;
+  }
+  .dek { color: var(--ink-2); margin: 0 0 14px; font-size: .95rem; }
+  p { margin: 0 0 13px; }
+  code { font-family: var(--mono); font-size: .86em; background: var(--surface-2);
+         padding: .1em .34em; border-radius: 3px; }
+  pre { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+        padding: 15px 18px; overflow-x: auto; margin: 16px 0; font-size: .83rem; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  .cm { color: var(--ink-3); }
+  .twrap { overflow-x: auto; margin: 14px 0 4px; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; min-width: 560px; }
+  th { text-align: left; font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
+       text-transform: uppercase; color: var(--ink-3); font-weight: 500; padding: 10px 14px;
+       border-bottom: 1px solid var(--rule); background: var(--surface-2); white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: .87em; }
+  .req { color: var(--err); font-family: var(--mono); font-size: 10px; letter-spacing:.06em; }
+  .cap { font-size: .82rem; color: var(--ink-3); margin: 8px 0 0; }
+  .callout { border-left: 3px solid var(--warn); background: var(--warn-soft);
+             padding: 13px 17px; margin: 18px 0; font-size: .93rem; }
+  .callout p { margin: 0; }
+  ul { margin: 0 0 14px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  footer { margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--rule);
+           font-size: .87rem; color: var(--ink-3); }
+
+  /* ── print / PDF ──────────────────────────────────────────────────────────
+     Chrome drops background colours when printing unless told otherwise, which
+     would flatten the table headers and code blocks into unreadable blocks. The
+     palette is pinned to light here so a viewer in dark mode still gets a
+     document that prints on white paper. */
+  @media print {
+    :root {
+      --paper:#FFFFFF; --surface:#FFFFFF; --surface-2:#F1F3F6;
+      --ink:#12141A; --ink-2:#3A4150; --ink-3:#5E6675; --rule:#C8CDD6;
+      --accent:#12379E; --accent-soft:#EAEFFB;
+      --ok:#0F5734; --err:#8E2416; --err-soft:#F7E4E1;
+      --warn:#6B4306; --warn-soft:#F7EBD9;
+    }
+    * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    @page { margin: 14mm 15mm; }
+    body { font-size: 10.5pt; line-height: 1.45; padding: 0; background: #fff; }
+    .col { max-width: none; }
+    header { padding-top: 0; }
+    h1 { font-size: 22pt; }
+    h2 { font-size: 12.5pt; margin-top: 20pt; break-after: avoid; }
+    .dek { margin-bottom: 8pt; }
+    /* A split table or code block is the main thing that makes a printed spec
+       hard to follow, so keep each one whole. */
+    pre, .twrap, table, .callout { break-inside: avoid; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    table { min-width: 0; font-size: 9pt; }
+    pre { font-size: 8.6pt; }
+    footer { break-inside: avoid; }
+  }
+</style>
+
+<div class="col">
+
+<header>
+  <p class="kicker">Integration specification · v1</p>
+  <h1>Consent API Onboarding</h1>
+  <p class="lede">Expose one authenticated endpoint. We read it; we never touch your database, and we never write.</p>
+</header>
+
+<h2><span class="num">01</span>Build the endpoint</h2>
+<p class="dek">One read-only route over the consent records you already hold.</p>
+
+<pre><code>GET https://your-domain.example/consent-api/consents?limit=500
+x-api-key: &lt;your key&gt;          <span class="cm">// we also send Authorization: Bearer &lt;key&gt;</span>
+
+→ 200  [ {…}, {…} ]            <span class="cm">// array, or { "results": [ … ] }</span>
+→ 401  { "error": "Invalid API key" }</code></pre>
+
+<p>Generate the key with <code>openssl rand -hex 24</code> and keep it in an environment variable. Reject any request whose key does not match with <strong>401</strong> — never an empty list, never a redirect.</p>
+
+<h2><span class="num">02</span>Return these fields</h2>
+
+<div class="twrap">
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">user_id <span class="req">req</span></td><td>string</td><td>Stable identifier for the person</td></tr>
+    <tr><td class="mono">email <span class="req">req</span></td><td>string</td><td>Or any contact identifier you hold</td></tr>
+    <tr><td class="mono">consent_status <span class="req">req</span></td><td>enum</td><td><code>granted</code> · <code>revoked</code> · <code>pending</code></td></tr>
+    <tr><td class="mono">timestamp <span class="req">req</span></td><td>ISO 8601</td><td>When the record was created</td></tr>
+    <tr><td colspan="3" style="background:var(--surface-2);font-size:.8rem;color:var(--ink-3);font-family:var(--mono);letter-spacing:.06em">WITHOUT THESE, THE MATCHING COMPLIANCE CHECK REPORTS "NOT MEASURED"</td></tr>
+    <tr><td class="mono">purpose</td><td>string</td><td>Purpose limitation (s.5 notice)</td></tr>
+    <tr><td class="mono">consent_granted_at</td><td>ISO 8601</td><td>When consent was given</td></tr>
+    <tr><td class="mono">consent_revoked_at</td><td>ISO 8601 · null</td><td>Withdrawal — starts the erasure clock</td></tr>
+    <tr><td class="mono">pii_deleted_at</td><td>ISO 8601 · null</td><td>Actual erasure (s.12)</td></tr>
+    <tr><td class="mono">is_minor</td><td>boolean</td><td>Triggers the children's-data rules (s.9)</td></tr>
+    <tr><td class="mono">guardian_verified</td><td>boolean</td><td>Whether parental consent was verified</td></tr>
+  </tbody>
+</table>
+</div>
+
+<pre><code>{
+  "user_id": "1042",
+  "email": "asha@example.com",
+  "consent_status": "granted",
+  "timestamp": "2026-07-09T17:18:43.870Z",
+  "purpose": "Marketing",
+  "consent_granted_at": "2026-07-09T17:18:43.870Z",
+  "consent_revoked_at": null,
+  "pii_deleted_at": null,
+  "is_minor": false,
+  "guardian_verified": false
+}</code></pre>
+
+<h2><span class="num">03</span>Add whatever else you hold</h2>
+<p class="dek">Column names are recognised automatically — send them as they are.</p>
+
+<p><code>pan</code> · <code>aadhaar</code> · <code>account_number</code> · <code>ifsc</code> · <code>upi</code> · <code>card_number</code> · <code>gstin</code> · <code>abha</code> · <code>policy_number</code> · <code>passport</code> · <code>phone</code> · <code>address</code> · <code>date_of_birth</code> · <code>kyc</code> · <code>diagnosis</code></p>
+
+<p>Identifiers with a checkable structure are validated, so a real PAN or bank account is recognised as such rather than guessed from its column name.</p>
+
+<div class="callout">
+  <p><strong>Never send secrets.</strong> Passwords, hashes, tokens, PINs and OTPs have no place in a consent record and are flagged at maximum severity.</p>
+</div>
+
+<h2><span class="num">04</span>Optional: declare who you share data with</h2>
+<p class="dek">A second route at <code>/processors</code>, next to your consent route. A 404 is fine.</p>
+
+<pre><code>[
+  { "name": "Mailchimp", "purpose": "Marketing email",
+    "dataCategories": ["email", "name"], "location": "United States",
+    "dpaSigned": true, "dpaExpiry": "2027-01-01" }
+]</code></pre>
+
+<p>Sharing personal data without a contract is a violation of s.8(2), and this is how you evidence one exists. Anything outside India counts as a cross-border transfer.</p>
+
+<h2><span class="num">05</span>Check it before sending</h2>
+
+<pre><code><span class="cm"># must return records</span>
+curl -s -H "x-api-key: $KEY" "https://your-domain.example/consent-api/consents?limit=2"
+
+<span class="cm"># both must print 401</span>
+curl -s -o /dev/null -w "%{http_code}\n" "https://your-domain.example/consent-api/consents"
+curl -s -o /dev/null -w "%{http_code}\n" -H "x-api-key: wrong" "https://your-domain.example/consent-api/consents"</code></pre>
+
+<ul>
+  <li>Reachable over HTTPS from the public internet, valid certificate</li>
+  <li>Send us the <strong>full path</strong> to the route, not just your domain</li>
+  <li>Responds well within 20 seconds — we time out there</li>
+  <li>We re-read every 5 minutes</li>
+</ul>
+
+<footer>
+  <p>Send the endpoint URL and API key over a secure channel — that is all we need. No database credentials, no VPN, no schema. Rotating the key is one line on your side; revoking it stops the integration immediately.</p>
+</footer>
+
+</div>

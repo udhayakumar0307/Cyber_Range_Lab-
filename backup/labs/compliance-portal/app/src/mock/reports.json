@@ -1,0 +1,70 @@
+{
+  "complianceReports": [
+    {
+      "id": "REP-DPDP-01",
+      "name": "DPDP Compliance Audit Report",
+      "lastGenerated": "2026-08-04T09:00:00Z",
+      "format": "PDF, CSV"
+    },
+    {
+      "id": "REP-DPDP-02",
+      "name": "Notice & Framework Audit Checklist",
+      "lastGenerated": "2026-08-02T15:30:00Z",
+      "format": "PDF"
+    }
+  ],
+  "consentReports": [
+    {
+      "id": "REP-CONS-01",
+      "name": "Consent Registry Ledger Summary",
+      "lastGenerated": "2026-08-04T10:30:00Z",
+      "format": "CSV"
+    },
+    {
+      "id": "REP-CONS-02",
+      "name": "Withdrawal & Revocations Performance Audit",
+      "lastGenerated": "2026-07-31T18:00:00Z",
+      "format": "PDF, CSV"
+    }
+  ],
+  "privacyReports": [
+    {
+      "id": "REP-PRIV-01",
+      "name": "Sensitive PII Data Mapping Matrix",
+      "lastGenerated": "2026-08-03T11:20:00Z",
+      "format": "PDF"
+    },
+    {
+      "id": "REP-PRIV-02",
+      "name": "Third-Party Data Sharing Audit Trail Log",
+      "lastGenerated": "2026-08-04T10:42:00Z",
+      "format": "PDF, CSV"
+    }
+  ],
+  "recent": [
+    {
+      "id": "1",
+      "name": "Consent Registry Ledger Summary",
+      "category": "Consent",
+      "generated": "2026-08-04T10:30:00Z",
+      "status": "Success",
+      "size": "45 KB"
+    },
+    {
+      "id": "2",
+      "name": "DPDP Compliance Audit Report",
+      "category": "Compliance",
+      "generated": "2026-08-04T09:00:00Z",
+      "status": "Success",
+      "size": "2.4 MB"
+    },
+    {
+      "id": "3",
+      "name": "Third-Party Data Sharing Audit Trail Log",
+      "category": "Privacy",
+      "generated": "2026-08-04T10:42:00Z",
+      "status": "Success",
+      "size": "1.2 MB"
+    }
+  ]
+}

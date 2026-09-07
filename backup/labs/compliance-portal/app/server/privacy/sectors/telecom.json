@@ -1,0 +1,23 @@
+{
+  "sector": "telecom",
+  "label": "Telecom",
+  "regulator": "TRAI / DoT",
+  "localisation": "Subscriber and CDR data retained in India under licence conditions",
+  "weights": {
+    "Technical Identifier": 1.4,
+    "Location Data": 1.35,
+    "Contact Information": 1.2,
+    "National Identifier": 1.2
+  },
+  "retention": {
+    "postRevocationDays": 0,
+    "callRecordYears": 2
+  },
+  "expectedPurposes": [
+    "Service Provisioning",
+    "Lawful Interception",
+    "Billing"
+  ],
+  "notes": "Location and device identifiers dominate: continuous tower data is far more revealing than the subscriber record itself.",
+  "benchmarkRisk": 58
+}

@@ -1,0 +1,74 @@
+{
+  "summary": {
+    "recordsAnonymized": "142,500",
+    "todaysJobs": "12",
+    "successRate": "100%",
+    "latestProcess": "10:45 AM"
+  },
+  "jobs": [
+    {
+      "id": "JOB-108",
+      "recordsCount": 120,
+      "method": "Crypto-Hashing",
+      "timestamp": "2026-08-04T10:45:00Z",
+      "status": "Success"
+    },
+    {
+      "id": "JOB-107",
+      "recordsCount": 450,
+      "method": "Data Masking",
+      "timestamp": "2026-08-04T09:12:00Z",
+      "status": "Success"
+    },
+    {
+      "id": "JOB-106",
+      "recordsCount": 1050,
+      "method": "Tokenization",
+      "timestamp": "2026-08-03T17:30:00Z",
+      "status": "Success"
+    }
+  ],
+  "thirdPartySharing": [
+    {
+      "id": "REC-9032",
+      "sharedTo": "Netcore Analytics",
+      "purpose": "User Behavior Analysis",
+      "timestamp": "2026-08-04T10:42:00Z",
+      "status": "Anonymized"
+    },
+    {
+      "id": "REC-9031",
+      "sharedTo": "Mixpanel Engine",
+      "purpose": "Feature Conversion Funnel",
+      "timestamp": "2026-08-04T10:15:00Z",
+      "status": "Anonymized"
+    },
+    {
+      "id": "REC-8942",
+      "sharedTo": "Razorpay Systems",
+      "purpose": "Transaction Settlement",
+      "timestamp": "2026-08-03T16:20:00Z",
+      "status": "Pseudonymized"
+    }
+  ],
+  "hashAuditTrail": [
+    {
+      "recordId": "REC-9032",
+      "sha256": "4e72c836a9a2862d294bc188f57ad7a514d7bfa518df417a80b18f0f0883d6a2",
+      "timestamp": "2026-08-04T10:42:00Z",
+      "verification": "Passed"
+    },
+    {
+      "recordId": "REC-9031",
+      "sha256": "8f89e248b111ffad57e108fef9f7a62df860eb11c34aefb4e723cd81881cf712",
+      "timestamp": "2026-08-04T10:15:00Z",
+      "verification": "Passed"
+    },
+    {
+      "recordId": "REC-8942",
+      "sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "timestamp": "2026-08-03T16:20:00Z",
+      "verification": "Passed"
+    }
+  ]
+}

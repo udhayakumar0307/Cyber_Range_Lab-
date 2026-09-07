@@ -1,0 +1,60 @@
+# DDS compliance portal — Dokploy (production).
+#
+# Stateless by design: the portal reads consent from the company routes listed
+# in CONSENT_SOURCES and computes every score at runtime. There is no database
+# to provision and no volume to keep, so a redeploy always comes back healthy.
+#
+# Set these in Dokploy -> Environment (nothing is baked into the image):
+#
+#   CONSENT_SOURCES={"<ecom key>":{"url":"https://ecommerce.sc.deeptrustxai.com/consent-api/consents","sector":"ecommerce","label":"Deeptrust Store"},
+#                    "<finance key>":{"url":"https://finance.sc.deeptrustxai.com/portal/consents","sector":"finance","label":"Deeptrust Finance"}}
+#
+# Each entry maps one company API key to its consent route and its sector. The
+# sector selects the pack in server/privacy/sectors/ that weights the PII risk
+# and applies the right regulator overlay. Adding a company is one more entry.
+#
+# Optional:
+#   DATABASE_URL           Postgres for audit history and integration state.
+#                          Omit it and the portal runs fully stateless.
+#   CONSENT_LIMIT          Max records fetched per source (default 500).
+#   SYNC_INTERVAL_MINUTES  Re-analysis interval (default 5).
+
+services:
+  dds:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: 4000
+      CONSENT_LIMIT: ${CONSENT_LIMIT:-500}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}
+      # Either supply the JSON map in CONSENT_SOURCES, or use the pipe-separated
+      # per-source form below, which avoids quoting JSON in an env-var field:
+      #   CONSENT_SOURCE_ECOM=<key>|https://…/consent-api/consents|ecommerce|Deeptrust Store
+      #   CONSENT_SOURCE_FIN=<key>|https://…/portal/consents|finance|Deeptrust Finance
+      # Missing values are not fatal: the portal starts and reports that no
+      # source is registered, so a deploy never fails on configuration alone.
+      CONSENT_SOURCES: ${CONSENT_SOURCES:-}
+      CONSENT_SOURCE_ECOM: ${CONSENT_SOURCE_ECOM:-}
+      CONSENT_SOURCE_FIN: ${CONSENT_SOURCE_FIN:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      # ── Tenant mode (single-tenant deployments) ────────────────────────
+      # Set VITE_TENANT_MODE=single to deploy as a dedicated client portal.
+      # The label appears in the sidebar and navbar branding.
+      VITE_TENANT_MODE: ${VITE_TENANT_MODE:-multi}
+      VITE_TENANT_SECTOR: ${VITE_TENANT_SECTOR:-}
+      VITE_TENANT_LABEL: ${VITE_TENANT_LABEL:-CMS Center}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

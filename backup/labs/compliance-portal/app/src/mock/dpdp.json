@@ -1,0 +1,43 @@
+{
+  "compliancePercent": 88,
+  "stats": {
+    "satisfiedControls": 22,
+    "remaining": 3,
+    "highRisk": 1
+  },
+  "checklist": [
+    { "id": "1", "name": "Consent Collection", "satisfied": true },
+    { "id": "2", "name": "User Rights", "satisfied": true },
+    { "id": "3", "name": "Purpose Limitation", "satisfied": true },
+    { "id": "4", "name": "Withdrawal Support", "satisfied": true },
+    { "id": "5", "name": "Notice Provided", "satisfied": true },
+    { "id": "6", "name": "Data Security", "satisfied": true },
+    { "id": "7", "name": "Retention Policy", "satisfied": false },
+    { "id": "8", "name": "Third Party Agreement", "satisfied": false }
+  ],
+  "nonCompliantControls": [
+    {
+      "control": "Retention Policy Limitation",
+      "risk": "High",
+      "remediation": "Update automated deletion daemon to purge records after consent duration expires."
+    },
+    {
+      "control": "Third Party Sharing Agreement",
+      "risk": "Medium",
+      "remediation": "Draft and attach compliance DPA annexure to external vendor contracts."
+    },
+    {
+      "control": "Missing Explicit Notice",
+      "risk": "Medium",
+      "remediation": "Include regional language translations for the primary cookie consent banner."
+    }
+  ],
+  "trend": [
+    { "month": "Jan", "compliance": 75 },
+    { "month": "Feb", "compliance": 78 },
+    { "month": "Mar", "compliance": 82 },
+    { "month": "Apr", "compliance": 82 },
+    { "month": "May", "compliance": 85 },
+    { "month": "Jun", "compliance": 88 }
+  ]
+}

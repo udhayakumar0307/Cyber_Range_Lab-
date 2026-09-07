@@ -1,0 +1,69 @@
+# ============================================================
+# DPDP COMPLIANCE PORTAL
+# Cyber Range — Governance, Risk & Compliance Track
+# ============================================================
+# Single self-contained service: the Vite frontend is built to
+# static files and served by the Express API on ONE port, so the
+# whole lab is one container with no database to provision.
+#
+# Usage:
+#   docker compose up --build -d
+#   Then open: http://localhost:8090
+#
+# Reset:
+#   docker compose down -v && docker compose up --build -d
+# ============================================================
+
+networks:
+  compliance-net:
+    driver: bridge
+
+services:
+
+  compliance-portal:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: cyberrange/compliance-portal:latest
+    container_name: compliance-portal
+    hostname: compliance-portal
+    networks:
+      - compliance-net
+    ports:
+      - "8090:4000"          # host 8090 -> container 4000 (frontend + API, same origin)
+    environment:
+      - PORT=4000
+      - STUDENT_ID=${STUDENT_ID:-student}
+      - LAB_SEED=${LAB_SEED:-defaultseed}
+
+      # ── Consent source ────────────────────────────────────────
+      # Leave BOTH of these unset to run the lab in self-contained
+      # demo mode (the container serves the bundled demo dataset
+      # with no outbound network — see app/docker-entrypoint.sh).
+      #
+      # To drive the lab from a real consent API, set CONSENT_SOURCES
+      # to a JSON map of  key -> { url, sector, label }  e.g.:
+      #   CONSENT_SOURCES={"live_key":{"url":"https://acme/consent-api/consents","sector":"ecommerce","label":"Acme"}}
+      - CONSENT_SOURCES=${CONSENT_SOURCES:-}
+
+      # ── Optional tuning ──────────────────────────────────────
+      - CONSENT_LIMIT=${CONSENT_LIMIT:-500}
+      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-5}
+
+      # ── Optional database ────────────────────────────────────
+      # Only stores audit history + integration state. Omit it and
+      # the portal runs fully stateless (a supported configuration).
+      - DATABASE_URL=${DATABASE_URL:-}
+      - DATABASE_SSL=${DATABASE_SSL:-false}
+
+      # ── Optional single-tenant branding ─────────────────────
+      - VITE_TENANT_MODE=${VITE_TENANT_MODE:-multi}
+      - VITE_TENANT_SECTOR=${VITE_TENANT_SECTOR:-}
+      - VITE_TENANT_LABEL=${VITE_TENANT_LABEL:-Privacy Shield Platform}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped

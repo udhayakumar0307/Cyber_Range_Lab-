@@ -1,0 +1,25 @@
+node_modules/
+dist/
+
+.env
+.env.*
+!.env.example
+!.env.production
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+*.db
+backend/*.db
+
+# runtime state written by the server
+data/integration_config.json
+
+# generated client packs contain live API keys
+docs/clients/

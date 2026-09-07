@@ -1,0 +1,72 @@
+[
+  {
+    "id": "1",
+    "name": "Rahul Sharma",
+    "email": "rahul.sharma@gmail.com",
+    "consentType": "Explicit",
+    "purpose": "Marketing",
+    "status": "Approved",
+    "created": "2026-08-04T10:30:00Z",
+    "updated": "2026-08-04T10:30:00Z"
+  },
+  {
+    "id": "2",
+    "name": "Priya Patel",
+    "email": "priya.patel@yahoo.com",
+    "consentType": "Opt-out",
+    "purpose": "Research and Analytics",
+    "status": "Revoked",
+    "created": "2026-08-03T14:20:00Z",
+    "updated": "2026-08-04T09:15:00Z"
+  },
+  {
+    "id": "3",
+    "name": "Amit Verma",
+    "email": "amit.verma@outlook.com",
+    "consentType": "Explicit",
+    "purpose": "Feedback",
+    "status": "Pending",
+    "created": "2026-08-04T08:00:00Z",
+    "updated": "2026-08-04T08:00:00Z"
+  },
+  {
+    "id": "4",
+    "name": "Ananya Sen",
+    "email": "ananya.sen@hotmail.com",
+    "consentType": "Implicit",
+    "purpose": "Essential Services",
+    "status": "Approved",
+    "created": "2026-08-02T11:00:00Z",
+    "updated": "2026-08-02T11:00:00Z"
+  },
+  {
+    "id": "5",
+    "name": "Vikram Singh",
+    "email": "vikram.singh@gmail.com",
+    "consentType": "Explicit",
+    "purpose": "Marketing",
+    "status": "Pending",
+    "created": "2026-08-04T07:45:00Z",
+    "updated": "2026-08-04T07:45:00Z"
+  },
+  {
+    "id": "6",
+    "name": "Meera Nair",
+    "email": "meera.nair@icloud.com",
+    "consentType": "Opt-in",
+    "purpose": "Research and Analytics",
+    "status": "Approved",
+    "created": "2026-08-01T09:30:00Z",
+    "updated": "2026-08-01T09:30:00Z"
+  },
+  {
+    "id": "7",
+    "name": "Siddharth Rao",
+    "email": "sid.rao@gmail.com",
+    "consentType": "Explicit",
+    "purpose": "Feedback",
+    "status": "Approved",
+    "created": "2026-07-30T16:45:00Z",
+    "updated": "2026-07-30T16:45:00Z"
+  }
+]

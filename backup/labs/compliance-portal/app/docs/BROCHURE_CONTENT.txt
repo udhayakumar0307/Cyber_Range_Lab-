@@ -1,0 +1,427 @@
+================================================================================
+DDS-CMS — PROJECT INFORMATION SHEET
+Reference material about the product. Figures measured 15 Aug 2026.
+================================================================================
+
+Information is grouped by topic. Not every detail needs to be used.
+
+
+--------------------------------------------------------------------------------
+1. WHAT THE PRODUCT IS
+--------------------------------------------------------------------------------
+
+Name:     DDS-CMS (Consent Management System)
+Type:     Web-based privacy and DPDP compliance portal
+Live at:  dds.sc.deeptrustxai.com
+
+Purpose:
+  Lets a business see its exact compliance position under India's Digital
+  Personal Data Protection Act, 2023, across every platform it operates.
+
+How it works:
+  A company exposes one secure API endpoint containing its consent records.
+  DDS-CMS reads that endpoint, identifies what personal data is present,
+  applies the rules of that company's industry, and reports the compliance
+  position — without storing or displaying the personal data itself.
+
+Currently connected to two live platforms:
+  - An e-commerce store (500 consent records)
+  - A finance/banking platform (1,004 consent records)
+
+
+--------------------------------------------------------------------------------
+2. BACKGROUND: THE DPDP ACT, 2023
+--------------------------------------------------------------------------------
+
+Applies to any business processing personal data of people in India.
+There is no exemption for small businesses.
+
+Roles defined by the Act:
+  Data Fiduciary  - the company deciding why and how personal data is
+                    processed; carries the legal obligations
+  Data Principal  - the individual the data belongs to
+  Data Processor  - a third party processing data on the fiduciary's behalf;
+                    the fiduciary remains accountable
+
+Main obligations:
+  Section 5      Give clear notice of purpose before processing
+  Section 6      Collect only what the purpose requires, with valid consent
+  Section 8      Maintain data accuracy; honour correction requests
+  Section 8(5)   Apply reasonable security safeguards
+  Section 8(6)   Report data breaches to the Board and affected individuals
+  Section 9      Verifiable parental consent before processing a child's data;
+                 no tracking or behavioural advertising directed at children
+  Section 10     Extra duties for a Significant Data Fiduciary
+  Section 12     Erase personal data once consent is withdrawn
+  Section 13     Provide a grievance redressal mechanism
+
+Maximum penalties (Schedule to the DPDP Act, 2023):
+  Rs 250 crore   Failure to take reasonable security safeguards (s.8(5))
+  Rs 200 crore   Failure to notify a data breach (s.8(6))
+  Rs 200 crore   Non-compliance with children's data provisions (s.9)
+  Rs 150 crore   Failure to meet Significant Data Fiduciary duties (s.10)
+  Rs 10,000      Failure by a Data Principal to observe their duties (s.15)
+
+  These are statutory maximums. The Data Protection Board decides the actual
+  amount case by case. Penalties can apply separately per violation.
+
+Notable change from the earlier regime:
+  The Act removed the older "sensitive personal data" category. All personal
+  data now receives the same level of protection — a customer's name is
+  protected the same as their PAN.
+
+Sectoral regulators add further requirements on top of DPDP:
+  RBI, SEBI, IRDAI, TRAI and health-sector authorities each issue their own
+  data-governance and data-localisation directives.
+
+
+--------------------------------------------------------------------------------
+3. PROBLEMS THE PRODUCT ADDRESSES
+--------------------------------------------------------------------------------
+
+- Compliance is usually claimed from policy documents, while the actual
+  evidence sits in the data. Regulators examine the data.
+- Consent state changes daily as customers register and withdraw, so a
+  point-in-time audit is outdated almost immediately.
+- Personal data is spread across multiple platforms, each with different
+  fields and a different regulator.
+- Manual checking is not feasible at volume: nobody can review a hundred
+  thousand records for child records lacking guardian consent, or for
+  withdrawals that were never actioned.
+- Businesses often do not know which personal data they actually hold, as
+  opposed to which they believe they hold.
+- The obligations carrying the largest penalties are exactly those that can
+  only be answered from the data.
+- Third-party data sharing is frequently undocumented, despite s.8(2)
+  requiring a contract with every processor.
+- Many audit tools require direct database access, which itself creates a new
+  data-exposure risk.
+
+
+--------------------------------------------------------------------------------
+4. PII DETECTION AND CLASSIFICATION
+--------------------------------------------------------------------------------
+
+Identifier types detected:        32
+Validated by checksum or format:  13
+Data categories classified:       11
+
+Indian identifiers validated by their real structure, not guessed from column
+names:
+  Aadhaar number     Verhoeff checksum (as used by UIDAI)
+  PAN                format validation
+  IFSC code          format validation
+  GSTIN              checksum validation
+  Payment cards      Luhn algorithm
+  UPI ID             format validation
+  ABHA / Health ID   format validation
+  Passport number    format validation
+  Voter ID           format validation
+  Bank account       format validation
+  Mobile number      Indian numbering format
+  Email address      format validation
+  IP address         format validation
+
+Data categories:
+  National Identifier, Financial Data, Health Data, Biometric, Credentials,
+  Identity Information, Contact Information, Location Data, Child Data,
+  Technical Identifier, Behavioural
+
+Other identifier types recognised:
+  Driving licence, Demat/client code, Insurance policy, Medical record,
+  KYC document, Transaction record, Account balance, Precise location (GPS),
+  Device identifier, Session identifier, Date of birth, Guardian details,
+  Child status, Processing purpose, Order/usage history
+
+Additional behaviour:
+  - Compliance flags and internal row identifiers are excluded, so PII counts
+    reflect personal data only.
+  - Each detected field carries a confidence level: "validated" where the value
+    structure was confirmed, "name-only" where only the column name matched.
+  - Credentials (passwords, tokens, PINs, OTPs) are flagged at maximum severity
+    if found, as they should never appear in a consent record.
+
+
+--------------------------------------------------------------------------------
+5. AUTOMATIC SECTOR DETECTION
+--------------------------------------------------------------------------------
+
+The system identifies a company's industry sector by examining which
+identifiers appear in its data, then applies that sector's regulator rules.
+
+Examples:
+  PAN, account numbers and balances present  ->  Banking & Payments (RBI)
+  Address and order history present          ->  E-commerce & Retail
+  ABHA ID and diagnoses present              ->  Healthcare
+
+The detected sector and the reason for the detection are both reported.
+A sector can also be set manually if preferred.
+
+
+--------------------------------------------------------------------------------
+6. SECTORS SUPPORTED
+--------------------------------------------------------------------------------
+
+Seven sector rule packs are included:
+
+  SECTOR                    REGULATOR                     ERASURE EXPECTATION
+  E-commerce & Retail       MeitY / Consumer Protection   30 days
+                            (E-Commerce) Rules 2020
+  Banking & Payments        RBI                           Immediate;
+                                                          KYC kept 8 years
+  Healthcare                ABDM / Clinical               Immediate;
+                            Establishments Act            records 3 years
+  Insurance                 IRDAI                         Immediate;
+                                                          policy 10 years
+  Securities & Capital      SEBI                          Immediate;
+  Markets                                                 trades 8 years
+  Telecom                   TRAI / DoT                    Immediate;
+                                                          call records 2 years
+  Generic                   DPDP baseline only            30 days
+
+Each sector pack contains:
+  - the applicable regulator
+  - the data-localisation position (RBI requires payment data stored only in
+    India; IRDAI requires insurance data held in India)
+  - sensitivity weightings per data category
+  - retention windows
+  - a sector risk benchmark for comparison
+
+Adding a new sector is a configuration file, not a software change.
+
+Example of sector weighting in practice:
+  A bank account number is weighted 1.35x higher under the RBI overlay than it
+  would be under the DPDP baseline alone.
+
+
+--------------------------------------------------------------------------------
+7. DPDP COMPLIANCE SCORING
+--------------------------------------------------------------------------------
+
+Ten statutory checks are assessed against the actual records:
+
+   1. Consent status recorded for every principal
+   2. Processing covered by an active consent
+   3. Purpose specified (s.5 notice)
+   4. PII erased when consent withdrawn (s.12)
+   5. Erasure within the sector retention window
+   6. Verifiable guardian consent for children (s.9)
+   7. Collection limited to stated purpose (s.6)
+   8. Data accuracy and correction rights (s.8)
+   9. Reasonable security safeguards (s.8(5))
+  10. Grievance redressal available (s.13)
+
+Six of the ten can be measured from consent data alone. The remaining four
+require evidence the consent API does not carry, and are reported as
+"not measured" rather than counted as passed or failed.
+
+Checks are weighted by consequence — erasure on withdrawal and children's
+consent carry the heaviest weight.
+
+The compliance score is a weighted average of what was actually measured, and
+the system states how many of the ten checks that covers.
+
+A separate privacy risk index (0-100) is calculated from the sensitivity of
+detected fields, how much of the dataset they populate, and the compliance
+findings. Each contributing factor and its point value are shown.
+
+
+--------------------------------------------------------------------------------
+8. PRIVACY PROTECTION IN THE PRODUCT ITSELF
+--------------------------------------------------------------------------------
+
+- The interface never displays personal data values. Names and email addresses
+  are shown as "Present" or "Not provided".
+- An auditor can confirm a record holds an email address without ever seeing
+  the address.
+- Masking previews use representative sample values, never real records.
+- All access to client platforms is read-only (HTTP GET). The system cannot
+  modify client data.
+- No database credentials, VPN access or schema details are requested from a
+  client.
+- One API key maps to one company and one sector. An unrecognised key is
+  rejected before any request is made.
+- Revoking the key stops the integration immediately.
+- Because no personal data is stored, there is no personal data to lose.
+
+Technical note: the engine does read records in order to classify them (it
+must, to validate a PAN or detect a child record), but it does not retain or
+display the values.
+
+
+--------------------------------------------------------------------------------
+9. ERASURE AND ANONYMISATION
+--------------------------------------------------------------------------------
+
+- A record whose consent was withdrawn and whose personal data has been deleted
+  is counted as a completed erasure.
+- Time between withdrawal and erasure is measured against the sector's
+  retention window; anything overdue is flagged.
+- An integrity trail records that each erasure took place, without retaining
+  the identifier it applied to.
+- Success rate, pending erasures and most recent erasure are all reported.
+
+Recommended masking technique by data class:
+  Tokenise      national identifiers, financial data, health data, credentials
+  Hash          contact details used only for matching
+  Mask          identity information and children's data
+  Generalise    location and behavioural data
+
+Critical and high-risk fields are pre-selected for masking; lower-risk fields
+are not, so the default action is proportionate.
+
+
+--------------------------------------------------------------------------------
+10. THIRD-PARTY PROCESSOR TRACKING
+--------------------------------------------------------------------------------
+
+Section 8(2) of the DPDP Act requires a valid contract with every processor
+handling personal data on the fiduciary's behalf.
+
+Processors can be declared by the company through its own API, or registered
+by an operator in the portal. Each is assessed, not merely listed:
+
+  No data processing agreement          ->  Violation (s.8(2))
+  Expired agreement                     ->  Violation, regardless of
+                                            destination
+  Cross-border transfer with a
+  contract in place                     ->  Flagged for review, destination
+                                            named
+  Purpose or data categories
+  not declared                          ->  Flagged under s.5
+
+Anything outside India counts as a cross-border transfer.
+
+If no processors are declared, this is reported as "not declared" rather than
+as a clean result, since the two are different claims.
+
+
+--------------------------------------------------------------------------------
+11. HOW A COMPANY CONNECTS
+--------------------------------------------------------------------------------
+
+Four steps, typically half a day of engineering work:
+
+  1. The company generates an API key.
+  2. It exposes one authenticated GET endpoint returning its consent records.
+  3. It runs three provided checks: valid key returns data; missing key and
+     wrong key are both rejected.
+  4. It sends the endpoint URL and the API key. Nothing else.
+
+Required fields per record (4):
+  user_id, email, consent_status, timestamp
+
+Fields that enable the compliance checks (6):
+  purpose, consent_granted_at, consent_revoked_at, pii_deleted_at,
+  is_minor, guardian_verified
+
+Any additional personal-data fields are recognised automatically by name.
+
+Connection parameters:
+  Request method     GET (read-only)
+  Authentication     x-api-key header, or Authorization: Bearer
+  Response timeout   20 seconds
+  Refresh interval   every 5 minutes
+  Records per fetch  500 (configurable)
+
+An onboarding pack (documentation plus a generated key) can be produced per
+client with a single command.
+
+
+--------------------------------------------------------------------------------
+12. MODULES IN THE PORTAL
+--------------------------------------------------------------------------------
+
+Eight modules:
+
+  Command Centre        Compliance index, consent breakdown, PII risk
+                        distribution, erasure activity, action items
+  Platform Integration  Connect and manage platforms, sector selection,
+                        synchronisation log
+  Consent Management    Consent record registry, requests, revocations,
+                        analytics
+  DPDP Compliance       The ten statutory checks with per-control pass rates
+  PII Intelligence      Field inventory, risk index, industry benchmarking,
+                        data lifecycle view
+  Anonymisation         Masking workspace, erasure jobs, third-party sharing
+                        register, integrity trail
+  Reports               Exportable compliance evidence
+  Settings              Platform configuration and sector packs
+
+Additional capability:
+  A cross-sector view shows every connected platform on one screen, with
+  record-weighted compliance and risk across the whole group.
+
+
+--------------------------------------------------------------------------------
+13. MEASURED RESULTS FROM THE LIVE SYSTEM
+--------------------------------------------------------------------------------
+
+Banking & Payments platform (RBI overlay):
+  1,004    consent records analysed
+  13       personal-data fields detected
+  5        classified as critical
+  59/100   privacy risk index
+  42.6%    DPDP compliance
+  166      child records identified
+  166      of those without verified guardian consent (a s.9 violation)
+
+E-commerce & Retail platform (MeitY overlay):
+  500      consent records analysed
+  9        personal-data fields detected
+  2        classified as critical
+  33/100   privacy risk index
+  97.9%    DPDP compliance
+  0        child records
+
+Combined across both platforms:
+  1,504    total records
+  61%      record-weighted compliance
+  50.4     record-weighted risk index
+
+Point of interest: the two platforms score very differently using the same
+engine, because their data and their applicable regulations genuinely differ.
+
+Fields validated by checksum on the finance platform included pan_number and
+account_number — confirmed by structure, not assumed from the column name.
+
+
+--------------------------------------------------------------------------------
+14. TECHNICAL AND DEPLOYMENT FACTS
+--------------------------------------------------------------------------------
+
+  Frontend              React
+  Backend               Node.js / Express
+  Deployment            Single Docker container, hosted on Dokploy
+  Database              Not required (optional, for audit history only)
+  API endpoints         41
+  Portal modules        8
+  Sector packs          7
+  Identifier detectors  32
+  Compliance checks     10
+
+Operational characteristics:
+  - Stateless: configuration comes from environment variables and every score
+    is computed at runtime, so a redeploy always returns to a current state.
+  - Runs unprivileged with a built-in health check.
+  - Adding a company requires one environment entry: key, endpoint, sector,
+    label.
+  - One failing platform never affects the others; each is analysed and
+    reported independently.
+  - A platform whose key is rejected is reported as needing attention, with the
+    host and the reason named.
+
+
+--------------------------------------------------------------------------------
+15. NOTES ON ACCURACY
+--------------------------------------------------------------------------------
+
+- Penalty figures are statutory maximums. Phrase as "up to Rs X crore"; the
+  Data Protection Board sets the actual amount case by case.
+- Use "the interface never displays personal data" rather than "we never
+  process personal data" — the engine reads records to classify them but does
+  not retain or display values.
+- Live figures are from 15 Aug 2026 and change as the demo data changes.
+  Current values can be checked at dds.sc.deeptrustxai.com/api/v1/overview
+- The e-commerce figures above were measured locally; the live deployment
+  currently has the finance platform connected.

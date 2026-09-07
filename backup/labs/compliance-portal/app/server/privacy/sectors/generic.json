@@ -1,0 +1,13 @@
+{
+  "sector": "generic",
+  "label": "Unclassified Data Fiduciary",
+  "regulator": "None beyond DPDP",
+  "localisation": "DPDP cross-border rules only",
+  "weights": {},
+  "retention": {
+    "postRevocationDays": 30
+  },
+  "expectedPurposes": [],
+  "notes": "Fallback pack. Applies the base taxonomy with no sector weighting so an unregistered source degrades gracefully instead of failing.",
+  "benchmarkRisk": 40
+}

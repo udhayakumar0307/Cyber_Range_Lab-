@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "totalPiiRecords": "15,840",
+    "sensitivePii": "3,245",
+    "encryptedRecords": "12,595",
+    "privacyRiskScore": "Medium (42/100)",
+    "detectedToday": "24",
+    "newSensitiveRecords": "5"
+  },
+  "fields": [
+    {
+      "id": "1",
+      "field": "customer_email",
+      "category": "Contact Information",
+      "riskLevel": "Medium",
+      "source": "EverShop Database",
+      "status": "Encrypted"
+    },
+    {
+      "id": "2",
+      "field": "full_name",
+      "category": "Identity Information",
+      "riskLevel": "Low",
+      "source": "EverShop Database",
+      "status": "Unencrypted"
+    },
+    {
+      "id": "3",
+      "field": "telephone",
+      "category": "Contact Information",
+      "riskLevel": "High",
+      "source": "EverShop Database",
+      "status": "Encrypted"
+    },
+    {
+      "id": "4",
+      "field": "address_1",
+      "category": "Location Data",
+      "riskLevel": "Medium",
+      "source": "EverShop Database",
+      "status": "Masked"
+    },
+    {
+      "id": "5",
+      "field": "user_ip",
+      "category": "Technical Identifier",
+      "riskLevel": "Low",
+      "source": "Order Logs",
+      "status": "Unencrypted"
+    },
+    {
+      "id": "6",
+      "field": "pan_card",
+      "category": "National Identifier",
+      "riskLevel": "Critical",
+      "source": "Billing Profiles",
+      "status": "Encrypted"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "tracks": {
+    "compliance": {
+      "name": "DPDP Compliance Portal",
+      "title": "DPDP Compliance Operations",
+      "subtitle": "Privacy Shield Platform — Data Protection Officer Track",
+      "description": "You are the Data Protection Officer for a company that must comply with India's Digital Personal Data Protection (DPDP) Act. Across 5 modules you connect a customer platform to the compliance portal, work the consent lifecycle, discover and classify the personal data you hold, run anonymization and third-party sharing controls, and produce the audit evidence that proves your DPDP posture.",
+      "difficulty": 2,
+      "total_points": 1000,
+      "modules": {
+        "module1": {
+          "title": "Module 1: Platform Integration & Consent Sync",
+          "mission": "Register a customer platform as a consent source on the Integration page, run the first synchronisation, and confirm the engine has analysed the sector and populated the Command Center.",
+          "points": 150
+        },
+        "module2": {
+          "title": "Module 2: Consent Lifecycle Management",
+          "mission": "Work the Consent Management workspace: inspect consent evidence, action approvals and withdrawals, read the revocation-rate and purpose-distribution intelligence, and verify every change lands in the audit trail.",
+          "points": 200
+        },
+        "module3": {
+          "title": "Module 3: PII Discovery & Classification",
+          "mission": "Run a PII scan, review the discovered fields and their sensitivity tiers, and explain how the sector pack drives the DPDP privacy-risk score shown on the PII Management dashboard.",
+          "points": 200
+        },
+        "module4": {
+          "title": "Module 4: Anonymization & Third-Party Sharing",
+          "mission": "Use the Anonymization workspace to mask a dataset before disclosure, trigger an anonymization job, and trace a third-party sharing event through the hash audit trail.",
+          "points": 200
+        },
+        "module5": {
+          "title": "Module 5: DPDP Compliance Audit & Reporting (Capstone)",
+          "mission": "Read the DPDP Compliance rule-by-rule breakdown, close the outstanding action item, generate a consolidated compliance audit report, and confirm the compliance index and next-audit date on the Command Center.",
+          "points": 250
+        }
+      }
+    }
+  }
+}

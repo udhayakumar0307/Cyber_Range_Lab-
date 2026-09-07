@@ -1,0 +1,24 @@
+{
+  "sector": "healthcare",
+  "label": "Healthcare",
+  "regulator": "ABDM / Clinical Establishments Act",
+  "localisation": "ABDM health records expected to remain in India",
+  "weights": {
+    "Health Data": 1.4,
+    "National Identifier": 1.25,
+    "Identity Information": 1.1,
+    "Child Data": 1.2
+  },
+  "retention": {
+    "postRevocationDays": 0,
+    "clinicalRecordYears": 3
+  },
+  "expectedPurposes": [
+    "Treatment",
+    "Diagnostics",
+    "Insurance Claim",
+    "Public Health"
+  ],
+  "notes": "Health data carries the highest base sensitivity; ABHA linkage makes re-identification trivial.",
+  "benchmarkRisk": 62
+}

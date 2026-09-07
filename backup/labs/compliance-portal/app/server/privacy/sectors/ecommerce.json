@@ -1,0 +1,26 @@
+{
+  "sector": "ecommerce",
+  "label": "E-commerce & Retail",
+  "regulator": "MeitY / Consumer Protection (E-Commerce) Rules 2020",
+  "localisation": "No sector-specific localisation mandate; DPDP cross-border rules apply",
+  "weights": {
+    "Location Data": 1.2,
+    "Behavioural": 1.15,
+    "Contact Information": 1.0,
+    "Financial Data": 1.1,
+    "Identity Information": 1.0
+  },
+  "retention": {
+    "postRevocationDays": 30,
+    "inactiveAccountDays": 1095
+  },
+  "expectedPurposes": [
+    "Marketing",
+    "Research",
+    "Analytics",
+    "Order Fulfilment",
+    "Feedback"
+  ],
+  "notes": "Address and order history are the defining data classes; behavioural profiling drives the purpose-limitation risk.",
+  "benchmarkRisk": 38
+}

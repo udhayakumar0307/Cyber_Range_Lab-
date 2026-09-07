@@ -1,0 +1,22 @@
+{
+  "sector": "securities",
+  "label": "Securities & Capital Markets",
+  "regulator": "SEBI",
+  "localisation": "SEBI-regulated records to be held in India",
+  "weights": {
+    "Financial Data": 1.3,
+    "National Identifier": 1.3,
+    "Identity Information": 1.1
+  },
+  "retention": {
+    "postRevocationDays": 0,
+    "tradeRecordYears": 8
+  },
+  "expectedPurposes": [
+    "Trading",
+    "KYC",
+    "Regulatory Reporting"
+  ],
+  "notes": "PAN is mandatory and doubles as the client identifier, so it cannot be minimised away.",
+  "benchmarkRisk": 50
+}
