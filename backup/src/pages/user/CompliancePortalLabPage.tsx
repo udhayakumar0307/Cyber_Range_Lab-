@@ -7,21 +7,26 @@ import { useNavigate } from 'react-router-dom';
  * The lab is a self-contained web application (the DDS-CMS "Privacy Shield
  * Platform") that runs in its own container. This page frames that app.
  *
- * The app's URL is read from VITE_COMPLIANCE_PORTAL_URL at build time, e.g.
+ * The app's URL defaults to the same-origin reverse-proxy path `/compliance-lab/`
+ * (nginx -> the lab container). Override it at build time with
+ * VITE_COMPLIANCE_PORTAL_URL, e.g. a dedicated sub-domain
  *   VITE_COMPLIANCE_PORTAL_URL=https://compliance-portal.academy.deeptrustxai.com
- * or a same-origin reverse-proxy path such as
- *   VITE_COMPLIANCE_PORTAL_URL=/compliance-lab/
+ * or set it to "none" to force the provisioning notice.
  *
- * When it is not configured we show a clear provisioning notice instead of
- * falling through to the generic terminal session (which belongs to other
- * labs), so the student never sees the wrong lab's content.
+ * We never fall through to the generic terminal session (which belongs to
+ * other labs), so the student never sees the wrong lab's content.
  */
+const DEFAULT_PORTAL_URL = '/compliance-lab/';
+
 export const CompliancePortalLabPage: React.FC = () => {
   const navigate = useNavigate();
 
   const labUrl = useMemo(() => {
-    const raw = (import.meta.env.VITE_COMPLIANCE_PORTAL_URL || '').trim();
-    return raw.replace(/\/+$/, '') || '';
+    const raw = (import.meta.env.VITE_COMPLIANCE_PORTAL_URL ?? '').trim();
+    if (raw.toLowerCase() === 'none') return '';
+    // Keep exactly one trailing slash — nginx matches the proxy `location`
+    // by the `/compliance-lab/` prefix, so the iframe src must carry it.
+    return (raw || DEFAULT_PORTAL_URL).replace(/\/+$/, '') + '/';
   }, []);
 
   const [loaded, setLoaded] = useState(false);
