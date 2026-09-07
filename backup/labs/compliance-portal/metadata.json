@@ -5,5 +5,6 @@
   "description": "Operate a Digital Personal Data Protection (DPDP) Act compliance command center. Connect a consent source, analyse the consent lifecycle, discover and classify PII, run anonymization and third-party sharing workflows, and interpret the automated DPDP compliance score across a live privacy dashboard built on the DDS-CMS platform.",
   "duration": "2",
   "price": "19999",
-  "docker_image": "cyberrange/compliance-portal:latest"
+  "docker_image": "cyberrange/compliance-portal:latest",
+  "max_points": "1000"
 }

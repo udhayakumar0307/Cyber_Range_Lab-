@@ -52,6 +52,14 @@ def scan_lab_directory(db: Session, labs_directory: str | None = None, notify: b
             lab.docker_image = data["docker_image"].strip()
             lab.registry_path = str(directory.resolve())
             lab.status = "ACTIVE"
+            # Optional: let a lab pin its catalog "max points" in metadata.json.
+            # Labs that omit it keep whatever seed.py / the startup catalog sync
+            # set (0 by default, which the portals render as a fallback).
+            if data.get("max_points") is not None:
+                try:
+                    lab.max_points = int(float(data["max_points"]))
+                except (TypeError, ValueError):
+                    pass
             result["added" if is_new else "updated"] += 1
             db.flush()
 

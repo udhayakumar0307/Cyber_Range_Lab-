@@ -214,6 +214,22 @@ def seed_labs_and_modules(session):
                 ("puzzle-lab_module34", 34, "Level 33 -> Level 34: Capstone Infrastructure Audit", "Perform full infrastructure security and storage audit.", 250, "puzzle"),
             ],
         },
+        {
+            "id": "compliance-portal",
+            "name": "DPDP Compliance Portal",
+            "category": "Governance, Risk & Compliance",
+            "difficulty": "Intermediate",
+            "max_points": 1000,
+            "estimated_time": 120,
+            "description": "Operate a Digital Personal Data Protection (DPDP) Act compliance command center: connect a consent source, work the consent lifecycle, discover and classify PII, run anonymization and third-party sharing workflows, and produce the automated DPDP compliance audit.",
+            "modules": [
+                ("compliance-portal_compliance_module1", 1, "Module 1: Platform Integration & Consent Sync", "Register a consent source, run the first synchronisation, and confirm the DPDP Command Center is populated.", 150, "compliance"),
+                ("compliance-portal_compliance_module2", 2, "Module 2: Consent Lifecycle Management", "Work consent records, approvals and withdrawals; verify revocation SLA and the secure PII deletion audit trail.", 200, "compliance"),
+                ("compliance-portal_compliance_module3", 3, "Module 3: PII Discovery & Classification", "Run a PII scan, review sensitivity tiers, and explain how the sector pack drives the DPDP privacy-risk score.", 200, "compliance"),
+                ("compliance-portal_compliance_module4", 4, "Module 4: Anonymization & Third-Party Sharing", "Configure masking, run an anonymization job, and trace a disclosure through the hash audit trail.", 200, "compliance"),
+                ("compliance-portal_compliance_module5", 5, "Module 5: DPDP Compliance Audit & Reporting (Capstone)", "Read the rule-by-rule DPDP breakdown, close the outstanding action item, and generate the consolidated compliance report.", 250, "compliance"),
+            ],
+        },
     ]
 
     for lab_data in labs_data:
@@ -344,6 +360,7 @@ def seed_sysadmin_lab_assignments(session, sysadmin_user_id: int):
         ("cryptography-lab", "Cryptography & PKI Lab"),
         ("ot-security-lab", "OT & ICS Security Simulator Lab"),
         ("puzzle-lab", "Sysadmin Hardening Puzzle Lab"),
+        ("compliance-portal", "DPDP Compliance Portal"),
     ]
 
     for lab_id, lab_title in core_labs:
