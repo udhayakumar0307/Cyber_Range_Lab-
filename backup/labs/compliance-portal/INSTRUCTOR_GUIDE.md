@@ -93,30 +93,50 @@ The demo-mode entrypoint block is skipped automatically when either is present.
 
 ## Integrating into the Cyber Range platform
 
-> The lab folder is self-contained. You register it the same way as any other
-> lab in this repo.
+> This lab is registered in the catalog by the same two scripts that register
+> every other lab. On this repo the registration is already committed — the
+> steps below are what makes it take effect on a running deployment.
 
-1. **Copy** `compliance-portal/` into the platform's `labs/` directory.
-2. The registry scanner (`backend/app/services/lab_scanner.py`) picks up
-   `labs/compliance-portal/metadata.json` on its next sweep and creates the
-   `compliance-portal` lab row; `module_config.json` populates the 5
-   `lab_modules` rows.
+1. **The lab folder** lives at `backup/labs/compliance-portal/`.
+2. **Catalog registration.** Two entry points, both idempotent:
+   - `backend/scripts/seed.py` — `seed_labs_and_modules()` creates the
+     `compliance-portal` Lab row + its 5 `lab_modules` (1000 pts); and
+     `seed_sysadmin_lab_assignments()` gives it a **free global SysAdmin
+     assignment** (so it shows under *Assigned Labs* and every student sees it).
+   - `backend/scripts/scan_labs.py` → `lab_scanner.scan_lab_directory()` reads
+     `metadata.json` (+ `module_config.json`) and upserts the same rows with
+     `status = ACTIVE`. `metadata.json` pins `"max_points": "1000"` so the
+     catalog total is correct even on the scan-only path.
+   On a deployment that is already initialised, run once after deploy:
+   ```bash
+   cd backend
+   python scripts/seed.py       # Lab + modules + free global assignment
+   python scripts/scan_labs.py  # syncs docker_image / registry_path / price
+   ```
+   The lab then appears in **System Admin Portal → Labs** (catalog) and, thanks
+   to the global assignment, under **Assigned Labs**. Use **Allocate Lab** there
+   to hand hours to a specific org/college/student, exactly like the other labs.
 3. **Build / publish the image** referenced by `metadata.json`
    (`cyberrange/compliance-portal:latest`):
    ```bash
-   cd labs/compliance-portal
+   cd backup/labs/compliance-portal
    docker build -t cyberrange/compliance-portal:latest ./app
+   # (or push to the ECR repo the EC2/ECS orchestrator pulls from)
    ```
-4. A SysAdmin **assigns** the lab (free or priced) from the SysAdmin portal so
-   it appears under *Available Labs*.
-5. **Expose it to students.** The portal is a normal web app on container port
+4. **Expose it to students.** The portal is a normal web app on container port
    `4000`. Surface it the way the platform surfaces its other web-app labs
    (e.g. `ot-security-lab`) — an iframe/tab pointed at the lab's origin, or a
    reverse-proxy route. Because the SPA is built with a relative API base
    (`/api`), it works behind any origin or proxy prefix that forwards `/api`
-   and `/assets` to the same container.
+   and `/assets` to the same container. This is the only remaining step that
+   still needs a per-lab frontend/route wire-up.
 
-No Cyber Range platform files are modified by the lab itself.
+### Rollback
+
+Delete the `compliance-portal` Lab row and its `purchased_labs` assignment
+from the DB (or use **System Admin Portal → Labs → delete**), and remove the
+`backup/labs/compliance-portal/` folder. The seed/scan entries are additive —
+they never touch another lab.
 
 ---
 
@@ -228,3 +248,17 @@ logic was altered**:
 
 `node_modules/`, `dist/`, `.git/`, `__pycache__/`, `*.db`, and any real `.env`
 were excluded from the copy.
+
+## Catalog registration (platform side)
+
+To make the lab show in the System Admin Portal and be assignable, three
+CyberRange files carry a small, additive, idempotent entry for it — they touch
+no other lab:
+
+1. `backend/scripts/seed.py` — `seed_labs_and_modules()` gains the
+   `compliance-portal` Lab + 5 modules (1000 pts).
+2. `backend/scripts/seed.py` — `seed_sysadmin_lab_assignments()` `core_labs`
+   gains `("compliance-portal", "DPDP Compliance Portal")` for the free global
+   assignment.
+3. `backend/app/services/lab_scanner.py` — reads an optional `max_points` from
+   `metadata.json` (labs without the field are unaffected).
