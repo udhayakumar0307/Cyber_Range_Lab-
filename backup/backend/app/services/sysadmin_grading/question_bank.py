@@ -211,4 +211,18 @@ class QuestionBankRepository:
                 for lab_id, paths in sorted(duplicates.items())
             )
             raise QuestionBankError(f"Duplicate Sysadmin lab IDs in question bank: {detail}")
-        return values
+
+        # Student-facing pedagogical order:
+        # TUPE exercises establish the shell/Unix foundations required before
+        # students progress into the RHSA system-administration exercises.
+        #
+        # Python's sort is stable, so filesystem/question-bank order remains
+        # unchanged within each exercise family.
+        def presentation_priority(lab_id: str) -> int:
+            if lab_id.startswith("TUPE-"):
+                return 0
+            if lab_id.startswith("RHSA-"):
+                return 1
+            return 2
+
+        return sorted(values, key=presentation_priority)

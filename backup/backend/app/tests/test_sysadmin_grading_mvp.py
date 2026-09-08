@@ -111,6 +111,34 @@ class SysadminGradingMVPTests(unittest.TestCase):
             self.assertEqual(execution.result["score"], 60)
 
 
+    def test_available_lab_ids_places_tupe_before_rhsa(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            lab_dirs = [
+                root / "labs" / "01-shell-basics" / "RHSA-SHELL-001",
+                root / "labs" / "02-files-permissions" / "RHSA-FILE-001",
+                root / "labs" / "11-unix-programming-environment" / "TUPE-C03-001",
+                root / "labs" / "11-unix-programming-environment" / "TUPE-C03-002",
+            ]
+
+            for lab_dir in lab_dirs:
+                lab_dir.mkdir(parents=True)
+                for name in ("lab.yaml", "setup.sh", "grader.py", "question.md"):
+                    (lab_dir / name).write_text("test\n", encoding="utf-8")
+
+            repo = QuestionBankRepository(root)
+
+            self.assertEqual(
+                repo.available_lab_ids(),
+                [
+                    "TUPE-C03-001",
+                    "TUPE-C03-002",
+                    "RHSA-SHELL-001",
+                    "RHSA-FILE-001",
+                ],
+            )
+
     def test_available_labs_reject_duplicate_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
