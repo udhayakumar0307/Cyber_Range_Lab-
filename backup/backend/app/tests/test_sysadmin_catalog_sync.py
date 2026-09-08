@@ -146,6 +146,49 @@ class SysadminCatalogSyncTests(unittest.TestCase):
         )
         self.assertEqual(lab.max_points, 300)
 
+    def test_projects_tupe_before_rhsa_while_preserving_family_order(self):
+        repository = FakeRepository(
+            [
+                make_view("RHSA-SHELL-001", "File Organizer"),
+                make_view("RHSA-FILE-001", "Secure Shared Project Directory"),
+                make_view("TUPE-C03-001", "Pipeline Report Builder"),
+                make_view("TUPE-C03-002", "Filename Pattern Selector"),
+            ]
+        )
+
+        result = sync_sysadmin_lab_modules(
+            self.db,
+            settings=FakeSettings(),
+            repository=repository,
+        )
+        self.db.commit()
+
+        rows = (
+            self.db.query(LabModule)
+            .filter(LabModule.lab_id == "linux-sysadmin-lab")
+            .order_by(LabModule.display_order)
+            .all()
+        )
+
+        self.assertEqual(result.module_count, 4)
+        self.assertEqual(
+            [row.id for row in rows],
+            [
+                "TUPE-C03-001",
+                "TUPE-C03-002",
+                "RHSA-SHELL-001",
+                "RHSA-FILE-001",
+            ],
+        )
+        self.assertEqual(
+            [row.display_order for row in rows],
+            [1, 2, 3, 4],
+        )
+        self.assertEqual(
+            [row.module_number for row in rows],
+            [1, 2, 3, 4],
+        )
+
     def test_second_sync_is_idempotent_and_updates_metadata(self):
         repository = FakeRepository(
             [

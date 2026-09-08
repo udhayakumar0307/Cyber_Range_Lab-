@@ -24,6 +24,24 @@ class SysadminCatalogSyncResult:
     updated: int
 
 
+def _presentation_order(lab_ids: list[str]) -> list[str]:
+    """
+    Order Sysadmin exercises for the CyberRange student experience.
+
+    TUPE exercises are foundational and should appear before RHSA exercises.
+    Python's sort is stable, so the question-bank order is preserved within
+    each exercise family.
+    """
+    def priority(lab_id: str) -> int:
+        if lab_id.startswith("TUPE-"):
+            return 0
+        if lab_id.startswith("RHSA-"):
+            return 1
+        return 2
+
+    return sorted(lab_ids, key=priority)
+
+
 def _description_for(view) -> str:
     objectives = tuple(
         str(value).strip()
@@ -74,7 +92,7 @@ def sync_sysadmin_lab_modules(
             f"Marketplace lab {marketplace_lab_id!r} does not exist."
         )
 
-    lab_ids = repository.available_lab_ids()
+    lab_ids = _presentation_order(repository.available_lab_ids())
     if not lab_ids:
         raise SysadminCatalogSyncError(
             "Sysadmin question bank contains no available labs."
