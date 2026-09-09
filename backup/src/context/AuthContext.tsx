@@ -5,6 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
+import { apiFetch as baseApiFetch } from '../lib/api';
 
 export interface User {
   id: number;
@@ -67,7 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [authorization, setAuthorization] = useState<AuthorizationInfo | null>(null);
   const tokenRef = useRef<string | null>(token);
-  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   useEffect(() => {
     tokenRef.current = token;
@@ -80,9 +80,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
     try {
-      const response = await fetch(`${API_BASE}/api/v1/rbac/me`, {
-        headers: { Authorization: `Bearer ${currentToken}` },
-        credentials: 'include',
+      const response = await baseApiFetch('/api/v1/rbac/me', {
+        token: currentToken,
       });
       if (!response.ok) {
         setAuthorization(null);
@@ -95,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthorization(null);
       return null;
     }
-  }, [API_BASE]);
+  }, []);
 
   const setSessionToken = useCallback(async (newToken: string, userData?: User) => {
     localStorage.setItem('token', newToken);
@@ -107,9 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      await baseApiFetch('/api/v1/auth/logout', {
         method: 'POST',
-        credentials: 'include',
       });
     } catch {
       // Logout errors are non-fatal.
@@ -121,20 +119,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setAuthorization(null);
     window.location.href = '/login';
-  }, [API_BASE]);
+  }, []);
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
-    const currentToken = tokenRef.current;
-    const headers = new Headers(options.headers || {});
-    if (currentToken) headers.set('Authorization', `Bearer ${currentToken}`);
-    if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${url}`, {
+    const response = await baseApiFetch(url, {
       ...options,
-      headers,
-      credentials: 'include',
+      token: tokenRef.current,
     });
 
     if (response.status === 401 && url.includes('/auth/me')) {
@@ -158,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     return response;
-  }, [API_BASE]);
+  }, []);
 
   const login = useCallback(async (
     email: string,
@@ -168,8 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     otpCode?: string
   ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await baseApiFetch(endpoint, {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
@@ -200,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(data.user);
     await loadAuthorization(data.token || tokenRef.current);
     return { role: data.role, user: data.user, status: 'success' };
-  }, [API_BASE, loadAuthorization]);
+  }, [loadAuthorization]);
 
   const refreshUser = useCallback(async () => {
     try {
