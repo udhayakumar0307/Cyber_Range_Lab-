@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Building, User, Mail, Phone, Lock, MapPin, CheckCircle2, ArrowRight, ArrowLeft, Key } from 'lucide-react';
@@ -65,7 +66,7 @@ export const AdminRegisterPage: React.FC = () => {
   useEffect(() => {
     if (primaryAffiliationType === 'college' && collegeSearch.trim().length >= 2 && collegeSearch !== selectedCollegeName) {
       const delayDebounce = setTimeout(() => {
-        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
+        routedApiFetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
           .then((res) => res.json())
           .then((data) => {
             setCollegeResults(data);
@@ -106,7 +107,7 @@ export const AdminRegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/admin/register', {
+      const res = await routedApiFetch('/api/v1/admin/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

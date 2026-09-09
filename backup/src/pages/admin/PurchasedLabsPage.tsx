@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FlaskConical, Play, RefreshCw } from 'lucide-react';
@@ -29,7 +30,7 @@ export const PurchasedLabsPage: React.FC = () => {
     const fetchPurchased = async () => {
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch('/api/v1/admin/purchased-labs', {
+        const res = await routedApiFetch('/api/v1/admin/purchased-labs', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.ok) {

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { getDeptShortCode } from '../../utils/deptMapping';
@@ -134,7 +135,7 @@ export const StudentLabReportPage: React.FC = () => {
           ? `?assignment_id=${encodeURIComponent(assignmentId)}`
           : '';
 
-        const res = await fetch(
+        const res = await routedApiFetch(
           `/api/v1/admin/groups/${dbGroupId}/students/${userId}/report${assignmentQuery}`,
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {}

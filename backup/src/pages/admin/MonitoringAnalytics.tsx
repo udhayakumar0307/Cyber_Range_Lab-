@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -58,8 +59,8 @@ export const MonitoringAnalytics: React.FC = () => {
     setErrorMsg('');
     try {
       const [gRes, sRes] = await Promise.all([
-        fetch('/api/v1/reporting/analytics/groups', { headers }),
-        fetch('/api/v1/reporting/analytics/students', { headers })
+        routedApiFetch('/api/v1/reporting/analytics/groups', { headers }),
+        routedApiFetch('/api/v1/reporting/analytics/students', { headers })
       ]);
 
       if (gRes.ok) {
@@ -86,7 +87,7 @@ export const MonitoringAnalytics: React.FC = () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/v1/reporting/analytics/groups/${groupId}`, { headers });
+      const res = await routedApiFetch(`/api/v1/reporting/analytics/groups/${groupId}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setGroupDetails(data);
@@ -112,7 +113,7 @@ export const MonitoringAnalytics: React.FC = () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/v1/admin/assignments/${assignmentId}/analytics`, { headers });
+      const res = await routedApiFetch(`/api/v1/admin/assignments/${assignmentId}/analytics`, { headers });
       if (res.ok) {
         setLabAnalytics(await res.json());
         setSelectedLabId(labId);
@@ -132,7 +133,7 @@ export const MonitoringAnalytics: React.FC = () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/v1/reporting/analytics/students/${studentId}/labs/${labId}`, { headers });
+      const res = await routedApiFetch(`/api/v1/reporting/analytics/students/${studentId}/labs/${labId}`, { headers });
       if (res.ok) {
         setStudentBreakdown(await res.json());
         setSelectedStudentId(studentId);
@@ -166,7 +167,7 @@ export const MonitoringAnalytics: React.FC = () => {
       setErrorMsg('');
 
       try {
-        const res = await fetch(
+        const res = await routedApiFetch(
           `/api/v1/admin/assignments/${assignmentId}/analytics`,
           { headers }
         );

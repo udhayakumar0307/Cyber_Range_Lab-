@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
@@ -34,8 +35,8 @@ export const LabControlPanel: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       try {
         const [sessRes, invRes] = await Promise.all([
-          fetch('/api/v1/admin/sessions', { headers }),
-          fetch('/api/v1/admin/inventory', { headers })
+          routedApiFetch('/api/v1/admin/sessions', { headers }),
+          routedApiFetch('/api/v1/admin/inventory', { headers })
         ]);
 
         if (sessRes.ok) {

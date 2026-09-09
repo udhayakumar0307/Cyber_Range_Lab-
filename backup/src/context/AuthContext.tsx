@@ -81,7 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try {
       const response = await baseApiFetch('/api/v1/rbac/me', {
-        token: currentToken,
+        headers: { Authorization: `Bearer ${currentToken}` },
+        credentials: 'include',
       });
       if (!response.ok) {
         setAuthorization(null);
@@ -108,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await baseApiFetch('/api/v1/auth/logout', {
         method: 'POST',
+        credentials: 'include',
       });
     } catch {
       // Logout errors are non-fatal.
@@ -122,9 +124,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const currentToken = tokenRef.current;
+    const headers = new Headers(options.headers || {});
+
+    if (currentToken && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${currentToken}`);
+    }
+
+    if (
+      options.body &&
+      !headers.has('Content-Type') &&
+      !(options.body instanceof FormData)
+    ) {
+      headers.set('Content-Type', 'application/json');
+    }
+
     const response = await baseApiFetch(url, {
       ...options,
-      token: tokenRef.current,
+      headers,
+      credentials: 'include',
     });
 
     if (response.status === 401 && url.includes('/auth/me')) {

@@ -1,3 +1,4 @@
+import { apiUrl } from '../../lib/api';
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,7 +8,7 @@ export const CommandLineLabPage: React.FC = () => {
   const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
   // Always use FastAPI backend (/api/v1/cll/view) — never probe localhost:5000 (legacy Flask/SQLite server).
   // The Flask server has a separate SQLite DB with stale data that causes wrong scores and 5/5 Solved.
-  const iframeUrl = `/api/v1/cll/view${tokenQuery}`;
+  const iframeUrl = apiUrl(`/api/v1/cll/view${tokenQuery}`);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {

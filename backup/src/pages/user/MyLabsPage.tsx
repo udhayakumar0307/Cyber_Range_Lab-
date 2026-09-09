@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
@@ -51,7 +52,7 @@ export const MyLabsPage: React.FC = () => {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const res = await fetch('/api/v1/user/rentals', { headers });
+      const res = await routedApiFetch('/api/v1/user/rentals', { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to fetch purchased labs.');
       setRentals(data);

@@ -604,8 +604,7 @@ export const ChallengeSession: React.FC = () => {
     // `keepalive` fetch is allowed to outlive the page teardown.
     const teardownOnLeave = () => {
       if (!reconStartedRef.current) return;
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      fetch(`${API_BASE}/api/v1/recon/teardown`, {
+      apiFetch('/api/v1/recon/teardown', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
@@ -709,8 +708,7 @@ export const ChallengeSession: React.FC = () => {
     const elapsed = unsyncedSecondsRef.current;
     unsyncedSecondsRef.current = 0;
     if (useKeepalive) {
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      fetch(`${API_BASE}/api/v1/labs/${labId}/session-tick`, {
+      apiFetch(`/api/v1/labs/${labId}/session-tick`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

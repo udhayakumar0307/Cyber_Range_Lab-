@@ -1,3 +1,5 @@
+import { apiUrl } from '../../lib/api';
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { UserLayout } from '../../components/user/UserLayout';
@@ -58,7 +60,7 @@ export const CTFChallengeDetailPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (res.ok) {
         const data = await res.json();
         const found = data.find((c: CtfChallenge) => c.id === challengeId);
@@ -77,13 +79,13 @@ export const CTFChallengeDetailPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch CTF
-      const ctfRes = await fetch(`/api/v1/ctf/${ctfId}`, { headers });
+      const ctfRes = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { headers });
       if (!ctfRes.ok) throw new Error('CTF Details not found.');
       const ctfData = await ctfRes.json();
       setCtf(ctfData);
 
       // 2. Fetch Challenges to find the specific one
-      const chRes = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const chRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (!chRes.ok) throw new Error('Failed to load challenges.');
       const chData = await chRes.json();
       const found = chData.find((c: CtfChallenge) => c.id === challengeId);
@@ -91,7 +93,7 @@ export const CTFChallengeDetailPage: React.FC = () => {
       setChallenge(found);
 
       // 3. Check if solved and fetch hints unlocked by this user
-      const subRes = await fetch(`/api/v1/ctf/${ctfId}/submissions?limit=100`, { headers });
+      const subRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/submissions?limit=100`, { headers });
       if (subRes.ok) {
         const subData = await subRes.json();
         const currentUserId = Number(localStorage.getItem('user_id') || 0);
@@ -158,7 +160,7 @@ export const CTFChallengeDetailPage: React.FC = () => {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      const res = await fetch(`/api/v1/ctf/${ctfId}/challenge/${challengeId}/submission`, {
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenge/${challengeId}/submission`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ flag: flagInput }),
@@ -304,7 +306,7 @@ export const CTFChallengeDetailPage: React.FC = () => {
                 {challenge.files.map((file) => (
                   <a
                     key={file.id}
-                    href={`/api/v1/ctf/${ctfId}/challenge/${challengeId}/files/${file.filename}`}
+                    href={apiUrl(`/api/v1/ctf/${ctfId}/challenge/${challengeId}/files/${file.filename}`)}
                     download
                     className="flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40 p-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-colors shadow-sm"
                   >

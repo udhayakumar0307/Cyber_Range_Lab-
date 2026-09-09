@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
@@ -166,7 +167,7 @@ export const GradebookPage: React.FC = () => {
     setLoadingAssignments(true);
     setError('');
     try {
-      const res = await fetch('/api/v1/gradebook/assignments', {
+      const res = await routedApiFetch('/api/v1/gradebook/assignments', {
         headers: authHeaders,
       });
       if (!res.ok) {
@@ -191,7 +192,7 @@ export const GradebookPage: React.FC = () => {
     setLoadingGradebook(true);
     setError('');
     try {
-      const res = await fetch(`/api/v1/gradebook/assignments/${assignmentId}`, {
+      const res = await routedApiFetch(`/api/v1/gradebook/assignments/${assignmentId}`, {
         headers: authHeaders,
       });
       if (!res.ok) {
@@ -287,7 +288,7 @@ export const GradebookPage: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/gradebook/assignments/${selectedAssignmentId}`,
         {
           method: 'PUT',
@@ -341,7 +342,7 @@ export const GradebookPage: React.FC = () => {
           (row) => row.grade_status !== 'PUBLISHED'
         );
 
-        const saveRes = await fetch(
+        const saveRes = await routedApiFetch(
           `/api/v1/gradebook/assignments/${selectedAssignmentId}`,
           {
             method: 'PUT',
@@ -365,7 +366,7 @@ export const GradebookPage: React.FC = () => {
         }
       }
 
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/gradebook/assignments/${selectedAssignmentId}/publish`,
         {
           method: 'POST',
@@ -403,7 +404,7 @@ export const GradebookPage: React.FC = () => {
     setPublishing(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/gradebook/assignments/${selectedAssignmentId}/reopen`,
         {
           method: 'POST',
@@ -437,7 +438,7 @@ export const GradebookPage: React.FC = () => {
     setRubricData(null);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/rubrics/assignments/${selectedAssignmentId}/students/${row.student_id}`,
         { headers: authHeaders }
       );
@@ -479,7 +480,7 @@ export const GradebookPage: React.FC = () => {
     setRubricSaving(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/rubrics/assignments/${selectedAssignmentId}/students/${rubricStudent.student_id}`,
         {
           method: 'PUT',

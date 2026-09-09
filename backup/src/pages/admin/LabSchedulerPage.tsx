@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import type { ScheduleItem, ScheduleStatus } from '../../types/scheduler';
@@ -35,9 +36,9 @@ export const LabSchedulerPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       try {
         const [schRes, labsRes, grpRes] = await Promise.all([
-          fetch('/api/v1/admin/allocations', { headers }),
-          fetch('/api/v1/admin/purchased-labs', { headers }),
-          fetch('/api/v1/admin/groups', { headers })
+          routedApiFetch('/api/v1/admin/allocations', { headers }),
+          routedApiFetch('/api/v1/admin/purchased-labs', { headers }),
+          routedApiFetch('/api/v1/admin/groups', { headers })
         ]);
 
         if (schRes.ok) {

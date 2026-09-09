@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Book, Search, Eye, FileText, CheckCircle, Clock, Plus, Trash2, Upload, X } from 'lucide-react';
@@ -58,7 +59,7 @@ export const StudyMaterial: React.FC = () => {
   const fetchMaterials = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/study-materials');
+      const res = await routedApiFetch('/api/v1/study-materials');
       if (res.ok) {
         const data = await res.json();
         setMaterials(data);
@@ -97,7 +98,7 @@ export const StudyMaterial: React.FC = () => {
         formData.append('file', pdfFile);
       }
 
-      const res = await fetch('/api/v1/study-materials/admin/upload', {
+      const res = await routedApiFetch('/api/v1/study-materials/admin/upload', {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -130,7 +131,7 @@ export const StudyMaterial: React.FC = () => {
     if (!confirm('Are you sure you want to delete this study material?')) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/v1/study-materials/admin/${id}`, {
+      const res = await routedApiFetch(`/api/v1/study-materials/admin/${id}`, {
         method: 'DELETE',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})

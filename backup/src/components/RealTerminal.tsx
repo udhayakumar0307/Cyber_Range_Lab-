@@ -1,3 +1,4 @@
+import { apiWebSocketUrl } from '../lib/api';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -64,15 +65,13 @@ export const RealTerminal: React.FC<RealTerminalProps> = ({
 
     setConnectionState('connecting');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
     const basePath = wsPath || `/api/v1/terminal/ws/${labId}`;
     const [pathOnly, existingQuery = ''] = basePath.split('?', 2);
     const params = new URLSearchParams(existingQuery);
     if (!wsPath) params.set('level', String(levelNum));
     if (token) params.set('token', token);
     const query = params.toString();
-    const wsUrl = `${protocol}//${host}${pathOnly}${query ? `?${query}` : ''}`;
+    const wsUrl = apiWebSocketUrl(`${pathOnly}${query ? `?${query}` : ''}`);
 
     console.log('[RealTerminal] Connecting to WebSocket:', wsUrl);
     const socket = new WebSocket(wsUrl);

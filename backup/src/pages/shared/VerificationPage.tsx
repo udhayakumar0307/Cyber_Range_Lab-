@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShieldCheck, Download, Share2, Award, Clock, CheckCircle2, ArrowLeft, AlertCircle } from 'lucide-react';
@@ -28,7 +29,7 @@ export const VerificationPage: React.FC = () => {
     const fetchVerification = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/v1/reporting/certificates/verify/${certificateId}`);
+        const res = await routedApiFetch(`/api/v1/reporting/certificates/verify/${certificateId}`);
         if (!res.ok) {
           throw new Error('Certificate not found or invalid.');
         }

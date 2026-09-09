@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Folder,
@@ -66,7 +67,7 @@ export const LabAllocation: React.FC = () => {
       'Authorization': `Bearer ${token}`
     };
     try {
-      const gRes = await fetch('/api/v1/admin/groups', { headers });
+      const gRes = await routedApiFetch('/api/v1/admin/groups', { headers });
       if (gRes.status === 401 || gRes.status === 403) {
         localStorage.removeItem('token');
         window.location.href = '/login';
@@ -74,7 +75,7 @@ export const LabAllocation: React.FC = () => {
       }
       if (gRes.ok) setGroups(await gRes.json());
 
-      const sRes = await fetch('/api/v1/admin/users', { headers });
+      const sRes = await routedApiFetch('/api/v1/admin/users', { headers });
       if (sRes.status === 401 || sRes.status === 403) {
         localStorage.removeItem('token');
         window.location.href = '/login';
@@ -85,7 +86,7 @@ export const LabAllocation: React.FC = () => {
         setStudents(Array.isArray(sData) ? sData : (sData.users || []));
       }
 
-      const aRes = await fetch('/api/v1/admin/assignments', { headers });
+      const aRes = await routedApiFetch('/api/v1/admin/assignments', { headers });
       if (aRes.status === 401 || aRes.status === 403) {
         localStorage.removeItem('token');
         window.location.href = '/login';
@@ -148,7 +149,7 @@ export const LabAllocation: React.FC = () => {
     }
 
     try {
-      const res = await fetch('/api/v1/admin/assignments', {
+      const res = await routedApiFetch('/api/v1/admin/assignments', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -214,7 +215,7 @@ export const LabAllocation: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/v1/admin/assignments/${activeAssignment.id}/extend`, {
+      const res = await routedApiFetch(`/api/v1/admin/assignments/${activeAssignment.id}/extend`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ end_datetime: newEndISO })
@@ -236,7 +237,7 @@ export const LabAllocation: React.FC = () => {
       headers['Authorization'] = `Bearer ${token}`;
     }
     try {
-      const res = await fetch(`/api/v1/admin/assignments/${assign.id}`, {
+      const res = await routedApiFetch(`/api/v1/admin/assignments/${assign.id}`, {
         method: 'DELETE',
         headers
       });
@@ -261,7 +262,7 @@ export const LabAllocation: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/v1/admin/assignments/${assign.id}/analytics`, { headers });
+      const res = await routedApiFetch(`/api/v1/admin/assignments/${assign.id}/analytics`, { headers });
       if (res.ok) {
         const data = await res.json();
         setAnalyticsData(data);

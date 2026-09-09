@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run check:api-routing && tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:api-routing": "node scripts/check-api-routing.mjs"
   },
   "dependencies": {
     "@types/recharts": "^1.8.29",

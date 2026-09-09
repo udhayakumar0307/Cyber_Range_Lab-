@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import type { SecurityLab } from '../../types/admin';
 import type { CartItem } from '../../types/cart';
@@ -49,7 +50,7 @@ export const LabMarketplace: React.FC = () => {
       try {
         // Fetch cart
         if (token) {
-          const cartRes = await fetch('/api/v1/cart', {
+          const cartRes = await routedApiFetch('/api/v1/cart', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (cartRes.ok) {
@@ -58,7 +59,7 @@ export const LabMarketplace: React.FC = () => {
           }
 
           // Fetch purchased labs
-          const purchasedRes = await fetch('/api/v1/admin/purchased-labs', {
+          const purchasedRes = await routedApiFetch('/api/v1/admin/purchased-labs', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (purchasedRes.ok) {
@@ -70,7 +71,7 @@ export const LabMarketplace: React.FC = () => {
         }
 
         // Fetch lab catalog
-        const labsRes = await fetch('/api/v1/labs');
+        const labsRes = await routedApiFetch('/api/v1/labs');
         if (labsRes.ok) {
           const labsData = await labsRes.json();
           setLabs(labsData || []);
@@ -89,12 +90,12 @@ export const LabMarketplace: React.FC = () => {
     setSyncing(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/labs/scan', {
+      const res = await routedApiFetch('/api/v1/labs/scan', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
-        const labsRes = await fetch('/api/v1/labs');
+        const labsRes = await routedApiFetch('/api/v1/labs');
         if (labsRes.ok) {
           const labsData = await labsRes.json();
           setLabs(labsData || []);
@@ -183,7 +184,7 @@ export const LabMarketplace: React.FC = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        const res = await fetch('/api/v1/cart/items', {
+        const res = await routedApiFetch('/api/v1/cart/items', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ export const LabMarketplace: React.FC = () => {
         });
         if (res.ok) {
           // Refresh cart from server to get server-computed price
-          const cartRes = await fetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
+          const cartRes = await routedApiFetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
           if (cartRes.ok) {
             const data = await cartRes.json();
             setCartItems(Array.isArray(data?.items) ? data.items : []);
@@ -220,13 +221,13 @@ export const LabMarketplace: React.FC = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        await fetch(`/api/v1/cart/items/${id}`, {
+        await routedApiFetch(`/api/v1/cart/items/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ hours_purchased: hours })
         });
         // Refresh from server for recomputed totals
-        const cartRes = await fetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
+        const cartRes = await routedApiFetch('/api/v1/cart', { headers: { Authorization: `Bearer ${token}` } });
         if (cartRes.ok) {
           const data = await cartRes.json();
           setCartItems(Array.isArray(data?.items) ? data.items : []);
@@ -242,7 +243,7 @@ export const LabMarketplace: React.FC = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        await fetch(`/api/v1/cart/items/${id}`, {
+        await routedApiFetch(`/api/v1/cart/items/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -255,7 +256,7 @@ export const LabMarketplace: React.FC = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        await fetch('/api/v1/cart', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        await routedApiFetch('/api/v1/cart', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       } catch (err) { /* ignore */ }
     }
   };

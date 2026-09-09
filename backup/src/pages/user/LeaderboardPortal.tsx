@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
@@ -50,9 +51,9 @@ export const LeaderboardPortal: React.FC = () => {
         const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         const [profileRes, progressRes, personalRankRes] = await Promise.all([
-          fetch('/api/v1/auth/me', { headers }),
-          fetch('/api/v1/reporting/progress', { headers }),
-          fetch('/api/v1/reporting/leaderboard?type=personal', { headers })
+          routedApiFetch('/api/v1/auth/me', { headers }),
+          routedApiFetch('/api/v1/reporting/progress', { headers }),
+          routedApiFetch('/api/v1/reporting/leaderboard?type=personal', { headers })
         ]);
 
         if (profileRes.ok && progressRes.ok && personalRankRes.ok) {
@@ -82,7 +83,7 @@ export const LeaderboardPortal: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`/api/v1/reporting/leaderboard?type=global&page=${globalPage}&limit=${limit}`, { headers });
+        const res = await routedApiFetch(`/api/v1/reporting/leaderboard?type=global&page=${globalPage}&limit=${limit}`, { headers });
         if (res.ok) {
           const data = await res.json();
           setGlobalRanks(data.ranks || []);
@@ -102,7 +103,7 @@ export const LeaderboardPortal: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`/api/v1/reporting/leaderboard?type=college&page=${collegePage}&limit=${limit}`, { headers });
+        const res = await routedApiFetch(`/api/v1/reporting/leaderboard?type=college&page=${collegePage}&limit=${limit}`, { headers });
         if (res.ok) {
           const data = await res.json();
           setCollegeRanks(data.ranks || []);

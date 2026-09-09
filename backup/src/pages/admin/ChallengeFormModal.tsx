@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { X, HelpCircle, Info, Calculator, FileText } from 'lucide-react';
 import type { CtfChallenge, CtfChallengeFile } from '../../types/ctf';
@@ -163,7 +164,7 @@ export const ChallengeFormModal: React.FC<ChallengeFormModalProps> = ({
       
       const method = challenge ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         method,
         headers,
         body: formData,

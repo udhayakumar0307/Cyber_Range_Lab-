@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState } from 'react';
 import type { CsvImportUserRow, PlatformUser } from '../../types/admin';
 import { X, FileSpreadsheet, UploadCloud, Download, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
@@ -37,7 +38,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/v1/admin/users/import', {
+      const res = await routedApiFetch('/api/v1/admin/users/import', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -60,7 +61,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   const handleDownloadTemplate = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/v1/admin/users/template?format=xlsx`, {
+      const res = await routedApiFetch(`/api/v1/admin/users/template?format=xlsx`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) {

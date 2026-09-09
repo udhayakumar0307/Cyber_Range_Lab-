@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
@@ -52,7 +53,7 @@ export const ResetPasswordPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v1/auth/reset-password', {
+      const response = await routedApiFetch('/api/v1/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

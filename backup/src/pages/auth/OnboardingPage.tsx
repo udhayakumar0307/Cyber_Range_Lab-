@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, User, GraduationCap, Briefcase, Camera, Trash2, ArrowRight, CheckCircle2 } from 'lucide-react';
@@ -55,7 +56,7 @@ export const OnboardingPage: React.FC = () => {
 
       // 1. Fetch colleges (independent of profile)
       try {
-        const collegeRes = await fetch('/api/v1/reporting/colleges');
+        const collegeRes = await routedApiFetch('/api/v1/reporting/colleges');
         if (collegeRes.ok) {
           const cData = await collegeRes.json();
           setColleges(cData);
@@ -71,7 +72,7 @@ export const OnboardingPage: React.FC = () => {
 
       // 2. Fetch profile
       try {
-        const profileRes = await fetch('/api/v1/user/profile', {
+        const profileRes = await routedApiFetch('/api/v1/user/profile', {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (profileRes.ok) {
@@ -137,7 +138,7 @@ export const OnboardingPage: React.FC = () => {
         const photoFormData = new FormData();
         photoFormData.append('file', photoFile);
 
-        const photoRes = await fetch('/api/v1/user/profile/photo', {
+        const photoRes = await routedApiFetch('/api/v1/user/profile/photo', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: photoFormData
@@ -161,7 +162,7 @@ export const OnboardingPage: React.FC = () => {
         semester: parseInt(String(form.semester)) || 1
       };
 
-      const res = await fetch('/api/v1/user/profile', {
+      const res = await routedApiFetch('/api/v1/user/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

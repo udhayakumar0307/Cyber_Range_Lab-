@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { GroupDetail } from '../../types/admin';
@@ -83,7 +84,7 @@ export const GroupDetailPage: React.FC = () => {
   const fetchGroup = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${dbId}`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${dbId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) setGroup(await res.json());
@@ -97,7 +98,7 @@ export const GroupDetailPage: React.FC = () => {
   const fetchLabStatus = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${dbId}/lab-status`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${dbId}/lab-status`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -135,7 +136,7 @@ export const GroupDetailPage: React.FC = () => {
   const handleExport = (format: 'csv' | 'pdf') => {
     const token = localStorage.getItem('token');
     const url = `/api/v1/admin/groups/${dbId}/lab-report/export?format=${format}`;
-    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    routedApiFetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.blob())
       .then((blob) => {
         const objUrl = window.URL.createObjectURL(blob);
@@ -157,7 +158,7 @@ export const GroupDetailPage: React.FC = () => {
     setKilling(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${dbId}/kill-lab`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${dbId}/kill-lab`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

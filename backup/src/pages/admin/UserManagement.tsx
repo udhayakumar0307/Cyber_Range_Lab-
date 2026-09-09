@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import type { PlatformUser, UserGroup } from '../../types/admin';
@@ -59,8 +60,8 @@ export const UserManagement: React.FC = () => {
     const token = localStorage.getItem('token');
     try {
       const [uRes, gRes] = await Promise.all([
-        fetch('/api/v1/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
-        fetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        routedApiFetch('/api/v1/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+        routedApiFetch('/api/v1/admin/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       ]);
       if (uRes.ok) {
         const data = await uRes.json();
@@ -203,7 +204,7 @@ export const UserManagement: React.FC = () => {
     if (userToEdit) {
       const dbId = userToEdit.db_id || Number(String(userToEdit.id).replace('usr-', ''));
       try {
-        const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+        const res = await routedApiFetch(`/api/v1/admin/users/${dbId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({
@@ -228,7 +229,7 @@ export const UserManagement: React.FC = () => {
       }
     } else {
       try {
-        const res = await fetch('/api/v1/admin/users', {
+        const res = await routedApiFetch('/api/v1/admin/users', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -275,7 +276,7 @@ export const UserManagement: React.FC = () => {
     try {
       for (const dbId of idsToDelete) {
         try {
-          const res = await fetch(`/api/v1/admin/users/${dbId}`, {
+          const res = await routedApiFetch(`/api/v1/admin/users/${dbId}`, {
             method: 'DELETE',
             headers
           });
@@ -318,7 +319,7 @@ export const UserManagement: React.FC = () => {
 
       if (groupToEdit) {
         groupDbId = groupToEdit.db_id || Number(String(groupToEdit.id).replace('grp-', ''));
-        const res = await fetch(`/api/v1/admin/groups/${groupDbId}`, {
+        const res = await routedApiFetch(`/api/v1/admin/groups/${groupDbId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({
@@ -333,7 +334,7 @@ export const UserManagement: React.FC = () => {
           return;
         }
       } else {
-        const res = await fetch('/api/v1/admin/groups', {
+        const res = await routedApiFetch('/api/v1/admin/groups', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -352,7 +353,7 @@ export const UserManagement: React.FC = () => {
       }
 
       if (groupDbId && memberIds.length > 0) {
-        const memberRes = await fetch(`/api/v1/admin/groups/${groupDbId}/members/bulk`, {
+        const memberRes = await routedApiFetch(`/api/v1/admin/groups/${groupDbId}/members/bulk`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ user_ids: memberIds })
@@ -374,7 +375,7 @@ export const UserManagement: React.FC = () => {
     if (!groupToDelete) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../lib/api';
 /**
  * purchasedLabsService.ts
  * ======================
@@ -67,34 +68,34 @@ function authHeaders(): Record<string, string> {
 // ── Core API fetchers ──────────────────────────────────────────────────────
 
 export async function fetchPurchasedLabs(): Promise<PurchasedLabRecord[]> {
-  const res = await fetch('/api/v1/admin/purchased-labs', { headers: authHeaders() });
+  const res = await routedApiFetch('/api/v1/admin/purchased-labs', { headers: authHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
 export async function fetchPurchasedLabsMatrix(): Promise<PurchasedLabRecord[]> {
-  const res = await fetch('/api/v1/admin/purchased-labs/matrix', { headers: authHeaders() });
+  const res = await routedApiFetch('/api/v1/admin/purchased-labs/matrix', { headers: authHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
 export async function fetchAllocations(): Promise<AllocationRecord[]> {
-  const res = await fetch('/api/v1/admin/allocations', { headers: authHeaders() });
+  const res = await routedApiFetch('/api/v1/admin/allocations', { headers: authHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
 export async function fetchInventory(): Promise<OrgInventory | null> {
-  const res = await fetch('/api/v1/admin/inventory', { headers: authHeaders() });
+  const res = await routedApiFetch('/api/v1/admin/inventory', { headers: authHeaders() });
   if (!res.ok) return null;
   return res.json();
 }
 
 export async function allocateHoursToUser(labId: string, userEmail: string, hours = 1) {
-  const res = await fetch('/api/v1/admin/allocations/user', {
+  const res = await routedApiFetch('/api/v1/admin/allocations/user', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ lab_id: labId, user_email: userEmail, seat_count: 1, hours })
@@ -108,7 +109,7 @@ export async function allocateHoursToUser(labId: string, userEmail: string, hour
 export const allocateSeatToUser = allocateHoursToUser;
 
 export async function allocateHoursToGroup(labId: string, groupId: number, hours: number) {
-  const res = await fetch('/api/v1/admin/allocations/group', {
+  const res = await routedApiFetch('/api/v1/admin/allocations/group', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ lab_id: labId, group_id: groupId, seat_count: 1, hours })
@@ -122,7 +123,7 @@ export async function allocateHoursToGroup(labId: string, groupId: number, hours
 export const allocateSeatsToGroup = allocateHoursToGroup;
 
 export async function revokeSeats(labId: string, seatCount: number) {
-  const res = await fetch('/api/v1/admin/licenses/revoke', {
+  const res = await routedApiFetch('/api/v1/admin/licenses/revoke', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ lab_id: labId, seat_count: seatCount })

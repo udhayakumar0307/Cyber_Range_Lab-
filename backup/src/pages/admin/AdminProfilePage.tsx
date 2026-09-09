@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   User as UserIcon, 
@@ -83,7 +84,7 @@ export const AdminProfilePage: React.FC = () => {
   useEffect(() => {
     if (showCollegeModal && collegeSearch.trim().length >= 2) {
       const delayDebounce = setTimeout(() => {
-        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}&limit=10`)
+        routedApiFetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}&limit=10`)
           .then((res) => res.json())
           .then((data) => setCollegeResults(data))
           .catch((err) => console.error(err));
@@ -98,7 +99,7 @@ export const AdminProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     const h: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const profileRes = await fetch('/api/v1/admin/profile', { headers: h });
+      const profileRes = await routedApiFetch('/api/v1/admin/profile', { headers: h });
       if (profileRes.ok) {
         const data = await profileRes.json();
         setProfileData(data);
@@ -106,11 +107,11 @@ export const AdminProfilePage: React.FC = () => {
 
       // Fetch radar graph & student-like stats if available for admin
       const [statsRes, graphRes, affsRes, collegeRes, summaryRes] = await Promise.all([
-        fetch('/api/v1/user/statistics', { headers: h }),
-        fetch('/api/v1/user/activity-graph', { headers: h }),
-        fetch('/api/v1/me/affiliations', { headers: h }),
-        fetch('/api/v1/reporting/colleges'),
-        fetch('/api/v1/admin/dashboard/summary', { headers: h })
+        routedApiFetch('/api/v1/user/statistics', { headers: h }),
+        routedApiFetch('/api/v1/user/activity-graph', { headers: h }),
+        routedApiFetch('/api/v1/me/affiliations', { headers: h }),
+        routedApiFetch('/api/v1/reporting/colleges'),
+        routedApiFetch('/api/v1/admin/dashboard/summary', { headers: h })
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (graphRes.ok) setActivityGraph(await graphRes.json());
@@ -144,7 +145,7 @@ export const AdminProfilePage: React.FC = () => {
     fData.append('file', file);
 
     try {
-      const res = await fetch('/api/v1/user/profile/photo', {
+      const res = await routedApiFetch('/api/v1/user/profile/photo', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fData
@@ -176,7 +177,7 @@ export const AdminProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch('/api/v1/user/profile/photo', {
+      const res = await routedApiFetch('/api/v1/user/profile/photo', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -204,7 +205,7 @@ export const AdminProfilePage: React.FC = () => {
     setMessage(null);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/admin/profile', {
+      const res = await routedApiFetch('/api/v1/admin/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -242,7 +243,7 @@ export const AdminProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch(`/api/v1/me/affiliations/${id}/primary`, {
+      const res = await routedApiFetch(`/api/v1/me/affiliations/${id}/primary`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -258,7 +259,7 @@ export const AdminProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch(`/api/v1/me/affiliations/${id}`, {
+      const res = await routedApiFetch(`/api/v1/me/affiliations/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -277,7 +278,7 @@ export const AdminProfilePage: React.FC = () => {
     if (!selectedCollege) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/me/affiliations', {
+      const res = await routedApiFetch('/api/v1/me/affiliations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -307,7 +308,7 @@ export const AdminProfilePage: React.FC = () => {
     if (!typedOrgName.trim()) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/me/affiliations', {
+      const res = await routedApiFetch('/api/v1/me/affiliations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

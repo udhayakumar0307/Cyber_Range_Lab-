@@ -75,7 +75,7 @@ export const PdfViewerPage: React.FC = () => {
         }
 
         // Fetch PDF file contents as blob and load into pdf.js
-        const pdfRes = await fetch(found.pdfUrl);
+        const pdfRes = await apiFetch(found.pdfUrl);
 
         if (!pdfRes.ok) {
           throw new Error('Failed to retrieve PDF document file.');

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Download, FileText } from 'lucide-react';
@@ -24,7 +25,7 @@ export const ReportsPage: React.FC = () => {
   const fetchReports = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/admin/reports/lab-assignments', {
+      const res = await routedApiFetch('/api/v1/admin/reports/lab-assignments', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -49,7 +50,7 @@ export const ReportsPage: React.FC = () => {
   ) => {
     const token = localStorage.getItem('token');
     const url = `/api/v1/admin/groups/${groupId}/lab-report/export?format=${format}&assignment_id=${assignmentId}`;
-    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    routedApiFetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.blob())
       .then((blob) => {
         const objUrl = window.URL.createObjectURL(blob);

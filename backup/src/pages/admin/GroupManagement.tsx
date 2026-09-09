@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import type { UserGroup } from '../../types/admin';
 import { GroupCreateModal } from '../../components/admin/GroupCreateModal';
@@ -32,7 +33,7 @@ export const GroupManagement: React.FC = () => {
   const fetchGroups = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/admin/groups', {
+      const res = await routedApiFetch('/api/v1/admin/groups', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -70,7 +71,7 @@ export const GroupManagement: React.FC = () => {
     try {
       if (groupToEdit) {
         // Edit group
-        const res = await fetch(`/api/v1/admin/groups/${groupToEdit.db_id || groupToEdit.id.replace('grp-', '')}`, {
+        const res = await routedApiFetch(`/api/v1/admin/groups/${groupToEdit.db_id || groupToEdit.id.replace('grp-', '')}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({
@@ -81,7 +82,7 @@ export const GroupManagement: React.FC = () => {
         if (res.ok) fetchGroups();
       } else {
         // Create new group
-        const res = await fetch('/api/v1/admin/groups', {
+        const res = await routedApiFetch('/api/v1/admin/groups', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -100,7 +101,7 @@ export const GroupManagement: React.FC = () => {
     if (!groupToDelete) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${groupToDelete.db_id || groupToDelete.id.replace('grp-', '')}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -180,7 +181,7 @@ export const SystemPortal: React.FC = () => {
     setDashLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/dashboard', {
+      const res = await routedApiFetch('/api/v1/system/dashboard', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -202,7 +203,7 @@ export const SystemPortal: React.FC = () => {
     setCollegesLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/colleges', {
+      const res = await routedApiFetch('/api/v1/system/colleges', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -221,7 +222,7 @@ export const SystemPortal: React.FC = () => {
     const token = localStorage.getItem('token');
     try {
       const url = `/api/v1/system/users?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ''}`;
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -242,7 +243,7 @@ export const SystemPortal: React.FC = () => {
     const token = localStorage.getItem('token');
     try {
       const url = `/api/v1/system/audit-logs?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ''}`;
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -263,7 +264,7 @@ export const SystemPortal: React.FC = () => {
     const token = localStorage.getItem('token');
     try {
       const url = `/api/v1/system/database-viewer?table_name=${table}&page=${page}&limit=15${search ? `&search=${encodeURIComponent(search)}` : ''}`;
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -280,7 +281,7 @@ export const SystemPortal: React.FC = () => {
   const fetchLabs = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/labs?limit=100', {
+      const res = await routedApiFetch('/api/v1/system/labs?limit=100', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -304,7 +305,7 @@ export const SystemPortal: React.FC = () => {
     setCtfLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/ctf', {
+      const res = await routedApiFetch('/api/v1/ctf', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -332,7 +333,7 @@ export const SystemPortal: React.FC = () => {
         endpoint = `/api/v1/system/organizations/-2/assign-ctf`;
         targetUserId = -1;
       }
-      const res = await fetch(endpoint, {
+      const res = await routedApiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -360,7 +361,7 @@ export const SystemPortal: React.FC = () => {
     setAllocatedCtfsLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/database-viewer?table_name=purchased_ctfs&limit=100', {
+      const res = await routedApiFetch('/api/v1/system/database-viewer?table_name=purchased_ctfs&limit=100', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -378,7 +379,7 @@ export const SystemPortal: React.FC = () => {
     if (!window.confirm(`Permanently delete this CTF allocation for "${ctfTitle}"? This cannot be undone.`)) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/ctf-allocations/${allocationId}`, {
+      const res = await routedApiFetch(`/api/v1/system/ctf-allocations/${allocationId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -398,7 +399,7 @@ export const SystemPortal: React.FC = () => {
     setAllocatedLabsLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/database-viewer?table_name=purchased_labs&limit=100', {
+      const res = await routedApiFetch('/api/v1/system/database-viewer?table_name=purchased_labs&limit=100', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -419,7 +420,7 @@ export const SystemPortal: React.FC = () => {
     setSecurityLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/security-alerts', {
+      const res = await routedApiFetch('/api/v1/system/security-alerts', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
@@ -483,7 +484,7 @@ export const SystemPortal: React.FC = () => {
   const handleResolveAlert = async (alertId: number) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/security-alerts/${alertId}/resolve`, {
+      const res = await routedApiFetch(`/api/v1/system/security-alerts/${alertId}/resolve`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -498,7 +499,7 @@ export const SystemPortal: React.FC = () => {
   const handleApproveLab = async (labId: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/labs/${labId}/approve`, {
+      const res = await routedApiFetch(`/api/v1/system/labs/${labId}/approve`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -514,7 +515,7 @@ export const SystemPortal: React.FC = () => {
   const handleSaveLabPrice = async (labId: string, price: number) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/labs/${labId}/update-price`, {
+      const res = await routedApiFetch(`/api/v1/system/labs/${labId}/update-price`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -537,7 +538,7 @@ export const SystemPortal: React.FC = () => {
     if (!window.confirm("Are you absolutely sure you want to permanently delete this lab?")) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/labs/${labId}`, {
+      const res = await routedApiFetch(`/api/v1/system/labs/${labId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -559,7 +560,7 @@ export const SystemPortal: React.FC = () => {
     const token = localStorage.getItem('token');
     try {
       if (removeTargetType === 'student' || removeTargetType === 'both') {
-        await fetch(`/api/v1/system/organizations/0/revoke-lab`, {
+        await routedApiFetch(`/api/v1/system/organizations/0/revoke-lab`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -574,7 +575,7 @@ export const SystemPortal: React.FC = () => {
           .filter((l: any) => l.lab_id === selectedLabForRemoval.id && l.organization_id)
           .map((l: any) => l.organization_id);
         for (const orgId of orgsToRevoke) {
-          await fetch(`/api/v1/system/organizations/${orgId}/revoke-lab`, {
+          await routedApiFetch(`/api/v1/system/organizations/${orgId}/revoke-lab`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -586,7 +587,7 @@ export const SystemPortal: React.FC = () => {
       }
 
       if (removeTargetType === 'catalog') {
-        await fetch(`/api/v1/system/labs/${selectedLabForRemoval.id}`, {
+        await routedApiFetch(`/api/v1/system/labs/${selectedLabForRemoval.id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -607,7 +608,7 @@ export const SystemPortal: React.FC = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/purchased-labs/${editingAllocatedLab.id}/fixed-rate`, {
+      const res = await routedApiFetch(`/api/v1/system/purchased-labs/${editingAllocatedLab.id}/fixed-rate`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -662,7 +663,7 @@ export const SystemPortal: React.FC = () => {
     setKeyLoading(true);
 
     try {
-      const res = await fetch('/api/v1/system/verify-key', {
+      const res = await routedApiFetch('/api/v1/system/verify-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ security_key: securityKey })
@@ -689,7 +690,7 @@ export const SystemPortal: React.FC = () => {
     setLoginLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const res = await routedApiFetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -720,7 +721,7 @@ export const SystemPortal: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+      await routedApiFetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
     } catch {
       // ignore
     }
@@ -738,7 +739,7 @@ export const SystemPortal: React.FC = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/system/colleges', {
+      const res = await routedApiFetch('/api/v1/system/colleges', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -775,7 +776,7 @@ export const SystemPortal: React.FC = () => {
   const handleToggleVerifyOrg = async (orgId: number, isCurrentlyVerified: boolean) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/organizations/${orgId}/verify`, {
+      const res = await routedApiFetch(`/api/v1/system/organizations/${orgId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -796,7 +797,7 @@ export const SystemPortal: React.FC = () => {
     if (!window.confirm('Are you sure you want to permanently delete this organization?')) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/organizations/${orgId}`, {
+      const res = await routedApiFetch(`/api/v1/system/organizations/${orgId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -815,7 +816,7 @@ export const SystemPortal: React.FC = () => {
     setPurchasesLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/organizations/${org.id}/purchases`, {
+      const res = await routedApiFetch(`/api/v1/system/organizations/${org.id}/purchases`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -849,7 +850,7 @@ export const SystemPortal: React.FC = () => {
         targetUserId = -1;
       }
 
-      const res = await fetch(endpoint, {
+      const res = await routedApiFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -888,7 +889,7 @@ export const SystemPortal: React.FC = () => {
     if (!window.confirm("Are you sure you want to permanently delete this user from the database? This action cannot be undone.")) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/users/${userId}`, {
+      const res = await routedApiFetch(`/api/v1/system/users/${userId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -912,7 +913,7 @@ export const SystemPortal: React.FC = () => {
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/organizations/${selectedOrg.id}/revoke-lab`, {
+      const res = await routedApiFetch(`/api/v1/system/organizations/${selectedOrg.id}/revoke-lab`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -939,7 +940,7 @@ export const SystemPortal: React.FC = () => {
     setSelectedStudentAnalytics(null);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/system/students/${studentId}/analytics`, {
+      const res = await routedApiFetch(`/api/v1/system/students/${studentId}/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

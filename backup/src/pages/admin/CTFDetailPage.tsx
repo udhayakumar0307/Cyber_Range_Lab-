@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -40,13 +41,13 @@ export const CTFDetailPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // Fetch CTF
-      const ctfRes = await fetch(`/api/v1/ctf/${ctfId}`, { headers });
+      const ctfRes = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { headers });
       if (!ctfRes.ok) throw new Error('CTF details not found.');
       const ctfData = await ctfRes.json();
       setCtf(ctfData);
 
       // Fetch Challenges
-      const chRes = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const chRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (!chRes.ok) throw new Error('Failed to load challenges.');
       const chData = await chRes.json();
       setChallenges(chData);
@@ -67,7 +68,7 @@ export const CTFDetailPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctf.id}/start`, { method: 'POST', headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctf.id}/start`, { method: 'POST', headers });
       if (!res.ok) throw new Error('Failed to start CTF.');
       fetchCtfDetails();
     } catch (err: any) {
@@ -81,7 +82,7 @@ export const CTFDetailPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctf.id}/stop`, { method: 'POST', headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctf.id}/stop`, { method: 'POST', headers });
       if (!res.ok) throw new Error('Failed to stop CTF.');
       fetchCtfDetails();
     } catch (err: any) {
@@ -93,7 +94,7 @@ export const CTFDetailPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/challenge/${cid}/visibility`, {
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenge/${cid}/visibility`, {
         method: 'PATCH',
         headers,
       });
@@ -112,7 +113,7 @@ export const CTFDetailPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/challenge/${cid}`, {
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenge/${cid}`, {
         method: 'DELETE',
         headers,
       });

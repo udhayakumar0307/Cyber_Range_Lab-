@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -24,25 +25,25 @@ export const CTFProgressPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch CTF
-      const ctfRes = await fetch(`/api/v1/ctf/${ctfId}`, { headers });
+      const ctfRes = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { headers });
       if (!ctfRes.ok) throw new Error('CTF details not found.');
       const ctfData = await ctfRes.json();
       setCtf(ctfData);
 
       // 2. Fetch Challenges
-      const chRes = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const chRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (!chRes.ok) throw new Error('Failed to load challenges.');
       const chData = await chRes.json();
       setChallenges(chData);
 
       // 3. Fetch Leaderboard (Participants list)
-      const lbRes = await fetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
+      const lbRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
       if (!lbRes.ok) throw new Error('Failed to load scoreboard.');
       const lbData = await lbRes.json();
       setLeaderboard(lbData.entries || []);
 
       // 4. Fetch Submissions (to build solves matrix)
-      const subRes = await fetch(`/api/v1/ctf/${ctfId}/submissions?limit=1000`, { headers });
+      const subRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/submissions?limit=1000`, { headers });
       if (!subRes.ok) throw new Error('Failed to load submissions.');
       const subData = await subRes.json();
       

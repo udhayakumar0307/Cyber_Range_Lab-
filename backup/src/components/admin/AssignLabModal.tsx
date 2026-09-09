@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { X, Rocket, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
@@ -55,7 +56,7 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
       setLoadingLabs(true);
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch('/api/v1/admin/purchased-labs/available', {
+        const res = await routedApiFetch('/api/v1/admin/purchased-labs/available', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.ok) {
@@ -101,7 +102,7 @@ export const AssignLabModal: React.FC<AssignLabModalProps> = ({
     setError(null);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${groupId}/assign-lab`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${groupId}/assign-lab`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

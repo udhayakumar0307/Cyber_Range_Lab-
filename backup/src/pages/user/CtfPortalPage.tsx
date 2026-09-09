@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { UserLayout } from '../../components/user/UserLayout';
 import type { CtfEvent, CtfTeam } from '../../types/ctf';
@@ -39,7 +40,7 @@ export const CtfPortalPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch('/api/v1/ctf', { headers });
+      const res = await routedApiFetch('/api/v1/ctf', { headers });
       if (!res.ok) throw new Error('Failed to load CTF tournaments.');
       const data = await res.json();
       setEvents(data);

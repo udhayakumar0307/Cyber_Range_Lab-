@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../lib/api';
 /**
  * Authenticated Export Helper Function
  * Performs an authenticated fetch call to the backend export endpoint,
@@ -13,7 +14,7 @@ export async function downloadAuthenticatedFile(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(endpointUrl, {
+  const response = await routedApiFetch(endpointUrl, {
     method: 'GET',
     headers,
     credentials: 'include',

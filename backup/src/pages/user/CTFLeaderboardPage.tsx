@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { UserLayout } from '../../components/user/UserLayout';
@@ -36,7 +37,7 @@ export const CTFLeaderboardPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
       if (res.ok) {
         const data = await res.json();
         setLeaderboard(data.entries || []);
@@ -54,13 +55,13 @@ export const CTFLeaderboardPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch CTF details
-      const ctfRes = await fetch(`/api/v1/ctf/${ctfId}`, { headers });
+      const ctfRes = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { headers });
       if (!ctfRes.ok) throw new Error('CTF details not found.');
       const ctfData = await ctfRes.json();
       setCtf(ctfData);
 
       // 2. Fetch Leaderboard entries
-      const lbRes = await fetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
+      const lbRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/leaderboard`, { headers });
       if (!lbRes.ok) throw new Error('Failed to load scoreboard.');
       const lbData = await lbRes.json();
       setLeaderboard(lbData.entries || []);

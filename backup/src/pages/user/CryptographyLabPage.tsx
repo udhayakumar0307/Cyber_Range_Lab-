@@ -1,3 +1,4 @@
+import { apiUrl } from '../../lib/api';
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -5,7 +6,7 @@ export const CryptographyLabPage: React.FC = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('token') || localStorage.getItem('access_token');
   const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
-  const iframeUrl = `/api/v1/crypto/view${tokenQuery}`;
+  const iframeUrl = apiUrl(`/api/v1/crypto/view${tokenQuery}`);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {

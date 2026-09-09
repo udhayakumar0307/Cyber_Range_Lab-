@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
@@ -160,7 +161,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
     const timer = setTimeout(async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`/api/v1/admin/global-search?q=${encodeURIComponent(val)}`, {
+        const res = await routedApiFetch(`/api/v1/admin/global-search?q=${encodeURIComponent(val)}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.ok) {

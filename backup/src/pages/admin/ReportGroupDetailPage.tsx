@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
@@ -67,8 +68,8 @@ export const ReportGroupDetailPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       try {
         const [gRes, sRes] = await Promise.all([
-          fetch(`/api/v1/admin/groups/${dbId}`, { headers }),
-          fetch(`/api/v1/admin/groups/${dbId}/lab-status${assignmentQuery}`, { headers }),
+          routedApiFetch(`/api/v1/admin/groups/${dbId}`, { headers }),
+          routedApiFetch(`/api/v1/admin/groups/${dbId}/lab-status${assignmentQuery}`, { headers }),
         ]);
         if (gRes.ok) {
           const g = await gRes.json();
@@ -90,7 +91,7 @@ export const ReportGroupDetailPage: React.FC = () => {
       ? `&assignment_id=${encodeURIComponent(assignmentId)}`
       : '';
     const url = `/api/v1/admin/groups/${dbId}/lab-report/export?format=${format}${assignmentSuffix}`;
-    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    routedApiFetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.blob())
       .then((blob) => {
         const objUrl = window.URL.createObjectURL(blob);

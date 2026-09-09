@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Search, Download, Filter, ChevronLeft, ChevronRight, CheckCircle2, FileText } from 'lucide-react';
 
@@ -27,7 +28,7 @@ export const PaymentHistoryPage: React.FC = () => {
     const fetchPayments = async () => {
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch('/api/v1/payments/history', {
+        const res = await routedApiFetch('/api/v1/payments/history', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.ok) {
@@ -62,7 +63,7 @@ export const PaymentHistoryPage: React.FC = () => {
   const handleDownloadInvoice = async (invId: number | string, invNum: string) => {
     const token = localStorage.getItem('token');
     const doDownload = async (url: string): Promise<boolean> => {
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) {

@@ -1,3 +1,4 @@
+import { apiWebSocketUrl } from '../../lib/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
@@ -349,8 +350,9 @@ export const TechCorpLabSession: React.FC = () => {
     }
     
     // Connect WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/labs/techcorp/terminal?token=${token}`;
+    const wsUrl = apiWebSocketUrl(
+      `/api/v1/labs/techcorp/terminal?token=${token}`
+    );
     const ws = new WebSocket(wsUrl);
     wsInstance.current = ws;
 

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -35,7 +36,7 @@ export const CTFFormPage: React.FC = () => {
         try {
           const token = localStorage.getItem('token');
           const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-          const res = await fetch(`/api/v1/ctf/${id}`, { headers });
+          const res = await routedApiFetch(`/api/v1/ctf/${id}`, { headers });
           if (!res.ok) throw new Error('Failed to fetch CTF details.');
           const data = await res.json();
           setTitle(data.title);
@@ -84,7 +85,7 @@ export const CTFFormPage: React.FC = () => {
       const url = isEdit ? `/api/v1/ctf/${id}` : '/api/v1/ctf';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         method,
         headers,
         body: JSON.stringify(payload),

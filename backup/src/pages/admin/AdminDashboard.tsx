@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -70,7 +71,7 @@ export const AdminDashboard: React.FC = () => {
       const token = localStorage.getItem('token');
       try {
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch('/api/v1/admin/dashboard/summary', { headers });
+        const res = await routedApiFetch('/api/v1/admin/dashboard/summary', { headers });
 
         if (res.ok) {
           const data = await res.json();

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
@@ -66,7 +67,7 @@ export const SystemAuditPortal: React.FC = () => {
     if (dateTo) url += `date_to=${dateTo}&`;
 
     try {
-      const res = await fetch(url, {
+      const res = await routedApiFetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.status === 403) {

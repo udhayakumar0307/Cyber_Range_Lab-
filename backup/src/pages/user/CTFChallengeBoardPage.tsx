@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { UserLayout } from '../../components/user/UserLayout';
@@ -34,7 +35,7 @@ export const CTFChallengeBoardPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (res.ok) {
         const data = await res.json();
         setChallenges(data);
@@ -52,19 +53,19 @@ export const CTFChallengeBoardPage: React.FC = () => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch CTF
-      const ctfRes = await fetch(`/api/v1/ctf/${ctfId}`, { headers });
+      const ctfRes = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { headers });
       if (!ctfRes.ok) throw new Error('CTF Details not found.');
       const ctfData = await ctfRes.json();
       setCtf(ctfData);
 
       // 2. Fetch Challenges
-      const chRes = await fetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
+      const chRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/challenges`, { headers });
       if (!chRes.ok) throw new Error('Failed to load challenges.');
       const chData = await chRes.json();
       setChallenges(chData);
 
       // 3. Fetch Student Solves (to mark solved checkmarks)
-      const subRes = await fetch(`/api/v1/ctf/${ctfId}/submissions?limit=100`, { headers });
+      const subRes = await routedApiFetch(`/api/v1/ctf/${ctfId}/submissions?limit=100`, { headers });
       if (subRes.ok) {
         const subData = await subRes.json();
         const correctIds = new Set<number>();

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, Mail, ArrowRight, Eye, EyeOff, Building2 } from 'lucide-react';
@@ -44,7 +45,7 @@ export const LoginPage: React.FC = () => {
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/v1/auth/oauth/${provider}?role=student`);
+      const res = await routedApiFetch(`/api/v1/auth/oauth/${provider}?role=student`);
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;

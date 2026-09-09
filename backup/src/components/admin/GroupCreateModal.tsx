@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useMemo } from 'react';
 import type { UserGroup, PlatformUser } from '../../types/admin';
 import { X, UsersRound, ArrowRight, ArrowLeft, CheckCircle2, Search, MousePointerClick, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -156,7 +157,7 @@ export const GroupCreateModal: React.FC<GroupCreateModalProps> = ({
     setRemoving(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/groups/${groupDbId}/members/bulk-remove`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${groupDbId}/members/bulk-remove`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

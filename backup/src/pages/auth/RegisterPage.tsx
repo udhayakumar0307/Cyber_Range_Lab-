@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, User, Mail, Lock, Building, ArrowLeft } from 'lucide-react';
@@ -49,7 +50,7 @@ export const RegisterPage: React.FC = () => {
   useEffect(() => {
     if (primaryAffiliationType === 'college' && collegeSearch.trim().length >= 2 && collegeSearch !== selectedCollegeName) {
       const delayDebounce = setTimeout(() => {
-        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
+        routedApiFetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
           .then((res) => res.json())
           .then((data) => {
             setCollegeResults(data);
@@ -92,7 +93,7 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const response = await fetch('/api/v1/auth/register', {
+      const response = await routedApiFetch('/api/v1/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,7 +153,7 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const response = await fetch('/api/v1/auth/verify-otp', {
+      const response = await routedApiFetch('/api/v1/auth/verify-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

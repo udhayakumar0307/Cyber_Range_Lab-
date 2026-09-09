@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context';
 import { VectorBadge } from '../../components/user/VectorBadge';
@@ -45,9 +46,9 @@ export const ProgressTracking: React.FC = () => {
       const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       const [dashRes, achRes, labsRes] = await Promise.all([
-        fetch('/api/v1/reporting/dashboard', { headers }),
-        fetch('/api/v1/reporting/achievements', { headers }),
-        fetch('/api/v1/labs', { headers })
+        routedApiFetch('/api/v1/reporting/dashboard', { headers }),
+        routedApiFetch('/api/v1/reporting/achievements', { headers }),
+        routedApiFetch('/api/v1/labs', { headers })
       ]);
 
       if (dashRes.ok) {

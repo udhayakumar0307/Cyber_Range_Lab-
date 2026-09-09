@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import type { UserGroup, PlatformUser } from '../../types/admin';
 import { X, Trash2, Search, AlertCircle, ChevronLeft, ChevronRight, User, Plus } from 'lucide-react';
@@ -39,7 +40,7 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
     try {
-      const studentsRes = await fetch('/api/v1/admin/users', { headers });
+      const studentsRes = await routedApiFetch('/api/v1/admin/users', { headers });
       if (studentsRes.ok) {
         const usersData = await studentsRes.json();
         const allUsers: PlatformUser[] = Array.isArray(usersData) ? usersData : (usersData.users || []);
@@ -110,7 +111,7 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     const targetGroupId = getDbGroupId();
 
     try {
-      const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -139,7 +140,7 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
     const targetGroupId = getDbGroupId();
 
     try {
-      const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
+      const res = await routedApiFetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -164,7 +165,7 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
       await Promise.all(
         checkedAvailableIds.map(async (sid) => {
           const targetUserId = getDbUserId(sid);
-          const res = await fetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
+          const res = await routedApiFetch(`/api/v1/admin/groups/${targetGroupId}/members`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -198,7 +199,7 @@ export const GroupMembersModal: React.FC<GroupMembersModalProps> = ({
       await Promise.all(
         checkedMemberIds.map(async (sid) => {
           const targetUserId = getDbUserId(sid);
-          await fetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
+          await routedApiFetch(`/api/v1/admin/groups/${targetGroupId}/members/${targetUserId}`, {
             method: 'DELETE',
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });

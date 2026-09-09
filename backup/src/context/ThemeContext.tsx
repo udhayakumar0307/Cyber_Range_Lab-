@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../lib/api';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type ThemeMode = 'light' | 'dark';
@@ -60,7 +61,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!token || isAuthRoute()) return;
 
       try {
-        const res = await fetch('/api/v1/user/profile', {
+        const res = await routedApiFetch('/api/v1/user/profile', {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -89,7 +90,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!token) return;
 
     try {
-      await fetch('/api/v1/user/appearance', {
+      await routedApiFetch('/api/v1/user/appearance', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

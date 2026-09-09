@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../lib/api';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context';
 
@@ -28,7 +29,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const hiddenBtnRef = useRef<HTMLDivElement>(null);
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '109283749283-exampleclientid.apps.googleusercontent.com';
-  const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
   const handleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) {
@@ -38,7 +38,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 
     setIsAuthenticating(true);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/auth/google`, {
+      const res = await routedApiFetch('/api/v1/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

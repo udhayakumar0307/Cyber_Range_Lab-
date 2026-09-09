@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context';
 import { 
@@ -39,7 +40,7 @@ export const AdminSettings: React.FC = () => {
   // Fetch Login History
   const fetchLoginHistory = async () => {
     try {
-      const res = await fetch('/api/v1/reporting/login-history', { headers });
+      const res = await routedApiFetch('/api/v1/reporting/login-history', { headers });
       if (res.ok) {
         setLoginHistory(await res.json());
       }
@@ -79,7 +80,7 @@ export const AdminSettings: React.FC = () => {
     }
 
     try {
-      const res = await fetch('/api/v1/reporting/change-password', {
+      const res = await routedApiFetch('/api/v1/reporting/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({

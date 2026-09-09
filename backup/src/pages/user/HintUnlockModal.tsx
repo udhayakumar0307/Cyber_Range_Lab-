@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState } from 'react';
 import { HelpCircle, AlertTriangle, X } from 'lucide-react';
 import type { CtfHint } from '../../types/ctf';
@@ -34,7 +35,7 @@ export const HintUnlockModal: React.FC<HintUnlockModalProps> = ({
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/ctf/${ctfId}/challenge/${challengeId}/hint/${hint.id}/unlock`,
         {
           method: 'POST',

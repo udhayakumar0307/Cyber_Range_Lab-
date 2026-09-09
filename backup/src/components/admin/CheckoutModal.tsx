@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState } from 'react';
 import { X, Shield, CreditCard, Building, CheckCircle2, ArrowRight, Download, RefreshCw } from 'lucide-react';
 
@@ -34,7 +35,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/payments/create-order', {
+      const res = await routedApiFetch('/api/v1/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +142,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const finalizePaymentVerification = async (rzpOrderId: string, txnId: string, sig: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/payments/verify', {
+      const res = await routedApiFetch('/api/v1/payments/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,7 +346,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   const token = localStorage.getItem('token');
                   try {
                     const invId = orderResult?.id || orderResult?.invoice_id || 1;
-                    const res = await fetch(`/api/v1/payments/invoice/${invId}/pdf`, {
+                    const res = await routedApiFetch(`/api/v1/payments/invoice/${invId}/pdf`, {
                       headers: token ? { Authorization: `Bearer ${token}` } : {}
                     });
                     if (!res.ok) throw new Error('Download failed');

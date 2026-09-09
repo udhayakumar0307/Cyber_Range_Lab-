@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   BookOpenCheck,
@@ -81,7 +82,7 @@ export const RubricManagerPage: React.FC = () => {
   const loadLabs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/rubrics/labs', { headers });
+      const res = await routedApiFetch('/api/v1/rubrics/labs', { headers });
       const body = await res.json().catch(() => []);
       if (!res.ok) throw new Error(body.detail || 'Failed to load labs.');
       setLabs(body);
@@ -101,8 +102,8 @@ export const RubricManagerPage: React.FC = () => {
     setError('');
     try {
       const [rubricRes, moduleRes] = await Promise.all([
-        fetch(`/api/v1/rubrics/labs/${labId}`, { headers }),
-        fetch(`/api/v1/rubrics/labs/${labId}/modules`, { headers }),
+        routedApiFetch(`/api/v1/rubrics/labs/${labId}`, { headers }),
+        routedApiFetch(`/api/v1/rubrics/labs/${labId}/modules`, { headers }),
       ]);
 
       const rubricBody = await rubricRes.json().catch(() => ({}));
@@ -229,7 +230,7 @@ export const RubricManagerPage: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/rubrics/labs/${selectedLabId}/versions`,
         {
           method: 'POST',
@@ -268,7 +269,7 @@ export const RubricManagerPage: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await routedApiFetch(
         `/api/v1/rubrics/labs/${selectedLabId}/generate-default`,
         {
           method: 'POST',

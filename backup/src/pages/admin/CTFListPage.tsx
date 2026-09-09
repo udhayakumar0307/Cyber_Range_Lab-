@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -15,7 +16,7 @@ export const CTFListPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch('/api/v1/ctf', { headers });
+      const res = await routedApiFetch('/api/v1/ctf', { headers });
       if (!res.ok) throw new Error('Failed to fetch CTF list.');
       const data = await res.json();
       setEvents(data);
@@ -35,7 +36,7 @@ export const CTFListPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/start`, { method: 'POST', headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/start`, { method: 'POST', headers });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || 'Failed to start CTF.');
@@ -51,7 +52,7 @@ export const CTFListPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}/stop`, { method: 'POST', headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}/stop`, { method: 'POST', headers });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || 'Failed to stop CTF.');
@@ -67,7 +68,7 @@ export const CTFListPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/v1/ctf/${ctfId}`, { method: 'DELETE', headers });
+      const res = await routedApiFetch(`/api/v1/ctf/${ctfId}`, { method: 'DELETE', headers });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || 'Failed to delete CTF.');

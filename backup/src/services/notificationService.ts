@@ -1,3 +1,5 @@
+import { apiWebSocketUrl } from '../lib/api';
+import { apiFetch as routedApiFetch } from '../lib/api';
 /**
  * notificationService.ts
  * ====================
@@ -48,7 +50,7 @@ export async function fetchNotifications(params?: {
   if (params?.page) query.append('page', params.page.toString());
   if (params?.limit) query.append('limit', params.limit.toString());
 
-  const res = await fetch(`/api/v1/notifications?${query.toString()}`, { headers: getAuthHeaders() });
+  const res = await routedApiFetch(`/api/v1/notifications?${query.toString()}`, { headers: getAuthHeaders() });
   if (!res.ok) {
     return { items: [], total: 0, unread_count: 0 };
   }
@@ -56,14 +58,14 @@ export async function fetchNotifications(params?: {
 }
 
 export async function fetchUnreadCount(): Promise<number> {
-  const res = await fetch('/api/v1/notifications/count', { headers: getAuthHeaders() });
+  const res = await routedApiFetch('/api/v1/notifications/count', { headers: getAuthHeaders() });
   if (!res.ok) return 0;
   const data = await res.json();
   return data.unread_count || 0;
 }
 
 export async function markNotificationAsRead(id: number): Promise<boolean> {
-  const res = await fetch(`/api/v1/notifications/${id}/read`, {
+  const res = await routedApiFetch(`/api/v1/notifications/${id}/read`, {
     method: 'POST',
     headers: getAuthHeaders()
   });
@@ -71,7 +73,7 @@ export async function markNotificationAsRead(id: number): Promise<boolean> {
 }
 
 export async function markAllNotificationsAsRead(): Promise<boolean> {
-  const res = await fetch('/api/v1/notifications/read-all', {
+  const res = await routedApiFetch('/api/v1/notifications/read-all', {
     method: 'POST',
     headers: getAuthHeaders()
   });
@@ -79,7 +81,7 @@ export async function markAllNotificationsAsRead(): Promise<boolean> {
 }
 
 export async function clearAllNotifications(): Promise<boolean> {
-  const res = await fetch('/api/v1/notifications/clear', {
+  const res = await routedApiFetch('/api/v1/notifications/clear', {
     method: 'DELETE',
     headers: getAuthHeaders()
   });
@@ -87,7 +89,7 @@ export async function clearAllNotifications(): Promise<boolean> {
 }
 
 export async function deleteNotification(id: number): Promise<boolean> {
-  const res = await fetch(`/api/v1/notifications/${id}`, {
+  const res = await routedApiFetch(`/api/v1/notifications/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   });
@@ -95,13 +97,13 @@ export async function deleteNotification(id: number): Promise<boolean> {
 }
 
 export async function fetchNotificationPreferences(): Promise<NotificationPreferences | null> {
-  const res = await fetch('/api/v1/notifications/preferences', { headers: getAuthHeaders() });
+  const res = await routedApiFetch('/api/v1/notifications/preferences', { headers: getAuthHeaders() });
   if (!res.ok) return null;
   return res.json();
 }
 
 export async function updateNotificationPreferences(prefs: NotificationPreferences): Promise<boolean> {
-  const res = await fetch('/api/v1/notifications/preferences', {
+  const res = await routedApiFetch('/api/v1/notifications/preferences', {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(prefs)
@@ -114,8 +116,9 @@ export function setupNotificationWebSocket(onNewNotification: (notification: Not
   const token = localStorage.getItem('token');
   if (!token) return () => {};
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/api/v1/notifications/ws?token=${encodeURIComponent(token)}`;
+  const wsUrl = apiWebSocketUrl(
+    `/api/v1/notifications/ws?token=${encodeURIComponent(token)}`
+  );
 
   let ws: WebSocket | null = null;
   let pingInterval: any = null;

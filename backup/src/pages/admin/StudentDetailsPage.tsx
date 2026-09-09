@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -56,11 +57,11 @@ export const StudentDetailsPage: React.FC = () => {
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const [userRes, analyticsRes, statsRes, graphRes, labsRes] = await Promise.all([
-        fetch(`/api/v1/admin/users/${studentId}`, { headers }),
-        fetch(`/api/v1/admin/users/${studentId}/analytics`, { headers }),
-        fetch(`/api/v1/admin/users/${studentId}/statistics`, { headers }),
-        fetch(`/api/v1/admin/users/${studentId}/activity-graph`, { headers }),
-        fetch(`/api/v1/admin/users/${studentId}/completed-labs`, { headers }),
+        routedApiFetch(`/api/v1/admin/users/${studentId}`, { headers }),
+        routedApiFetch(`/api/v1/admin/users/${studentId}/analytics`, { headers }),
+        routedApiFetch(`/api/v1/admin/users/${studentId}/statistics`, { headers }),
+        routedApiFetch(`/api/v1/admin/users/${studentId}/activity-graph`, { headers }),
+        routedApiFetch(`/api/v1/admin/users/${studentId}/completed-labs`, { headers }),
       ]);
 
       if (userRes.ok) {
@@ -121,7 +122,7 @@ export const StudentDetailsPage: React.FC = () => {
       // (Previously this sent `fullName`/`rollNumber`/`status` verbatim,
       // which Pydantic silently ignored as unknown fields — so Full Name,
       // Roll Number, Phone, and Status edits were never actually saved.)
-      const res = await fetch(`/api/v1/admin/users/${studentId}`, {
+      const res = await routedApiFetch(`/api/v1/admin/users/${studentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
@@ -145,7 +146,7 @@ export const StudentDetailsPage: React.FC = () => {
     setActionLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/admin/users/${studentId}`, {
+      const res = await routedApiFetch(`/api/v1/admin/users/${studentId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });

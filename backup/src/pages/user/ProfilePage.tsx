@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   User as UserIcon, 
@@ -68,7 +69,7 @@ export const ProfilePage: React.FC = () => {
   useEffect(() => {
     if (showCollegeModal && collegeSearch.trim().length >= 2) {
       const delayDebounce = setTimeout(() => {
-        fetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}&limit=10`)
+        routedApiFetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}&limit=10`)
           .then((res) => res.json())
           .then((data) => setCollegeResults(data))
           .catch((err) => console.error(err));
@@ -83,7 +84,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch('/api/v1/me/affiliations', {
+      const res = await routedApiFetch('/api/v1/me/affiliations', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -98,7 +99,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch(`/api/v1/me/affiliations/${id}/primary`, {
+      const res = await routedApiFetch(`/api/v1/me/affiliations/${id}/primary`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -119,7 +120,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch(`/api/v1/me/affiliations/${id}`, {
+      const res = await routedApiFetch(`/api/v1/me/affiliations/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -140,7 +141,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch('/api/v1/me/affiliations', {
+      const res = await routedApiFetch('/api/v1/me/affiliations', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -173,7 +174,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch('/api/v1/me/affiliations', {
+      const res = await routedApiFetch('/api/v1/me/affiliations', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -206,7 +207,7 @@ export const ProfilePage: React.FC = () => {
     }
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/phone/send-otp', {
+      const res = await routedApiFetch('/api/v1/phone/send-otp', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -230,7 +231,7 @@ export const ProfilePage: React.FC = () => {
     if (!otpCode.trim()) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/v1/phone/verify-otp', {
+      const res = await routedApiFetch('/api/v1/phone/verify-otp', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -285,12 +286,12 @@ export const ProfilePage: React.FC = () => {
 
     try {
       const [profileRes, statsRes, securityRes, collegeRes, labsRes, graphRes] = await Promise.all([
-        fetch('/api/v1/user/profile', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/v1/user/statistics', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/v1/user/security', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/v1/reporting/colleges'),
-        fetch('/api/v1/user/completed-labs', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/v1/user/activity-graph', { headers: { Authorization: `Bearer ${token}` } })
+        routedApiFetch('/api/v1/user/profile', { headers: { Authorization: `Bearer ${token}` } }),
+        routedApiFetch('/api/v1/user/statistics', { headers: { Authorization: `Bearer ${token}` } }),
+        routedApiFetch('/api/v1/user/security', { headers: { Authorization: `Bearer ${token}` } }),
+        routedApiFetch('/api/v1/reporting/colleges'),
+        routedApiFetch('/api/v1/user/completed-labs', { headers: { Authorization: `Bearer ${token}` } }),
+        routedApiFetch('/api/v1/user/activity-graph', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (profileRes.ok) {
@@ -371,7 +372,7 @@ export const ProfilePage: React.FC = () => {
     fData.append('file', file);
 
     try {
-      const res = await fetch('/api/v1/user/profile/photo', {
+      const res = await routedApiFetch('/api/v1/user/profile/photo', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fData
@@ -400,7 +401,7 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch('/api/v1/user/profile/photo', {
+      const res = await routedApiFetch('/api/v1/user/profile/photo', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -439,7 +440,7 @@ export const ProfilePage: React.FC = () => {
         semester: parseInt(String(formData.semester)) || 1
       };
 
-      const res = await fetch('/api/v1/user/profile', {
+      const res = await routedApiFetch('/api/v1/user/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { apiFetch as routedApiFetch, apiUrl } from '../../lib/api';
 import React, { useState, useEffect } from "react";
 import {
   Trophy, Award, Clock, Flame, Zap, ShieldCheck,
@@ -74,15 +75,15 @@ export const StatisticsPage: React.FC = () => {
     const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const [sRes, gRes, lRes, dashRes, achRes, labsRes, profRes, progRes, certsRes] = await Promise.all([
-        fetch("/api/v1/user/statistics", { headers: h }),
-        fetch("/api/v1/user/activity-graph", { headers: h }),
-        fetch("/api/v1/user/completed-labs", { headers: h }),
-        fetch("/api/v1/reporting/dashboard", { headers: h }),
-        fetch("/api/v1/reporting/achievements", { headers: h }),
-        fetch("/api/v1/labs", { headers: h }),
-        fetch("/api/v1/auth/me", { headers: h }),
-        fetch("/api/v1/reporting/progress", { headers: h }),
-        fetch("/api/v1/reporting/certificates", { headers: h }),
+        routedApiFetch("/api/v1/user/statistics", { headers: h }),
+        routedApiFetch("/api/v1/user/activity-graph", { headers: h }),
+        routedApiFetch("/api/v1/user/completed-labs", { headers: h }),
+        routedApiFetch("/api/v1/reporting/dashboard", { headers: h }),
+        routedApiFetch("/api/v1/reporting/achievements", { headers: h }),
+        routedApiFetch("/api/v1/labs", { headers: h }),
+        routedApiFetch("/api/v1/auth/me", { headers: h }),
+        routedApiFetch("/api/v1/reporting/progress", { headers: h }),
+        routedApiFetch("/api/v1/reporting/certificates", { headers: h }),
       ]);
       
       let fetchedStats: any = {};
@@ -148,7 +149,7 @@ export const StatisticsPage: React.FC = () => {
     if (!userProfile) return;
     const token = localStorage.getItem("token");
     const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch(`/api/v1/reporting/leaderboard?type=global&page=${globalPage}&limit=${limit}`, { headers: h })
+    routedApiFetch(`/api/v1/reporting/leaderboard?type=global&page=${globalPage}&limit=${limit}`, { headers: h })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setGlobalRanks(d.ranks || []); setGlobalTotal(d.total || 0); } });
   }, [globalPage, userProfile]);
@@ -157,7 +158,7 @@ export const StatisticsPage: React.FC = () => {
     if (!userProfile?.college_id) return;
     const token = localStorage.getItem("token");
     const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch(`/api/v1/reporting/leaderboard?type=college&page=${collegePage}&limit=${limit}`, { headers: h })
+    routedApiFetch(`/api/v1/reporting/leaderboard?type=college&page=${collegePage}&limit=${limit}`, { headers: h })
       .then(async r => {
         if (r.ok) { const d = await r.json(); setCollegeRanks(d.ranks || []); setCollegeTotal(d.total || 0); setLbErrorMsg(""); }
         else { const e = await r.json(); setLbErrorMsg(e.detail || "Could not load college standings."); }
@@ -530,7 +531,7 @@ export const StatisticsPage: React.FC = () => {
                     {cert.pdf_url ? (
                       <div className="flex items-center gap-2">
                         <a
-                          href={cert.pdf_url}
+                          href={apiUrl(cert.pdf_url)}
                           download
                           target="_blank"
                           rel="noreferrer"
