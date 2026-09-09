@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { 
@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Award,
   ChevronLeft,
-  BookOpen,
   ArrowUpRight,
   ArrowDownRight,
   History as HistoryIcon
@@ -49,7 +48,7 @@ interface AssignmentStats {
 
 export const AssignedLabsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { apiFetch } = useAuth();
   
   const [labs, setLabs] = useState<AssignedLab[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,14 +76,9 @@ export const AssignedLabsPage: React.FC = () => {
     'Finalizing container deployment checks...'
   ];
 
-  const fetchAssignedLabs = async () => {
+  const fetchAssignedLabs = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch('/api/v1/user/assignments', { headers });
+      const res = await apiFetch('/api/v1/user/assignments');
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to fetch assigned labs.');
       setLabs(data);
@@ -93,17 +87,12 @@ export const AssignedLabsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiFetch]);
 
   const fetchAssignmentStats = async (assignId: number) => {
     setStatsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/v1/user/assignments/${assignId}/statistics`, { headers });
+      const res = await apiFetch(`/api/v1/user/assignments/${assignId}/statistics`);
       const data = await res.json();
       if (res.ok) {
         setSelectedStats(data);
@@ -116,8 +105,8 @@ export const AssignedLabsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAssignedLabs();
-  }, []);
+    void fetchAssignedLabs();
+  }, [fetchAssignedLabs]);
 
   const handleDeployLab = (lab: any) => {
     setSelectedDetailLab(lab);
