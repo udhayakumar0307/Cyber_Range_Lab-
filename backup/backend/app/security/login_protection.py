@@ -18,13 +18,15 @@ class LoginProtectionManager:
 
     def is_locked_out(self, email: str, ip_address: str = "") -> Tuple[bool, int]:
         """
-        Checks if account or IP is locked out.
+        Checks whether the account is locked out.
+        IP addresses are intentionally not used for account lockout because
+        many legitimate students may share one campus/NAT public IP.
         Returns: (is_locked, retry_after_seconds)
         """
         now = time.time()
-        email_key, ip_key = self._get_keys(email, ip_address)
+        email_key, _ = self._get_keys(email, ip_address)
 
-        for key in (email_key, ip_key):
+        for key in (email_key,):
             if key in self.attempts:
                 rec = self.attempts[key]
                 if rec.get("lockout_until", 0) > now:
@@ -38,10 +40,10 @@ class LoginProtectionManager:
 
     def record_failed_attempt(self, email: str, ip_address: str = ""):
         now = time.time()
-        email_key, ip_key = self._get_keys(email, ip_address)
+        email_key, _ = self._get_keys(email, ip_address)
 
-        for key in (email_key, ip_key):
-            if not key or key == "ip:":
+        for key in (email_key,):
+            if not key:
                 continue
             if key not in self.attempts:
                 self.attempts[key] = {"attempts": 1, "lockout_until": 0, "last_attempt": now}
@@ -57,9 +59,8 @@ class LoginProtectionManager:
                     logger.warning(f"Lockout triggered for {key} for {duration} seconds")
 
     def record_successful_login(self, email: str, ip_address: str = ""):
-        email_key, ip_key = self._get_keys(email, ip_address)
+        email_key, _ = self._get_keys(email, ip_address)
         self.attempts.pop(email_key, None)
-        self.attempts.pop(ip_key, None)
 
     def check_and_enforce_protection(self, email: str, ip_address: str = ""):
         locked, retry_after = self.is_locked_out(email, ip_address)
