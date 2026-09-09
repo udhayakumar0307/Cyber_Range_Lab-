@@ -28,6 +28,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const hiddenBtnRef = useRef<HTMLDivElement>(null);
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '109283749283-exampleclientid.apps.googleusercontent.com';
+  const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
   const handleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) {
@@ -37,7 +38,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 
     setIsAuthenticating(true);
     try {
-      const res = await fetch('/api/v1/auth/google', {
+      const res = await fetch(`${API_BASE}/api/v1/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -46,11 +47,24 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         })
       });
 
-      const data = await res.json();
+      const raw = await res.text();
+      let data: any = {};
+
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error(`Google authentication returned an invalid response (${res.status}).`);
+        }
+      }
+
       setIsAuthenticating(false);
 
       if (!res.ok || !data.success) {
-        const msg = data.detail || data.message || 'Google authentication failed.';
+        const msg =
+          data.detail ||
+          data.message ||
+          `Google authentication failed${res.status ? ` (${res.status})` : ''}.`;
         onError(typeof msg === 'string' ? msg : 'Google authentication failed.');
         return;
       }
