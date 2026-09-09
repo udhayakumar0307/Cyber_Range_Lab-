@@ -17,12 +17,17 @@ import Settings from "./pages/Settings";
 
 import "./styles.css";
 
+// Served at the domain root by default; under a reverse-proxy sub-path
+// (VITE_BASE_PATH=/compliance-lab/) Vite sets BASE_URL and the router needs it
+// as its basename so client-side routes resolve.
+const routerBasename = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "") || "/";
+
 export default function App() {
   return (
     <ThemeProvider>
       <PrivacySocProvider>
         <ToastProvider>
-          <Router>
+          <Router basename={routerBasename}>
             <Routes>
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Overview />} />
