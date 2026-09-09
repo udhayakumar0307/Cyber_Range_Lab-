@@ -19,12 +19,17 @@ router = APIRouter()
 _RATE_LIMIT = {}
 
 
-def _limit(user_id: int):
+def _limit(user_id: int, operation: str):
+    """Throttle repeated mutations without coupling unrelated notification actions."""
     now = datetime.utcnow()
-    last = _RATE_LIMIT.get(user_id)
+    key = (user_id, operation)
+    last = _RATE_LIMIT.get(key)
     if last and now - last < timedelta(milliseconds=500):
-        raise HTTPException(status_code=429, detail="Notification requests are rate limited. Please retry shortly.")
-    _RATE_LIMIT[user_id] = now
+        raise HTTPException(
+            status_code=429,
+            detail="Notification requests are rate limited. Please retry shortly."
+        )
+    _RATE_LIMIT[key] = now
 
 
 # ─── Pydantic Schemas ────────────────────────────────────────────────────────
@@ -52,7 +57,6 @@ def list_notifications(
     """
     Returns user notification list with pagination, search, category, and priority filtering.
     """
-    _limit(current_user.id)
     query = db.query(Notification).filter(
         Notification.user_id == current_user.id,
         Notification.soft_deleted.is_(False)
@@ -110,7 +114,6 @@ def get_unread_notifications(
     db: Session = Depends(get_db)
 ):
     """Returns unread notifications summary and badge count."""
-    _limit(current_user.id)
     unread_items = db.query(Notification).filter(
         Notification.user_id == current_user.id,
         Notification.read.is_(False),
@@ -156,7 +159,7 @@ def mark_read(
     db: Session = Depends(get_db)
 ):
     """Marks a single notification as read."""
-    _limit(current_user.id)
+    _limit(current_user.id, 'mark-read')
     item = db.query(Notification).filter(
         Notification.id == notification_id,
         Notification.user_id == current_user.id
@@ -176,7 +179,7 @@ def mark_all_read(
     db: Session = Depends(get_db)
 ):
     """Marks all notifications for the user as read."""
-    _limit(current_user.id)
+    _limit(current_user.id, 'mark-all-read')
     now = datetime.utcnow()
     db.query(Notification).filter(
         Notification.user_id == current_user.id,
@@ -192,7 +195,7 @@ def clear_all_notifications(
     db: Session = Depends(get_db)
 ):
     """Soft-deletes all notifications for the authenticated user."""
-    _limit(current_user.id)
+    _limit(current_user.id, 'clear-all')
     db.query(Notification).filter(
         Notification.user_id == current_user.id
     ).update({"soft_deleted": True}, synchronize_session=False)
@@ -207,7 +210,7 @@ def delete_single_notification(
     db: Session = Depends(get_db)
 ):
     """Soft-deletes a single notification."""
-    _limit(current_user.id)
+    _limit(current_user.id, 'delete')
     item = db.query(Notification).filter(
         Notification.id == notification_id,
         Notification.user_id == current_user.id
@@ -247,7 +250,7 @@ def update_preferences(
     db: Session = Depends(get_db)
 ):
     """Updates user notification preferences (In-App, Email, SMS)."""
-    _limit(current_user.id)
+    _limit(current_user.id, 'update-preferences')
     if payload.sms_enabled and not payload.phone_number:
         raise HTTPException(status_code=422, detail="Phone number is required when SMS alerts are enabled.")
 
