@@ -9,6 +9,7 @@ import {
   ZoomOut,
   ShieldAlert,
 } from 'lucide-react';
+import { assetFetch } from '../../lib/api';
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -75,7 +76,7 @@ export const PdfViewerPage: React.FC = () => {
         }
 
         // Fetch PDF file contents as blob and load into pdf.js
-        const pdfRes = await apiFetch(found.pdfUrl);
+        const pdfRes = await assetFetch(found.pdfUrl);
 
         if (!pdfRes.ok) {
           throw new Error('Failed to retrieve PDF document file.');

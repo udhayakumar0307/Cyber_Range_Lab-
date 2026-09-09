@@ -23,6 +23,23 @@ export function apiFetch(
   });
 }
 
+/**
+ * Fetch an asset owned by the frontend origin rather than the API origin.
+ * Vite serves public/ at / during development and Cloudflare ASSETS serves
+ * the built equivalents in production.
+ */
+export function assetFetch(
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  if (/^https?:\/\//i.test(path)) {
+    return fetch(path, options);
+  }
+
+  const url = new URL(path, window.location.origin);
+  return fetch(url.toString(), options);
+}
+
 export function apiWebSocketUrl(path: string): string {
   if (/^wss?:\/\//i.test(path)) {
     return path;
