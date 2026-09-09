@@ -2,7 +2,7 @@ import logging
 import secrets
 import hashlib
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Response, Request, status, HTTPException
+from fastapi import APIRouter, Depends, Response, Request, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user
 from app.schemas.auth import (
@@ -343,12 +343,6 @@ def google_auth(
     client_ip = get_client_ip(request)
     user_agent = get_user_agent(request)
     portal_clean = (body.portal or "student").lower()
-
-    if portal_clean == "student":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Student Google sign-in is disabled. Please use the credentials sent to your registered email address."
-        )
 
     logger.info(f"=> ENTERING GOOGLE OAUTH ENDPOINT for portal '{portal_clean}' from IP {client_ip}")
 

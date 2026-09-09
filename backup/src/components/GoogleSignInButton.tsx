@@ -136,14 +136,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   }, [clientId, portal]);
 
 
-  if (portal === 'student') {
-    return (
-      <div className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-center text-xs text-slate-500 dark:text-slate-400">
-        Student Google sign-in is disabled. Please use the login credentials sent to your registered email address.
-      </div>
-    );
-  }
-
   const handleCustomClick = () => {
     if (!clientId || clientId.includes('exampleclientid') || clientId.startsWith('your-')) {
       onError('Google Sign-In is not configured.');
