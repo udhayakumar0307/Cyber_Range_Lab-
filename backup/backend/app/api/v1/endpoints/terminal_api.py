@@ -66,261 +66,287 @@ async def _bridge_ssh_to_websocket(
     lab_id: str = None,
 ):
     """
-    Bridge a WebSocket connection to a real SSH PTY session.
+    Bridge a WebSocket connection to an SSH PTY session using AsyncSSH.
 
-    The local ssh client runs inside a pseudo-terminal so browser resize
-    events can be applied with TIOCSWINSZ. OpenSSH then propagates the
-    resulting window change to the remote PTY.
+    This path intentionally avoids a local pty.fork()/OpenSSH process and
+    blocking os.read() calls in asyncio's default executor. Each browser
+    terminal is therefore multiplexed by the event loop instead of consuming
+    a worker thread while idle.
+
+    The WebSocket protocol remains unchanged:
+      * raw text -> terminal input
+      * {"type": "input", "data": "..."} -> terminal input
+      * {"type": "resize", "rows": N, "cols": N} -> PTY resize
+      * SSH output -> binary WebSocket frames
     """
-    import asyncio
-    import fcntl
-    import pty
-    import signal
-    import struct
-    import termios
+    import asyncssh
 
-    logger.info(f"[SSH WS Bridge] Connecting to SSH {username}@{host}:{port}")
+    logger.info(
+        "[SSH WS Bridge] Connecting with AsyncSSH to %s@%s:%s",
+        username,
+        host,
+        port,
+    )
 
-    # Wait for sshd to be ready (entrypoint.sh may still be initializing).
-    for attempt in range(15):
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=3.0
-            )
-            writer.close()
-            await writer.wait_closed()
-            logger.info(
-                f"[SSH WS Bridge] Port {port} is ready "
-                f"(attempt {attempt + 1})"
-            )
-            break
-        except Exception:
-            if attempt == 14:
-                logger.error(
-                    f"[SSH WS Bridge] Port {port} never became ready "
-                    "after 15 attempts"
-                )
-                await websocket.close()
-                return
-
-            logger.info(
-                f"[SSH WS Bridge] Port {port} not ready, "
-                f"retry {attempt + 1}/15 in 2s..."
-            )
-            await asyncio.sleep(2)
-
-    pid = None
-    master_fd = None
+    conn = None
 
     try:
-        cmd = [
-            "sshpass", "-p", password,
-            "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "SetEnv=TERM=xterm-256color",
-            "-tt",
-            "-p", str(port),
-            f"{username}@{host}",
-        ]
+        # Workspace entrypoints may still be starting sshd when the browser
+        # opens its terminal. Retry the actual SSH handshake rather than
+        # probing the TCP port separately and then launching another client.
+        last_error = None
 
-        # ssh must itself have a real local PTY. Merely connecting its
-        # stdin/stdout to asyncio pipes cannot propagate terminal window
-        # changes to the remote SSH PTY.
-        pid, master_fd = pty.fork()
-
-        if pid == 0:
-            env = {
-                **os.environ,
-                "TERM": "xterm-256color",
-            }
-            os.execvpe(cmd[0], cmd, env)
-
-        # Give the local ssh PTY a sane initial geometry. The frontend sends
-        # the actual fitted dimensions immediately after its WebSocket opens.
-        winsize = struct.pack("HHHH", 24, 80, 0, 0)
-        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
-
-        loop = asyncio.get_running_loop()
-        output_buffer = ""
-
-        # Preserve the existing remote shell environment setup.
-        os.write(
-            master_fd,
-            b"export TERM=xterm-256color; export FORCE_COLOR=1\n",
-        )
-
-        async def ssh_to_ws():
-            nonlocal output_buffer
-
+        for attempt in range(15):
             try:
-                while True:
-                    data = await loop.run_in_executor(
-                        None,
-                        os.read,
-                        master_fd,
-                        4096,
-                    )
+                conn = await asyncio.wait_for(
+                    asyncssh.connect(
+                        host,
+                        port=port,
+                        username=username,
+                        password=password,
+                        known_hosts=None,
+                        encoding=None,
+                        keepalive_interval=30,
+                        keepalive_count_max=3,
+                    ),
+                    timeout=5.0,
+                )
 
-                    if not data:
-                        break
+                logger.info(
+                    "[SSH WS Bridge] AsyncSSH connection established "
+                    "(attempt %s)",
+                    attempt + 1,
+                )
+                break
 
-                    await websocket.send_bytes(data)
+            except asyncio.CancelledError:
+                raise
 
-                    # Preserve the existing level-completion detector used by
-                    # the other SSH-backed terminal flows.
-                    text = data.decode("utf-8", errors="ignore")
-                    output_buffer += text
+            except Exception as exc:
+                last_error = exc
 
-                    if len(output_buffer) > 10000:
-                        output_buffer = output_buffer[-5000:]
+                if attempt == 14:
+                    raise RuntimeError(
+                        "SSH did not become ready after 15 attempts"
+                    ) from last_error
 
-                    match = re.search(
-                        r"✓\s*Level\s+(\d+)\s+solved!",
-                        output_buffer,
-                    )
+                logger.info(
+                    "[SSH WS Bridge] SSH not ready, retry %s/15 in 2s: %s",
+                    attempt + 1,
+                    exc,
+                )
+                await asyncio.sleep(2)
 
-                    if match:
-                        solved_level = int(match.group(1))
-                        logger.info(
-                            "[SSH WS Bridge] Detected level %s solved!",
-                            solved_level,
+        if conn is None:
+            raise RuntimeError("Failed to establish SSH connection")
+
+        async with conn:
+            process = await conn.create_process(
+                term_type="xterm-256color",
+                term_size=(80, 24),
+                encoding=None,
+            )
+
+            # Preserve the shell setup performed by the previous OpenSSH PTY
+            # implementation.
+            process.stdin.write(
+                b"export TERM=xterm-256color; export FORCE_COLOR=1\n"
+            )
+
+            output_buffer = ""
+
+            async def ssh_to_ws():
+                nonlocal output_buffer
+
+                try:
+                    while True:
+                        data = await process.stdout.read(4096)
+
+                        if not data:
+                            break
+
+                        await websocket.send_bytes(data)
+
+                        # Preserve existing puzzle/recon level-completion
+                        # detection used by callers of this shared bridge.
+                        text = data.decode("utf-8", errors="ignore")
+                        output_buffer += text
+
+                        if len(output_buffer) > 10000:
+                            output_buffer = output_buffer[-5000:]
+
+                        match = re.search(
+                            r"✓\s*Level\s+(\d+)\s+solved!",
+                            output_buffer,
                         )
 
-                        await websocket.send_text(
-                            json.dumps({
-                                "type": "level_complete",
-                                "level": solved_level,
-                            })
-                        )
+                        if match:
+                            solved_level = int(match.group(1))
 
-                        if user_id and lab_id:
-                            try:
-                                from app.lab.session_store import (
-                                    get_session,
-                                    save_session,
-                                )
+                            logger.info(
+                                "[SSH WS Bridge] Detected level %s solved!",
+                                solved_level,
+                            )
 
-                                redis_sess = get_session(user_id, lab_id)
+                            await websocket.send_text(
+                                json.dumps({
+                                    "type": "level_complete",
+                                    "level": solved_level,
+                                })
+                            )
 
-                                if redis_sess:
-                                    redis_sess["last_solved_level"] = solved_level
-                                    save_session(
+                            if user_id and lab_id:
+                                try:
+                                    from app.lab.session_store import (
+                                        get_session,
+                                        save_session,
+                                    )
+
+                                    redis_sess = get_session(
                                         user_id,
                                         lab_id,
-                                        redis_sess,
                                     )
-                                    logger.info(
-                                        "[SSH WS Bridge] Saved "
-                                        "last_solved_level=%s to Redis "
-                                        "for user=%s",
-                                        solved_level,
-                                        user_id,
+
+                                    if redis_sess:
+                                        redis_sess[
+                                            "last_solved_level"
+                                        ] = solved_level
+
+                                        save_session(
+                                            user_id,
+                                            lab_id,
+                                            redis_sess,
+                                        )
+
+                                        logger.info(
+                                            "[SSH WS Bridge] Saved "
+                                            "last_solved_level=%s to Redis "
+                                            "for user=%s",
+                                            solved_level,
+                                            user_id,
+                                        )
+
+                                except Exception as exc:
+                                    logger.warning(
+                                        "[SSH WS Bridge] Failed to save "
+                                        "last_solved_level: %s",
+                                        exc,
                                     )
-                            except Exception as ex:
-                                logger.warning(
-                                    "[SSH WS Bridge] Failed to save "
-                                    "last_solved_level: %s",
-                                    ex,
-                                )
 
-                        output_buffer = ""
+                            output_buffer = ""
 
-            except Exception as exc:
-                logger.debug(
-                    "[SSH WS Bridge] PTY read ended: %s",
-                    exc,
-                )
+                except asyncio.CancelledError:
+                    raise
 
-        async def ws_to_ssh():
-            try:
-                while True:
-                    raw = await websocket.receive_text()
-
-                    # Resize messages are control-plane messages. Apply the
-                    # geometry to the LOCAL ssh PTY; OpenSSH translates the
-                    # resulting SIGWINCH/window-size change into an SSH
-                    # window-change request for the remote PTY.
-                    try:
-                        payload = json.loads(raw)
-                    except (json.JSONDecodeError, TypeError):
-                        payload = None
-
-                    if isinstance(payload, dict):
-                        if payload.get("type") == "resize":
-                            try:
-                                rows = int(payload.get("rows", 24))
-                                cols = int(payload.get("cols", 80))
-                            except (TypeError, ValueError):
-                                rows, cols = 24, 80
-
-                            # Avoid invalid or pathological ioctl dimensions.
-                            rows = max(2, min(rows, 1000))
-                            cols = max(2, min(cols, 1000))
-
-                            winsize = struct.pack(
-                                "HHHH",
-                                rows,
-                                cols,
-                                0,
-                                0,
-                            )
-                            fcntl.ioctl(
-                                master_fd,
-                                termios.TIOCSWINSZ,
-                                winsize,
-                            )
-
-                            logger.debug(
-                                "[SSH WS Bridge] PTY resized to "
-                                "%sx%s",
-                                rows,
-                                cols,
-                            )
-                            continue
-
-                        # Support clients that wrap terminal input in a JSON
-                        # input event while preserving raw-string clients.
-                        if payload.get("type") == "input":
-                            data = str(payload.get("data", ""))
-                            if data:
-                                os.write(
-                                    master_fd,
-                                    data.encode("utf-8"),
-                                )
-                            continue
-
-                    os.write(
-                        master_fd,
-                        raw.encode("utf-8"),
+                except Exception as exc:
+                    logger.debug(
+                        "[SSH WS Bridge] AsyncSSH read ended: %s",
+                        exc,
                     )
 
-            except WebSocketDisconnect:
+            async def ws_to_ssh():
+                try:
+                    while True:
+                        raw = await websocket.receive_text()
+
+                        try:
+                            payload = json.loads(raw)
+                        except (json.JSONDecodeError, TypeError):
+                            payload = None
+
+                        if isinstance(payload, dict):
+                            if payload.get("type") == "resize":
+                                try:
+                                    rows = int(
+                                        payload.get("rows", 24)
+                                    )
+                                    cols = int(
+                                        payload.get("cols", 80)
+                                    )
+                                except (TypeError, ValueError):
+                                    rows, cols = 24, 80
+
+                                # Keep the same bounds used by the previous
+                                # ioctl-based implementation.
+                                rows = max(2, min(rows, 1000))
+                                cols = max(2, min(cols, 1000))
+
+                                process.change_terminal_size(
+                                    cols,
+                                    rows,
+                                )
+
+                                logger.debug(
+                                    "[SSH WS Bridge] AsyncSSH PTY resized "
+                                    "to %sx%s",
+                                    rows,
+                                    cols,
+                                )
+                                continue
+
+                            if payload.get("type") == "input":
+                                data = str(
+                                    payload.get("data", "")
+                                )
+
+                                if data:
+                                    process.stdin.write(
+                                        data.encode("utf-8")
+                                    )
+                                continue
+
+                        process.stdin.write(
+                            raw.encode("utf-8")
+                        )
+
+                except WebSocketDisconnect:
+                    pass
+
+                except asyncio.CancelledError:
+                    raise
+
+                except Exception as exc:
+                    logger.debug(
+                        "[SSH WS Bridge] AsyncSSH write ended: %s",
+                        exc,
+                    )
+
+            read_task = asyncio.create_task(ssh_to_ws())
+            write_task = asyncio.create_task(ws_to_ssh())
+
+            done, pending = await asyncio.wait(
+                {read_task, write_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            for task in pending:
+                task.cancel()
+
+            await asyncio.gather(
+                *pending,
+                return_exceptions=True,
+            )
+
+            # Consume exceptions from completed tasks so an unexpected channel
+            # failure cannot become an un-retrieved task exception.
+            await asyncio.gather(
+                *done,
+                return_exceptions=True,
+            )
+
+            try:
+                process.stdin.write_eof()
+            except Exception:
                 pass
-            except Exception as exc:
-                logger.debug(
-                    "[SSH WS Bridge] PTY write ended: %s",
-                    exc,
-                )
 
-        read_task = asyncio.create_task(ssh_to_ws())
-        write_task = asyncio.create_task(ws_to_ssh())
-
-        done, pending = await asyncio.wait(
-            {read_task, write_task},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        for task in pending:
-            task.cancel()
-
-        await asyncio.gather(
-            *pending,
-            return_exceptions=True,
-        )
+    except asyncio.CancelledError:
+        raise
 
     except Exception as exc:
-        logger.error(f"[SSH WS Bridge] Failed to bridge SSH: {exc}")
+        logger.error(
+            "[SSH WS Bridge] Failed to bridge SSH with AsyncSSH: %s",
+            exc,
+        )
 
         try:
             await websocket.send_text(
@@ -331,23 +357,11 @@ async def _bridge_ssh_to_websocket(
             pass
 
     finally:
-        if master_fd is not None:
+        if conn is not None:
             try:
-                os.close(master_fd)
-            except OSError:
-                pass
-
-        if pid:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            except OSError:
-                pass
-
-            try:
-                await asyncio.to_thread(os.waitpid, pid, 0)
-            except (ChildProcessError, OSError):
+                conn.close()
+                await conn.wait_closed()
+            except Exception:
                 pass
 
 
