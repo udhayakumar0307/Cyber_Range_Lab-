@@ -27,10 +27,30 @@ import {
   type SysadminWorkspaceSession,
 } from '../../services/sysadminGradingService';
 
-const SUBMISSION_POLL_INTERVAL_MS = 2000;
-// Cold-starting the trusted grader ASG can take several minutes. Polling the
-// read-only status endpoint is cheap and does not keep the submission POST open.
-const SUBMISSION_POLL_ATTEMPTS = 450;
+const SUBMISSION_POLL_TIMEOUT_MS = 15 * 60 * 1000;
+
+// Warm graders usually finish quickly, while a scale-from-zero grader can take
+// several minutes. Poll aggressively at first, then back off. Positive jitter
+// prevents a classroom of simultaneous submissions from polling in lockstep.
+function submissionPollDelayMs(elapsedMs: number): number {
+  let baseMs: number;
+
+  if (elapsedMs < 10_000) baseMs = 2_000;
+  else if (elapsedMs < 45_000) baseMs = 4_000;
+  else if (elapsedMs < 120_000) baseMs = 7_000;
+  else baseMs = 12_000;
+
+  const jitterMs = Math.floor(
+    Math.random() * Math.max(1, Math.floor(baseMs * 0.25)),
+  );
+
+  return baseMs + jitterMs;
+}
+
+function initialSubmissionPollDelayMs(): number {
+  return 500 + Math.floor(Math.random() * 500);
+}
+
 const ACTIVE_SUBMISSION_STATUSES = new Set(['QUEUED', 'STARTING', 'RUNNING']);
 const TERMINAL_SUBMISSION_STATUSES = new Set(['PASS', 'FAIL', 'ERROR', 'TIMED_OUT']);
 
@@ -389,26 +409,52 @@ export const LinuxSysadminLabPage: React.FC = () => {
 
   const pollForSubmission = useCallback(() => {
     if (!selectedLabId) return;
+
     const generation = ++pollGeneration.current;
     const previousId = submissions[0]?.submission_id ?? 0;
+    const startedPollingAt = Date.now();
+
     setWaitingForResult(true);
 
-    const poll = async (attempt: number) => {
+    const poll = async () => {
       if (generation !== pollGeneration.current) return;
+
       const rows = await refreshSubmissions();
+
       if (generation !== pollGeneration.current) return;
 
       const newest = rows[0];
-      const newAttempt = Boolean(newest && newest.submission_id > previousId);
-      const finished = newAttempt && TERMINAL_SUBMISSION_STATUSES.has(newest.status.toUpperCase());
-      if (finished || attempt >= SUBMISSION_POLL_ATTEMPTS - 1) {
+      const newAttempt = Boolean(
+        newest && newest.submission_id > previousId
+      );
+      const finished = Boolean(
+        newAttempt &&
+        newest &&
+        TERMINAL_SUBMISSION_STATUSES.has(
+          newest.status.toUpperCase()
+        )
+      );
+
+      const elapsedMs = Date.now() - startedPollingAt;
+
+      if (
+        finished ||
+        elapsedMs >= SUBMISSION_POLL_TIMEOUT_MS
+      ) {
         setWaitingForResult(false);
         return;
       }
-      window.setTimeout(() => { void poll(attempt + 1); }, SUBMISSION_POLL_INTERVAL_MS);
+
+      window.setTimeout(
+        () => { void poll(); },
+        submissionPollDelayMs(elapsedMs),
+      );
     };
 
-    window.setTimeout(() => { void poll(0); }, 500);
+    window.setTimeout(
+      () => { void poll(); },
+      initialSubmissionPollDelayMs(),
+    );
   }, [refreshSubmissions, selectedLabId, submissions]);
 
   const handleTerminalCommand = useCallback((command: string) => {
@@ -419,27 +465,52 @@ export const LinuxSysadminLabPage: React.FC = () => {
   // resume status polling from the authoritative database state.
   useEffect(() => {
     const newest = submissions[0];
+
     if (!newest || waitingForResult) return;
-    if (!ACTIVE_SUBMISSION_STATUSES.has(newest.status.toUpperCase())) return;
+    if (
+      !ACTIVE_SUBMISSION_STATUSES.has(
+        newest.status.toUpperCase()
+      )
+    ) {
+      return;
+    }
 
     const generation = ++pollGeneration.current;
+    const startedPollingAt = Date.now();
+
     setWaitingForResult(true);
-    const poll = async (attempt: number) => {
+
+    const poll = async () => {
       if (generation !== pollGeneration.current) return;
+
       const rows = await refreshSubmissions();
+
       if (generation !== pollGeneration.current) return;
+
       const current = rows[0];
+      const elapsedMs = Date.now() - startedPollingAt;
+
       if (
         !current ||
-        TERMINAL_SUBMISSION_STATUSES.has(current.status.toUpperCase()) ||
-        attempt >= SUBMISSION_POLL_ATTEMPTS - 1
+        TERMINAL_SUBMISSION_STATUSES.has(
+          current.status.toUpperCase()
+        ) ||
+        elapsedMs >= SUBMISSION_POLL_TIMEOUT_MS
       ) {
         setWaitingForResult(false);
         return;
       }
-      window.setTimeout(() => { void poll(attempt + 1); }, SUBMISSION_POLL_INTERVAL_MS);
+
+      window.setTimeout(
+        () => { void poll(); },
+        submissionPollDelayMs(elapsedMs),
+      );
     };
-    window.setTimeout(() => { void poll(0); }, SUBMISSION_POLL_INTERVAL_MS);
+
+    window.setTimeout(
+      () => { void poll(); },
+      submissionPollDelayMs(0),
+    );
   }, [refreshSubmissions, submissions, waitingForResult]);
 
   const activeForSelected = Boolean(
