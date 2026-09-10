@@ -13,7 +13,9 @@
     "run_worker_first": [
       "/api/*",
       "/health",
-      "/health/*"
+      "/health/*",
+      "/compliance-lab",
+      "/compliance-lab/*"
     ]
   },
   "compatibility_flags": [
