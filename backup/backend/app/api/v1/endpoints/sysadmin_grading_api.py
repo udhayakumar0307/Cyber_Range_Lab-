@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, WebSocket, status
 from sqlalchemy.orm import Session
@@ -51,6 +53,19 @@ from app.services.sysadmin_grading.workspace_tokens import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Workspace creation can spend tens of seconds waiting for ECS/Fargate and SSH
+# readiness. Keep that blocking work out of FastAPI/Starlette's shared worker
+# pool so a burst of student launches cannot starve unrelated API requests.
+#
+# 12 workers is intentionally bounded for the 35-concurrent-user milestone:
+# enough parallelism for class-sized launches without sending all 35 RunTask /
+# DescribeTasks polling loops to ECS simultaneously.
+_WORKSPACE_PROVISIONING_MAX_WORKERS = 12
+_workspace_provisioning_executor = ThreadPoolExecutor(
+    max_workers=_WORKSPACE_PROVISIONING_MAX_WORKERS,
+    thread_name_prefix="sysadmin-workspace",
+)
 
 
 def _assert_real_active_user(user: User) -> None:
@@ -276,33 +291,76 @@ def get_submission(
     response_model=SysadminWorkspaceResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def start_workspace(
+async def start_workspace(
     payload: SysadminWorkspaceStartRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    Provision a Linux Sysadmin workspace without monopolizing FastAPI's shared
+    synchronous worker pool.
+
+    Database-backed authorization and assignment resolution happen first. Once
+    those values have been materialized, the request releases its database
+    session before waiting on the comparatively slow ECS/Fargate provisioning
+    path.
+
+    The blocking workspace service then runs in a dedicated bounded executor.
+    This preserves the existing HTTP contract (201 only when the workspace is
+    ready) while allowing class-sized launch bursts without starving unrelated
+    API traffic.
+    """
     _assert_real_active_user(current_user)
+
     settings = SysadminGradingSettings.from_env()
     _assert_marketplace_access(settings, current_user, db)
+
     try:
         assignment_id = _resolve_current_sysadmin_assignment_id(
             settings,
             current_user,
             db,
         )
+
+        # Materialize every value needed after the DB session is released.
+        user_id = int(current_user.id)
+        lab_id = str(payload.lab_id)
+
+        # FastAPI would normally close this dependency only after the complete
+        # request finishes. Workspace provisioning currently takes ~20 seconds,
+        # so explicitly release the SQLAlchemy connection before entering the
+        # ECS wait path. get_db() will safely call close() again during teardown.
+        db.close()
+
         service = SysadminWorkspaceService(settings)
-        session = service.start(
-            user_id=int(current_user.id),
-            lab_id=payload.lab_id,
+        loop = asyncio.get_running_loop()
+
+        start_call = partial(
+            service.start,
+            user_id=user_id,
+            lab_id=lab_id,
             assignment_id=assignment_id,
         )
+
+        session = await loop.run_in_executor(
+            _workspace_provisioning_executor,
+            start_call,
+        )
+
         return service.student_view(session)
+
     except QuestionBankError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     except GradingConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     except (WorkspaceExecutionError, WorkspaceTokenError) as exc:
-        logger.warning("Sysadmin workspace start failed user=%s: %s", current_user.id, exc)
+        logger.warning(
+            "Sysadmin workspace start failed user=%s: %s",
+            getattr(current_user, "id", "unknown"),
+            exc,
+        )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
