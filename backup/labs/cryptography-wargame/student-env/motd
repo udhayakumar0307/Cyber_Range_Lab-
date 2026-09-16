@@ -1,0 +1,15 @@
+============================================================
+        CRYPTOGRAPHY WARGAME  —  student workspace
+============================================================
+ Your unlocked levels are mounted read-only at:   /levels
+ Solve each level, then submit its CRYPTO{...} flag on the
+ portal to unlock the next one.
+
+   Portal (task cards, hints, flag submit):  http://localhost:5000
+   Interactive services:   crypto-services   (ports 6510-6518)
+   Web-crypto apps:        web-crypto:8019  and  web-crypto:8020
+
+ Handy tools already installed:
+   ls / find / cat / grep / xxd / base64 / openssl / sqlite3
+   nc (netcat) / curl / python3  (+ pycryptodome, pyjwt, sympy)
+============================================================

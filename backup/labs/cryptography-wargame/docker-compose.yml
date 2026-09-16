@@ -1,0 +1,79 @@
+# ============================================================
+#  CRYPTOGRAPHY WARGAME  —  Dockerized CyberRange lab
+#  Usage:
+#    STUDENT_ID=alice LAB_SEED=myseed docker compose up --build -d
+#    open http://localhost:5000        (portal: task cards + flag submit)
+#    docker compose exec student-env bash   (solve the levels here)
+# ============================================================
+networks:
+  crypto-net:
+    driver: bridge
+
+volumes:
+  crypto-levels:      # unlocked level files, portal(rw) -> student(ro)
+  crypto-vault:       # full pre-generated challenge set (portal only)
+  crypto-state:       # progress.json
+
+services:
+  portal:
+    build: { context: ., dockerfile: portal/Dockerfile }
+    container_name: crypto-portal
+    hostname: portal
+    environment:
+      STUDENT_ID: ${STUDENT_ID:-student}
+      LAB_SEED: ${LAB_SEED:-defaultseed}
+    volumes:
+      - crypto-levels:/srv/levels
+      - crypto-vault:/srv/vault
+      - crypto-state:/srv/state
+    ports:
+      - "5000:5000"
+    networks: [crypto-net]
+    restart: unless-stopped
+
+  crypto-services:
+    build: { context: ., dockerfile: net-services/Dockerfile }
+    container_name: crypto-services
+    hostname: crypto-services
+    environment:
+      STUDENT_ID: ${STUDENT_ID:-student}
+      LAB_SEED: ${LAB_SEED:-defaultseed}
+    ports:
+      - "6507-6511:6507-6511"
+      - "6517-6518:6517-6518"
+    networks:
+      crypto-net:
+        aliases: [crypto-services]
+    restart: unless-stopped
+
+  web-crypto:
+    build: { context: ., dockerfile: web-crypto/Dockerfile }
+    container_name: crypto-web
+    hostname: web-crypto
+    environment:
+      STUDENT_ID: ${STUDENT_ID:-student}
+      LAB_SEED: ${LAB_SEED:-defaultseed}
+    ports:
+      - "8019:8019"
+      - "8020:8020"
+    networks:
+      crypto-net:
+        aliases: [web-crypto]
+    restart: unless-stopped
+
+  student-env:
+    build: { context: ., dockerfile: student-env/Dockerfile }
+    container_name: crypto-student
+    hostname: student
+    environment:
+      STUDENT_ID: ${STUDENT_ID:-student}
+      LAB_SEED: ${LAB_SEED:-defaultseed}
+    volumes:
+      - crypto-levels:/levels:ro
+    ports:
+      - "7681:7681"          # embedded web terminal (ttyd) shown inside the portal
+    networks: [crypto-net]
+    depends_on: [portal, crypto-services, web-crypto]
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

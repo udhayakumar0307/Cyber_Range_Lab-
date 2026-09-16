@@ -1,0 +1,4 @@
+case $- in *i*) cat /etc/motd 2>/dev/null ;; esac
+export PS1='\[\e[32m\]crypto-wargame\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]$ '
+alias ll='ls -la'
+levels(){ ls -1 /levels 2>/dev/null; }
