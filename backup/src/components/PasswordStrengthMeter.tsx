@@ -11,7 +11,7 @@ interface PasswordStrengthMeterProps {
 // pages pass them) but no longer factor into validity — the policy is just
 // length + case, matched by the backend's password_policy.py.
 export const evaluatePasswordPolicy = (password: string, _email: string = '', _username: string = '') => {
-  const minLength = password.length >= 8;
+  const minLength = password.length >= 12;
   const uppercase = /[A-Z]/.test(password);
   const lowercase = /[a-z]/.test(password);
 
@@ -45,7 +45,7 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({ pa
       <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
         <div className={`h-full w-full transition-all duration-300 ${isValid ? 'bg-emerald-500' : 'bg-red-500'}`} />
       </div>
-      <p className="text-slate-500">At least 8 characters, with an uppercase and a lowercase letter.</p>
+      <p className="text-slate-500">At least 12 characters, with an uppercase and a lowercase letter.</p>
     </div>
   );
 };
