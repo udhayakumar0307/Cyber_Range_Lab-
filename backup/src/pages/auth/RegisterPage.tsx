@@ -1,4 +1,4 @@
-import { apiFetch as routedApiFetch } from '../../lib/api';
+import { apiFetch as routedApiFetch, parseApiErrorMessage } from '../../lib/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, User, Mail, Lock, ArrowLeft } from 'lucide-react';
@@ -69,7 +69,7 @@ export const RegisterPage: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Registration failed');
+        throw new Error(parseApiErrorMessage(errorData, 'Registration failed'));
       }
 
       setIsLoading(false);
@@ -121,7 +121,7 @@ export const RegisterPage: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'OTP verification failed');
+        throw new Error(parseApiErrorMessage(errorData, 'OTP verification failed'));
       }
 
       const data = await response.json();

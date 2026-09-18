@@ -1,4 +1,4 @@
-import { apiFetch as routedApiFetch, makeUnconfiguredOrgName } from '../../lib/api';
+import { apiFetch as routedApiFetch, makeUnconfiguredOrgName, parseApiErrorMessage } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, User, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
@@ -67,7 +67,7 @@ export const AdminRegisterPage: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Registration failed.');
+        throw new Error(parseApiErrorMessage(data, 'Registration failed.'));
       }
 
       if (data.access_token) {

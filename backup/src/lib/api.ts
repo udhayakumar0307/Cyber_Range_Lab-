@@ -59,6 +59,31 @@ export function isUnconfiguredOrgName(name?: string | null): boolean {
   return !name || !name.trim() || name.trim().startsWith(UNCONFIGURED_ORG_PREFIX);
 }
 
+/**
+ * FastAPI error responses aren't uniformly shaped across this backend: most
+ * handlers raise HTTPException(detail="some string"), but password
+ * validation raises HTTPException(detail={"message": ..., "errors": [...]})
+ * instead. Reading `data.detail` directly as a string renders the literal
+ * text "[object Object]" for that second shape. Same logic already used
+ * ad hoc in UserManagement.tsx/GroupMembersModal.tsx — centralized here for
+ * every page that can hit password-validation errors (register, reset,
+ * change-password).
+ */
+export function parseApiErrorMessage(errData: any, fallback: string): string {
+  if (!errData) return fallback;
+  if (typeof errData.detail === 'string' && errData.detail.trim()) return errData.detail;
+  if (errData.detail && typeof errData.detail === 'object') {
+    if (Array.isArray(errData.detail)) {
+      return errData.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+    }
+    const msg = errData.detail.message || '';
+    const errs = Array.isArray(errData.detail.errors) ? errData.detail.errors.join(' ') : '';
+    return `${msg} ${errs}`.trim() || fallback;
+  }
+  if (typeof errData.message === 'string' && errData.message.trim()) return errData.message;
+  return fallback;
+}
+
 export function apiWebSocketUrl(path: string): string {
   if (/^wss?:\/\//i.test(path)) {
     return path;

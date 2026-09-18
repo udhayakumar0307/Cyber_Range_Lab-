@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context';
+import { parseApiErrorMessage } from '../../lib/api';
 import { downloadAuthenticatedFile } from '../../utils/exportUtils';
 import { FEEDBACK_GOOGLE_FORM_URL, FEEDBACK_FORM_CONFIGURED } from '../../config/feedbackForm';
 
@@ -179,7 +180,7 @@ export const SettingsPage: React.FC = () => {
         setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
       } else {
         const err = await res.json();
-        setMessage({ type: 'error', text: err.detail || 'Failed to change password.' });
+        setMessage({ type: 'error', text: parseApiErrorMessage(err, 'Failed to change password.') });
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Network error updating password.' });

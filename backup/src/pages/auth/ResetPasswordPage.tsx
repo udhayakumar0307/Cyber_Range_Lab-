@@ -1,4 +1,4 @@
-import { apiFetch as routedApiFetch } from '../../lib/api';
+import { apiFetch as routedApiFetch, parseApiErrorMessage } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
@@ -66,7 +66,12 @@ export const ResetPasswordPage: React.FC = () => {
           setIsTokenExpired(true);
           return;
         }
-        throw new Error(data.message || 'Failed to reset password.');
+        // Token errors use AppError, which serializes to a top-level
+        // `message` (handled above); password-validation failures raise a
+        // raw HTTPException with detail={message, errors} instead — this
+        // covers that second shape too, rather than falling through to a
+        // generic "Failed to reset password."
+        throw new Error(parseApiErrorMessage(data, 'Failed to reset password.'));
       }
       setIsSuccess(true);
     } catch (err: any) {
