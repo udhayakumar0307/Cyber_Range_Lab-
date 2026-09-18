@@ -77,11 +77,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   const isAdministrative = hasCapability('DASHBOARD_VIEW') || hasCapability('SYSTEM_ADMIN');
-  const isLabSessionRoute = location.pathname.includes('/labs/') || location.pathname.includes('/session');
 
-  if (!isAdministrative && user.profile_completed === false && location.pathname !== '/onboarding' && !isLabSessionRoute) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  // Profile completion (college, department, roll number, etc.) is filled in
+  // whenever the student chooses to, via the "Update Profile" prompt on the
+  // dashboard — it no longer blocks reaching the dashboard. Once it's done,
+  // /onboarding itself just bounces back to /dashboard (see below) so a stale
+  // bookmark doesn't re-open a now-irrelevant form.
   if (!isAdministrative && user.profile_completed === true && location.pathname === '/onboarding') {
     return <Navigate to="/dashboard" replace />;
   }

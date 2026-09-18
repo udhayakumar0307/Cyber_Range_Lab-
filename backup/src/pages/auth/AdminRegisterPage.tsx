@@ -1,7 +1,7 @@
-import { apiFetch as routedApiFetch } from '../../lib/api';
-import React, { useState, useEffect, useRef } from 'react';
+import { apiFetch as routedApiFetch, makeUnconfiguredOrgName } from '../../lib/api';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Building, User, Mail, Phone, Lock, MapPin, CheckCircle2, ArrowRight, ArrowLeft, Key } from 'lucide-react';
+import { Shield, User, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 
 import { useAuth } from '../../context';
 import { PasswordStrengthMeter, evaluatePasswordPolicy } from '../../components/PasswordStrengthMeter';
@@ -14,85 +14,18 @@ export const AdminRegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Form Fields
-  const [orgName, setOrgName] = useState('');
+  // Form inputs — kept intentionally minimal. Organization, address, GST and
+  // designation are filled in later from the admin dashboard's "Update
+  // Profile" prompt, once the account exists.
   const [adminName, setAdminName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [adminKey, setAdminKey] = useState('');
-  const [address, setAddress] = useState('');
-  const [country, setCountry] = useState('India');
-  const [state, setState] = useState('');
-  const [city, setCity] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [gstNumber, setGstNumber] = useState('');
-  const [institutionType, setInstitutionType] = useState('College');
-  
-  // Affiliation, Designation & Department
-  const [primaryAffiliationType, setPrimaryAffiliationType] = useState<'college' | 'organization'>('college');
-  const [collegeId, setCollegeId] = useState('');
-  const [collegeSearch, setCollegeSearch] = useState('');
-  const [collegeResults, setCollegeResults] = useState<Array<{ id: number, name: string, code: string }>>([]);
-  const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
-  const [selectedCollegeName, setSelectedCollegeName] = useState('');
-  
-  const [designation, setDesignation] = useState('Professor');
-  const [department, setDepartment] = useState('');
-
-  const designations = [
-    'Professor',
-    'Assistant Professor',
-    'HOD',
-    'Trainer',
-    'Security Analyst',
-    'Instructor',
-    'Administrator',
-    'Other'
-  ];
-
-  const institutionTypes = [
-    'College',
-    'University',
-    'School',
-    'Training Center',
-    'Company',
-    'Government',
-    'Research Organization'
-  ];
-
-  // Search Colleges
-  useEffect(() => {
-    if (primaryAffiliationType === 'college' && collegeSearch.trim().length >= 2 && collegeSearch !== selectedCollegeName) {
-      const delayDebounce = setTimeout(() => {
-        routedApiFetch(`/api/v1/colleges/search?q=${encodeURIComponent(collegeSearch)}`)
-          .then((res) => res.json())
-          .then((data) => {
-            setCollegeResults(data);
-            setShowCollegeDropdown(true);
-          })
-          .catch((err) => console.error('Failed to search colleges:', err));
-      }, 300);
-      return () => clearTimeout(delayDebounce);
-    } else {
-      setShowCollegeDropdown(false);
-    }
-  }, [collegeSearch, primaryAffiliationType, selectedCollegeName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (primaryAffiliationType === 'college' && !collegeId) {
-      setError('Please search and select a college.');
-      return;
-    }
-
-    if (primaryAffiliationType === 'organization' && !orgName.trim()) {
-      setError('Organization name is required.');
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -111,24 +44,24 @@ export const AdminRegisterPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          org_name: primaryAffiliationType === 'organization' ? orgName : selectedCollegeName,
-          organization_name: primaryAffiliationType === 'organization' ? orgName : selectedCollegeName,
           admin_name: adminName,
           email,
           phone,
           password,
-          admin_key: adminKey.trim(),
-          address,
-          country,
-          state,
-          city,
-          pincode,
-          gst_number: gstNumber || null,
-          institution_type: institutionType,
-          designation,
-          department,
-          primary_affiliation_type: primaryAffiliationType,
-          college_id: primaryAffiliationType === 'college' && collegeId ? parseInt(collegeId) : null
+          // The backend's org/address fields are still required server-side —
+          // this form just doesn't ask for them up front. primary_affiliation_type
+          // "organization" (rather than the default "college") skips the
+          // college_id requirement; a clearly-not-real name plus blank address
+          // fields let the admin fill in the real institution later from
+          // "Update Profile" without any backend change.
+          primary_affiliation_type: 'organization',
+          organization_name: makeUnconfiguredOrgName(email),
+          institution_type: 'Company',
+          address: '',
+          country: '',
+          state: '',
+          city: '',
+          pincode: ''
         })
       });
 
@@ -152,7 +85,7 @@ export const AdminRegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div className="max-w-2xl w-full bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+      <div className="max-w-lg w-full bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
         {/* Header */}
         <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -181,113 +114,15 @@ export const AdminRegisterPage: React.FC = () => {
               </div>
             )}
 
-            {/* Section 1: Affiliation details */}
+            {/* Admin Profile & Credentials */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <Building className="w-4 h-4 text-blue-600" />
-                <span>Primary Affiliation Details</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Affiliation Type *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPrimaryAffiliationType('college')}
-                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
-                        primaryAffiliationType === 'college'
-                          ? 'border-blue-600 bg-blue-50 text-blue-600'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      College / University
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPrimaryAffiliationType('organization')}
-                      className={`py-2 rounded-xl border text-xs font-bold transition-all ${
-                        primaryAffiliationType === 'organization'
-                          ? 'border-blue-600 bg-blue-50 text-blue-600'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Corporate Org
-                    </button>
-                  </div>
-                </div>
-
-                {primaryAffiliationType === 'college' ? (
-                  <div className="relative">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Search & Select College *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Type college name..."
-                      value={collegeSearch}
-                      onChange={(e) => setCollegeSearch(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                    />
-                    {showCollegeDropdown && collegeResults.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {collegeResults.map((col) => (
-                          <button
-                            key={col.id}
-                            type="button"
-                            onClick={() => {
-                              setCollegeId(col.id.toString());
-                              setCollegeSearch(col.name);
-                              setSelectedCollegeName(col.name);
-                              setShowCollegeDropdown(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-100 font-semibold text-slate-700 border-b border-slate-100 last:border-0"
-                          >
-                            {col.name} ({col.code})
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Organization / Enterprise Name *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Hackup Technologies"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {primaryAffiliationType === 'organization' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Institution / Org Type *</label>
-                  <select
-                    value={institutionType}
-                    onChange={(e) => setInstitutionType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  >
-                    {institutionTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Section 2: Admin Profile & Credentials */}
-            <div className="space-y-4 pt-2">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
                 <User className="w-4 h-4 text-blue-600" />
                 <span>Primary Admin Details</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Full Admin Name *</label>
                   <input
                     type="text"
@@ -324,42 +159,6 @@ export const AdminRegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Designation *</label>
-                  <select
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  >
-                    {designations.map((des) => (
-                      <option key={des} value={des}>{des}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Department *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Computer Science & Engineering"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">GST Number (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="33AAAAA0000A1Z5"
-                    value={gstNumber}
-                    onChange={(e) => setGstNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Set Account Password *</label>
                   <input
                     type="password"
@@ -389,75 +188,9 @@ export const AdminRegisterPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Section 3: Organization Address */}
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                <span>Organization Address</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Street Address *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Campus Address, Tech Park, Road No. 4"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">City *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Chennai"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">State *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Tamil Nadu"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Country *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="India"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Pincode *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="600036"
-                    value={pincode}
-                    onChange={(e) => setPincode(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-              </div>
-            </div>
+            <p className="text-[11px] font-semibold text-slate-400 text-center leading-relaxed">
+              You can add your institution, address and other organization details later from your admin dashboard.
+            </p>
 
             <div className="pt-4 flex items-center justify-between border-t border-slate-100">
               <span className="text-xs text-slate-500">

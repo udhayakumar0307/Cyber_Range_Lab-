@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context';
-import { 
-  Trophy, 
-  Flame, 
-  Award, 
-  Play, 
-  Clock, 
-  CheckCircle2, 
-  ShieldAlert, 
-  BookOpen, 
+import {
+  Trophy,
+  Flame,
+  Award,
+  Play,
+  Clock,
+  CheckCircle2,
+  ShieldAlert,
+  BookOpen,
   TrendingUp,
   FlaskConical,
   Flag,
-  ArrowRight
+  ArrowRight,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 interface TrainingLab {
@@ -71,6 +73,25 @@ export const UserDashboard: React.FC = () => {
   const [labs, setLabs] = useState<TrainingLab[]>([]);
   const [recentActivities, setRecentActivities] = useState<DashboardActivity[]>([]);
 
+  // Profile-incomplete banner: shown until the student adds their college,
+  // department and roll number via "Update Profile" (deferred from the
+  // minimal signup form). Mirrors the same pattern on AdminDashboard.
+  const bannerDismissKey = user?.id ? `student_profile_banner_dismissed_${user.id}` : null;
+  const [showProfileBanner, setShowProfileBanner] = useState(false);
+
+  useEffect(() => {
+    if (!user || !bannerDismissKey) return;
+    const dismissed = localStorage.getItem(bannerDismissKey);
+    if (!dismissed && user.profile_completed === false) {
+      setShowProfileBanner(true);
+    }
+  }, [user, bannerDismissKey]);
+
+  const dismissBanner = () => {
+    if (bannerDismissKey) localStorage.setItem(bannerDismissKey, 'true');
+    setShowProfileBanner(false);
+  };
+
   useEffect(() => {
     let cancelled = false;
     const loadDashboard = async () => {
@@ -106,6 +127,34 @@ export const UserDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
+      {/* Profile Completion Banner */}
+      {showProfileBanner && (
+        <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-3.5 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+              Complete your profile
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              Add your college, department and roll number so instructors can find and assign labs to you.
+            </p>
+            <Link
+              to="/onboarding"
+              onClick={dismissBanner}
+              className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
+            >
+              Update Profile →
+            </Link>
+          </div>
+          <button
+            onClick={dismissBanner}
+            className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors rounded-md p-0.5"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Welcome Banner Card */}
       <div className="bg-gradient-to-r from-blue-900 via-[#2563EB] to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">

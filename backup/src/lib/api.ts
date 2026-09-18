@@ -40,6 +40,25 @@ export function assetFetch(
   return fetch(url.toString(), options);
 }
 
+/**
+ * Frontend-only placeholder used when an admin registers without picking an
+ * organization up front (the trimmed registration form only asks for
+ * name/email/phone/password). The backend's existing required organization
+ * fields still get real string values behind the scenes — this constant is
+ * just a name that's obviously not "real" yet, so pages can tell "has this
+ * admin configured their org?" apart from a genuine name, without needing
+ * any backend flag.
+ */
+export const UNCONFIGURED_ORG_PREFIX = 'Unconfigured Organization';
+
+export function makeUnconfiguredOrgName(email: string): string {
+  return `${UNCONFIGURED_ORG_PREFIX} (${email.trim().toLowerCase()})`;
+}
+
+export function isUnconfiguredOrgName(name?: string | null): boolean {
+  return !name || !name.trim() || name.trim().startsWith(UNCONFIGURED_ORG_PREFIX);
+}
+
 export function apiWebSocketUrl(path: string): string {
   if (/^wss?:\/\//i.test(path)) {
     return path;

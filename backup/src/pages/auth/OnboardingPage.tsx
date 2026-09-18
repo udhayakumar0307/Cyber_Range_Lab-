@@ -193,9 +193,9 @@ export const OnboardingPage: React.FC = () => {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 text-[#2563EB] mb-2">
             <Shield className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">CyberRange Mandatory Onboarding</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Update Your Profile</h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Please complete your profile onboarding before launching the range console.
+            Add your remaining details — college, department, and more — whenever you're ready.
           </p>
         </div>
 

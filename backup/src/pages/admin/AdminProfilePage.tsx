@@ -1,4 +1,4 @@
-import { apiFetch as routedApiFetch } from '../../lib/api';
+import { apiFetch as routedApiFetch, isUnconfiguredOrgName } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   User as UserIcon, 
@@ -102,7 +102,17 @@ export const AdminProfilePage: React.FC = () => {
       const profileRes = await routedApiFetch('/api/v1/admin/profile', { headers: h });
       if (profileRes.ok) {
         const data = await profileRes.json();
-        setProfileData(data);
+        // A still-placeholder org name ("Unconfigured Organization (...)")
+        // is shown as blank so the input's placeholder text prompts the
+        // admin to type a real one, instead of displaying the generated
+        // string as if it were already-saved data.
+        setProfileData({
+          ...data,
+          organization_info: {
+            ...data.organization_info,
+            name: isUnconfiguredOrgName(data.organization_info?.name) ? '' : data.organization_info.name
+          }
+        });
       }
 
       // Fetch radar graph & student-like stats if available for admin
@@ -553,13 +563,96 @@ export const AdminProfilePage: React.FC = () => {
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">GST/Tax ID</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   disabled={!editing}
-                  value={profileData.organization_info.gst_number || ''} 
+                  value={profileData.organization_info.gst_number || ''}
                   onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, gst_number: e.target.value } })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 />
+              </div>
+            </div>
+
+            {/* Organization Details — deferred from the minimal signup form.
+                Setting a real name here is what unlocks lab assignment
+                (see the profile_completed gate on the backend). */}
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">🏢 Organization Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Organization / Institution Name</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    placeholder="e.g. Hackup Technologies"
+                    value={profileData.organization_info.name || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, name: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Institution Type</label>
+                  <select
+                    disabled={!editing}
+                    value={profileData.organization_info.institution_type || 'College'}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, institution_type: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  >
+                    {['College', 'University', 'School', 'Training Center', 'Company', 'Government', 'Research Organization'].map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Street Address</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    value={profileData.organization_info.address || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, address: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">City</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    value={profileData.organization_info.city || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, city: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">State</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    value={profileData.organization_info.state || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, state: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Country</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    value={profileData.organization_info.country || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, country: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    disabled={!editing}
+                    value={profileData.organization_info.pincode || ''}
+                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, pincode: e.target.value } })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
             </div>
 

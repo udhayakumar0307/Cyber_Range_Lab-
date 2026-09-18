@@ -1,4 +1,4 @@
-import { apiFetch as routedApiFetch } from '../../lib/api';
+import { apiFetch as routedApiFetch, isUnconfiguredOrgName } from '../../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -21,17 +21,30 @@ export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
 
-  // Profile-incomplete banner: shown when admin signs in with Google for first time
+  // Profile-incomplete banner: shown until the admin replaces their
+  // placeholder organization name with a real one via "Update Profile"
+  // (deferred from the minimal signup form — also covers first-time Google
+  // sign-in admins, who land in the same unconfigured state). Checked
+  // against the actual saved org name rather than a server flag, so the
+  // banner also goes away by itself once the admin actually finishes.
   const bannerDismissKey = user?.id ? `admin_profile_banner_dismissed_${user.id}` : null;
   const [showProfileBanner, setShowProfileBanner] = useState(false);
 
-  // Derive banner visibility reactively as user loads
   useEffect(() => {
-    if (!user || !bannerDismissKey) return;
-    const dismissed = localStorage.getItem(bannerDismissKey);
-    if (!dismissed && user.profile_completed === false) {
-      setShowProfileBanner(true);
-    }
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    routedApiFetch('/api/v1/admin/profile', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const dismissed = bannerDismissKey ? localStorage.getItem(bannerDismissKey) : null;
+        if (!dismissed && isUnconfiguredOrgName(data.organization_info?.name)) {
+          setShowProfileBanner(true);
+        }
+      })
+      .catch((err) => console.error('Error checking admin profile status:', err));
   }, [user, bannerDismissKey]);
 
   const dismissBanner = () => {
