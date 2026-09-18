@@ -2,7 +2,7 @@ import os
 
 class SecuritySettings:
     # Password Policy
-    MIN_PASSWORD_LENGTH: int = int(os.getenv("SECURITY_MIN_PASSWORD_LENGTH", "12"))
+    MIN_PASSWORD_LENGTH: int = int(os.getenv("SECURITY_MIN_PASSWORD_LENGTH", "8"))
     REQUIRE_UPPERCASE: bool = os.getenv("SECURITY_REQUIRE_UPPERCASE", "True").lower() in ("true", "1")
     REQUIRE_LOWERCASE: bool = os.getenv("SECURITY_REQUIRE_LOWERCASE", "True").lower() in ("true", "1")
     REQUIRE_NUMBERS: bool = os.getenv("SECURITY_REQUIRE_NUMBERS", "True").lower() in ("true", "1")

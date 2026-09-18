@@ -228,8 +228,6 @@ export const AdminProfilePage: React.FC = () => {
           org_name: profileData.organization_info.name,
           institution_type: profileData.organization_info.institution_type,
           address: profileData.organization_info.address,
-          city: profileData.organization_info.city,
-          state: profileData.organization_info.state,
           country: profileData.organization_info.country,
           pincode: profileData.organization_info.pincode,
           gst_number: profileData.organization_info.gst_number
@@ -610,26 +608,6 @@ export const AdminProfilePage: React.FC = () => {
                     disabled={!editing}
                     value={profileData.organization_info.address || ''}
                     onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, address: e.target.value } })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">City</label>
-                  <input
-                    type="text"
-                    disabled={!editing}
-                    value={profileData.organization_info.city || ''}
-                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, city: e.target.value } })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">State</label>
-                  <input
-                    type="text"
-                    disabled={!editing}
-                    value={profileData.organization_info.state || ''}
-                    onChange={(e) => setProfileData({ ...profileData, organization_info: { ...profileData.organization_info, state: e.target.value } })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                   />
                 </div>
