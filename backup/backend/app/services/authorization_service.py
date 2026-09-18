@@ -57,6 +57,26 @@ class AuthorizationService:
     @staticmethod
     def effective_capabilities(db: Session, user_id: int) -> Set[Capability]:
         result: Set[Capability] = set()
+
+        # A binding whose org/college is still pending institutional approval
+        # is excluded from active_bindings() below and so grants none of its
+        # role's real capabilities (by design - see active_bindings). But
+        # DASHBOARD_VIEW is the one exception: it's what lets a freshly
+        # self-registered, not-yet-verified admin reach their own
+        # dashboard/profile at all, which is where they add a college or
+        # organization for a system admin to review in the first place.
+        # Without this, that admin could never reach the page that gets them
+        # verified. Every other capability still requires real approval.
+        all_bindings = (
+            db.query(UserRoleBinding)
+            .filter(UserRoleBinding.user_id == user_id, UserRoleBinding.is_active.is_(True))
+            .all()
+        )
+        for binding in all_bindings:
+            if Capability.DASHBOARD_VIEW in capabilities_for_role(binding.role):
+                result.add(Capability.DASHBOARD_VIEW)
+                break
+
         for binding in AuthorizationService.active_bindings(db, user_id):
             result.update(capabilities_for_role(binding.role))
         return result

@@ -381,7 +381,8 @@ def get_admin_profile(current_user: User = Depends(get_current_user), db: Sessio
             "state": org.state if org else current_user.state or "",
             "country": org.country if org else current_user.country or "",
             "pincode": org.pincode if org else "",
-            "gst_number": org.gst_number if org else ""
+            "gst_number": org.gst_number if org else "",
+            "status": org.status if org else None
         },
         "billing_address": {
             "address_line": billing.address_line if billing else (org.address if org else ""),

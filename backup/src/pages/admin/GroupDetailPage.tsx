@@ -1,9 +1,10 @@
-import { apiFetch as routedApiFetch, isUnconfiguredOrgName } from '../../lib/api';
+import { apiFetch as routedApiFetch } from '../../lib/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { GroupDetail } from '../../types/admin';
 import { getDeptShortCode } from '../../utils/deptMapping';
 import { AssignLabModal } from '../../components/admin/AssignLabModal';
+import { useAuth } from '../../context';
 import {
   ArrowLeft,
   UsersRound,
@@ -68,6 +69,15 @@ function formatDuration(totalSeconds: number): string {
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
+  const { hasCapability } = useAuth();
+  // Mirrors the backend's own gate for this exact endpoint: POST
+  // /admin/groups/{id}/assign-lab requires ROSTER_MANAGE (see deps.py's
+  // enforce_admin_rbac, the "/groups" branch). An admin whose organization
+  // is still pending system-admin approval has this capability withheld
+  // entirely (authorization_service.py), so checking it here — rather than
+  // e.g. "have they set a real org name" — matches what the backend will
+  // actually accept or reject.
+  const profileIncomplete = !hasCapability('ROSTER_MANAGE');
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,29 +87,9 @@ export const GroupDetailPage: React.FC = () => {
   const [countdown, setCountdown] = useState<number>(0);
   const [killConfirmOpen, setKillConfirmOpen] = useState(false);
   const [killing, setKilling] = useState(false);
-  // Whether the signed-in admin has set a real organization name yet — an
-  // admin who registered with just name/email/phone/password gets a
-  // placeholder org name behind the scenes, and can't assign labs until
-  // "Update Profile" replaces it with a real one.
-  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const tickRef = useRef<number | null>(null);
 
   const dbId = (groupId || '').replace('grp-', '');
-
-  const fetchAdminProfileStatus = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await routedApiFetch('/api/v1/admin/profile', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProfileIncomplete(isUnconfiguredOrgName(data?.organization_info?.name));
-      }
-    } catch (err) {
-      console.error('Error fetching admin profile status:', err);
-    }
-  };
 
   const fetchGroup = async () => {
     const token = localStorage.getItem('token');
@@ -134,7 +124,6 @@ export const GroupDetailPage: React.FC = () => {
   useEffect(() => {
     fetchGroup();
     fetchLabStatus();
-    fetchAdminProfileStatus();
   }, [groupId]);
 
   // Live countdown ticker
@@ -249,14 +238,14 @@ export const GroupDetailPage: React.FC = () => {
           <button
             onClick={() => setAssignLabOpen(true)}
             disabled={profileIncomplete}
-            title={profileIncomplete ? 'Complete your organization profile before assigning labs.' : undefined}
+            title={profileIncomplete ? 'Your organization must be set up and approved before assigning labs.' : undefined}
             className="px-4 py-2.5 rounded-xl bg-[#0052CC] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0052CC] text-white font-bold text-xs shadow-xs transition-colors inline-flex items-center gap-2 cursor-pointer"
           >
             <Rocket className="w-4 h-4" /> Assign Lab
           </button>
           {profileIncomplete && (
             <Link to="/admin/profile" className="text-[11px] font-bold text-[#0052CC] hover:underline">
-              Update Profile to unlock →
+              Check organization status →
             </Link>
           )}
         </div>

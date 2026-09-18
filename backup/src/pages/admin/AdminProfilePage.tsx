@@ -51,7 +51,8 @@ export const AdminProfilePage: React.FC = () => {
       state: '',
       country: '',
       pincode: '',
-      gst_number: ''
+      gst_number: '',
+      status: ''
     },
     summary_counts: {
       purchased_labs: 4,
@@ -572,10 +573,32 @@ export const AdminProfilePage: React.FC = () => {
             </div>
 
             {/* Organization Details — deferred from the minimal signup form.
-                Setting a real name here is what unlocks lab assignment
-                (see the profile_completed gate on the backend). */}
+                A self-registered org starts PENDING (zero admin capabilities
+                beyond viewing this dashboard/profile) until a system admin
+                reviews and approves it — see authorization_service.py's
+                active_bindings(). This badge reflects that real status. */}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">🏢 Organization Details</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">🏢 Organization Details</h3>
+                {(() => {
+                  const orgStatus = String(profileData.organization_info.status || '').toUpperCase();
+                  const isVerified = orgStatus === 'ACTIVE' || orgStatus === 'APPROVED';
+                  return (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                      isVerified
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/40 dark:border-emerald-900'
+                        : 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/40 dark:border-amber-900'
+                    }`}>
+                      {isVerified ? 'Verified' : 'Pending Verification'}
+                    </span>
+                  );
+                })()}
+              </div>
+              {String(profileData.organization_info.status || '').toUpperCase() === 'PENDING' && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                  A system admin will review and verify your organization. Some administrative actions stay disabled until then.
+                </p>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="sm:col-span-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Organization / Institution Name</label>
