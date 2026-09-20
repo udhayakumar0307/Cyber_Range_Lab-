@@ -254,6 +254,29 @@ class GoogleAuthService:
         db.commit()
         db.refresh(user)
 
+        if portal_clean == "admin":
+            # Unlike /admin/register, this path never resolves an
+            # organization up front (the admin fills that in later via the
+            # dashboard), so it has no binding-insert step of its own. Without
+            # one, RBAC capability checks see zero bindings and deny even
+            # DASHBOARD_VIEW. UNSCOPED mirrors the same "no org yet" binding
+            # the historical RBAC backfill migration used for this exact case.
+            from app.models.rbac import UserRoleBinding
+            has_admin_binding = db.query(UserRoleBinding).filter(
+                UserRoleBinding.user_id == user.id,
+                UserRoleBinding.role == "ADMIN",
+                UserRoleBinding.is_active.is_(True),
+            ).first()
+            if not has_admin_binding:
+                db.add(UserRoleBinding(
+                    user_id=user.id,
+                    role="ADMIN",
+                    scope_type="UNSCOPED",
+                    scope_key="UNSCOPED",
+                    is_active=True,
+                ))
+                db.commit()
+
         logger.info(f"Google Login Success for email: {email} on portal: {portal_clean}")
         return user
 

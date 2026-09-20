@@ -77,6 +77,17 @@ class AuthorizationService:
                 result.add(Capability.DASHBOARD_VIEW)
                 break
 
+        # Accounts with no binding row at all (created before role bindings
+        # existed, or via a path that never inserted one - e.g. Google OAuth
+        # admin sign-in) are a stronger case than "pending approval" above and
+        # used to fall through to zero capabilities, locking an admin/professor
+        # out of their own dashboard forever. Same bootstrap exception, keyed
+        # off the legacy User.role column since there is no binding to read.
+        if not all_bindings:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and Capability.DASHBOARD_VIEW in capabilities_for_role(user.role):
+                result.add(Capability.DASHBOARD_VIEW)
+
         for binding in AuthorizationService.active_bindings(db, user_id):
             result.update(capabilities_for_role(binding.role))
         return result
