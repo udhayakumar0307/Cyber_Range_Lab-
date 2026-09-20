@@ -28,8 +28,9 @@ export const LoginPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const { role } = await login(email, password, rememberMe, 'student');
+      const { role, is_first_login } = await login(email, password, rememberMe, 'student');
       setIsLoading(false);
+      if (is_first_login) sessionStorage.setItem('cr_show_tour', '1');
       if (role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'super_admin')) {
         navigate('/admin/dashboard');
       } else {

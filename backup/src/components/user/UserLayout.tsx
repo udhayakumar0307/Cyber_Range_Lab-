@@ -3,6 +3,8 @@ import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-do
 import { UserSidebar } from './UserSidebar';
 import { useAuth } from '../../context';
 import { useTheme } from '../../context/ThemeContext';
+import { ProductTour } from '../ProductTour';
+import { studentTourSteps } from '../../data/tourSteps';
 import { 
   fetchNotifications, 
   markNotificationAsRead, 
@@ -39,6 +41,14 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('cr_show_tour')) {
+      sessionStorage.removeItem('cr_show_tour');
+      setShowTour(true);
+    }
+  }, []);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -406,6 +416,7 @@ export const UserLayout: React.FC<UserLayoutProps> = memo(({ children }) => {
           </div>
         </footer>
       </div>
+      {showTour && <ProductTour steps={studentTourSteps} onClose={() => setShowTour(false)} />}
     </div>
   );
 });

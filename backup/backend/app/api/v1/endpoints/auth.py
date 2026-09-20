@@ -260,6 +260,9 @@ def _execute_login(
     refresh_token = create_refresh_token(data=token_payload, remember_me=login_data.remember_me)
     token_manager.register_refresh_token(user.id, refresh_token, remember_me=login_data.remember_me)
 
+    # Captured before the overwrite below — NULL only ever happens before this
+    # account's very first successful login (registration never sets it).
+    is_first_login = user.last_login is None
     user.last_login = datetime.utcnow()
     
     # Log successful login
@@ -302,6 +305,7 @@ def _execute_login(
         "account_type": getattr(user, "account_type", "student"),
         "is_internal": getattr(user, "is_internal", False),
         "portal_type": portal,
+        "is_first_login": is_first_login,
         "user": {
             "id": user.id,
             "name": user.name or "User",

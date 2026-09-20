@@ -53,7 +53,7 @@ interface AuthContextType {
     rememberMe?: boolean,
     portal?: 'student' | 'admin',
     otpCode?: string
-  ) => Promise<{ role: string; user?: any; status?: string; message?: string }>;
+  ) => Promise<{ role: string; user?: any; status?: string; message?: string; is_first_login?: boolean }>;
   setSessionToken: (token: string, userData?: User) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -174,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     rememberMe: boolean = false,
     portal: 'student' | 'admin' = 'student',
     otpCode?: string
-  ): Promise<{ role: string; user: any; status?: string; message?: string }> => {
+  ): Promise<{ role: string; user: any; status?: string; message?: string; is_first_login?: boolean }> => {
     const endpoint = portal === 'admin' ? '/api/v1/auth/admin-login' : '/api/v1/auth/student-login';
     const response = await baseApiFetch(endpoint, {
       method: 'POST',
@@ -208,7 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(data.user);
     await loadAuthorization(data.token || tokenRef.current);
-    return { role: data.role, user: data.user, status: 'success' };
+    return { role: data.role, user: data.user, status: 'success', is_first_login: !!data.is_first_login };
   }, [loadAuthorization]);
 
   const refreshUser = useCallback(async () => {

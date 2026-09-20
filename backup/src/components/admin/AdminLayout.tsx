@@ -4,6 +4,8 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { useAuth } from '../../context';
 import { useTheme } from '../../context/ThemeContext';
+import { ProductTour } from '../ProductTour';
+import { adminTourSteps } from '../../data/tourSteps';
 import { 
   fetchNotifications, 
   markNotificationAsRead, 
@@ -41,6 +43,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('cr_show_tour')) {
+      sessionStorage.removeItem('cr_show_tour');
+      setShowTour(true);
+    }
+  }, []);
 
   // useCallback: stable reference — avoids re-creating on every render
   const getInitials = useCallback((name: string) => {
@@ -472,6 +482,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = memo(({ children }) => {
           </div>
         </footer>
       </div>
+      {showTour && <ProductTour steps={adminTourSteps} onClose={() => setShowTour(false)} />}
     </div>
   );
 });

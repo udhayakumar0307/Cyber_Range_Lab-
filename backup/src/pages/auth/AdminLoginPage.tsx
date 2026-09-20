@@ -38,6 +38,7 @@ export const AdminLoginPage: React.FC = () => {
       if (res && res.status === 'otp_required') {
         setOtpRequired(true);
       } else {
+        if (res?.is_first_login) sessionStorage.setItem('cr_show_tour', '1');
         navigate('/admin/dashboard');
       }
     } catch (err: any) {
