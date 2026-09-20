@@ -18,22 +18,8 @@ export const ResetPasswordPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Strength rules
-  const hasMinLength = newPassword.length >= 8;
-  const hasNumber = /\d/.test(newPassword);
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
   const isMatching = newPassword.length > 0 && newPassword === confirmPassword;
-
-  const strengthCount = [hasMinLength, hasNumber, hasSpecial].filter(Boolean).length;
-
-  const getStrengthLabel = () => {
-    if (strengthCount === 0) return { label: 'Empty', color: 'bg-slate-200', width: 'w-0' };
-    if (strengthCount === 1) return { label: 'Weak', color: 'bg-rose-500', width: 'w-1/3' };
-    if (strengthCount === 2) return { label: 'Medium', color: 'bg-amber-500', width: 'w-2/3' };
-    return { label: 'Strong', color: 'bg-[#28A745]', width: 'w-full' };
-  };
-
-  const strengthInfo = getStrengthLabel();
+  const isPasswordValid = evaluatePasswordPolicy(newPassword).isValid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,7 +205,7 @@ export const ResetPasswordPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isLoading || !hasMinLength || !hasNumber || !hasSpecial || !isMatching || otpCode.length !== 6}
+                disabled={isLoading || !isPasswordValid || !isMatching || otpCode.length !== 6}
                 className="w-full py-3.5 bg-[#0052CC] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
               >
                 {isLoading ? (

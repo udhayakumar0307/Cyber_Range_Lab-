@@ -2258,12 +2258,14 @@ def change_admin_password(
     Change password endpoint verifying current password and committing new one.
     """
     from app.core.security import verify_password, get_password_hash
+    from app.security import password_validator
     current_pw = payload.get("current_password")
     new_pw = payload.get("new_password")
 
     if not verify_password(current_pw, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect current password")
 
+    password_validator.validate_or_raise(new_pw, email=current_user.email, username=current_user.name)
     current_user.password_hash = get_password_hash(new_pw)
     db.commit()
     return {"status": "success", "message": "Password changed successfully"}

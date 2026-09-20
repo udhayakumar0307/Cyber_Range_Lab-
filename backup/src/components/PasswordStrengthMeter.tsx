@@ -30,22 +30,22 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({ pa
   if (!password) return null;
 
   return (
-    <div className="mt-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs space-y-2">
+    <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
       <div className="flex items-center gap-1.5">
         {isValid ? (
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <ShieldCheck className="w-4 h-4 text-emerald-600" />
         ) : (
-          <ShieldAlert className="w-4 h-4 text-red-400" />
+          <ShieldAlert className="w-4 h-4 text-red-500" />
         )}
-        <span className="text-slate-400 font-medium">Password Strength:</span>
-        <span className={`font-semibold ${isValid ? 'text-emerald-400' : 'text-red-400'}`}>
+        <span className="text-slate-500 font-medium">Password Strength:</span>
+        <span className={`font-semibold ${isValid ? 'text-emerald-600' : 'text-red-600'}`}>
           {strength}
         </span>
       </div>
-      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
         <div className={`h-full w-full transition-all duration-300 ${isValid ? 'bg-emerald-500' : 'bg-red-500'}`} />
       </div>
-      <p className="text-slate-500">At least 12 characters, with an uppercase and a lowercase letter.</p>
+      <p className="text-slate-500 font-medium">At least 12 characters, with an uppercase and a lowercase letter.</p>
     </div>
   );
 };
