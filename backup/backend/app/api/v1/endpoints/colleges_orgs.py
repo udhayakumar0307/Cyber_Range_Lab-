@@ -281,6 +281,37 @@ def add_my_affiliation(request: Request, data: AffiliationCreateRequest, current
         dup = db.query(UserAffiliation).filter(UserAffiliation.user_id == current_user.id, UserAffiliation.college_id == data.college_id).first()
         if dup:
             raise HTTPException(status_code=400, detail="College affiliation already exists")
+
+        # search_colleges() only lists ACTIVE colleges, so - unlike a
+        # self-typed Organization name below, which needs a human to review
+        # it - a college affiliation is already trustworthy enough to grant
+        # real capabilities immediately. Without this, an admin/professor/TA
+        # stuck on a still-PENDING placeholder Organization from registration
+        # had no way to unblock themselves by adding their real college: this
+        # endpoint recorded the affiliation but never granted anything for
+        # it. Mirrors the COLLEGE binding /admin/register already creates
+        # for the college-based signup path.
+        from app.core.capabilities import normalize_role
+        from app.models.rbac import UserRoleBinding
+        role = normalize_role(current_user.role)
+        if role in ("SYSTEM_ADMIN", "ADMIN", "PROFESSOR", "TA"):
+            scope_key = f"COLLEGE:{data.college_id}"
+            existing_binding = db.query(UserRoleBinding).filter(
+                UserRoleBinding.user_id == current_user.id,
+                UserRoleBinding.role == role,
+                UserRoleBinding.scope_key == scope_key,
+            ).first()
+            if existing_binding:
+                existing_binding.is_active = True
+            else:
+                db.add(UserRoleBinding(
+                    user_id=current_user.id,
+                    role=role,
+                    scope_type="COLLEGE",
+                    scope_key=scope_key,
+                    college_id=data.college_id,
+                    is_active=True,
+                ))
     else:
         if not data.organization_name or not data.organization_name.strip():
             raise HTTPException(status_code=400, detail="organization_name is required")
@@ -357,6 +388,17 @@ def remove_my_affiliation(aff_id: int, current_user: User = Depends(get_current_
         raise HTTPException(status_code=404, detail="Affiliation not found")
     if aff.is_primary:
         raise HTTPException(status_code=400, detail="Cannot delete primary affiliation. Set another affiliation as primary first.")
+
+    if aff.affiliation_type == "college" and aff.college_id is not None:
+        from app.core.capabilities import normalize_role
+        from app.models.rbac import UserRoleBinding
+        role = normalize_role(current_user.role)
+        db.query(UserRoleBinding).filter(
+            UserRoleBinding.user_id == current_user.id,
+            UserRoleBinding.role == role,
+            UserRoleBinding.scope_key == f"COLLEGE:{aff.college_id}",
+        ).update({UserRoleBinding.is_active: False})
+
     db.delete(aff)
     db.commit()
     return {"status": "success", "message": "Affiliation removed successfully"}
