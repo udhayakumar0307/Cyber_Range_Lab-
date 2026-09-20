@@ -451,7 +451,55 @@ class AuthorizationService:
         )
 
     @staticmethod
+    def _backfill_college_bindings(db: Session, user: User) -> None:
+        """Self-heals accounts whose college affiliation predates the binding
+        add_my_affiliation now grants on ADD (see colleges_orgs.py). There is
+        no way to re-trigger that from the UI for an account like this: with
+        only one affiliation, it is automatically primary, and removing a
+        primary affiliation is blocked with nothing else to promote in its
+        place. Runs once per /rbac/me load; a no-op after the first heal."""
+        role = normalize_role(user.role)
+        if role not in ("SYSTEM_ADMIN", "ADMIN", "PROFESSOR", "TA"):
+            return
+        college_affs = (
+            db.query(UserAffiliation)
+            .filter(
+                UserAffiliation.user_id == user.id,
+                UserAffiliation.affiliation_type == "college",
+                UserAffiliation.college_id.is_not(None),
+            )
+            .all()
+        )
+        if not college_affs:
+            return
+        changed = False
+        for aff in college_affs:
+            scope_key = f"COLLEGE:{aff.college_id}"
+            existing = db.query(UserRoleBinding).filter(
+                UserRoleBinding.user_id == user.id,
+                UserRoleBinding.role == role,
+                UserRoleBinding.scope_key == scope_key,
+            ).first()
+            if existing:
+                if not existing.is_active:
+                    existing.is_active = True
+                    changed = True
+            else:
+                db.add(UserRoleBinding(
+                    user_id=user.id,
+                    role=role,
+                    scope_type="COLLEGE",
+                    scope_key=scope_key,
+                    college_id=aff.college_id,
+                    is_active=True,
+                ))
+                changed = True
+        if changed:
+            db.commit()
+
+    @staticmethod
     def authorization_payload(db: Session, user: User) -> dict:
+        AuthorizationService._backfill_college_bindings(db, user)
         bindings = AuthorizationService.active_bindings(db, user.id)
         roles = sorted({normalize_role(binding.role) for binding in bindings})
         capabilities = sorted(cap.value for cap in AuthorizationService.effective_capabilities(db, user.id))
