@@ -11,8 +11,7 @@ import {
   BookOpen,
   Award,
   Check,
-  AlertCircle,
-  X
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context';
@@ -21,13 +20,12 @@ export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
 
-  // Profile-incomplete banner: shown until the admin replaces their
+  // Profile-incomplete banner: mandatory until the admin replaces their
   // placeholder organization name with a real one via "Update Profile"
   // (deferred from the minimal signup form — also covers first-time Google
-  // sign-in admins, who land in the same unconfigured state). Checked
-  // against the actual saved org name rather than a server flag, so the
-  // banner also goes away by itself once the admin actually finishes.
-  const bannerDismissKey = user?.id ? `admin_profile_banner_dismissed_${user.id}` : null;
+  // sign-in admins, who land in the same unconfigured state). Not dismissible
+  // — checked against the actual saved org name, so it disappears on its own
+  // once the admin actually finishes.
   const [showProfileBanner, setShowProfileBanner] = useState(false);
 
   useEffect(() => {
@@ -39,18 +37,10 @@ export const AdminDashboard: React.FC = () => {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data) return;
-        const dismissed = bannerDismissKey ? localStorage.getItem(bannerDismissKey) : null;
-        if (!dismissed && isUnconfiguredOrgName(data.organization_info?.name)) {
-          setShowProfileBanner(true);
-        }
+        setShowProfileBanner(isUnconfiguredOrgName(data.organization_info?.name));
       })
       .catch((err) => console.error('Error checking admin profile status:', err));
-  }, [user, bannerDismissKey]);
-
-  const dismissBanner = () => {
-    if (bannerDismissKey) localStorage.setItem(bannerDismissKey, 'true');
-    setShowProfileBanner(false);
-  };
+  }, [user]);
   const [summaryData, setSummaryData] = useState<any>({
     databaseConnected: false,
     purchasedLabs: {
@@ -121,19 +111,11 @@ export const AdminDashboard: React.FC = () => {
             </p>
             <Link
               to="/admin/profile"
-              onClick={dismissBanner}
               className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
             >
               Update Profile →
             </Link>
           </div>
-          <button
-            onClick={dismissBanner}
-            className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors rounded-md p-0.5"
-            aria-label="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
       {/* 1. Professor Command Center Hero Banner */}

@@ -339,11 +339,10 @@ export const OnboardingPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Country *</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Country</label>
                 <input
                   type="text"
                   name="country"
-                  required
                   value={form.country}
                   onChange={handleChange}
                   className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:border-[#2563EB]"
@@ -351,12 +350,11 @@ export const OnboardingPage: React.FC = () => {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">City / State *</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">City / State</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     name="city"
-                    required
                     placeholder="City"
                     value={form.city}
                     onChange={handleChange}
@@ -365,7 +363,6 @@ export const OnboardingPage: React.FC = () => {
                   <input
                     type="text"
                     name="state"
-                    required
                     placeholder="State"
                     value={form.state}
                     onChange={handleChange}

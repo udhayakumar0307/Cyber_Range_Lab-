@@ -14,8 +14,7 @@ import {
   FlaskConical,
   Flag,
   ArrowRight,
-  AlertCircle,
-  X
+  AlertCircle
 } from 'lucide-react';
 
 interface TrainingLab {
@@ -73,24 +72,17 @@ export const UserDashboard: React.FC = () => {
   const [labs, setLabs] = useState<TrainingLab[]>([]);
   const [recentActivities, setRecentActivities] = useState<DashboardActivity[]>([]);
 
-  // Profile-incomplete banner: shown until the student adds their college,
+  // Profile-incomplete banner: mandatory until the student adds their college,
   // department and roll number via "Update Profile" (deferred from the
-  // minimal signup form). Mirrors the same pattern on AdminDashboard.
-  const bannerDismissKey = user?.id ? `student_profile_banner_dismissed_${user.id}` : null;
+  // minimal signup form). Not dismissible — it tracks user.profile_completed
+  // directly and disappears on its own once the profile is actually finished.
+  // Mirrors the same pattern on AdminDashboard.
   const [showProfileBanner, setShowProfileBanner] = useState(false);
 
   useEffect(() => {
-    if (!user || !bannerDismissKey) return;
-    const dismissed = localStorage.getItem(bannerDismissKey);
-    if (!dismissed && user.profile_completed === false) {
-      setShowProfileBanner(true);
-    }
-  }, [user, bannerDismissKey]);
-
-  const dismissBanner = () => {
-    if (bannerDismissKey) localStorage.setItem(bannerDismissKey, 'true');
-    setShowProfileBanner(false);
-  };
+    if (!user) return;
+    setShowProfileBanner(user.profile_completed === false);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,19 +132,11 @@ export const UserDashboard: React.FC = () => {
             </p>
             <Link
               to="/onboarding"
-              onClick={dismissBanner}
               className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
             >
               Update Profile →
             </Link>
           </div>
-          <button
-            onClick={dismissBanner}
-            className="flex-shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors rounded-md p-0.5"
-            aria-label="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
       {/* Welcome Banner Card */}
