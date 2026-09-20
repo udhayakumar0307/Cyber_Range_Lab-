@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { VectorBadge } from "../../components/user/VectorBadge";
 import { useAuth } from "../../context";
+import { getGradeColor } from "../../utils/grading";
 
 type TabId = "overview" | "leaderboard";
 
@@ -446,7 +447,15 @@ export const StatisticsPage: React.FC = () => {
                         <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-[#2563EB]/30 transition-colors">
                           <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm flex-shrink-0">🧪</div>
                           <div className="flex-1 min-w-0"><p className="font-bold text-xs text-[#0F172A] dark:text-white truncate">{lab.name}</p><div className="flex items-center gap-1.5 mt-1"><span className={`text-[9px] font-bold px-1 py-0.5 rounded border ${dc}`}>{lab.difficulty}</span><span className="text-[10px] text-slate-400">{lab.category}</span></div></div>
-                          <div className="text-right flex-shrink-0"><p className="text-xs font-black text-[#2563EB]">+{lab.score} pts</p><p className="text-[9px] text-slate-400">{lab.completed_at || "--"}</p></div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs font-black text-[#2563EB]">+{lab.score} pts</p>
+                            <p className="text-[9px] text-slate-400">{lab.completed_at || "--"}</p>
+                          </div>
+                          {lab.grade && (
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border flex-shrink-0 ${getGradeColor(lab.grade)}`}>
+                              {lab.grade}
+                            </span>
+                          )}
                           <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                         </div>
                       );

@@ -777,6 +777,8 @@ def get_completed_labs(
     Returns the list of distinct labs completed by the logged-in user.
     """
     from app.services.progress_service import get_user_lab_statistics
+    from app.services.score_contract_service import ScoreContractService
+    from app.services.grade_scale import get_letter_grade
     progress_stats = get_user_lab_statistics(db, str(current_user.id), use_cache=False)
     completed_by_lab = progress_stats.get("lab_completed_modules", {})
     total_by_lab = progress_stats.get("lab_total_modules", {})
@@ -805,13 +807,19 @@ def get_completed_labs(
         if total_by_lab.get(lab.id, 0) <= 0 or completed_by_lab.get(lab.id, 0) < total_by_lab[lab.id]:
             continue
         details = details_by_lab.get(lab.id)
+        score = details.score or 0 if details else 0
+        score_possible = ScoreContractService.get_score_possible_for_lab(db, lab.id)["score_possible"]
+        score_percent = ScoreContractService.normalize_percent(score, score_possible)
         result.append({
             "lab_id": lab.id,
             "name": lab.name,
             "category": lab.category,
             "difficulty": lab.difficulty,
             "completed_at": details.completed_at.strftime("%Y-%m-%d") if details and details.completed_at else None,
-            "score": details.score or 0 if details else 0,
+            "score": score,
+            "score_possible": score_possible,
+            "score_percent": score_percent,
+            "grade": get_letter_grade(score_percent),
         })
     return result
 
@@ -1209,6 +1217,8 @@ def get_assignment_statistics(
     from app.models.user_progress import UserProgress
     from app.core.constants import TRACK_TO_LAB
     from app.models.lab_module import LabModule
+    from app.services.score_contract_service import ScoreContractService
+    from app.services.grade_scale import get_letter_grade
 
     # Fetch assignment
     a = db.query(Assignment).filter(
@@ -1259,6 +1269,10 @@ def get_assignment_statistics(
     ulp_score = sum(r.score for r in ulp_records if r.score)
     up_score = sum(r.module_score for r in up_records if r.module_score)
     score_earned = max(ulp_score, up_score)
+
+    score_possible = ScoreContractService.get_score_possible(db, a)["score_possible"]
+    score_percent = ScoreContractService.normalize_percent(score_earned, score_possible)
+    grade = get_letter_grade(score_percent)
 
     # Calculate total time taken (in seconds)
     time_taken_seconds = sum(r.time_taken_seconds for r in ulp_records if r.time_taken_seconds)
@@ -1334,6 +1348,9 @@ def get_assignment_statistics(
         "assignment_id": a.id,
         "lab_name": lab.name,
         "score": score_earned,
+        "score_possible": score_possible,
+        "score_percent": score_percent,
+        "grade": grade,
         "time_taken": time_str,
         "progress_percent": progress_percent,
         "radar_labels": radar_labels,

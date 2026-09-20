@@ -60,18 +60,23 @@ class ScoreContractService:
         return round(max(0.0, min(100.0, pct)), 2)
 
     @staticmethod
-    def get_score_possible(
+    def get_score_possible_for_lab(
         db: Session,
-        assignment: Assignment,
+        lab_id: str,
     ) -> Dict:
+        """Resolve a lab's total points, independent of any one assignment.
+
+        Fallback chain: sum of that lab's module points, else the lab's
+        own max_points, else unavailable (no denominator to grade against).
+        """
         module_total = (
             db.query(func.sum(LabModule.points))
-            .filter(LabModule.lab_id == assignment.lab_id)
+            .filter(LabModule.lab_id == lab_id)
             .scalar()
         )
         module_count = (
             db.query(func.count(LabModule.id))
-            .filter(LabModule.lab_id == assignment.lab_id)
+            .filter(LabModule.lab_id == lab_id)
             .scalar()
             or 0
         )
@@ -84,7 +89,7 @@ class ScoreContractService:
                 "score_units": "points",
             }
 
-        lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
+        lab = db.query(Lab).filter(Lab.id == lab_id).first()
         if lab is not None and float(lab.max_points or 0) > 0:
             return {
                 "score_possible": round(float(lab.max_points), 2),
@@ -99,6 +104,15 @@ class ScoreContractService:
             "score_source": "unavailable",
             "score_units": "points",
         }
+
+    @staticmethod
+    def get_score_possible(
+        db: Session,
+        assignment: Assignment,
+    ) -> Dict:
+        return ScoreContractService.get_score_possible_for_lab(
+            db, assignment.lab_id
+        )
 
     @staticmethod
     def get_assignment_score(

@@ -2103,6 +2103,8 @@ def get_group_lab_status(
     from app.models.assignment import Assignment
     from app.models.user_lab_progress import UserLabProgress
     from app.core.timezone_utils import now_ist
+    from app.services.score_contract_service import ScoreContractService
+    from app.services.grade_scale import get_letter_grade
     from sqlalchemy import not_, or_
 
     g = db.query(Group).filter(Group.id == group_id).first()
@@ -2119,6 +2121,8 @@ def get_group_lab_status(
 
     lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
     total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+    score_meta = ScoreContractService.get_score_possible(db, assignment)
+    score_possible = score_meta["score_possible"]
 
     members = db.query(User).filter(
         User.group_id == group_id,
@@ -2162,10 +2166,16 @@ def get_group_lab_status(
             in_progress += 1
             student_status = "in_progress"
 
+        score_percent = ScoreContractService.normalize_percent(total_score, score_possible)
+        grade = get_letter_grade(score_percent)
+
         leaderboard.append({
             "user_id": m.id,
             "name": m.name or m.email.split("@")[0],
             "score": total_score,
+            "score_possible": score_possible,
+            "score_percent": score_percent,
+            "grade": grade,
         })
 
         students.append({
@@ -2174,6 +2184,9 @@ def get_group_lab_status(
             "modules_completed": completed_count,
             "total_modules": total_modules,
             "score": total_score,
+            "score_possible": score_possible,
+            "score_percent": score_percent,
+            "grade": grade,
             "time_taken_seconds": time_taken_seconds,
             "status": student_status,
         })
@@ -2193,6 +2206,7 @@ def get_group_lab_status(
         "seconds_until_start": seconds_until_start,
         "total_students": len(members),
         "total_modules": total_modules,
+        "score_possible": score_possible,
         "not_started": not_started,
         "in_progress": in_progress,
         "completed": completed,
@@ -2215,6 +2229,8 @@ def export_group_lab_report(
     from app.models.lab_module import LabModule
     from app.models.assignment import Assignment
     from app.models.user_lab_progress import UserLabProgress
+    from app.services.score_contract_service import ScoreContractService
+    from app.services.grade_scale import get_letter_grade
     from sqlalchemy import not_, or_
     import io
 
@@ -2235,6 +2251,7 @@ def export_group_lab_report(
 
     lab = db.query(Lab).filter(Lab.id == assignment.lab_id).first()
     total_modules = db.query(LabModule).filter(LabModule.lab_id == assignment.lab_id).count()
+    score_possible = ScoreContractService.get_score_possible(db, assignment)["score_possible"]
 
     members = db.query(User).filter(
         User.group_id == group_id,
@@ -2251,12 +2268,16 @@ def export_group_lab_report(
         completed_count = sum(1 for r in progress_rows if r.status == "COMPLETED" or r.completed_at is not None)
         time_seconds = sum(r.time_taken_seconds or 0 for r in progress_rows)
         attempts = sum(r.attempts or 0 for r in progress_rows)
+        score_percent = ScoreContractService.normalize_percent(score, score_possible)
         rows.append({
             "name": m.name or m.email.split("@")[0],
             "email": m.email,
             "modules_completed": completed_count,
             "total_modules": total_modules,
             "score": score,
+            "score_possible": score_possible,
+            "score_percent": score_percent,
+            "grade": get_letter_grade(score_percent),
             "attempts": attempts,
             "time_taken_seconds": time_seconds,
         })
@@ -2279,12 +2300,15 @@ def export_group_lab_report(
             Paragraph(f"Assignment window: {assignment.start_datetime} to {assignment.end_datetime}", styles["Normal"]),
             Spacer(1, 16),
         ]
-        table_data = [["Name", "Email", "Modules", "Score", "Attempts", "Time (min)"]]
+        table_data = [["Name", "Email", "Modules", "Score", "Score %", "Grade", "Attempts", "Time (min)"]]
         for r in rows:
             table_data.append([
                 r["name"], r["email"],
                 f'{r["modules_completed"]}/{r["total_modules"]}',
-                str(r["score"]), str(r["attempts"]),
+                str(r["score"]),
+                f'{r["score_percent"]:.1f}' if r["score_percent"] is not None else "N/A",
+                r["grade"] or "N/A",
+                str(r["attempts"]),
                 str(round(r["time_taken_seconds"] / 60, 1)),
             ])
         table = Table(table_data, repeatRows=1)
@@ -2306,11 +2330,14 @@ def export_group_lab_report(
 
     # Default: CSV
     output = io.StringIO()
-    output.write("Name,Email,Modules Completed,Total Modules,Score,Attempts,Time Taken (min)\n")
+    output.write("Name,Email,Modules Completed,Total Modules,Score,Score Possible,Score %,Grade,Attempts,Time Taken (min)\n")
     for r in rows:
+        score_percent_csv = f'{r["score_percent"]:.1f}' if r["score_percent"] is not None else ""
         output.write(
             f'"{r["name"]}","{r["email"]}",{r["modules_completed"]},{r["total_modules"]},'
-            f'{r["score"]},{r["attempts"]},{round(r["time_taken_seconds"] / 60, 1)}\n'
+            f'{r["score"]},{r["score_possible"] if r["score_possible"] is not None else ""},'
+            f'{score_percent_csv},{r["grade"] or ""},'
+            f'{r["attempts"]},{round(r["time_taken_seconds"] / 60, 1)}\n'
         )
     return Response(
         content=output.getvalue(),
@@ -2333,6 +2360,8 @@ def get_student_lab_report(
     from app.models.lab_module import LabModule
     from app.models.assignment import Assignment
     from app.models.user_lab_progress import UserLabProgress
+    from app.services.score_contract_service import ScoreContractService
+    from app.services.grade_scale import get_letter_grade
 
     g = db.query(Group).filter(Group.id == group_id).first()
     if not g:
@@ -2387,6 +2416,10 @@ def get_student_lab_report(
     total_attempts = sum(m["attempts"] for m in module_breakdown)
     completed_count = sum(1 for m in module_breakdown if m["status"] == "COMPLETED")
 
+    score_possible = ScoreContractService.get_score_possible(db, assignment)["score_possible"]
+    score_percent = ScoreContractService.normalize_percent(total_score, score_possible)
+    grade = get_letter_grade(score_percent)
+
     # Spiderweb/radar: group modules by track, normalize avg score % per track
     track_scores: dict = {}
     for m in module_breakdown:
@@ -2410,6 +2443,9 @@ def get_student_lab_report(
         "total_modules": len(modules),
         "modules_completed": completed_count,
         "total_score": total_score,
+        "total_score_possible": score_possible,
+        "score_percent": score_percent,
+        "grade": grade,
         "total_time_seconds": total_time_seconds,
         "total_attempts": total_attempts,
         "modules": module_breakdown,

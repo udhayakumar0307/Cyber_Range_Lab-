@@ -10,7 +10,9 @@ import {
   Repeat,
   Award,
   Activity,
+  GraduationCap,
 } from 'lucide-react';
+import { getGradeColor } from '../../utils/grading';
 
 interface ModuleBreakdown {
   module_id: string;
@@ -38,6 +40,9 @@ interface StudentReport {
   total_modules: number;
   modules_completed: number;
   total_score: number;
+  total_score_possible: number | null;
+  score_percent: number | null;
+  grade: string | null;
   total_time_seconds: number;
   total_attempts: number;
   modules: ModuleBreakdown[];
@@ -196,7 +201,7 @@ export const StudentLabReportPage: React.FC = () => {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-xs">
           <div>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Modules</span>
@@ -210,6 +215,19 @@ export const StudentLabReportPage: React.FC = () => {
             <span className="text-xl font-black text-[#0052CC]">{report.total_score}</span>
           </div>
           <Award className="w-7 h-7 text-blue-200" />
+        </div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Grade</span>
+            {report.grade ? (
+              <span className={`inline-block mt-0.5 text-sm font-black px-2 py-0.5 rounded-lg border ${getGradeColor(report.grade)}`}>
+                {report.grade}
+              </span>
+            ) : (
+              <span className="text-xl font-black text-slate-300">—</span>
+            )}
+          </div>
+          <GraduationCap className="w-7 h-7 text-slate-300" />
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-xs">
           <div>

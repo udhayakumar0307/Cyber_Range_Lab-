@@ -16,8 +16,10 @@ import {
   ChevronLeft,
   ArrowUpRight,
   ArrowDownRight,
-  History as HistoryIcon
+  History as HistoryIcon,
+  GraduationCap
 } from 'lucide-react';
+import { getGradeColor } from '../../utils/grading';
 
 interface AssignedLab {
   id: number;
@@ -38,6 +40,9 @@ interface AssignmentStats {
   assignment_id: number;
   lab_name: string;
   score: number;
+  score_possible: number | null;
+  score_percent: number | null;
+  grade: string | null;
   time_taken: string;
   progress_percent: number;
   radar_labels: string[];
@@ -325,8 +330,8 @@ export const AssignedLabsPage: React.FC = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
           {/* Card 1: Score */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-xs">
             <div className="space-y-1">
@@ -334,6 +339,21 @@ export const AssignedLabsPage: React.FC = () => {
               <span className="text-3xl font-black text-[#2563EB] block">{selectedStats.score}</span>
             </div>
             <Award className="w-10 h-10 text-[#2563EB]/25" />
+          </div>
+
+          {/* Card 1b: Grade */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-xs">
+            <div className="space-y-1">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Grade</span>
+              {selectedStats.grade ? (
+                <span className={`inline-block text-2xl font-black px-2.5 py-0.5 rounded-lg border ${getGradeColor(selectedStats.grade)}`}>
+                  {selectedStats.grade}
+                </span>
+              ) : (
+                <span className="text-3xl font-black text-slate-300 block">—</span>
+              )}
+            </div>
+            <GraduationCap className="w-10 h-10 text-[#2563EB]/25" />
           </div>
 
           {/* Card 2: Time Taken */}

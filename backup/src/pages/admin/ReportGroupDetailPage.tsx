@@ -12,6 +12,8 @@ import {
   Download,
   FileText,
 } from 'lucide-react';
+import { getGradeColor } from '../../utils/grading';
+import { GradeScaleInfo } from '../../components/GradeScaleInfo';
 
 interface StudentLabStat {
   user_id: number;
@@ -19,8 +21,20 @@ interface StudentLabStat {
   modules_completed: number;
   total_modules: number;
   score: number;
+  score_possible: number | null;
+  score_percent: number | null;
+  grade: string | null;
   time_taken_seconds: number;
   status: 'not_started' | 'in_progress' | 'completed';
+}
+
+interface LeaderboardEntry {
+  user_id: number;
+  name: string;
+  score: number;
+  score_possible: number | null;
+  score_percent: number | null;
+  grade: string | null;
 }
 
 interface LabStatus {
@@ -29,10 +43,11 @@ interface LabStatus {
   start_datetime?: string;
   end_datetime?: string;
   total_students?: number;
+  score_possible?: number | null;
   not_started?: number;
   in_progress?: number;
   completed?: number;
-  leaderboard?: { user_id: number; name: string; score: number }[];
+  leaderboard?: LeaderboardEntry[];
   students?: StudentLabStat[];
 }
 
@@ -211,10 +226,15 @@ export const ReportGroupDetailPage: React.FC = () => {
                   }`}>
                     {idx + 1}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{entry.name}</p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">{entry.score} pts</p>
                   </div>
+                  {entry.grade && (
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border flex-shrink-0 ${getGradeColor(entry.grade)}`}>
+                      {entry.grade}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -237,6 +257,8 @@ export const ReportGroupDetailPage: React.FC = () => {
                 <th className="p-3">Name</th>
                 <th className="p-3">Progress</th>
                 <th className="p-3">Time Taken</th>
+                <th className="p-3">Score</th>
+                <th className="p-3">Grade <GradeScaleInfo /></th>
                 <th className="p-3 text-right">Details</th>
               </tr>
             </thead>
@@ -253,6 +275,16 @@ export const ReportGroupDetailPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-3 text-slate-600 dark:text-slate-300">{formatDuration(s.time_taken_seconds)}</td>
+                  <td className="p-3 text-slate-600 dark:text-slate-300">{s.score}</td>
+                  <td className="p-3">
+                    {s.grade ? (
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border ${getGradeColor(s.grade)}`}>
+                        {s.grade}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
                     <Link
                       to={`/admin/groups/${dbId}/students/${s.user_id}/report${assignmentQuery}`}
