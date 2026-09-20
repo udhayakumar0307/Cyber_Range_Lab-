@@ -62,8 +62,6 @@ const PaymentHistoryPage   = lazy(() => import('./pages/admin/PaymentHistoryPage
 const PurchasedLabsPage    = lazy(() => import('./pages/admin/PurchasedLabsPage').then(m => ({ default: m.PurchasedLabsPage })));
 const ReportsPage          = lazy(() => import('./pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const ReportGroupDetailPage = lazy(() => import('./pages/admin/ReportGroupDetailPage').then(m => ({ default: m.ReportGroupDetailPage })));
-const GradebookPage        = lazy(() => import('./pages/admin/GradebookPage').then(m => ({ default: m.GradebookPage })));
-const RubricManagerPage    = lazy(() => import('./pages/admin/RubricManagerPage').then(m => ({ default: m.RubricManagerPage })));
 
 // ─── User Chunk ───────────────────────────────────────────────────────────────
 const UserDashboard        = lazy(() => import('./pages/user/UserDashboard').then(m => ({ default: m.UserDashboard })));
@@ -753,26 +751,6 @@ export function App() {
                   <ProtectedRoute allowedRoles={['admin']}>
                     <ErrorBoundary>
                       <AdminLayout><MonitoringAnalytics /></AdminLayout>
-                    </ErrorBoundary>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/rubrics"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'professor']}>
-                    <ErrorBoundary>
-                      <AdminLayout><RubricManagerPage /></AdminLayout>
-                    </ErrorBoundary>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/gradebook"
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'professor']}>
-                    <ErrorBoundary>
-                      <AdminLayout><GradebookPage /></AdminLayout>
                     </ErrorBoundary>
                   </ProtectedRoute>
                 }

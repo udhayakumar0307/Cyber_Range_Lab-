@@ -16,8 +16,6 @@ const ADMIN_ROUTE_CAPABILITIES: Array<[string, string]> = [
   ['/admin/allocations', 'LAB_ASSIGN'],
   ['/admin/monitoring', 'PROGRESS_VIEW'],
   ['/admin/reports', 'REPORT_VIEW'],
-  ['/admin/rubrics', 'RUBRIC_VIEW'],
-  ['/admin/gradebook', 'GRADE_VIEW'],
   ['/admin/study-material', 'CONTENT_MANAGE'],
   ['/admin/ctf', 'CTF_MANAGE'],
   ['/admin/settings', 'DASHBOARD_VIEW'],
