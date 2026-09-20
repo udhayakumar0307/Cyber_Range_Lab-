@@ -27,7 +27,7 @@ const toXY = (angle: number, r: number, cx: number, cy: number) => ({
 });
 
 export const AdminProfilePage: React.FC = () => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, authorization } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -355,6 +355,15 @@ export const AdminProfilePage: React.FC = () => {
   const email = profileData.basic_info.email || '';
   const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
+  // roles is only populated from a real, non-bootstrap RBAC binding (see
+  // authorization_service.py's effective_capabilities/active_bindings), so
+  // an empty array here means the account is still limited to DASHBOARD_VIEW
+  // regardless of what unblocked it — a verified college affiliation counts
+  // just as much as an approved Organization.
+  const orgStatus = String(profileData.organization_info.status || '').toUpperCase();
+  const isOrgVerified = orgStatus === 'ACTIVE' || orgStatus === 'APPROVED';
+  const isUnblockedElsewhere = (authorization?.roles?.length ?? 0) > 0;
+
   // Real Admin operational values for the spiderweb radar
   const purchasedCount = adminSummary?.purchasedLabs?.total || profileData.summary_counts?.purchased_labs || 4;
   const studentsCount = adminSummary?.students?.total || 0;
@@ -576,28 +585,33 @@ export const AdminProfilePage: React.FC = () => {
                 A self-registered org starts PENDING (zero admin capabilities
                 beyond viewing this dashboard/profile) until a system admin
                 reviews and approves it — see authorization_service.py's
-                active_bindings(). This badge reflects that real status. */}
+                active_bindings(). This badge reflects that real status,
+                unless a college affiliation (below) has already unblocked
+                the account through that separate path — roles is only
+                populated from a real, non-bootstrap binding, so an empty
+                array here is the same "still just DASHBOARD_VIEW" state
+                this section originally warned about. */}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">🏢 Organization Details</h3>
-                {(() => {
-                  const orgStatus = String(profileData.organization_info.status || '').toUpperCase();
-                  const isVerified = orgStatus === 'ACTIVE' || orgStatus === 'APPROVED';
-                  return (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                      isVerified
-                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/40 dark:border-emerald-900'
-                        : 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/40 dark:border-amber-900'
-                    }`}>
-                      {isVerified ? 'Verified' : 'Pending Verification'}
-                    </span>
-                  );
-                })()}
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                  isOrgVerified || isUnblockedElsewhere
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/40 dark:border-emerald-900'
+                    : 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/40 dark:border-amber-900'
+                }`}>
+                  {isOrgVerified ? 'Verified' : isUnblockedElsewhere ? 'Optional' : 'Pending Verification'}
+                </span>
               </div>
-              {String(profileData.organization_info.status || '').toUpperCase() === 'PENDING' && (
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-                  A system admin will review and verify your organization. Some administrative actions stay disabled until then.
-                </p>
+              {orgStatus === 'PENDING' && (
+                isUnblockedElsewhere ? (
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-lg px-3 py-2">
+                    Your account is already active through your verified college affiliation below. These organization details are optional.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                    A system admin will review and verify your organization. Some administrative actions stay disabled until then.
+                  </p>
+                )
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="sm:col-span-2">
