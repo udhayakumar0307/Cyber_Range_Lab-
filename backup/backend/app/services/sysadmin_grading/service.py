@@ -19,6 +19,7 @@ from .config import GradingConfigurationError, SysadminGradingSettings
 from .executor import GradingExecution, GradingExecutionError, build_grading_executor
 from .progress_projection import project_sysadmin_assignment_progress
 from .question_bank import QuestionBankError, QuestionBankRepository
+from .workshop import settings_for_lab
 from .queue import GradingQueueError, SQSGradingQueue
 
 
@@ -208,7 +209,7 @@ class SysadminGradingService:
                 result = project_sysadmin_assignment_progress(
                     db,
                     submission=row,
-                    marketplace_lab_id=self.settings.marketplace_lab_id,
+                    marketplace_lab_id=settings_for_lab(self.settings, row.lab_id).marketplace_lab_id,
                 )
                 if result is not None:
                     logger.info(

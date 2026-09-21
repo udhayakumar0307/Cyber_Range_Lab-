@@ -285,8 +285,9 @@ const ResultPanel: React.FC<{
   );
 };
 
-export const LinuxSysadminLabPage: React.FC = () => {
+export const LinuxSysadminLabPage: React.FC<{ workshop?: boolean }> = ({ workshop = false }) => {
   const navigate = useNavigate();
+  const basePath = workshop ? "/labs/linux-security-workshop" : "/labs/linux-sysadmin";
   const { labId } = useParams<{ labId?: string }>();
   const { apiFetch, token } = useAuth();
 
@@ -331,13 +332,13 @@ export const LinuxSysadminLabPage: React.FC = () => {
       setLoadingLabs(true);
       setError(null);
       try {
-        const rows = await sysadminGradingService.listLabs(apiFetch);
+        const rows = await sysadminGradingService.listLabs(apiFetch, workshop ? "linux-security-workshop" : "linux-sysadmin-lab");
         if (cancelled) return;
         setLabs(rows);
         if (!labId && rows.length) {
-          navigate(`/labs/linux-sysadmin/${encodeURIComponent(rows[0].lab_id)}`, { replace: true });
+          navigate(`${basePath}/${encodeURIComponent(rows[0].lab_id)}`, { replace: true });
         } else if (labId && rows.length && !rows.some((row) => row.lab_id === labId)) {
-          navigate(`/labs/linux-sysadmin/${encodeURIComponent(rows[0].lab_id)}`, { replace: true });
+          navigate(`${basePath}/${encodeURIComponent(rows[0].lab_id)}`, { replace: true });
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load Linux Sysadmin questions.');
@@ -347,7 +348,7 @@ export const LinuxSysadminLabPage: React.FC = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [apiFetch, labId, navigate]);
+  }, [apiFetch, labId, navigate, workshop, basePath]);
 
   useEffect(() => {
     if (!selectedLabId) return;
@@ -546,9 +547,9 @@ export const LinuxSysadminLabPage: React.FC = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
-                <h1 className="truncate text-base font-black sm:text-lg">Linux System Administration</h1>
+                <h1 className="truncate text-base font-black sm:text-lg">{workshop ? "Linux Security and Cyber Defense Workshop" : "Linux System Administration"}</h1>
               </div>
-              <p className="truncate text-[11px] text-slate-500">Red Hat-aligned terminal challenges with state-based autograding</p>
+              <p className="truncate text-[11px] text-slate-500">{workshop ? "Two days · Foundation → Practitioner → Advanced · 12 exercises" : "Red Hat-aligned terminal challenges with state-based autograding"}</p>
             </div>
           </div>
           <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
@@ -574,7 +575,7 @@ export const LinuxSysadminLabPage: React.FC = () => {
                   <button
                     type="button"
                     key={lab.lab_id}
-                    onClick={() => navigate(`/labs/linux-sysadmin/${encodeURIComponent(lab.lab_id)}`)}
+                    onClick={() => navigate(`${basePath}/${encodeURIComponent(lab.lab_id)}`)}
                     className={`w-full rounded-xl border px-3 py-3 text-left transition ${
                       selected
                         ? 'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40'
@@ -588,6 +589,7 @@ export const LinuxSysadminLabPage: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-extrabold text-slate-900 dark:text-white">{lab.title}</div>
                         <div className="mt-1 truncate font-mono text-[10px] text-slate-400">{lab.lab_id}</div>
+                        {workshop && <div className="mt-1 text-[10px] text-slate-500">{lab.module}</div>}
                       </div>
                       <ChevronRight className={`mt-1 h-3.5 w-3.5 shrink-0 ${selected ? 'text-blue-600' : 'text-slate-300'}`} />
                     </div>

@@ -146,7 +146,9 @@ export const AssignedLabsPage: React.FC = () => {
           const isCrypto = targetLabId === 'cryptography-lab' || normalizedLabId === 'cryptographylab';
           const isCloud = targetLabId === 'cloud-security-lab' || targetLabId === 'cloudcorp-aws-lab' || normalizedLabId.includes('cloud');
           const isPuzzle = targetLabId === 'techcorp-sysadmin-labs' || targetLabId === 'puzzle-lab' || targetLabId.toLowerCase().includes('puzzle');
-          if (isSysadmin) {
+          if (targetLabId === 'linux-security-workshop') {
+            navigate('/labs/linux-security-workshop');
+          } else if (isSysadmin) {
             navigate('/labs/linux-sysadmin');
           } else if (isCll) {
             navigate('/labs/command-line-lab/session/sess-cll-01');

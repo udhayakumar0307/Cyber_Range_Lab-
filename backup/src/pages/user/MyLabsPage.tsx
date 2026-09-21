@@ -99,7 +99,9 @@ export const MyLabsPage: React.FC = () => {
           const isCll = targetLabId === 'command-line-lab' || normalizedLabId === 'commandlinelab';
           const isCrypto = targetLabId === 'cryptography-lab' || normalizedLabId === 'cryptographylab';
           const isCloud = targetLabId === 'cloud-security-lab' || targetLabId === 'cloudcorp-aws-lab' || normalizedLabId.includes('cloud');
-          if (isSysadmin) {
+          if (targetLabId === 'linux-security-workshop') {
+            navigate('/labs/linux-security-workshop');
+          } else if (isSysadmin) {
             navigate('/labs/linux-sysadmin');
           } else if (isCll) {
             navigate('/labs/command-line-lab/session/sess-cll-01');
