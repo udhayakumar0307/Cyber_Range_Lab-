@@ -17,19 +17,29 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context';
 
 export const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, authorization } = useAuth();
   const [loading, setLoading] = useState(true);
 
   // Profile-incomplete banner: mandatory until the admin replaces their
-  // placeholder organization name with a real one via "Update Profile"
-  // (deferred from the minimal signup form — also covers first-time Google
-  // sign-in admins, who land in the same unconfigured state). Not dismissible
-  // — checked against the actual saved org name, so it disappears on its own
-  // once the admin actually finishes.
+  // placeholder organization name with a real one, or adds a verified
+  // college affiliation instead, via "Update Profile" (deferred from the
+  // minimal signup form — also covers first-time Google sign-in admins, who
+  // land in the same unconfigured state). Not dismissible — checked against
+  // real account state, so it disappears on its own once the admin actually
+  // finishes either path. authorization.roles is only populated from a real,
+  // non-bootstrap RBAC binding (see authorization_service.py), so a
+  // non-empty value here means some path - college or organization - has
+  // already unblocked the account, regardless of what the org name field
+  // still says.
   const [showProfileBanner, setShowProfileBanner] = useState(false);
+  const isUnblockedElsewhere = (authorization?.roles?.length ?? 0) > 0;
 
   useEffect(() => {
     if (!user) return;
+    if (isUnblockedElsewhere) {
+      setShowProfileBanner(false);
+      return;
+    }
     const token = localStorage.getItem('token');
     routedApiFetch('/api/v1/admin/profile', {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -40,7 +50,7 @@ export const AdminDashboard: React.FC = () => {
         setShowProfileBanner(isUnconfiguredOrgName(data.organization_info?.name));
       })
       .catch((err) => console.error('Error checking admin profile status:', err));
-  }, [user]);
+  }, [user, isUnblockedElsewhere]);
   const [summaryData, setSummaryData] = useState<any>({
     databaseConnected: false,
     purchasedLabs: {

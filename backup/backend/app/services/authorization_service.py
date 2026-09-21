@@ -208,14 +208,14 @@ class AuthorizationService:
         if actor.id == target.id:
             return True
 
-        target_orgs, target_colleges = AuthorizationService.user_scope_ids(db, target)
-        tenant_match = bool(
-            organization_ids.intersection(target_orgs)
-            or college_ids.intersection(target_colleges)
-        )
-        if not tenant_match:
-            return False
-
+        # Roster link and group ownership are explicit, specific records of a
+        # real admin-student relationship (created only through this admin's
+        # own actions - importing/creating the student, or owning the group
+        # they're in), so they're checked on their own rather than gated
+        # behind a broad org/college tenant match. Requiring tenant_match
+        # first made both dead code for any student who was never tagged
+        # with an org/college at all (e.g. a plain CSV import) even though
+        # the admin plainly, demonstrably manages them.
         roster_link = (
             db.query(AdminStudentRoster)
             .filter(
@@ -232,7 +232,11 @@ class AuthorizationService:
             if group and group.owner_user_id == actor.id:
                 return True
 
-        return False
+        target_orgs, target_colleges = AuthorizationService.user_scope_ids(db, target)
+        return bool(
+            organization_ids.intersection(target_orgs)
+            or college_ids.intersection(target_colleges)
+        )
 
     @staticmethod
     def assert_user_access(db: Session, actor: User, target_user_id: int, capability: Capability | str) -> User:
@@ -268,6 +272,27 @@ class AuthorizationService:
         return not manager_ids or actor.id in manager_ids
 
     @staticmethod
+    def _college_mirrored_org_ids(db: Session, college_ids: Set[int]) -> Set[int]:
+        """Group has no college_id column of its own to check a COLLEGE-scoped
+        binding against - only organization_id. Mirrors the same college-name-
+        to-Organization match primary_organization_id() already uses to
+        resolve a college-only admin's working organization, so a group they
+        create (which lands under that same resolved org) is recognized as
+        theirs instead of being permanently outside organization_ids, which a
+        pure COLLEGE binding can never populate."""
+        if not college_ids:
+            return set()
+        from app.models.college import College
+        from app.models.admin_models import Organization
+        colleges = db.query(College).filter(College.id.in_(college_ids)).all()
+        result: Set[int] = set()
+        for college in colleges:
+            org = db.query(Organization).filter(Organization.name.ilike(college.name)).first()
+            if org:
+                result.add(int(org.id))
+        return result
+
+    @staticmethod
     def can_access_group(db: Session, actor: User, group: Group, capability: Capability | str) -> bool:
         bindings = AuthorizationService.bindings_for_capability(db, actor.id, capability)
         if not bindings:
@@ -276,12 +301,20 @@ class AuthorizationService:
         if AuthorizationService._has_explicit_global_binding(bindings):
             return True
 
-        _, organization_ids, _ = AuthorizationService._scope_sets(bindings)
+        # Ownership is an explicit, specific record of this admin managing
+        # this exact group (set at creation time), so - same reasoning as
+        # the roster-link/group-ownership checks in can_access_user - it's
+        # checked on its own rather than gated behind a broad org/college
+        # tenant match, which a pure COLLEGE-scoped admin can't always
+        # satisfy for a group they demonstrably created and own.
+        if group.owner_user_id == actor.id:
+            return True
 
-        if group.organization_id is None or int(group.organization_id) not in organization_ids:
-            return False
+        _, organization_ids, college_ids = AuthorizationService._scope_sets(bindings)
+        if college_ids:
+            organization_ids = organization_ids | AuthorizationService._college_mirrored_org_ids(db, college_ids)
 
-        return group.owner_user_id == actor.id
+        return group.organization_id is not None and int(group.organization_id) in organization_ids
 
     @staticmethod
     def assert_group_access(db: Session, actor: User, group_id: int, capability: Capability | str) -> Group:
