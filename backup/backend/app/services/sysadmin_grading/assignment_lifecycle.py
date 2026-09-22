@@ -12,6 +12,7 @@ from app.services.assignment_context_service import AssignmentContextService
 
 from .config import SysadminGradingSettings
 from .workspace import SysadminWorkspaceService
+from .workshop import WORKSHOP_ID
 
 
 def resolve_current_sysadmin_assignment_id(
@@ -72,6 +73,12 @@ def resolve_current_sysadmin_assignment_id(
                 "Linux System Administration is not currently active "
                 "for this assignment."
             ),
+        )
+
+    if marketplace_lab_id == WORKSHOP_ID:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="An active workshop assignment is required.",
         )
 
     return None
