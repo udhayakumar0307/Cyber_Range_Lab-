@@ -5,6 +5,8 @@ import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from dataclasses import replace
+from app.services.sysadmin_grading.workshop import WORKSHOP_ID, settings_for_lab
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, WebSocket, status
 from sqlalchemy.orm import Session
@@ -86,7 +88,7 @@ def _assert_marketplace_access(
     db: Session,
 ) -> None:
     """Mirror the current Available Labs purchase/free-lab access contract."""
-    if not settings.workspace_require_marketplace_access:
+    if not settings.workspace_require_marketplace_access and settings.marketplace_lab_id != WORKSHOP_ID:
         return
 
     role = str(getattr(current_user, "role", "") or "").lower()
@@ -163,15 +165,18 @@ def grading_status(current_user: User = Depends(get_current_user)):
 
 @router.get("/labs", response_model=list[SysadminLabSummary])
 def list_sysadmin_labs(
+    catalog: str = Query(default="linux-sysadmin-lab"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     _assert_real_active_user(current_user)
-    settings = SysadminGradingSettings.from_env()
+    if catalog not in {"linux-sysadmin-lab", WORKSHOP_ID}:
+        raise HTTPException(status_code=404, detail="Unknown question catalog.")
+    settings = replace(SysadminGradingSettings.from_env(), marketplace_lab_id=catalog)
     _assert_marketplace_access(settings, current_user, db)
     try:
         settings.assert_ready()
-        return QuestionBankRepository(settings.question_bank_root).student_lab_summaries()
+        return QuestionBankRepository(settings.question_bank_root, catalog_id=catalog).student_lab_summaries()
     except GradingConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except QuestionBankError as exc:
@@ -185,7 +190,7 @@ def get_sysadmin_lab(
     db: Session = Depends(get_db),
 ):
     _assert_real_active_user(current_user)
-    settings = SysadminGradingSettings.from_env()
+    settings = settings_for_lab(SysadminGradingSettings.from_env(), lab_id)
     _assert_marketplace_access(settings, current_user, db)
     try:
         settings.assert_ready()
@@ -227,7 +232,9 @@ def submit_script(
     _assert_real_active_user(current_user)
 
     try:
-        service = SysadminGradingService()
+        settings = settings_for_lab(SysadminGradingSettings.from_env(), payload.lab_id)
+        _assert_marketplace_access(settings, current_user, db)
+        service = SysadminGradingService(settings)
         # This endpoint remains synchronous for v0.5. FastAPI runs sync route
         # handlers in its worker threadpool, keeping blocking ECS/S3 work off the
         # event loop while preserving the established CLI contract.
@@ -238,6 +245,8 @@ def submit_script(
             filename=payload.filename,
             content=payload.content,
         )
+    except HTTPException:
+        raise
     except SubmissionValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except GradingConfigurationError as exc:
@@ -311,8 +320,7 @@ async def start_workspace(
     API traffic.
     """
     _assert_real_active_user(current_user)
-
-    settings = SysadminGradingSettings.from_env()
+    settings = settings_for_lab(SysadminGradingSettings.from_env(), payload.lab_id)
     _assert_marketplace_access(settings, current_user, db)
 
     try:
@@ -371,7 +379,6 @@ def get_workspace_session(
 ):
     _assert_real_active_user(current_user)
     settings = SysadminGradingSettings.from_env()
-    _assert_marketplace_access(settings, current_user, db)
     try:
         service = SysadminWorkspaceService(settings)
         session = service.current(user_id=int(current_user.id))
@@ -379,6 +386,8 @@ def get_workspace_session(
         if not session:
             return None
 
+        settings = settings_for_lab(settings, session.get("lab_id"))
+        _assert_marketplace_access(settings, current_user, db)
         try:
             assert_workspace_assignment_context(
                 db,
@@ -472,7 +481,7 @@ async def workspace_terminal(
                 detail="Workspace owner is no longer active.",
             )
 
-        settings = SysadminGradingSettings.from_env()
+        settings = settings_for_lab(SysadminGradingSettings.from_env(), lab_id)
         _assert_marketplace_access(
             settings,
             user,
@@ -530,7 +539,7 @@ def create_workspace_token(
     access validation. User self-minting remains disabled by default.
     """
     _assert_real_active_user(current_user)
-    settings = SysadminGradingSettings.from_env()
+    settings = settings_for_lab(SysadminGradingSettings.from_env(), payload.lab_id)
     if not settings.allow_user_workspace_token_minting:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -609,7 +618,7 @@ def workspace_submit_script(
     if not user or not getattr(user, "is_active", True):
         raise HTTPException(status_code=403, detail="Workspace owner is no longer active.")
 
-    settings = SysadminGradingSettings.from_env()
+    settings = settings_for_lab(SysadminGradingSettings.from_env(), claims.lab_id)
     _assert_marketplace_access(
         settings,
         user,

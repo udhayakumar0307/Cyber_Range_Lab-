@@ -59,11 +59,14 @@ class StudentLabView:
 class QuestionBankRepository:
     """Resolve a public lab ID to one trusted directory in the private question bank."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, catalog_id: str | None = None):
+        self.catalog_id = catalog_id
         self.root = root.resolve()
         self.labs_root = (self.root / "labs").resolve()
 
     def resolve_lab(self, lab_id: str) -> QuestionBankLab:
+        if self.catalog_id is not None and not self._in_catalog(lab_id):
+            raise QuestionBankError("Question does not belong to this catalog.")
         if not LAB_ID_RE.fullmatch(lab_id or ""):
             raise QuestionBankError("Invalid lab ID format.")
         if not self.labs_root.is_dir():
@@ -160,11 +163,19 @@ class QuestionBankRepository:
         except (TypeError, ValueError) as exc:
             raise QuestionBankError(f"Lab {lab_id} has invalid grading totals.") from exc
 
+        module_label = str(meta.get("module") or lab.path.parent.name).strip()
+        if lab_id.startswith("WS-"):
+            schedule = yaml.safe_load((self.root / "workshop.course.yaml").read_text())["schedule"]
+            entry = next((item for item in schedule if item["id"] == lab_id), None)
+            if entry is None:
+                raise QuestionBankError("Workshop question is missing from the schedule.")
+            module_label = f"Day {entry['day']} · {entry['tier']} · {entry['start']}-{entry['end']}"
+
         return StudentLabView(
             lab_id=lab_id,
             title=str(meta.get("title") or lab_id).strip() or lab_id,
             version=str(meta.get("version") or "").strip(),
-            module=str(meta.get("module") or lab.path.parent.name).strip(),
+            module=module_label,
             difficulty=str(meta.get("difficulty") or "intermediate").strip().lower(),
             learning_objectives=tuple(str(v).strip() for v in objectives if str(v).strip()),
             submission_filename=filename,
@@ -190,6 +201,11 @@ class QuestionBankRepository:
             return value if cp.returncode == 0 and value else None
         except Exception:
             return None
+
+    def _in_catalog(self, lab_id: str) -> bool:
+        if self.catalog_id == "linux-security-workshop":
+            return lab_id.startswith("WS-")
+        return not lab_id.startswith("WS-")
 
     def available_lab_ids(self) -> list[str]:
         if not self.labs_root.is_dir():
@@ -225,4 +241,11 @@ class QuestionBankRepository:
                 return 1
             return 2
 
+        values = [v for v in values if self._in_catalog(v)] if self.catalog_id else values
+        if self.catalog_id == "linux-security-workshop":
+            manifest = yaml.safe_load((self.root / "workshop.course.yaml").read_text())
+            ordered = [item["id"] for item in manifest["schedule"]]
+            if set(ordered) != set(values) or len(ordered) != len(values):
+                raise QuestionBankError("Workshop schedule does not match available questions.")
+            return ordered
         return sorted(values, key=presentation_priority)

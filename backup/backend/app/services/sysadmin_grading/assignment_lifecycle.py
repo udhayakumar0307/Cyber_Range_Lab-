@@ -144,7 +144,7 @@ def stop_sysadmin_assignment_workspaces(
     """
     settings = settings or SysadminGradingSettings.from_env()
 
-    if assignment.lab_id != settings.marketplace_lab_id:
+    if assignment.lab_id != settings.marketplace_lab_id and assignment.lab_id != "linux-security-workshop":
         return 0
 
     user_ids: list[int] = []
@@ -167,6 +167,10 @@ def stop_sysadmin_assignment_workspaces(
     stopped = 0
 
     for user_id in sorted(set(user_ids)):
+        if assignment.lab_id == "linux-security-workshop":
+            session = service.current(user_id=user_id)
+            if not session or session.get("assignment_id") != assignment.id:
+                continue
         if service.stop(
             user_id=user_id,
             reason=reason,

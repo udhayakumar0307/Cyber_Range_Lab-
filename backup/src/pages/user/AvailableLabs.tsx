@@ -248,7 +248,8 @@ export const AvailableLabs: React.FC = () => {
   /* ─── Navigate to lab session ─────────────────────────────── */
   const launchLab = (lab: Lab) => {
     const id = lab.id.toLowerCase().replace(/[\s_-]+/g, '-');
-    if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
+    if (id === 'linux-security-workshop') navigate('/labs/linux-security-workshop');
+    else if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
     else if (id === 'command-line-lab') navigate('/labs/command-line-lab/session/sess-cll-01');
     else if (id === 'cryptography-lab') navigate('/labs/cryptography-lab/session/sess-crypto-01');
     else if (id === 'compliance-portal') navigate('/labs/compliance-portal/session/sess-compliance-01');
@@ -593,7 +594,8 @@ export const AvailableLabs: React.FC = () => {
                       <button
                         onClick={() => {
                           const id = lab.lab_id.toLowerCase().replace(/[\s_-]+/g, '-');
-                          if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
+                          if (id === 'linux-security-workshop') navigate('/labs/linux-security-workshop');
+                          else if (id === 'linux-sysadmin-lab') navigate('/labs/linux-sysadmin');
                           else if (id === 'compliance-portal') navigate('/labs/compliance-portal/session/sess-compliance-01');
                           else navigate(`/labs/${lab.lab_id}/session/sess-123`);
                         }}

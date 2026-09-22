@@ -77,7 +77,7 @@ def sync_sysadmin_lab_modules(
     """
     settings = settings or SysadminGradingSettings.from_env()
     repository = repository or QuestionBankRepository(
-        settings.question_bank_root
+        settings.question_bank_root, catalog_id=settings.marketplace_lab_id
     )
 
     marketplace_lab_id = settings.marketplace_lab_id
@@ -92,7 +92,9 @@ def sync_sysadmin_lab_modules(
             f"Marketplace lab {marketplace_lab_id!r} does not exist."
         )
 
-    lab_ids = _presentation_order(repository.available_lab_ids())
+    lab_ids = repository.available_lab_ids()
+    if settings.marketplace_lab_id != "linux-security-workshop":
+        lab_ids = _presentation_order(lab_ids)
     if not lab_ids:
         raise SysadminCatalogSyncError(
             "Sysadmin question bank contains no available labs."

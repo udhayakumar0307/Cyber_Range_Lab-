@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
                         sysadmin_db,
                         settings=sysadmin_settings,
                         repository=QuestionBankRepository(
-                            sysadmin_settings.question_bank_root
+                            sysadmin_settings.question_bank_root, catalog_id=sysadmin_settings.marketplace_lab_id
                         ),
                     )
                     sysadmin_db.commit()

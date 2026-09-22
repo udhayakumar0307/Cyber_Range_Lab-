@@ -81,8 +81,8 @@ async function apiJson<T>(
 }
 
 export const sysadminGradingService = {
-  listLabs(apiFetch: AuthenticatedFetch): Promise<SysadminLabSummary[]> {
-    return apiJson(apiFetch, '/api/v1/sysadmin-grading/labs');
+  listLabs(apiFetch: AuthenticatedFetch, catalog = "linux-sysadmin-lab"): Promise<SysadminLabSummary[]> {
+    return apiJson(apiFetch, `/api/v1/sysadmin-grading/labs?catalog=${encodeURIComponent(catalog)}`);
   },
 
   getLab(apiFetch: AuthenticatedFetch, labId: string): Promise<SysadminLabDetail> {
