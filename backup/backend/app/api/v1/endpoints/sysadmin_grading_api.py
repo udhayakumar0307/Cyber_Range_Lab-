@@ -95,6 +95,14 @@ def _assert_marketplace_access(
     if role in {"admin", "system_admin", "sysadmin", "super_admin"}:
         return
 
+    # Free portal availability or a purchase does not grant workshop membership.
+    if settings.marketplace_lab_id == WORKSHOP_ID:
+        resolve_current_sysadmin_assignment_id(
+            db,
+            user=current_user,
+            marketplace_lab_id=WORKSHOP_ID,
+        )
+
     # Import lazily to avoid coupling the Sysadmin grading module to marketplace
     # initialization at application import time.
     from app.api.v1.endpoints.labs_api import _get_purchased_lab, _get_sysadmin_assignments
