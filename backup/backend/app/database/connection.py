@@ -16,9 +16,24 @@ SQLite (development only):
 """
 
 import logging
+import os
 from sqlalchemy import create_engine, event, text
 
 logger = logging.getLogger(__name__)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a bounded positive integer without making DB startup fragile."""
+    value = os.getenv(name, str(default)).strip()
+    try:
+        parsed = int(value)
+    except ValueError:
+        logger.warning("Ignoring invalid %s=%r; using %s", name, value, default)
+        return default
+    if parsed < 1:
+        logger.warning("Ignoring non-positive %s=%r; using %s", name, value, default)
+        return default
+    return parsed
 
 
 def create_db_engine(url: str):
@@ -50,14 +65,19 @@ def create_db_engine(url: str):
         logger.info("SQLite engine created (WAL mode, StaticPool).")
         return engine
 
-    # PostgreSQL / MySQL — production pool configuration
+    # PostgreSQL / MySQL — production pool configuration.  The defaults retain
+    # the existing footprint; production may opt into a larger bounded pool
+    # for a class-sized login/workspace burst without changing source again.
+    pool_size = _positive_int_env("CYBERRANGE_DB_POOL_SIZE", 5)
+    max_overflow = _positive_int_env("CYBERRANGE_DB_MAX_OVERFLOW", 10)
+    pool_timeout = _positive_int_env("CYBERRANGE_DB_POOL_TIMEOUT_SECONDS", 30)
     logger.info(f"Creating connection pool for: {url.split('://')[0]}")
     return create_engine(
         url,
         # Connection pool sizing
-        pool_size=5,          # Persistent connections; scale with concurrent workers
-        max_overflow=10,      # Burst capacity on top of pool_size
-        pool_timeout=30,      # Raise TimeoutError after 30s waiting for a connection
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
         # Connection hygiene
         pool_recycle=1800,    # Recycle connections after 30 min (avoids stale server-side disconnect)
         pool_pre_ping=True,   # Validate connection health before each use
